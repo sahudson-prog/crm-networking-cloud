@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maqueta CRM Networking</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --line: #e4e7ec;
+      --line-strong: #cbd5e1;
+      --text: #182230;
+      --muted: #667085;
+      --soft: #f2f4f7;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --green: #047857;
+      --orange: #c2410c;
+      --red: #b42318;
+      --blue: #175cd3;
+      --cyan: #0369a1;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    svg { width: 17px; height: 17px; stroke-width: 2; }
+
+    .app-shell {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 0 28px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(10px);
+      z-index: 3;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 190px;
+      font-weight: 720;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: #111827;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfcfe;
+    }
+
+    .nav-item {
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      background: transparent;
+      font: inherit;
+      cursor: default;
+    }
+
+    .nav-item.active {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    }
+
+    .top-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: #344054;
+    }
+
+    .icon-btn.primary {
+      border-color: #bfdbfe;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    main {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 24px 28px 54px;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+
+    .page-meta {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .compact-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tool-btn {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: #344054;
+      padding: 0 10px;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .tool-btn.primary {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+
+    .tool-btn.danger {
+      color: var(--red);
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .kpi-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 27px;
+      font-weight: 760;
+      letter-spacing: -0.03em;
+    }
+
+    .kpi-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .spark {
+      width: 100%;
+      height: 44px;
+      margin-top: 10px;
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: -0.015em;
+    }
+
+    .coach-table,
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    td {
+      background: var(--surface);
+      font-size: 13px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .pill.rule { color: var(--blue); background: #eff6ff; }
+    .pill.hybrid { color: var(--orange); background: #fff7ed; }
+    .pill.ai { color: #7c3aed; background: #f5f3ff; }
+    .pill.state-red { color: var(--red); background: #fef3f2; }
+    .pill.state-orange { color: var(--orange); background: #fff7ed; }
+    .pill.state-green { color: var(--green); background: #ecfdf3; }
+    .pill.state-blue { color: var(--blue); background: #eff6ff; }
+
+    .layout-two {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .pipeline {
+      display: flex;
+      gap: 0;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .chevron {
+      position: relative;
+      min-height: 66px;
+      flex: 1;
+      padding: 12px 18px 10px 28px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #344054;
+    }
+
+    .chevron:first-child {
+      border-radius: 8px 0 0 8px;
+      padding-left: 16px;
+    }
+
+    .chevron:last-child {
+      border-right: 1px solid var(--line);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .chevron:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: -1px;
+      right: -21px;
+      width: 42px;
+      height: 42px;
+      background: inherit;
+      border-top: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      transform: translateY(12px) rotate(45deg);
+      z-index: 1;
+    }
+
+    .chevron > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    .chevron.active {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+
+    .chevron-label {
+      display: block;
+      font-size: 12px;
+      color: currentColor;
+      opacity: 0.78;
+      margin-bottom: 2px;
+    }
+
+    .chevron-name {
+      display: block;
+      font-weight: 720;
+      letter-spacing: -0.01em;
+    }
+
+    .chevron-count {
+      font-size: 24px;
+      font-weight: 760;
+      letter-spacing: -0.03em;
+    }
+
+    .filter-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 18px 0 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .search {
+      min-width: 270px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      background: #f9fafb;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mini-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .icon-only {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: #475467;
+    }
+
+    .caption {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .topbar { padding: 0 14px; }
+      .brand { min-width: auto; }
+      .brand span:last-child { display: none; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+      .layout-two { grid-template-columns: 1fr; }
+      .pipeline { overflow-x: auto; padding-bottom: 6px; }
+      .chevron { min-width: 190px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 12a5 5 0 0 1 10 0v5H7z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
+        </div>
+        <span>CRM Networking</span>
+      </div>
+      <nav class="nav" aria-label="Navegación principal">
+        <button class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16V9"/><path d="M13 16V6"/><path d="M18 16v-4"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 11a4 4 0 1 0-8 0"/><path d="M3 21a7 7 0 0 1 18 0"/></svg>
+          Contactos
+        </button>
+        <button class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-7h6v7"/><path d="M8 9h.01"/><path d="M16 9h.01"/></svg>
+          Empresas
+        </button>
+      </nav>
+      <div class="top-actions">
+        <button class="icon-btn primary" title="Actualizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        </button>
+        <button class="icon-btn" title="Configuración">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 3.8l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.33.52.55.9.6h.7a2 2 0 1 1 0 4h-.7c-.38.05-.7.27-.9.6z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="page-meta">Gestión diaria de actividad, seguimiento y sugerencias.</p>
+        </div>
+        <div class="compact-actions">
+          <button class="tool-btn primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Buscar sugerencias
+          </button>
+          <button class="tool-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19 12h2"/><path d="M3 12h2"/><path d="M12 3v2"/><path d="M12 19v2"/></svg>
+            Configurar
+          </button>
+        </div>
+      </section>
+
+      <section class="grid kpis">
+        <article class="card">
+          <div class="kpi-title">Citas + llamadas</div>
+          <div class="kpi-value">5</div>
+          <svg class="spark" viewBox="0 0 180 50" fill="none"><path d="M8 36 L55 30 L100 18 L172 24" stroke="#2563eb" stroke-width="3"/><circle cx="8" cy="36" r="4" fill="#2563eb"/><circle cx="55" cy="30" r="4" fill="#2563eb"/><circle cx="100" cy="18" r="4" fill="#2563eb"/><circle cx="172" cy="24" r="4" fill="#2563eb"/></svg>
+          <div class="kpi-sub">vs sem. pasada: +2 (+67%)</div>
+        </article>
+        <article class="card">
+          <div class="kpi-title">Contactados</div>
+          <div class="kpi-value">11</div>
+          <svg class="spark" viewBox="0 0 180 50" fill="none"><path d="M8 32 L55 22 L100 27 L172 16" stroke="#047857" stroke-width="3"/><circle cx="8" cy="32" r="4" fill="#047857"/><circle cx="55" cy="22" r="4" fill="#047857"/><circle cx="100" cy="27" r="4" fill="#047857"/><circle cx="172" cy="16" r="4" fill="#047857"/></svg>
+          <div class="kpi-sub">vs sem. pasada: +1 (+10%)</div>
+        </article>
+        <article class="card">
+          <div class="kpi-title">Citas concretadas</div>
+          <div class="kpi-value">38</div>
+          <svg class="spark" viewBox="0 0 180 50" fill="none"><path d="M8 36 L55 31 L100 24 L172 17" stroke="#0369a1" stroke-width="3"/><circle cx="8" cy="36" r="4" fill="#0369a1"/><circle cx="55" cy="31" r="4" fill="#0369a1"/><circle cx="100" cy="24" r="4" fill="#0369a1"/><circle cx="172" cy="17" r="4" fill="#0369a1"/></svg>
+          <div class="kpi-sub">vs sem. pasada: +4 (+12%)</div>
+        </article>
+        <article class="card">
+          <div class="kpi-title">Dominios HH &gt;60 días</div>
+          <div class="kpi-value">7</div>
+          <svg class="spark" viewBox="0 0 180 50" fill="none"><path d="M8 16 L55 20 L100 25 L172 31" stroke="#c2410c" stroke-width="3"/><circle cx="8" cy="16" r="4" fill="#c2410c"/><circle cx="55" cy="20" r="4" fill="#c2410c"/><circle cx="100" cy="25" r="4" fill="#c2410c"/><circle cx="172" cy="31" r="4" fill="#c2410c"/></svg>
+          <div class="kpi-sub">vs sem. pasada: -3 (-30%)</div>
+        </article>
+      </section>
+
+      <section class="section layout-two">
+        <article class="card">
+          <div class="section-head">
+            <h2 class="section-title">Coach IA</h2>
+            <button class="icon-btn" title="Configurar sugerencias">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19 12h2"/><path d="M3 12h2"/><path d="M12 3v2"/><path d="M12 19v2"/></svg>
+            </button>
+          </div>
+          <table class="coach-table">
+            <thead><tr><th>Contacto</th><th>Sugerencia</th><th>Origen</th><th>Acción</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Jorge Marín</td>
+                <td><span class="pill state-orange">Contactado</span> → <span class="pill state-green">Agendado</span></td>
+                <td><span class="pill rule">Regla</span></td>
+                <td><button class="tool-btn">Aplicar</button></td>
+              </tr>
+              <tr>
+                <td>Ana Peire</td>
+                <td>Preparar seguimiento breve</td>
+                <td><span class="pill ai">IA</span></td>
+                <td><button class="tool-btn">Abrir Gmail</button></td>
+              </tr>
+              <tr>
+                <td>Catalina Jara</td>
+                <td>Revisar referido mencionado</td>
+                <td><span class="pill hybrid">Híbrida</span></td>
+                <td><button class="tool-btn">Revisar</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+
+        <aside class="card">
+          <div class="section-head">
+            <h2 class="section-title">Acciones compactas</h2>
+          </div>
+          <div class="mini-actions">
+            <button class="icon-only" title="Seleccionar todos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></button>
+            <button class="icon-only" title="Limpiar selección"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m7 7 10 10"/><path d="m17 7-10 10"/></svg></button>
+            <button class="icon-only" title="Agregar a networking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg></button>
+            <button class="icon-only" title="Sacar de networking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/></svg></button>
+            <button class="icon-only" title="Marcar headhunter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/><path d="M8 12h8"/></svg></button>
+            <button class="icon-only" title="Etiqueta Gmail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.6 13.5 12 22l-8.5-8.5V4H13z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></button>
+            <button class="icon-only" title="Desactivar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+          </div>
+          <p class="caption">Los iconos reemplazan botones largos. Cada uno lleva tooltip y confirmación cuando corresponde.</p>
+        </aside>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Contactos</h2>
+            <p class="page-meta">Propuesta de pipeline visual en chevrones.</p>
+          </div>
+        </div>
+
+        <div class="pipeline">
+          <div class="chevron active"><div><span class="chevron-label">Inicio</span><span class="chevron-name">Pendientes</span></div><span class="chevron-count">24</span></div>
+          <div class="chevron"><div><span class="chevron-label">Primer contacto</span><span class="chevron-name">Contactado</span></div><span class="chevron-count">18</span></div>
+          <div class="chevron"><div><span class="chevron-label">Próxima acción</span><span class="chevron-name">Agendado</span></div><span class="chevron-count">9</span></div>
+          <div class="chevron"><div><span class="chevron-label">Relación activa</span><span class="chevron-name">Cita concretada</span></div><span class="chevron-count">31</span></div>
+          <div class="chevron"><div><span class="chevron-label">Cierre</span><span class="chevron-name">Agradecido</span></div><span class="chevron-count">27</span></div>
+        </div>
+
+        <div class="filter-strip">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            Buscar, filtrar y ordenar tabla
+          </div>
+          <div class="mini-actions">
+            <button class="tool-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></svg>Filtros</button>
+            <button class="tool-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7h10"/><path d="M7 12h7"/><path d="M7 17h4"/></svg>Orden</button>
+          </div>
+        </div>
+
+        <article class="card" style="padding:0; overflow:hidden;">
+          <table class="data-table">
+            <thead><tr><th></th><th>Contacto</th><th>Empresa</th><th>Última interacción</th><th>Estado</th><th>HH</th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox"></td><td>Josefina Camus</td><td>Sin empresa</td><td>09/07/2026</td><td><span class="pill state-blue">Agradecimiento</span></td><td>Sí</td></tr>
+              <tr><td><input type="checkbox"></td><td>Alberto Orlandini</td><td>Sin empresa</td><td>06/07/2026</td><td><span class="pill state-green">Agendado</span></td><td>No</td></tr>
+              <tr><td><input type="checkbox"></td><td>Ana Peire</td><td>Odgers</td><td>04/07/2026</td><td><span class="pill state-orange">Contactado</span></td><td>Sí</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

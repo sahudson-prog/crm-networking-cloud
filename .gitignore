@@ -1,0 +1,51 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Local Google OAuth files
+credentials.json
+token.json
+
+# Local environment/configuration
+.env
+.env.*
+!.env.example
+
+# Build/test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Local code snapshots created during manual backups
+app copy.py
+app.before-*.py
+
+# Local migration/support files with contact data
+backups/
+Lista contactos.xlsx
+*.xlsx
+*.xls
+*.docx
+*.zip
+.tmp_*.csv
+migration_preview_*.csv
+backup_CRM_*.csv
+token.invalid-*.json
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
