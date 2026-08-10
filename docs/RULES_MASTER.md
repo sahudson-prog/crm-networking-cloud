@@ -11,6 +11,7 @@ Este documento define el maestro vivo de reglas del Coach IA. Su foco inicial so
 - Los triggers se derivan de las variables requeridas: si cambia una variable usada por una regla, se debe reevaluar esa regla para el objeto afectado.
 - La revision periodica al cargar Dashboard funciona como red de seguridad, no como unico mecanismo.
 - Este documento distingue reglas implementadas de reglas catalogadas aun no implementadas.
+- En cloud no se deben copiar automaticamente todas las reglas existentes en la app legado. Cada regla debe revisarse una por una, definir condicion booleana, variables, evidencia, accion, prelacion, tier minimo y modo de automatizacion permitido, y migrarse solo con confirmacion explicita del usuario.
 
 ## Estados de cierre sugeridos
 

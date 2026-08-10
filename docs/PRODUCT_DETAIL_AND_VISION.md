@@ -143,6 +143,8 @@ Los tipos de sugerencia y automatizacion deben poder cambiar de tier sin reprogr
 
 En el end game, los planes comerciales deben alimentar un mantenedor de perfiles/capacidades mas amplio. Ese mantenedor define vistas disponibles, permisos, conectores, cuotas, limites de sync/import, acciones automatizables, exportaciones y auditoria. El perfil efectivo del usuario puede combinar plan personal, patrocinio de empresa, upgrades, permisos especiales y configuracion individual.
 
+La exportacion masiva o sincronizacion saliente de contactos hacia proveedores externos no es una prioridad del MVP y no debe habilitarse en planes gratuitos. Es una capacidad sensible por riesgo de abuso, ya que podria incentivar creacion de cuentas gratis para importar datos, exportarlos y agotar cuotas. Si se implementa, debe quedar asociada a tiers superiores, reglas anti-abuso y condiciones comerciales a definir, por ejemplo antiguedad o pago minimo acumulado. En cambio, importar contactos hacia la app si es prioritario porque reduce friccion de entrada y permite que el usuario empiece a usar el producto rapidamente.
+
 ### Monetizacion y clientes outplacement
 
 El producto puede servir tanto a usuarios individuales como a empresas de outplacement que compran membresias para sus candidatos.
@@ -152,6 +154,7 @@ Vision de monetizacion:
 - B2C: el usuario paga directamente por su plan.
 - B2B: una empresa de outplacement paga un tier base para uno o mas usuarios.
 - Upgrade individual: si una empresa paga un tier base, el usuario puede pagar por separado el diferencial para subir a un tier superior, si quiere y puede hacerlo.
+- Capacidades sensibles como exportacion masiva o sync saliente de contactos deben poder restringirse por tier, antiguedad, permanencia pagada, cuota y señales anti-abuso.
 
 El usuario siempre debe entender que capacidades tiene disponibles, que capacidades estan patrocinadas por una empresa y cuales podria habilitar pagando un upgrade. El modelo comercial no debe afectar la privacidad: una empresa patrocinadora no obtiene acceso automatico al detalle privado de contactos, correos, minutas o networking del usuario salvo un consentimiento y alcance explicito futuro.
 
@@ -200,7 +203,7 @@ El usuario entra, conecta Google, importa contactos o sube un CSV/Excel, y queda
 
 ### Contactos como fuente propia
 
-La app debe tener su propia identidad de contacto. Google, Apple, Microsoft, CSV/Excel u otros servicios son proveedores conectados para importar, actualizar o exportar datos, pero no deben ser la fuente unica de verdad del contacto.
+La app debe tener su propia identidad de contacto. Google, Apple, Microsoft, CSV/Excel u otros servicios son proveedores conectados principalmente para importar o actualizar datos dentro de la app, pero no deben ser la fuente unica de verdad del contacto. Exportar contactos desde la app hacia esos proveedores queda fuera del MVP y debe tratarse como una capacidad avanzada sujeta a tier, cuotas y reglas anti-abuso.
 
 ### Interacciones como fuente propia
 
@@ -333,3 +336,4 @@ La experiencia debe diseñarse desde ahora con componentes faciles de transforma
 - 2026-07-27: Se inicia la replica cloud visible con una web en modo lectura para Dashboard, Contactos y Sistema, pensada para comparar datos importados antes de reemplazar la app local.
 - 2026-07-29: Se amplia vision de planes para incluir matriz flexible de capacidades por tier, automatizaciones/sync por plan, membresias patrocinadas por outplacement, upgrades individuales y analitica agregada con privacidad.
 - 2026-07-30: Se agrega vision de mantenedor de perfiles/capacidades como capa superior a planes comerciales: vistas, permisos, cuotas, conectores, automatizaciones, exportaciones y auditoria.
+- 2026-08-10: Se ajusta vision comercial de conectores: importar contactos hacia la app es prioridad de onboarding; exportar o sincronizar contactos hacia proveedores externos queda fuera del MVP y se considera capacidad premium futura con reglas anti-abuso, cuotas y condiciones comerciales por definir.
