@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { GOOGLE_CONTACTS_READONLY_SCOPE } from "../lib/googleContactsClient";
 import {
   GOOGLE_INTERACTIONS_READONLY_SCOPES,
@@ -10,8 +10,10 @@ import {
   syncGoogleInteractions,
   type SyncGoogleInteractionsResult
 } from "../lib/googleInteractionSyncFlow";
+import { formatGoogleInteractionHistoricalMessage } from "../lib/interactionSyncText";
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { supabase } from "../lib/supabaseClient";
+import { InteractionSyncResultSummary } from "./InteractionSyncResultSummary";
 import { Button } from "./ui/Button";
 import { ProviderButton } from "./ui/ProviderIcon";
 
@@ -58,22 +60,6 @@ export function GoogleInteractionsSyncPanel() {
       active = false;
     };
   }, []);
-
-  const lastRunSummary = useMemo(() => {
-    if (!state.lastRun) return null;
-    const mail = state.lastRun.mail;
-    const calendar = state.lastRun.calendar;
-    return {
-      dryRun: state.lastRun.mail?.dryRun ?? state.lastRun.calendar?.dryRun ?? false,
-      calendarCandidates: calendar?.counts.scanned ?? 0,
-      calendarCreated: calendar?.counts.created ?? 0,
-      calendarUpdated: calendar?.counts.updated ?? 0,
-      mailCandidates: mail?.counts.scanned ?? 0,
-      mailCreated: mail?.counts.created ?? 0,
-      mailUpdated: mail?.counts.updated ?? 0,
-      skipped: (mail?.counts.skipped ?? 0) + (calendar?.counts.skipped ?? 0)
-    };
-  }, [state.lastRun]);
 
   async function connectGoogle() {
     if (!supabase) {
@@ -147,7 +133,7 @@ export function GoogleInteractionsSyncPanel() {
         error: result.errors.map((error) => error.message).join(" ") || "",
         lastRun: result,
         loading: false,
-        message: resultMessage(result, dryRun)
+        message: formatGoogleInteractionHistoricalMessage(result)
       }));
     } catch (error) {
       if (error instanceof GoogleInteractionClientError && error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") {
@@ -200,13 +186,9 @@ export function GoogleInteractionsSyncPanel() {
           <strong>Aplicacion</strong>
           <span>Primero revisa sin guardar. Esta accion no actualiza cursores incrementales; sirve para reparar o cargar hacia atras.</span>
         </div>
-        {lastRunSummary ? (
-          <div className="compact-row">
-            <strong>Ultima revision</strong>
-            <span>{formatLastRunSummary(lastRunSummary)}</span>
-          </div>
-        ) : null}
       </div>
+
+      <InteractionSyncResultSummary result={state.lastRun} />
 
       <div className="toolbar" style={{ marginTop: 14 }}>
         <Button disabled={!canApplyLastReview || state.loading || state.applying} icon="check" onClick={applyInteractions} tone="primary">
@@ -219,31 +201,4 @@ export function GoogleInteractionsSyncPanel() {
       {state.error ? <p className="form-error">{state.error}</p> : null}
     </section>
   );
-}
-
-function resultMessage(result: SyncGoogleInteractionsResult, dryRun: boolean) {
-  const prefix = dryRun ? "Revision lista sin guardar" : "Sincronizacion aplicada";
-  if (!result.ok) return `${prefix}, con errores por revisar.`;
-  const candidates = (result.mail?.counts.scanned ?? 0) + (result.calendar?.counts.scanned ?? 0);
-  if (dryRun) return `${prefix}: ${candidates} posibles interacciones.`;
-  const created = (result.mail?.counts.created ?? 0) + (result.calendar?.counts.created ?? 0);
-  const updated = (result.mail?.counts.updated ?? 0) + (result.calendar?.counts.updated ?? 0);
-  const skipped = (result.mail?.counts.skipped ?? 0) + (result.calendar?.counts.skipped ?? 0);
-  return `${prefix}: ${created} nuevos, ${updated} modificados, ${skipped} omitidos.`;
-}
-
-function formatLastRunSummary(summary: {
-  calendarCandidates: number;
-  calendarCreated: number;
-  calendarUpdated: number;
-  dryRun: boolean;
-  mailCandidates: number;
-  mailCreated: number;
-  mailUpdated: number;
-  skipped: number;
-}) {
-  if (summary.dryRun) {
-    return `Revision sin guardar: Gmail ${summary.mailCandidates}, Calendar ${summary.calendarCandidates} posibles interacciones.`;
-  }
-  return `Resultado aplicado: Gmail ${summary.mailCreated} nuevos, ${summary.mailUpdated} modificados; Calendar ${summary.calendarCreated} nuevos, ${summary.calendarUpdated} modificados; ${summary.skipped} omitidos.`;
 }

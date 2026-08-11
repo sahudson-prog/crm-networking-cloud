@@ -10,6 +10,7 @@ import {
   syncGoogleInteractions,
   type SyncGoogleInteractionsResult
 } from "../lib/googleInteractionSyncFlow";
+import { formatGoogleInteractionSyncMessage } from "../lib/interactionSyncText";
 import type { ContactRow } from "../lib/readModel";
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { supabase } from "../lib/supabaseClient";
@@ -189,10 +190,5 @@ function gmailContactQuery(emails: string[]) {
 }
 
 function resultMessage(result: SyncGoogleInteractionsResult) {
-  const created = (result.mail?.counts.created ?? 0) + (result.calendar?.counts.created ?? 0);
-  const updated = (result.mail?.counts.updated ?? 0) + (result.calendar?.counts.updated ?? 0);
-  const skipped = (result.mail?.counts.skipped ?? 0) + (result.calendar?.counts.skipped ?? 0);
-  const summary = `${created} nuevos, ${updated} modificados, ${skipped} omitidos.`;
-  if (!result.ok) return `Actualizacion incompleta: ${summary}`;
-  return `Actualizacion lista: ${summary}`;
+  return formatGoogleInteractionSyncMessage(result);
 }
