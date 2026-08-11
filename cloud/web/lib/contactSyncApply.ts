@@ -169,6 +169,7 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
   const db = requireSupabase();
   const mergeDecision = contactMergeDecisionFromPreviewChange(change);
   const payload = fieldsToContactPayload(change.fields);
+  await assertContactIdentityAvailableForCreate(change, mergeDecision, context);
   const { data, error } = await db
     .from("contacts")
     .insert({
@@ -200,6 +201,59 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
   await upsertExternalContactId(contactId, change, context);
   await auditChange(contactId, change, context);
   return contactId;
+}
+
+async function assertContactIdentityAvailableForCreate(
+  change: SyncPreviewChange,
+  mergeDecision: ContactMergeResult | null,
+  context: ApplyContactSyncContext
+) {
+  const identities = contactIdentityValuesForCreate(change, mergeDecision);
+  const db = requireSupabase();
+
+  if (identities.emails.length) {
+    const { data, error } = await db
+      .from("contact_emails")
+      .select("normalized_email")
+      .eq("user_id", context.userId)
+      .in("normalized_email", identities.emails)
+      .limit(1);
+    if (error) throw error;
+    if ((data ?? []).length) {
+      throw new Error("No puedo crear este contacto porque uno de sus correos ya pertenece a otro contacto guardado. Resuelve la fusion desde Revision de duplicados.");
+    }
+  }
+
+  if (identities.phones.length) {
+    const { data, error } = await db
+      .from("contact_phones")
+      .select("normalized_phone")
+      .eq("user_id", context.userId)
+      .in("normalized_phone", identities.phones)
+      .limit(1);
+    if (error) throw error;
+    if ((data ?? []).length) {
+      throw new Error("No puedo crear este contacto porque uno de sus telefonos ya pertenece a otro contacto guardado. Resuelve la fusion desde Revision de duplicados.");
+    }
+  }
+}
+
+export function contactIdentityValuesForCreate(change: SyncPreviewChange, mergeDecision: ContactMergeResult | null = null) {
+  if (mergeDecision) {
+    return {
+      emails: uniqueClean(mergeDecision.emails.map(normalizeEmail)),
+      phones: uniqueClean(mergeDecision.phones.map(normalizePhone))
+    };
+  }
+
+  return {
+    emails: uniqueClean(change.fields
+      .filter((field) => field.apply !== false && field.label === "Correo" && field.operation !== "remove")
+      .map((field) => normalizeEmail(field.after ?? ""))),
+    phones: uniqueClean(change.fields
+      .filter((field) => field.apply !== false && field.label === "Telefono" && field.operation !== "remove")
+      .map((field) => normalizePhone(field.after ?? "")))
+  };
 }
 
 async function updateContactFromSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
@@ -601,6 +655,10 @@ function errorMessage(error: unknown, fallback: string) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function uniqueClean(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function requireSupabase() {

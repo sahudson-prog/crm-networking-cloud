@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyContactSyncPreview, contactAppMergePlanFromPreviewChange } from "../lib/contactSyncApply.ts";
+import {
+  applyContactSyncPreview,
+  contactAppMergePlanFromPreviewChange,
+  contactIdentityValuesForCreate
+} from "../lib/contactSyncApply.ts";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator.ts";
 
 const baseChange: SyncPreviewChange = {
@@ -296,4 +300,27 @@ test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fus
 
   assert.deepEqual(plan.sourceContactIds, ["contact-source"]);
   assert.equal(plan.sources.length, 3);
+});
+
+test("contactIdentityValuesForCreate deriva correos y telefonos antes de crear contacto", () => {
+  const change: SyncPreviewChange = {
+    defaultSelected: true,
+    fields: [
+      { after: "ANA@EXAMPLE.COM", changed: true, label: "Correo", operation: "add" },
+      { after: "ana@example.com", changed: true, label: "Correo", operation: "add" },
+      { after: "+56 9 7139 3328", changed: true, label: "Telefono", operation: "add" },
+      { after: "+56 9 7139 3328", changed: true, label: "Telefono", operation: "add" },
+      { after: "No aplica", apply: false, changed: true, label: "Correo", operation: "add" },
+      { before: "old@example.com", changed: true, label: "Correo", operation: "remove" }
+    ],
+    id: "google:duplicate_complex:people/ana",
+    metadata: { externalId: "people/ana" },
+    title: "Ana Maria",
+    type: "duplicate_complex"
+  };
+
+  assert.deepEqual(contactIdentityValuesForCreate(change), {
+    emails: ["ana@example.com"],
+    phones: ["+56971393328"]
+  });
 });
