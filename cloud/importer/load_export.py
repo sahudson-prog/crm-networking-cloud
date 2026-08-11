@@ -313,7 +313,7 @@ def build_interactions(
         interaction_id = stable_uuid(user_id, "interactions", legacy_entry_id)
         if legacy_entry_id not in seen_interactions:
             seen_interactions.add(legacy_entry_id)
-            source_id = clean_text(row.get("ID_Fuente", ""))
+            source_id = normalize_external_interaction_id(row.get("ID_Fuente", ""))
             thread_id = clean_text(row.get("Thread_ID", ""))
             interaction_type = normalize_interaction_type(row.get("Tipo", ""))
             provider, source_service, external_object_type = external_source_kind(source_id, interaction_type)
@@ -396,6 +396,10 @@ def external_source_kind(source_id: str, interaction_type: str) -> Tuple[Optiona
     if upper.startswith("CALENDAR"):
         return "google", "calendar", "calendar_event"
     return None, "manual", interaction_type or "manual"
+
+
+def normalize_external_interaction_id(value: Any) -> str:
+    return clean_text(value).lower()
 
 
 def content_hash(subject: str, source_detail: Optional[str]) -> Optional[str]:
