@@ -64,15 +64,13 @@ export function GoogleInteractionsSyncPanel() {
     const mail = state.lastRun.mail;
     const calendar = state.lastRun.calendar;
     return {
+      dryRun: state.lastRun.mail?.dryRun ?? state.lastRun.calendar?.dryRun ?? false,
       calendarCandidates: calendar?.counts.scanned ?? 0,
       calendarCreated: calendar?.counts.created ?? 0,
-      calendarScanned: state.lastRun.googleRead.calendarEvents,
       calendarUpdated: calendar?.counts.updated ?? 0,
       mailCandidates: mail?.counts.scanned ?? 0,
       mailCreated: mail?.counts.created ?? 0,
-      mailScanned: state.lastRun.googleRead.mailMessages,
       mailUpdated: mail?.counts.updated ?? 0,
-      participants: (mail?.counts.participantsInserted ?? 0) + (calendar?.counts.participantsInserted ?? 0),
       skipped: (mail?.counts.skipped ?? 0) + (calendar?.counts.skipped ?? 0)
     };
   }, [state.lastRun]);
@@ -205,9 +203,7 @@ export function GoogleInteractionsSyncPanel() {
         {lastRunSummary ? (
           <div className="compact-row">
             <strong>Ultima revision</strong>
-            <span>
-              Gmail: {lastRunSummary.mailScanned} leidos, {lastRunSummary.mailCandidates} compatibles, {lastRunSummary.mailCreated} nuevos, {lastRunSummary.mailUpdated} actualizados. Calendar: {lastRunSummary.calendarScanned} leidos, {lastRunSummary.calendarCandidates} compatibles, {lastRunSummary.calendarCreated} nuevos, {lastRunSummary.calendarUpdated} actualizados. Participantes vinculados: {lastRunSummary.participants}. Omitidos: {lastRunSummary.skipped}.
-            </span>
+            <span>{formatLastRunSummary(lastRunSummary)}</span>
           </div>
         ) : null}
       </div>
@@ -228,10 +224,26 @@ export function GoogleInteractionsSyncPanel() {
 function resultMessage(result: SyncGoogleInteractionsResult, dryRun: boolean) {
   const prefix = dryRun ? "Revision lista sin guardar" : "Sincronizacion aplicada";
   if (!result.ok) return `${prefix}, con errores por revisar.`;
-  const scanned = result.googleRead.mailMessages + result.googleRead.calendarEvents;
   const candidates = (result.mail?.counts.scanned ?? 0) + (result.calendar?.counts.scanned ?? 0);
-  if (dryRun) return `${prefix}: ${scanned} objetos leidos y ${candidates} compatibles con contactos guardados.`;
+  if (dryRun) return `${prefix}: ${candidates} posibles interacciones.`;
   const created = (result.mail?.counts.created ?? 0) + (result.calendar?.counts.created ?? 0);
   const updated = (result.mail?.counts.updated ?? 0) + (result.calendar?.counts.updated ?? 0);
-  return `${prefix}: ${scanned} objetos leidos, ${created} nuevos y ${updated} actualizados.`;
+  const skipped = (result.mail?.counts.skipped ?? 0) + (result.calendar?.counts.skipped ?? 0);
+  return `${prefix}: ${created} nuevos, ${updated} modificados, ${skipped} omitidos.`;
+}
+
+function formatLastRunSummary(summary: {
+  calendarCandidates: number;
+  calendarCreated: number;
+  calendarUpdated: number;
+  dryRun: boolean;
+  mailCandidates: number;
+  mailCreated: number;
+  mailUpdated: number;
+  skipped: number;
+}) {
+  if (summary.dryRun) {
+    return `Revision sin guardar: Gmail ${summary.mailCandidates}, Calendar ${summary.calendarCandidates} posibles interacciones.`;
+  }
+  return `Resultado aplicado: Gmail ${summary.mailCreated} nuevos, ${summary.mailUpdated} modificados; Calendar ${summary.calendarCreated} nuevos, ${summary.calendarUpdated} modificados; ${summary.skipped} omitidos.`;
 }

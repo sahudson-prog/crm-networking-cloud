@@ -189,10 +189,10 @@ function gmailContactQuery(emails: string[]) {
 }
 
 function resultMessage(result: SyncGoogleInteractionsResult) {
-  const read = result.googleRead.mailMessages + result.googleRead.calendarEvents;
   const created = (result.mail?.counts.created ?? 0) + (result.calendar?.counts.created ?? 0);
   const updated = (result.mail?.counts.updated ?? 0) + (result.calendar?.counts.updated ?? 0);
   const skipped = (result.mail?.counts.skipped ?? 0) + (result.calendar?.counts.skipped ?? 0);
-  if (!result.ok) return `Actualizacion incompleta: ${read} leidos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos.`;
-  return `Actualizacion lista: ${read} leidos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos.`;
+  const summary = `${created} nuevos, ${updated} modificados, ${skipped} omitidos.`;
+  if (!result.ok) return `Actualizacion incompleta: ${summary}`;
+  return `Actualizacion lista: ${summary}`;
 }
