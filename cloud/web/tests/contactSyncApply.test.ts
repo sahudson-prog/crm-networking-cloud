@@ -199,6 +199,48 @@ test("applyContactSyncPreview distingue aplicados y fallidos en seleccion parcia
   assert.deepEqual(result.failedChangeIds, [failingChange.id]);
 });
 
+test("applyContactSyncPreview registra detalle de errores no Error desde Supabase", async () => {
+  const duplicateComplexChange: SyncPreviewChange = {
+    defaultSelected: true,
+    fields: [{ after: "anamaria@example.com", changed: true, label: "Correo" }],
+    id: "google:duplicate_complex:people/anamaria",
+    metadata: {
+      externalId: "people/anamaria"
+    },
+    title: "Anamaria",
+    type: "duplicate_complex"
+  };
+
+  const result = await applyContactSyncPreview(
+    {
+      changes: [duplicateComplexChange],
+      provider: "google",
+      totalPreviewChanges: 1
+    },
+    {
+      applyChange: async () => {
+        throw {
+          code: "23505",
+          details: "Key (user_id, normalized_email) already exists.",
+          message: "duplicate key value violates unique constraint"
+        };
+      },
+      completeInvocation: async () => undefined,
+      createInvocation: async () => "invocation-1",
+      failInvocation: async () => undefined,
+      getUserId: async () => "user-1",
+      saveCursor: async () => undefined
+    }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].externalId, "people/anamaria");
+  assert.equal(result.errors[0].objectId, "people/anamaria");
+  assert.match(result.errors[0].message, /duplicate key value/);
+  assert.match(result.errors[0].message, /normalized_email/);
+  assert.match(result.errors[0].message, /23505/);
+});
+
 test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fusion profunda", () => {
   const change: SyncPreviewChange = {
     defaultSelected: true,

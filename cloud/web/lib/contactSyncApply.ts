@@ -108,8 +108,9 @@ export async function applyContactSyncPreview(
         result.failedChangeIds.push(change.id);
         result.errors.push({
           code: "CONTACT_SYNC_APPLY_FAILED",
-          message: error instanceof Error ? error.message : "No pude aplicar el cambio de contacto.",
-          objectId: metadataString(change, "appContactId")
+          externalId: metadataString(change, "externalId"),
+          message: errorMessage(error, "No pude aplicar el cambio de contacto."),
+          objectId: changeObjectId(change)
         });
       }
     }
@@ -539,7 +540,7 @@ async function failActionInvocation(invocationId: string | null, error: unknown)
     .from("action_invocations")
     .update({
       status: "failed",
-      error_message: error instanceof Error ? error.message : "Error al aplicar preview de contactos."
+      error_message: errorMessage(error, "Error al aplicar preview de contactos.")
     })
     .eq("id", invocationId)
     .eq("user_id", userId);
@@ -574,6 +575,32 @@ function requiredMetadata(change: SyncPreviewChange, key: string) {
 function metadataString(change: SyncPreviewChange, key: string) {
   const value = change.metadata?.[key];
   return typeof value === "string" ? value : "";
+}
+
+function changeObjectId(change: SyncPreviewChange) {
+  return metadataString(change, "appContactId")
+    || metadataString(change, "consolidationTargetContactId")
+    || metadataString(change, "externalId")
+    || change.id;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [
+      stringValue(record.message),
+      stringValue(record.details),
+      stringValue(record.hint),
+      stringValue(record.code)
+    ].filter(Boolean);
+    if (parts.length) return parts.join(" ");
+  }
+  return fallback;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
 function requireSupabase() {
