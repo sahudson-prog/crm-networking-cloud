@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ActivitySyncButton } from "./ActivitySyncButton";
 import { Icon } from "./ui/Icon";
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -34,6 +35,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Icon name="user" />
             Cuenta
           </Link>
+          <ActivitySyncButton variant="focus_incremental" />
         </nav>
       </header>
       <div className="banner">

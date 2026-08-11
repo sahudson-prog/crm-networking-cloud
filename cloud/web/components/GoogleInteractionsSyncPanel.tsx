@@ -10,6 +10,7 @@ import {
   syncGoogleInteractions,
   type SyncGoogleInteractionsResult
 } from "../lib/googleInteractionSyncFlow";
+import { readNetworkingStartIso } from "../lib/syncDate";
 import { supabase } from "../lib/supabaseClient";
 import { Button } from "./ui/Button";
 import { ProviderButton } from "./ui/ProviderIcon";
@@ -126,14 +127,19 @@ export function GoogleInteractionsSyncPanel() {
     }));
 
     try {
+      const historicalStart = await readNetworkingStartIso();
       const result = await syncGoogleInteractions({
         accessToken: state.accessToken,
+        calendarTimeMin: historicalStart,
         dryRun,
+        forceFullSync: true,
+        gmailSince: historicalStart,
         includeCalendar: true,
         includeMail: true,
         maxCalendarEvents: 20,
         maxMailMessages: 20,
         maxPages: 2,
+        saveCursors: false,
         userEmail: state.userEmail
       });
 
@@ -173,12 +179,12 @@ export function GoogleInteractionsSyncPanel() {
       <div className="panel-header">
         <div>
           <h2 className="panel-title">Sincronizar correos y calendario</h2>
-          <span className="panel-caption">Lee Gmail y Calendar para crear o actualizar interacciones en la app.</span>
+          <span className="panel-caption">Mantenimiento pesado: reconstruye historial desde la fecha global de inicio.</span>
         </div>
         <div className="toolbar">
           <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={connectGoogle} />
           <Button disabled={state.loading || state.applying} icon="sync" onClick={state.accessToken ? reviewInteractions : connectGoogle} tone="primary">
-            {state.loading ? "Revisando..." : state.accessToken ? "Revisar" : "Conectar Google"}
+            {state.loading ? "Revisando..." : state.accessToken ? "Revisar historico" : "Conectar Google"}
           </Button>
         </div>
       </div>
@@ -190,11 +196,11 @@ export function GoogleInteractionsSyncPanel() {
         </div>
         <div className="compact-row">
           <strong>Limite beta</strong>
-          <span>Maximo 20 correos, 20 eventos y 2 paginas por revision para evitar consumo excesivo.</span>
+          <span>Maximo 20 correos, 20 eventos y 2 paginas por revision historica para evitar consumo excesivo.</span>
         </div>
         <div className="compact-row">
           <strong>Aplicacion</strong>
-          <span>Primero revisa sin guardar; luego puedes aplicar la sincronizacion sobre la misma ventana de datos.</span>
+          <span>Primero revisa sin guardar. Esta accion no actualiza cursores incrementales; sirve para reparar o cargar hacia atras.</span>
         </div>
         {lastRunSummary ? (
           <div className="compact-row">
@@ -208,7 +214,7 @@ export function GoogleInteractionsSyncPanel() {
 
       <div className="toolbar" style={{ marginTop: 14 }}>
         <Button disabled={!canApplyLastReview || state.loading || state.applying} icon="check" onClick={applyInteractions} tone="primary">
-          {state.applying ? "Aplicando..." : "Aplicar sincronizacion"}
+          {state.applying ? "Aplicando..." : "Aplicar reconstruccion"}
         </Button>
       </div>
 

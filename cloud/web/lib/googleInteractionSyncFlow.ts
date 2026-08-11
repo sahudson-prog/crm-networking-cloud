@@ -25,15 +25,21 @@ export type SyncGoogleInteractionsInput = {
   accessToken: string;
   userEmail: string;
   connectedAccountId?: string | null;
+  contactIds?: string[];
   cursorLabel?: string;
   dryRun?: boolean;
+  focusedOnly?: boolean;
+  forceFullSync?: boolean;
   includeCalendar?: boolean;
   includeMail?: boolean;
   maxCalendarEvents?: number;
   maxMailMessages?: number;
   maxPages?: number;
+  calendarQuery?: string | null;
   calendarTimeMin?: string | null;
+  gmailSince?: string | null;
   gmailQuery?: string | null;
+  saveCursors?: boolean;
 };
 
 export type SyncGoogleInteractionsResult = {
@@ -66,6 +72,7 @@ type SyncGoogleInteractionsDependencies = {
     accessToken: string;
     maxEvents?: number;
     maxPages?: number;
+    query?: string | null;
     syncToken?: string | null;
     timeMin?: string | null;
   }) => Promise<GoogleCalendarReadResult>;
@@ -79,12 +86,14 @@ export async function syncGoogleInteractions(
 ): Promise<SyncGoogleInteractionsResult> {
   const deps = defaultDependencies(dependencies);
   const cursorLabel = input.cursorLabel ?? "";
+  const shouldUseCursors = input.forceFullSync ? false : input.saveCursors !== false;
   const [contacts, mailCursor, calendarCursor] = await Promise.all([
     deps.readAppContacts(),
-    input.includeMail === false ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "mail" }),
-    input.includeCalendar === false ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "calendar" })
+    input.includeMail === false || !shouldUseCursors ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "mail" }),
+    input.includeCalendar === false || !shouldUseCursors ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "calendar" })
   ]);
-  const contactsByEmail = contactIndexByEmail(contacts);
+  const scopedContacts = filterContactsForSync(contacts, input);
+  const contactsByEmail = contactIndexByEmail(scopedContacts);
   const warnings: string[] = [];
   const errors: Array<{ code: string; message: string }> = [];
   let mail: SyncRunResult | null = null;
@@ -99,7 +108,7 @@ export async function syncGoogleInteractions(
         maxMessages: input.maxMailMessages,
         maxPages: input.maxPages,
         query: input.gmailQuery,
-        since: mailCursor
+        since: mailCursor ?? input.gmailSince
       });
       const mailItems = mailRead.messages
         .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
@@ -116,7 +125,7 @@ export async function syncGoogleInteractions(
         source: "google_gmail_sync_flow"
       });
       warnings.push(...mailRead.warnings, ...mail.warnings);
-      if (mail.ok && !input.dryRun) {
+      if (mail.ok && !input.dryRun && shouldUseCursors) {
         await deps.writeCursor({
           cursorLabel,
           cursorValue: mailRead.nextCursor,
@@ -134,6 +143,7 @@ export async function syncGoogleInteractions(
       calendarRead = await readCalendarWithExpiredCursorRetry(deps, {
         accessToken: input.accessToken,
         calendarTimeMin: input.calendarTimeMin,
+        calendarQuery: input.calendarQuery,
         cursorLabel,
         maxCalendarEvents: input.maxCalendarEvents,
         maxPages: input.maxPages,
@@ -154,7 +164,7 @@ export async function syncGoogleInteractions(
         source: "google_calendar_sync_flow"
       });
       warnings.push(...calendarRead.warnings, ...calendar.warnings);
-      if (calendar.ok && calendarRead.nextSyncToken && !input.dryRun) {
+      if (calendar.ok && calendarRead.nextSyncToken && !input.dryRun && shouldUseCursors) {
         await deps.writeCursor({
           cursorLabel,
           cursorValue: calendarRead.nextSyncToken,
@@ -187,6 +197,7 @@ async function readCalendarWithExpiredCursorRetry(
   input: {
     accessToken: string;
     calendarTimeMin?: string | null;
+    calendarQuery?: string | null;
     cursorLabel: string;
     maxCalendarEvents?: number;
     maxPages?: number;
@@ -198,6 +209,7 @@ async function readCalendarWithExpiredCursorRetry(
       accessToken: input.accessToken,
       maxEvents: input.maxCalendarEvents,
       maxPages: input.maxPages,
+      query: input.calendarQuery,
       syncToken: input.syncToken,
       timeMin: input.calendarTimeMin
     });
@@ -208,6 +220,7 @@ async function readCalendarWithExpiredCursorRetry(
       accessToken: input.accessToken,
       maxEvents: input.maxCalendarEvents,
       maxPages: input.maxPages,
+      query: input.calendarQuery,
       syncToken: null,
       timeMin: input.calendarTimeMin
     });
@@ -261,6 +274,13 @@ function contactIndexByEmail(contacts: ContactRow[]): GoogleContactIndex {
     }
   }
   return Object.fromEntries(entries);
+}
+
+function filterContactsForSync(contacts: ContactRow[], input: SyncGoogleInteractionsInput) {
+  const ids = new Set((input.contactIds ?? []).map((id) => id.trim()).filter(Boolean));
+  if (ids.size) return contacts.filter((contact) => ids.has(contact.id));
+  if (input.focusedOnly) return contacts.filter((contact) => contact.networking_focus && contact.is_active);
+  return contacts.filter((contact) => contact.is_active);
 }
 
 function normalizeGoogleSyncError(error: unknown) {

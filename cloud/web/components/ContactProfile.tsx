@@ -14,6 +14,7 @@ import type {
   InteractionParticipantRow,
   InteractionRow
 } from "../lib/readModel";
+import { ActivitySyncButton } from "./ActivitySyncButton";
 import { CoachModule } from "./CoachPreview";
 import { ContactEditorDialog } from "./ContactEditorDialog";
 import { InteractionEditorDialog } from "./InteractionEditorDialog";
@@ -139,7 +140,10 @@ export function ContactProfile({ profile, onReload }: ContactProfileProps) {
               <h1>{contact.display_name || "Contacto sin nombre"}</h1>
               <ContactCompanyRoleLine company={contact.company} role={contact.role} />
             </div>
-            <Button aria-label="Editar contacto" icon="edit" onClick={() => setEditorOpen(true)} square />
+            <div className="contact-identity-actions">
+              <ActivitySyncButton contact={contact} onSynced={onReload} showMessage square variant="single_contact" />
+              <Button aria-label="Editar contacto" icon="edit" onClick={() => setEditorOpen(true)} square />
+            </div>
           </div>
 
           <div className="contact-method-grid">

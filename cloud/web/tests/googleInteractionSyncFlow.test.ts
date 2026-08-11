@@ -18,6 +18,19 @@ const contacts: ContactRow[] = [
     updated_at: "2026-08-01T00:00:00Z",
     contact_emails: [{ email: "maria@empresa.cl", domain: "empresa.cl" }],
     contact_phones: []
+  },
+  {
+    id: "contact-fuera-foco",
+    display_name: "Fuera Foco",
+    company: "",
+    role: "",
+    networking_status: "Pendiente",
+    networking_focus: false,
+    is_headhunter: false,
+    is_active: true,
+    updated_at: "2026-08-01T00:00:00Z",
+    contact_emails: [{ email: "fuera@empresa.cl", domain: "empresa.cl" }],
+    contact_phones: []
   }
 ];
 
@@ -130,6 +143,105 @@ test("syncGoogleInteractions no guarda cursores en dry-run", async () => {
   assert.equal(cursorWrites, 0);
 });
 
+test("syncGoogleInteractions con focusedOnly solo vincula contactos en foco", async () => {
+  const mailBatches: ExternalInteractionBatchInput[] = [];
+
+  await syncGoogleInteractions({
+    accessToken: "token",
+    focusedOnly: true,
+    includeCalendar: false,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readCursor: async () => null,
+    readMail: async () => ({
+      messages: [
+        gmailFromUser("mail-focus", "maria@empresa.cl"),
+        gmailFromUser("mail-no-focus", "fuera@empresa.cl")
+      ],
+      nextCursor: "next",
+      pagesRead: 1,
+      resultSizeEstimate: 2,
+      warnings: []
+    }),
+    readCalendar: async () => ({
+      events: [],
+      mode: "full",
+      nextSyncToken: null,
+      pagesRead: 0,
+      warnings: []
+    }),
+    syncMail: async (input) => {
+      const batch = { ...input, resourceType: "mail" as const };
+      mailBatches.push(batch);
+      return syncResult(batch, "focus-sync");
+    },
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {},
+    markCursorExpired: async () => {}
+  });
+
+  assert.deepEqual(mailBatches[0].items.map((item) => item.externalId), ["GMAIL_mail-focus"]);
+  assert.equal(mailBatches[0].items[0].participants?.[0]?.contactId, "contact-maria");
+});
+
+test("syncGoogleInteractions individual no usa cursores globales y filtra por contactIds", async () => {
+  let cursorReads = 0;
+  let cursorWrites = 0;
+  let receivedQuery = "";
+  let receivedSince: string | null | undefined = "";
+
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    contactIds: ["contact-maria"],
+    forceFullSync: true,
+    gmailQuery: "(from:maria@empresa.cl OR to:maria@empresa.cl)",
+    gmailSince: "2025-10-01T00:00:00.000Z",
+    includeCalendar: false,
+    saveCursors: false,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readCursor: async () => {
+      cursorReads += 1;
+      return "cursor";
+    },
+    readMail: async ({ query, since }) => {
+      receivedQuery = query ?? "";
+      receivedSince = since;
+      return {
+        messages: [
+          gmailFromUser("mail-focus", "maria@empresa.cl"),
+          gmailFromUser("mail-no-focus", "fuera@empresa.cl")
+        ],
+        nextCursor: "next",
+        pagesRead: 1,
+        resultSizeEstimate: 2,
+        warnings: []
+      };
+    },
+    readCalendar: async () => ({
+      events: [],
+      mode: "full",
+      nextSyncToken: null,
+      pagesRead: 0,
+      warnings: []
+    }),
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "single-sync"),
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {
+      cursorWrites += 1;
+    },
+    markCursorExpired: async () => {}
+  });
+
+  assert.equal(result.mail?.counts.scanned, 1);
+  assert.equal(cursorReads, 0);
+  assert.equal(cursorWrites, 0);
+  assert.equal(receivedQuery, "(from:maria@empresa.cl OR to:maria@empresa.cl)");
+  assert.equal(receivedSince, "2025-10-01T00:00:00.000Z");
+});
+
 function syncResult(input: ExternalInteractionBatchInput, interactionId: string): SyncRunResult {
   return {
     affected: {
@@ -157,5 +269,21 @@ function syncResult(input: ExternalInteractionBatchInput, interactionId: string)
     scope: input.scope ?? {},
     startedAt: "2026-08-04T12:00:00Z",
     warnings: input.dryRun ? ["Dry-run: no se escribieron cambios."] : []
+  };
+}
+
+function gmailFromUser(id: string, to: string) {
+  return {
+    id,
+    threadId: `${id}-thread`,
+    payload: {
+      headers: [
+        { name: "From", value: "Sergio <sergio@crm.cl>" },
+        { name: "To", value: to },
+        { name: "Subject", value: `Mail ${id}` }
+      ],
+      body: { data: Buffer.from("Hola").toString("base64url") },
+      mimeType: "text/plain"
+    }
   };
 }

@@ -37,6 +37,7 @@ export type GoogleCalendarReadInput = {
   fetchImpl?: FetchLike;
   maxEvents?: number;
   maxPages?: number;
+  query?: string | null;
   syncToken?: string | null;
   timeMin?: string | null;
 };
@@ -134,6 +135,7 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
     const response = await fetchImpl(calendarEventsUrl({
       maxResults: Math.min(maxEvents - events.length, 250),
       pageToken,
+      query: input.query,
       syncToken: input.syncToken,
       timeMin: input.timeMin
     }), {
@@ -207,10 +209,11 @@ function gmailAfterDate(value?: string | null) {
   return `${year}/${month}/${day}`;
 }
 
-function calendarEventsUrl(input: { maxResults: number; pageToken?: string | null; syncToken?: string | null; timeMin?: string | null }) {
+function calendarEventsUrl(input: { maxResults: number; pageToken?: string | null; query?: string | null; syncToken?: string | null; timeMin?: string | null }) {
   const url = new URL(CALENDAR_EVENTS_URL);
   url.searchParams.set("maxResults", String(input.maxResults));
   if (input.pageToken) url.searchParams.set("pageToken", input.pageToken);
+  if (input.query) url.searchParams.set("q", input.query);
   if (input.syncToken) {
     url.searchParams.set("syncToken", input.syncToken);
     return url.toString();

@@ -38,6 +38,17 @@
   flex-wrap: wrap;
 }
 
+.activity-sync-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.global-activity-sync {
+  white-space: nowrap;
+}
+
 .nav-link,
 .button {
   display: inline-flex;
@@ -2128,6 +2139,13 @@ textarea::placeholder {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.contact-identity-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .contact-identity-head h1 {
