@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { ContactDuplicateReviewPanel } from "./ContactDuplicateReviewPanel";
 import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
+import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { ProviderButton } from "./ui/ProviderIcon";
 import { Panel } from "./ui/Panel";
 
@@ -71,13 +72,15 @@ export function AccountPage() {
             </div>
             <div className="compact-row">
               <strong>Correos y calendario</strong>
-              <span>Pendiente de conectar en cloud usando la misma capa de proveedores.</span>
+              <span>Disponible en beta con lectura limitada, revision previa y guardado confirmado.</span>
             </div>
           </div>
         </Panel>
       </div>
 
       <GoogleContactsSyncPanel />
+
+      <GoogleInteractionsSyncPanel />
 
       <ContactDuplicateReviewPanel />
 
