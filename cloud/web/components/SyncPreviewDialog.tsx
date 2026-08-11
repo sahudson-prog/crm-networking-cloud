@@ -12,6 +12,8 @@ type SyncPreviewDialogProps = {
   title?: string;
   description?: string;
   changes: SyncPreviewChange[];
+  feedbackMessage?: string;
+  feedbackTone?: "error" | "info";
   applying?: boolean;
   onClose: () => void;
   onApply: (selectedChanges: SyncPreviewChange[]) => void;
@@ -48,6 +50,8 @@ export function SyncPreviewDialog({
   applying = false,
   changes,
   description = "Revisa los cambios detectados. Los cambios que no selecciones quedan pendientes para la proxima sincronizacion.",
+  feedbackMessage = "",
+  feedbackTone = "info",
   onApply,
   onClose,
   onOpenSavedDuplicateMerge,
@@ -207,8 +211,8 @@ export function SyncPreviewDialog({
             <span>{activeChanges.length} contactos revisados sin cambios.</span>
           ) : (
             <div>
-              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(true)}>Seleccionar pestana</Button>
-              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(false)}>Limpiar pestana</Button>
+              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(true)}>Seleccionar todos</Button>
+              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(false)}>Limpiar seleccion</Button>
             </div>
           )}
         </div>
@@ -250,6 +254,9 @@ export function SyncPreviewDialog({
           <div className="sync-preview-selection-summary">
             <span>{footerSummary}</span>
             <strong>{pendingCount} quedaran pendientes.</strong>
+            {feedbackMessage ? (
+              <span className={feedbackTone === "error" ? "form-error" : "meta"}>{feedbackMessage}</span>
+            ) : null}
           </div>
           <div className="modal-actions">
             <Button onClick={onClose}>Cancelar</Button>
@@ -499,5 +506,5 @@ function selectionSummary(
       return `${tab.label}: ${selected}`;
     });
 
-  return parts.length ? `Seleccionados - ${parts.join(" · ")}` : `Sin seleccion accionable - pendientes: ${pendingCount}`;
+  return parts.length ? `Seleccionados - ${parts.join(" - ")}` : `Sin seleccion accionable - pendientes: ${pendingCount}`;
 }

@@ -156,19 +156,17 @@ export function GoogleContactsSyncPanel() {
         totalPreviewChanges: actionableChangeCount(previewBeforeApply.preview ?? selectedChanges)
       });
 
-      const remainingChanges = remainingPreviewChanges(previewBeforeApply.preview ?? [], selectedChanges);
+      const remainingChanges = remainingPreviewChanges(previewBeforeApply.preview ?? [], result.appliedChangeIds);
       setState((current) => ({
         ...current,
         applying: false,
         lastApply: result,
         message: applyMessage(result),
-        preview: result.ok && remainingChanges.length
+        preview: remainingChanges.length
           ? { ...previewBeforeApply, preview: remainingChanges }
-          : result.ok
-            ? null
-            : previewBeforeApply
+          : null
       }));
-      setOpen(result.ok ? hasActionableChanges(remainingChanges) : true);
+      setOpen(hasActionableChanges(remainingChanges));
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -281,6 +279,8 @@ export function GoogleContactsSyncPanel() {
         applying={state.applying}
         changes={state.preview?.preview ?? []}
         description="Revisa los cambios detectados. Los cambios que no selecciones quedan pendientes para la proxima sincronizacion."
+        feedbackMessage={state.error || state.message || state.lastApply?.warnings.join(" ") || ""}
+        feedbackTone={state.error || state.lastApply?.failedCount ? "error" : "info"}
         onApply={applyPreview}
         onClose={() => setOpen(false)}
         onOpenSavedDuplicateMerge={openSavedDuplicateMerge}
@@ -315,16 +315,17 @@ function previewMessage(preview: PrepareGoogleContactSyncResult) {
 
 function applyMessage(result: ApplyContactSyncPreviewResult) {
   const cursor = result.cursorSaved ? "cursor actualizado" : "cursor sin actualizar";
-  return `Aplicacion terminada: ${result.appliedCount} aplicados, ${result.failedCount} fallidos, ${result.pendingCount} pendientes; ${cursor}.`;
+  const prefix = result.ok ? "Aplicacion terminada" : "Aplicacion parcial";
+  return `${prefix}: ${result.appliedCount} aplicados, ${result.failedCount} fallidos, ${result.pendingCount} pendientes; ${cursor}.`;
 }
 
 function actionableChangeCount(changes: SyncPreviewChange[]) {
   return changes.filter((change) => change.type !== "unchanged").length;
 }
 
-function remainingPreviewChanges(changes: SyncPreviewChange[], selectedChanges: SyncPreviewChange[]) {
-  const selectedIds = new Set(selectedChanges.map((change) => change.id));
-  return changes.filter((change) => change.type === "unchanged" || !selectedIds.has(change.id));
+function remainingPreviewChanges(changes: SyncPreviewChange[], appliedChangeIds: string[]) {
+  const appliedIds = new Set(appliedChangeIds);
+  return changes.filter((change) => change.type === "unchanged" || !appliedIds.has(change.id));
 }
 
 function hasActionableChanges(changes: SyncPreviewChange[]) {

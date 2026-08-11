@@ -26,7 +26,9 @@ export type ApplyContactSyncPreviewInput = {
 
 export type ApplyContactSyncPreviewResult = {
   ok: boolean;
+  appliedChangeIds: string[];
   appliedCount: number;
+  failedChangeIds: string[];
   failedCount: number;
   pendingCount: number;
   cursorSaved: boolean;
@@ -63,10 +65,12 @@ export async function applyContactSyncPreview(
   const deps = defaultDependencies(dependencies);
   const selectedActionableChanges = input.changes.filter((change) => change.type !== "unchanged");
   const result: ApplyContactSyncPreviewResult = {
+    appliedChangeIds: [],
     appliedCount: 0,
     contactIds: [],
     cursorSaved: false,
     errors: [],
+    failedChangeIds: [],
     failedCount: 0,
     ok: true,
     pendingCount: Math.max(0, (input.totalPreviewChanges ?? selectedActionableChanges.length) - selectedActionableChanges.length),
@@ -81,6 +85,7 @@ export async function applyContactSyncPreview(
     for (const change of selectedActionableChanges) {
       if (change.blocking) {
         result.failedCount += 1;
+        result.failedChangeIds.push(change.id);
         result.errors.push({
           code: "CONTACT_SYNC_CHANGE_BLOCKING",
           message: "El cambio esta bloqueado y no se puede aplicar.",
@@ -97,8 +102,10 @@ export async function applyContactSyncPreview(
         });
         if (contactId) contactIds.add(contactId);
         result.appliedCount += 1;
+        result.appliedChangeIds.push(change.id);
       } catch (error) {
         result.failedCount += 1;
+        result.failedChangeIds.push(change.id);
         result.errors.push({
           code: "CONTACT_SYNC_APPLY_FAILED",
           message: error instanceof Error ? error.message : "No pude aplicar el cambio de contacto.",
@@ -505,8 +512,10 @@ async function completeActionInvocation(invocationId: string | null, result: App
     .update({
       status: result.ok ? "executed" : "failed",
       output_json: {
+        applied_change_ids: result.appliedChangeIds,
         applied_count: result.appliedCount,
         failed_count: result.failedCount,
+        failed_change_ids: result.failedChangeIds,
         pending_count: result.pendingCount,
         cursor_saved: result.cursorSaved,
         contact_ids: result.contactIds,
