@@ -1,8 +1,11 @@
 import { supabase } from "./supabaseClient";
 import { activeInteractions } from "./interactionState";
 import { buildDashboardKpis, parseLocalDate } from "./kpiCalculations";
+import { readObjectiveAssignmentsForContacts } from "./objectiveActions";
 import type {
+  ContactListRow,
   ContactRow,
+  DashboardReferralRow,
   ExternalInteractionSourceRow,
   ContactProfileData,
   ContactReferralRow,
@@ -11,7 +14,7 @@ import type {
   InteractionRow,
   KpiPeriodMode,
   KpiTrend,
-  MirrorSummary,
+  AppSummary,
   ReferralActionRow,
   StatusCount,
   TodoRow
@@ -34,7 +37,7 @@ async function countRows(table: string, filter?: (query: any) => any) {
   return count ?? 0;
 }
 
-export async function readMirrorSummary(): Promise<MirrorSummary> {
+export async function readAppSummary(): Promise<AppSummary> {
   const [
     contacts,
     activeContacts,
@@ -118,7 +121,7 @@ export async function readRecentInteractions(limit = 8): Promise<InteractionRow[
   const client = requireSupabase();
   const { data, error } = await client
     .from("interactions")
-    .select("id,legacy_entry_id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
+    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
     .order("occurred_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -130,7 +133,7 @@ export async function readAllInteractions(): Promise<InteractionRow[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("interactions")
-    .select("id,legacy_entry_id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
+    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
     .order("occurred_at", { ascending: false, nullsFirst: false })
     .limit(INTERACTION_MAX_ROWS);
 
@@ -211,7 +214,13 @@ export async function readActiveTodos(input: { limit?: number; contactId?: strin
   const { data, error } = await query;
 
   if (error) throw error;
-  return (data ?? []) as TodoRow[];
+  const todos = (data ?? []) as TodoRow[];
+  const contactIds = Array.from(new Set(todos.map((todo) => todo.object_id).filter((id): id is string => Boolean(id))));
+  const contactsById = contactIds.length ? await readContactsByIds(contactIds) : new Map<string, ContactRow>();
+  return todos.map((todo) => {
+    const contactName = todo.object_id ? contactsById.get(todo.object_id)?.display_name?.trim() : "";
+    return contactName ? { ...todo, summary: contactName } : todo;
+  });
 }
 
 export async function readAllActiveContacts(): Promise<ContactRow[]> {
@@ -235,7 +244,40 @@ export async function readAllActiveContacts(): Promise<ContactRow[]> {
     if (page.length < CONTACT_PAGE_SIZE) break;
   }
 
-  return rows;
+  return withContactObjectiveAssignments(rows);
+}
+
+export async function readContactListRows(): Promise<ContactListRow[]> {
+  const [contacts, interactions, participants] = await Promise.all([
+    readAllActiveContacts(),
+    readAllInteractions(),
+    readInteractionParticipants()
+  ]);
+
+  const interactionsById = new Map(interactions.map((interaction) => [interaction.id, interaction]));
+  const latestByContact = new Map<string, string>();
+  const now = Date.now();
+
+  for (const participant of participants) {
+    if (!participant.contact_id) continue;
+    const interaction = interactionsById.get(participant.interaction_id);
+    if (!interaction?.occurred_at) continue;
+    const time = timestamp(interaction.occurred_at);
+    if (!time || time > now) continue;
+    const current = latestByContact.get(participant.contact_id);
+    if (!current || time > timestamp(current)) {
+      latestByContact.set(participant.contact_id, interaction.occurred_at);
+    }
+  }
+
+  return contacts.map((contact) => {
+    const lastInteractionAt = latestByContact.get(contact.id) ?? null;
+    return {
+      ...contact,
+      last_interaction_at: lastInteractionAt,
+      days_since_last_interaction: daysSince(lastInteractionAt)
+    };
+  });
 }
 
 export async function readContactById(contactId: string): Promise<ContactRow | null> {
@@ -249,7 +291,10 @@ export async function readContactById(contactId: string): Promise<ContactRow | n
     .maybeSingle();
 
   if (error) throw error;
-  return (data ?? null) as ContactRow | null;
+  const contact = (data ?? null) as ContactRow | null;
+  if (!contact) return null;
+  const [withObjectives] = await withContactObjectiveAssignments([contact]);
+  return withObjectives ?? contact;
 }
 
 export async function readContactInteractions(contactId: string, limit = 60): Promise<InteractionRow[]> {
@@ -269,7 +314,7 @@ export async function readContactInteractions(contactId: string, limit = 60): Pr
 
   const { data, error } = await client
     .from("interactions")
-    .select("id,legacy_entry_id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
+    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
     .in("id", interactionIds)
     .order("occurred_at", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -351,6 +396,21 @@ async function readContactsByIds(contactIds: string[]) {
   return new Map(((data ?? []) as ContactRow[]).map((contact) => [contact.id, contact]));
 }
 
+async function withContactObjectiveAssignments<T extends ContactRow>(contacts: T[]): Promise<T[]> {
+  if (!contacts.length) return contacts;
+  let assignmentsByContact = new Map<string, Awaited<ReturnType<typeof readObjectiveAssignmentsForContacts>> extends Map<string, infer Rows> ? Rows : never>();
+  try {
+    assignmentsByContact = await readObjectiveAssignmentsForContacts(contacts.map((contact) => contact.id));
+  } catch (error) {
+    console.warn("No se pudieron leer objetivos asociados a contactos.", error);
+    assignmentsByContact = new Map();
+  }
+  return contacts.map((contact) => ({
+    ...contact,
+    contact_objective_assignments: assignmentsByContact.get(contact.id) ?? []
+  }));
+}
+
 export async function readDashboardKpis(mode: KpiPeriodMode = "weekly"): Promise<KpiTrend[]> {
   const [contacts, interactions, participants, networkingStartValue] = await Promise.all([
     readAllActiveContacts(),
@@ -375,6 +435,15 @@ export async function readHeadhunterCompanies(limit = 8): Promise<HeadhunterComp
     readInteractionParticipants()
   ]);
 
+  return buildHeadhunterCompanies(contacts, interactions, participants, limit);
+}
+
+export function buildHeadhunterCompanies(
+  contacts: ContactRow[],
+  interactions: InteractionRow[],
+  participants: InteractionParticipantRow[],
+  limit = 8
+): HeadhunterCompanyRow[] {
   const participantsByContact = new Map<string, Set<string>>();
   for (const participant of participants) {
     if (!participant.contact_id) continue;
@@ -481,10 +550,73 @@ export async function readReferralActions(limit = 8): Promise<ReferralActionRow[
     });
 }
 
+export async function readDashboardReferrals(limit = 80): Promise<DashboardReferralRow[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("referrals")
+    .select("id,referred_by_contact_id,linked_contact_id,referred_name,referred_company,referred_role,referred_email,referred_phone,notes,status,updated_at,created_at")
+    .eq("status", "active")
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  const referrals = (data ?? []) as Array<{
+    id: string;
+    referred_by_contact_id: string;
+    linked_contact_id: string | null;
+    referred_name: string | null;
+    referred_company: string | null;
+    referred_role: string | null;
+    referred_email: string | null;
+    referred_phone: string | null;
+    notes: string | null;
+    status: string | null;
+  }>;
+  const contactIds = Array.from(
+    new Set(referrals.flatMap((row) => [row.referred_by_contact_id, row.linked_contact_id]).filter((id): id is string => Boolean(id)))
+  );
+  const contactsById = contactIds.length ? await readContactsByIds(contactIds) : new Map<string, ContactRow>();
+
+  return referrals.map((row) => {
+    const referrer = contactsById.get(row.referred_by_contact_id);
+    const linked = row.linked_contact_id ? contactsById.get(row.linked_contact_id) : null;
+    return {
+      id: row.id,
+      referredByContactId: row.referred_by_contact_id,
+      referredName: row.referred_name || "Referido sin nombre",
+      referredCompany: row.referred_company || "",
+      referredRole: row.referred_role || "",
+      referredEmail: row.referred_email || "",
+      referredPhone: row.referred_phone || "",
+      notes: row.notes || "",
+      status: row.status || "active",
+      linkedContactId: row.linked_contact_id,
+      linkedContactName: linked?.display_name || "",
+      linkedContactStatus: linked?.networking_status || "",
+      linkedContactCompany: linked?.company || "",
+      linkedContactRole: linked?.role || "",
+      referrerName: referrer?.display_name || "Contacto sin nombre",
+      referrerStatus: referrer?.networking_status || "Pendiente"
+    };
+  });
+}
+
 function timestamp(value: string | null | undefined) {
   if (!value) return 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function daysSince(value: string | null | undefined) {
+  if (!value) return null;
+  const time = timestamp(value);
+  if (!time) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const then = new Date(time);
+  const startOfThen = new Date(then.getFullYear(), then.getMonth(), then.getDate()).getTime();
+  return Math.max(0, Math.floor((startOfToday - startOfThen) / 86400000));
 }
 
 function groupParticipants(participants: InteractionParticipantRow[]) {

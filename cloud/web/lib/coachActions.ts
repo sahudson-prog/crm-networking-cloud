@@ -1,9 +1,12 @@
 import { supabase } from "./supabaseClient.ts";
+import { normalizeHeadhunterCompanyName } from "./headhunterCompanyMaster.ts";
 import type { TodoRow } from "./readModel.ts";
 
 type ParsedState = {
   Estado_CRM?: string;
   networking_status?: string;
+  Empresa?: string;
+  company?: string;
 };
 
 export type CoachExecutionResult = {
@@ -39,7 +42,7 @@ export async function executeCoachTodos(todos: TodoRow[]): Promise<CoachExecutio
 
   for (const todo of todos) {
     try {
-      const result = await executeNetworkingStatusTodo({
+      const result = await executeCoachTodo({
         todo,
         userId,
         actorType: "user",
@@ -57,6 +60,26 @@ export async function executeCoachTodos(todos: TodoRow[]): Promise<CoachExecutio
   }
 
   return { executed, unsupported, errors };
+}
+
+export async function executeCoachTodo({
+  todo,
+  userId,
+  actorType,
+  requiresConfirmation
+}: {
+  todo: TodoRow;
+  userId: string;
+  actorType: "user" | "rule" | "ai" | "system";
+  requiresConfirmation: boolean;
+}): Promise<"executed" | "unsupported"> {
+  if (todo.todo_type === "NETWORKING_STATUS_CHANGE") {
+    return executeNetworkingStatusTodo({ todo, userId, actorType, requiresConfirmation });
+  }
+  if (todo.todo_type === "HEADHUNTER_COMPANY_DETECTED") {
+    return executeContactCompanyTodo({ todo, userId, actorType, requiresConfirmation });
+  }
+  return "unsupported";
 }
 
 export async function executeNetworkingStatusTodo({
@@ -164,6 +187,120 @@ export async function executeNetworkingStatusTodo({
   }
 }
 
+async function executeContactCompanyTodo({
+  todo,
+  userId,
+  actorType,
+  requiresConfirmation
+}: {
+  todo: TodoRow;
+  userId: string;
+  actorType: "user" | "rule" | "ai" | "system";
+  requiresConfirmation: boolean;
+}): Promise<"executed" | "unsupported"> {
+  if (!supabase) throw new Error("Supabase no esta configurado.");
+
+  const contactId = todo.object_id;
+  const suggestedCompany = suggestedContactCompany(todo);
+  if (!contactId || !suggestedCompany) return "unsupported";
+
+  let invocationId: string | null = null;
+
+  try {
+    const { data: contact, error: contactError } = await supabase
+      .from("contacts")
+      .select("id,company")
+      .eq("id", contactId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (contactError) throw contactError;
+    if (!contact) throw new Error(`No encontre el contacto asociado a la sugerencia ${todo.id}.`);
+
+    const currentCompany = (contact.company ?? "").trim();
+    if (
+      currentCompany &&
+      normalizeHeadhunterCompanyName(currentCompany) !== normalizeHeadhunterCompanyName(suggestedCompany)
+    ) {
+      return "unsupported";
+    }
+
+    const now = new Date().toISOString();
+    const invocationInput = {
+      todo_id: todo.id,
+      current_company: currentCompany,
+      suggested_company: suggestedCompany
+    };
+
+    const { data: invocation, error: invocationError } = await supabase
+      .from("action_invocations")
+      .insert({
+        user_id: userId,
+        action_name: "contact.update_company",
+        actor_type: actorType,
+        status: requiresConfirmation ? "confirmed" : "requested",
+        source_todo_id: todo.id,
+        object_type: "contact",
+        object_id: contactId,
+        input_json: invocationInput,
+        requires_confirmation: requiresConfirmation,
+        confirmed_at: requiresConfirmation ? now : null
+      })
+      .select("id")
+      .single();
+    if (invocationError) throw invocationError;
+    invocationId = invocation.id;
+
+    if (!currentCompany) {
+      const { error: updateContactError } = await supabase
+        .from("contacts")
+        .update({ company: suggestedCompany })
+        .eq("id", contactId)
+        .eq("user_id", userId);
+      if (updateContactError) throw updateContactError;
+    }
+
+    const { error: updateTodoError } = await supabase
+      .from("todos")
+      .update({ status: "done", resolved_at: now })
+      .eq("id", todo.id)
+      .eq("user_id", userId);
+    if (updateTodoError) throw updateTodoError;
+
+    await supabase.from("audit_log").insert({
+      user_id: userId,
+      actor: actorType,
+      action: "contact.update_company",
+      object_type: "contact",
+      object_id: contactId,
+      before_json: { company: currentCompany },
+      after_json: { company: suggestedCompany }
+    });
+
+    const { error: invocationDoneError } = await supabase
+      .from("action_invocations")
+      .update({
+        status: "executed",
+        output_json: { contact_id: contactId, company: suggestedCompany },
+        executed_at: now
+      })
+      .eq("id", invocation.id)
+      .eq("user_id", userId);
+    if (invocationDoneError) throw invocationDoneError;
+
+    return "executed";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al ejecutar una sugerencia.";
+    if (invocationId) {
+      await supabase
+        .from("action_invocations")
+        .update({ status: "failed", error_message: message })
+        .eq("id", invocationId)
+        .eq("user_id", userId);
+    }
+    throw error;
+  }
+}
+
 export async function dismissCoachTodos(todos: TodoRow[]): Promise<CoachDismissResult> {
   if (!supabase) throw new Error("Supabase no esta configurado.");
 
@@ -246,6 +383,11 @@ export async function dismissCoachTodos(todos: TodoRow[]): Promise<CoachDismissR
 function suggestedNetworkingStatus(todo: TodoRow) {
   const suggested = parseState(todo.suggested_state);
   return suggested.Estado_CRM ?? suggested.networking_status ?? "";
+}
+
+function suggestedContactCompany(todo: TodoRow) {
+  const suggested = parseState(todo.suggested_state);
+  return (suggested.Empresa ?? suggested.company ?? "").trim();
 }
 
 function parseState(value: string | null | undefined): ParsedState {

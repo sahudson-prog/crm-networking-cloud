@@ -7,7 +7,8 @@ import type { ExternalContactInput } from "./syncOrchestrator.ts";
 export const GOOGLE_CONTACTS_READONLY_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
 
 const PEOPLE_CONNECTIONS_URL = "https://people.googleapis.com/v1/people/me/connections";
-const DEFAULT_PERSON_FIELDS = "names,emailAddresses,phoneNumbers,organizations,metadata";
+const PEOPLE_API_URL = "https://people.googleapis.com/v1";
+const DEFAULT_PERSON_FIELDS = "names,emailAddresses,phoneNumbers,organizations,birthdays,metadata";
 const DEFAULT_PAGE_SIZE = 1000;
 const DEFAULT_MAX_PAGES = 20;
 
@@ -20,6 +21,7 @@ export type GoogleContactsReadInput = {
   pageSize?: number;
   maxPages?: number;
   personFields?: string;
+  requestSyncToken?: boolean;
   fetchImpl?: FetchLike;
 };
 
@@ -73,6 +75,7 @@ export async function readGoogleContacts(input: GoogleContactsReadInput): Promis
       pageSize: input.pageSize ?? DEFAULT_PAGE_SIZE,
       pageToken,
       personFields: input.personFields ?? DEFAULT_PERSON_FIELDS,
+      requestSyncToken: input.requestSyncToken !== false && !input.syncToken && !pageToken,
       syncToken: input.syncToken ?? null
     });
 
@@ -84,7 +87,11 @@ export async function readGoogleContacts(input: GoogleContactsReadInput): Promis
 
     const body = await parseJson(response);
     if (!response.ok) {
-      throw googleContactsError(response.status, body);
+      throw googleContactsError({
+        body,
+        hasSyncToken: Boolean(input.syncToken),
+        status: response.status
+      });
     }
 
     const payload = body as GoogleConnectionsResponse;
@@ -116,20 +123,68 @@ export async function readGoogleContacts(input: GoogleContactsReadInput): Promis
   };
 }
 
+export async function readGoogleContact(input: GoogleContactsReadInput & { resourceName: string }): Promise<ExternalContactInput> {
+  const accessToken = input.accessToken.trim();
+  const resourceName = input.resourceName.trim();
+  if (!accessToken) {
+    throw new GoogleContactsClientError("GOOGLE_CONTACTS_HTTP_ERROR", "Falta token de acceso Google.");
+  }
+  if (!resourceName || !resourceName.startsWith("people/")) {
+    throw new GoogleContactsClientError("GOOGLE_CONTACTS_HTTP_ERROR", "El contacto no tiene un ID Google valido.");
+  }
+
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const url = googleContactUrl({
+    personFields: input.personFields ?? DEFAULT_PERSON_FIELDS,
+    resourceName
+  });
+  const response = await fetchImpl(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  const body = await parseJson(response);
+  if (!response.ok) {
+    throw googleContactsError({
+      body,
+      hasSyncToken: false,
+      status: response.status
+    });
+  }
+
+  const contacts = mapGooglePeopleToExternalContacts({
+    connectedAccountId: input.connectedAccountId,
+    people: [body as GooglePerson]
+  });
+  const contact = contacts[0];
+  if (!contact) {
+    throw new GoogleContactsClientError("GOOGLE_CONTACTS_INVALID_RESPONSE", "Google Contacts no devolvio datos para este contacto.", response.status);
+  }
+  return contact;
+}
+
 function googleContactsUrl(input: {
   pageSize: number;
   pageToken?: string | null;
   personFields: string;
+  requestSyncToken?: boolean;
   syncToken?: string | null;
 }) {
   const url = new URL(PEOPLE_CONNECTIONS_URL);
   url.searchParams.set("personFields", input.personFields);
   url.searchParams.set("pageSize", String(clampPageSize(input.pageSize)));
-  url.searchParams.set("requestSyncToken", "true");
+  if (input.requestSyncToken) url.searchParams.set("requestSyncToken", "true");
   url.searchParams.append("sources", "READ_SOURCE_TYPE_CONTACT");
 
   if (input.pageToken) url.searchParams.set("pageToken", input.pageToken);
   if (input.syncToken) url.searchParams.set("syncToken", input.syncToken);
+  return url.toString();
+}
+
+function googleContactUrl(input: { personFields: string; resourceName: string }) {
+  const url = new URL(`${PEOPLE_API_URL}/${input.resourceName}`);
+  url.searchParams.set("personFields", input.personFields);
+  url.searchParams.append("sources", "READ_SOURCE_TYPE_CONTACT");
   return url.toString();
 }
 
@@ -148,12 +203,21 @@ async function parseJson(response: Response) {
   }
 }
 
-function googleContactsError(status: number, body: unknown) {
+function googleContactsError(input: { body: unknown; hasSyncToken: boolean; status: number }) {
+  const { body, hasSyncToken, status } = input;
   const reason = googleErrorReason(body);
   if (reason === "EXPIRED_SYNC_TOKEN") {
     return new GoogleContactsClientError(
       "GOOGLE_CONTACTS_EXPIRED_SYNC_TOKEN",
       "El cursor de Google Contacts vencio. Hay que hacer una sincronizacion completa nueva.",
+      status
+    );
+  }
+
+  if (hasSyncToken && status === 400) {
+    return new GoogleContactsClientError(
+      "GOOGLE_CONTACTS_EXPIRED_SYNC_TOKEN",
+      "El cursor de Google Contacts ya no es compatible. Hay que hacer una sincronizacion completa nueva.",
       status
     );
   }

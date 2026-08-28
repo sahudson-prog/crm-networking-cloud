@@ -5,18 +5,36 @@ import {
 } from "../lib/interactionSyncText";
 import type { SyncGoogleInteractionsResult } from "../lib/googleInteractionSyncFlow";
 
-export function InteractionSyncResultSummary({ result }: { result: SyncGoogleInteractionsResult | null }) {
+type InteractionSyncResource = "mail" | "calendar";
+
+export function InteractionSyncResultSummary({
+  result,
+  resources
+}: {
+  result: SyncGoogleInteractionsResult | null;
+  resources?: InteractionSyncResource[];
+}) {
   if (!result) return null;
   const summary = summarizeGoogleInteractionSync(result);
+  const visibleResources = resources ?? ["mail", "calendar"];
+  const visibleServices = [
+    visibleResources.includes("mail") ? summary.mail : null,
+    visibleResources.includes("calendar") ? summary.calendar : null
+  ].filter((service): service is InteractionSyncServiceSummary => Boolean(service));
+  const visibleTotals = visibleServices.reduce((totals, service) => ({
+    candidates: totals.candidates + service.candidates
+  }), { candidates: 0 });
+
   return (
     <div className="activity-sync-summary" aria-label="Resumen de sincronizacion de actividad">
       <div className="activity-sync-summary-head">
         <strong>{summary.applied ? "Ultima reconstruccion aplicada" : "Ultima revision sin guardar"}</strong>
-        <span>{summary.totals.candidates} posibles interacciones</span>
+        <span>{visibleTotals.candidates} posibles interacciones</span>
       </div>
       <div className="activity-sync-service-grid">
-        <ActivitySyncServiceCard service={summary.mail} applied={summary.applied} />
-        <ActivitySyncServiceCard service={summary.calendar} applied={summary.applied} />
+        {visibleServices.map((service) => (
+          <ActivitySyncServiceCard key={service.label} service={service} applied={summary.applied} />
+        ))}
       </div>
       <p className="meta">{explainInteractionSyncSkipped(summary.applied)}</p>
     </div>

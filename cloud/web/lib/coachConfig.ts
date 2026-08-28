@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient.ts";
 export type TodoConfigMode = "do_not_suggest" | "confirm_always" | "execute_without_asking";
 export type TodoConfigEngine = "RULE" | "HYBRID" | "AI";
 export type TodoConfigActionScope = "in_app" | "external_action";
+export type TodoConfigFamily = "contact.networking_status" | "contact.company_from_headhunter_master";
 
 export type TodoConfigRow = {
   id: string;
@@ -16,26 +17,22 @@ export type TodoConfigRow = {
   rule_json: Record<string, string>;
 };
 
-const EXTERNAL_ACTION_TYPES = new Set(["EMAIL_DRAFT", "WHATSAPP_MESSAGE", "CALENDAR_ACTION", "CONTACT_CREATE"]);
+type DefaultTodoConfig = Omit<TodoConfigRow, "id" | "user_mode" | "enabled">;
+
+const AUTO_APPLY_ALLOWED_TYPES = new Set([
+  "RULE_STATUS_TO_CONTACTED",
+  "RULE_STATUS_TO_SCHEDULED",
+  "RULE_STATUS_TO_MEETING_DONE",
+  "RULE_STATUS_TO_THANK_YOU",
+  "HEADHUNTER_COMPANY_DETECTED"
+]);
 
 const TODO_LABELS: Record<string, string> = {
   RULE_STATUS_TO_CONTACTED: 'Cambiar estado a "Contactado"',
   RULE_STATUS_TO_SCHEDULED: 'Cambiar estado a "Agendado"',
   RULE_STATUS_TO_MEETING_DONE: 'Cambiar estado a "Cita concretada"',
   RULE_STATUS_TO_THANK_YOU: 'Cambiar estado a "Agradecimiento enviado"',
-  CONTACT_ADD_EMAIL: "Agregar correo a un contacto",
-  CALENDAR_ACTION: "Revisar o crear una cita",
-  FOLLOW_UP_REMINDER: "Recordar seguimiento",
-  HH_DOMAIN_REVIEW: "Revisar marca headhunter",
-  DATA_CONFLICT_REVIEW: "Revisar conflicto de datos",
-  SYNC_REVIEW: "Revisar cambios de sincronizacion",
-  FOCUS_CHANGE: "Cambiar foco networking",
-  CONTACT_UPDATE_FIELD: "Actualizar dato de contacto",
-  CONTACT_MERGE_REVIEW: "Consolidar contactos",
-  CONTACT_CREATE: "Crear contacto sugerido",
-  EMAIL_DRAFT: "Redactar correo sugerido",
-  WHATSAPP_MESSAGE: "Redactar mensaje sugerido",
-  REFERRAL_REVIEW: "Revisar referido sugerido"
+  HEADHUNTER_COMPANY_DETECTED: "Registrar headhunter en empresa detectada"
 };
 
 const TODO_EXAMPLES: Record<string, string> = {
@@ -43,19 +40,7 @@ const TODO_EXAMPLES: Record<string, string> = {
   RULE_STATUS_TO_SCHEDULED: 'Cambia el estado de Ana P. de Contactado a Agendado.',
   RULE_STATUS_TO_MEETING_DONE: 'Cambia el estado de Ana P. de Agendado a Cita concretada.',
   RULE_STATUS_TO_THANK_YOU: 'Cambia el estado de Ana P. de Cita concretada a Agradecimiento enviado.',
-  CONTACT_ADD_EMAIL: "Sugiere agregar un correo nuevo a Ana P.",
-  CALENDAR_ACTION: "Sugiere revisar o crear una cita con Ana P.",
-  FOLLOW_UP_REMINDER: "Sugiere retomar contacto con Ana P.",
-  HH_DOMAIN_REVIEW: "Sugiere revisar si Ana P. o su empresa son headhunter.",
-  DATA_CONFLICT_REVIEW: "Sugiere revisar un dato que no calza entre fuentes.",
-  SYNC_REVIEW: "Sugiere revisar un cambio detectado al sincronizar.",
-  FOCUS_CHANGE: "Sugiere cambiar si Ana P. esta en foco de networking.",
-  CONTACT_UPDATE_FIELD: "Sugiere actualizar un dato de Ana P.",
-  CONTACT_MERGE_REVIEW: "Sugiere fusionar o consolidar contactos duplicados.",
-  CONTACT_CREATE: "Sugiere crear un contacto mencionado en una minuta.",
-  EMAIL_DRAFT: "Sugiere redactar un correo para Ana P.",
-  WHATSAPP_MESSAGE: "Sugiere redactar un mensaje para Ana P.",
-  REFERRAL_REVIEW: "Sugiere revisar un referido mencionado por Ana P."
+  HEADHUNTER_COMPANY_DETECTED: "Registra a Ana P. como headhunter, en Intertrust."
 };
 
 const TODO_CONDITIONS: Record<string, string> = {
@@ -63,19 +48,8 @@ const TODO_CONDITIONS: Record<string, string> = {
   RULE_STATUS_TO_SCHEDULED: "Cuando existe una cita futura con el contacto.",
   RULE_STATUS_TO_MEETING_DONE: "Cuando una cita ya paso o ya tiene minuta.",
   RULE_STATUS_TO_THANK_YOU: "Cuando existe un mensaje posterior a una cita concretada.",
-  CONTACT_ADD_EMAIL: "Cuando aparece un email asociado a un contacto sin ese correo registrado.",
-  CALENDAR_ACTION: "Cuando una cita necesita revision o accion manual.",
-  FOLLOW_UP_REMINDER: "Cuando el contacto lleva demasiado tiempo sin interaccion.",
-  HH_DOMAIN_REVIEW: "Cuando la marca headhunter o empresa necesita revision.",
-  DATA_CONFLICT_REVIEW: "Cuando hay datos contradictorios entre fuentes.",
-  SYNC_REVIEW: "Cuando la sincronizacion detecta cambios que requieren aprobacion.",
-  FOCUS_CHANGE: "Cuando el foco networking podria cambiar segun contexto.",
-  CONTACT_UPDATE_FIELD: "Cuando hay datos de contacto a completar o corregir.",
-  CONTACT_MERGE_REVIEW: "Cuando hay senales de duplicidad o cambio de ID.",
-  CONTACT_CREATE: "Cuando una minuta o referido menciona una persona nueva.",
-  EMAIL_DRAFT: "Cuando el siguiente paso natural es escribir un correo.",
-  WHATSAPP_MESSAGE: "Cuando el siguiente paso natural es escribir un mensaje.",
-  REFERRAL_REVIEW: "Cuando hay un referido pendiente de revisar o vincular."
+  HEADHUNTER_COMPANY_DETECTED:
+    "Cuando un contacto marcado como headhunter no tiene empresa y su dominio coincide con una unica empresa del maestro."
 };
 
 const TODO_ORDER = [
@@ -83,20 +57,30 @@ const TODO_ORDER = [
   "RULE_STATUS_TO_SCHEDULED",
   "RULE_STATUS_TO_MEETING_DONE",
   "RULE_STATUS_TO_THANK_YOU",
-  "CONTACT_ADD_EMAIL",
-  "HH_DOMAIN_REVIEW",
-  "DATA_CONFLICT_REVIEW",
-  "SYNC_REVIEW",
-  "FOLLOW_UP_REMINDER",
-  "CALENDAR_ACTION",
-  "FOCUS_CHANGE",
-  "CONTACT_UPDATE_FIELD",
-  "CONTACT_MERGE_REVIEW",
-  "CONTACT_CREATE",
-  "REFERRAL_REVIEW",
-  "EMAIL_DRAFT",
-  "WHATSAPP_MESSAGE"
+  "HEADHUNTER_COMPANY_DETECTED"
 ];
+const APPROVED_TODO_CONFIG_TYPES = new Set(TODO_ORDER);
+
+const TODO_FAMILIES: Record<string, TodoConfigFamily> = {
+  RULE_STATUS_TO_CONTACTED: "contact.networking_status",
+  RULE_STATUS_TO_SCHEDULED: "contact.networking_status",
+  RULE_STATUS_TO_MEETING_DONE: "contact.networking_status",
+  RULE_STATUS_TO_THANK_YOU: "contact.networking_status",
+  HEADHUNTER_COMPANY_DETECTED: "contact.company_from_headhunter_master"
+};
+
+const FAMILY_ORDER: TodoConfigFamily[] = ["contact.networking_status", "contact.company_from_headhunter_master"];
+
+const DEFAULT_TODO_CONFIGS: DefaultTodoConfig[] = TODO_ORDER.map((todoType) => ({
+  todo_type: todoType,
+  engine_type: "RULE",
+  action_scope: "in_app",
+  display_name: TODO_LABELS[todoType] ?? todoType,
+  description: TODO_CONDITIONS[todoType] ?? "",
+  rule_json: {
+    Permite_Auto_Aplicar: AUTO_APPLY_ALLOWED_TYPES.has(todoType) ? "TRUE" : "FALSE"
+  }
+}));
 
 export const TODO_CONFIG_MODES: Array<{ value: TodoConfigMode; label: string }> = [
   { value: "confirm_always", label: "Pedir confirmacion siempre" },
@@ -106,6 +90,7 @@ export const TODO_CONFIG_MODES: Array<{ value: TodoConfigMode; label: string }> 
 
 export async function readTodoConfigs(): Promise<TodoConfigRow[]> {
   const client = requireSupabase();
+  await ensureDefaultTodoConfigs();
 
   const { data, error } = await client
     .from("todo_configs")
@@ -114,7 +99,35 @@ export async function readTodoConfigs(): Promise<TodoConfigRow[]> {
     .order("todo_type", { ascending: true });
 
   if (error) throw error;
-  return sortTodoConfigs((data ?? []) as TodoConfigRow[]);
+  return sortTodoConfigs(((data ?? []) as TodoConfigRow[]).filter((config) => APPROVED_TODO_CONFIG_TYPES.has(config.todo_type)));
+}
+
+async function ensureDefaultTodoConfigs() {
+  const client = requireSupabase();
+  const { data: authData, error: authError } = await client.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) throw new Error("No hay usuario autenticado.");
+
+  const { data: existing, error: existingError } = await client
+    .from("todo_configs")
+    .select("todo_type")
+    .eq("user_id", userId);
+  if (existingError) throw existingError;
+
+  const existingTypes = new Set((existing ?? []).map((row) => row.todo_type));
+  const missingConfigs = DEFAULT_TODO_CONFIGS.filter((config) => !existingTypes.has(config.todo_type));
+  if (!missingConfigs.length) return;
+
+  const { error: insertError } = await client.from("todo_configs").insert(
+    missingConfigs.map((config) => ({
+      user_id: userId,
+      ...config,
+      enabled: true,
+      user_mode: "confirm_always"
+    }))
+  );
+  if (insertError) throw insertError;
 }
 
 export async function saveTodoConfigModes(configs: TodoConfigRow[], modes: Record<string, TodoConfigMode>) {
@@ -164,8 +177,26 @@ export function todoConfigCondition(config: TodoConfigRow) {
 }
 
 export function todoConfigScope(config: TodoConfigRow): TodoConfigActionScope {
-  if (config.action_scope === "external_action" || EXTERNAL_ACTION_TYPES.has(config.todo_type)) return "external_action";
+  if (config.action_scope === "external_action") return "external_action";
   return "in_app";
+}
+
+export function todoConfigFamily(config: Pick<TodoConfigRow, "todo_type">): TodoConfigFamily {
+  return TODO_FAMILIES[config.todo_type] ?? "contact.networking_status";
+}
+
+export function todoConfigFamilyLabel(family: TodoConfigFamily) {
+  return {
+    "contact.networking_status": "Estado networking",
+    "contact.company_from_headhunter_master": "Empresa headhunter"
+  }[family];
+}
+
+export function todoConfigFamilyDescription(family: TodoConfigFamily) {
+  return {
+    "contact.networking_status": "Reglas que proponen cambiar el estado oficial del contacto.",
+    "contact.company_from_headhunter_master": "Reglas que completan la empresa del contacto desde el maestro headhunter."
+  }[family];
 }
 
 export function todoConfigCanAutoApply(config: TodoConfigRow) {
@@ -183,6 +214,11 @@ function actionScopeOrder(config: TodoConfigRow) {
 
 function todoOrder(todoType: string) {
   const index = TODO_ORDER.indexOf(todoType);
+  return index >= 0 ? index : 999;
+}
+
+export function todoConfigFamilyOrder(family: TodoConfigFamily) {
+  const index = FAMILY_ORDER.indexOf(family);
   return index >= 0 ? index : 999;
 }
 

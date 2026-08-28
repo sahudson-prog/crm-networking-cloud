@@ -115,3 +115,59 @@ test("prepareGoogleContactSyncPreview marca cursor vencido y reintenta lectura c
   assert.equal(result.warnings.at(-1), "El cursor anterior vencio; prepare una revision completa de contactos.");
   assert.equal(result.preview?.[0].type, "new");
 });
+
+test("prepareGoogleContactSyncPreview reintenta lectura completa sin cursor futuro si Google rechaza requestSyncToken", async () => {
+  const providerCalls: Array<{ requestSyncToken?: boolean; syncToken?: string | null }> = [];
+  const checkpoints: string[] = [];
+
+  const result = await prepareGoogleContactSyncPreview(
+    {
+      accessToken: "token-google",
+      onCheckpoint: (checkpoint) => {
+        checkpoints.push(`${checkpoint.step}: ${checkpoint.detail ?? ""}`);
+      }
+    },
+    {
+      readAppContacts: async () => [contact({ display_name: "Alienor Tordeur", id: "contact-1" })],
+      readCursor: async () => null,
+      readExternalContactLinks: async () => [{ contactId: "contact-1", externalId: "people/alienor" }],
+      readKnownExternalContactValues: async () => [],
+      readProviderContacts: async (input) => {
+        providerCalls.push({
+          requestSyncToken: input.requestSyncToken,
+          syncToken: input.syncToken
+        });
+        if (input.requestSyncToken !== false) {
+          throw new GoogleContactsClientError(
+            "GOOGLE_CONTACTS_HTTP_ERROR",
+            "Request contains an invalid argument.",
+            400
+          );
+        }
+        return {
+          contacts: [
+            {
+              displayName: "Alienor Tordeur",
+              externalId: "people/alienor",
+              provider: "google"
+            }
+          ],
+          mode: "full",
+          nextSyncToken: null,
+          pagesRead: 1,
+          totalItems: 1,
+          warnings: ["Lectura completa sin cursor incremental."]
+        };
+      }
+    }
+  );
+
+  assert.deepEqual(providerCalls, [
+    { requestSyncToken: undefined, syncToken: null },
+    { requestSyncToken: false, syncToken: null }
+  ]);
+  assert.equal(result.ok, true);
+  assert.equal(result.cursorAfter, null);
+  assert.equal(result.preview?.[0].type, "unchanged");
+  assert.ok(checkpoints.some((checkpoint) => checkpoint.includes("Reintentando sin pedir cursor incremental")));
+});

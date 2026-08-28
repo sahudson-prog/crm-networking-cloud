@@ -116,3 +116,44 @@ test("Calendar mapea evento con participantes y link oficial", () => {
   assert.equal(result.interactionType, "calendar");
   assert.deepEqual(result.participants?.map((participant) => participant.contactId), ["contact-maria"]);
 });
+
+test("Calendar no duplica participante si es organizador y asistente", () => {
+  const result = mapCalendarEventToExternalInteraction({
+    userEmail: "sergio@crm.cl",
+    contactsByEmail,
+    event: {
+      id: "event-organizer-attendee",
+      summary: "Cafe con Maria",
+      start: { dateTime: "2026-07-30T14:00:00-04:00" },
+      organizer: { email: "maria@empresa.cl" },
+      attendees: [{ email: "maria@empresa.cl" }]
+    }
+  });
+
+  assert.ok(result);
+  assert.deepEqual(
+    result.participants?.map((participant) => [participant.contactId, participant.email]),
+    [["contact-maria", "maria@empresa.cl"]]
+  );
+});
+
+test("Calendar acepta participante inferido por busqueda de email", () => {
+  const result = mapCalendarEventToExternalInteraction({
+    userEmail: "sergio@crm.cl",
+    contactsByEmail,
+    matchedContactEmails: ["maria@empresa.cl"],
+    event: {
+      id: "event-query-match",
+      summary: "Cafe con Maria",
+      description: "Invitacion encontrada por la busqueda del email.",
+      start: { dateTime: "2026-08-15T10:00:00-04:00" }
+    }
+  });
+
+  assert.ok(result);
+  assert.deepEqual(
+    result.participants?.map((participant) => [participant.contactId, participant.email, participant.role]),
+    [["contact-maria", "maria@empresa.cl", "MATCH"]]
+  );
+  assert.equal(result.metadata?.inferred_contact_match, true);
+});

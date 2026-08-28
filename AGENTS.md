@@ -33,6 +33,8 @@ Este documento concentra las reglas de comportamiento para Codex. Si hay una reg
 - En v1 cloud, las integraciones Google son de lectura/importacion/sync. No escribir en contactos, Gmail o Calendar salvo aprobacion explicita futura.
 - Cualquier servicio con riesgo de cobro debe tener limites, alertas o mecanismos de apagado documentados antes de activarse.
 - La app debe tener su propia fuente de verdad de contactos; IDs externos viven como referencias de proveedor, no como ID principal del producto.
+- Las tablas, vistas, funciones SQL y resultados de diagnostico deben usar nombres descriptivos y orientados a dominio. Evitar columnas genericas como `section`, `key`, `value`, `data`, `payload` o `metadata` salvo que exista una razon clara y documentada. Si se usan JSON o campos genericos por flexibilidad, documentar su contrato interno.
+- Cada tabla nueva o modificada debe quedar documentada en `docs/CURRENT_DATA_MODEL.md` con proposito, alcance (`Usuario`, `Global` o `Sistema`), columnas relevantes, formato esperado y reglas de escritura/lectura.
 - Si una decision puede afectar datos, permisos, costos, credenciales, OAuth, despliegue o privacidad, explicar impacto y pedir confirmacion antes de ejecutarla.
 - Al completar un cambio relevante, actualizar la documentacion viva que corresponda y registrar que cambio en la version o hito.
 

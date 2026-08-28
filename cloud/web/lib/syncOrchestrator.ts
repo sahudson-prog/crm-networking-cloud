@@ -3,6 +3,7 @@ import type {
   ExternalInteractionSyncResult
 } from "./externalInteractionSync";
 import { buildContactSyncPreview, type ContactSyncPreviewInput } from "./contactSyncPreview.ts";
+import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers.ts";
 import type { ContactRow } from "./readModel.ts";
 
 export type SyncProvider = "google" | "microsoft" | "apple" | "csv" | string;
@@ -60,6 +61,7 @@ export type SyncPreviewChangeType =
   | "deactivated"
   | "consolidation"
   | "duplicate_complex"
+  | "skipped"
   | "unchanged";
 
 export type SyncPreviewFieldChange = {
@@ -163,6 +165,7 @@ export async function syncExternalInteractionBatch(
 
   const interactionIds = new Set<string>();
   const externalSourceIds = new Set<string>();
+  const contactIds = new Set<string>();
 
   for (const item of items) {
     try {
@@ -173,6 +176,9 @@ export async function syncExternalInteractionBatch(
       result.counts.participantsInserted += itemResult.participantsInserted ?? 0;
       if (itemResult.interactionId) interactionIds.add(itemResult.interactionId);
       if (itemResult.externalSourceId) externalSourceIds.add(itemResult.externalSourceId);
+      for (const participant of item.participants ?? []) {
+        if (participant.contactId) contactIds.add(participant.contactId);
+      }
     } catch (error) {
       result.counts.failed += 1;
       result.errors.push({
@@ -185,6 +191,10 @@ export async function syncExternalInteractionBatch(
 
   result.affected.interactionIds = Array.from(interactionIds);
   result.affected.externalSourceIds = Array.from(externalSourceIds);
+  result.affected.contactIds = Array.from(contactIds);
+  if (result.affected.contactIds.length) {
+    await triggerCoachRuleReviewForContacts(result.affected.contactIds, input.source || `${input.resourceType}_sync`);
+  }
   result.ok = result.errors.length === 0;
   return finishSyncResult(result);
 }
@@ -205,6 +215,7 @@ export async function syncContacts(input: ContactSyncInput): Promise<SyncRunResu
       externalContacts: items,
       externalIdToContactId: input.externalIdToContactId,
       knownExternalValuesByContactId: input.knownExternalValuesByContactId,
+      mode: input.mode,
       provider: input.provider,
       suppressedChangeKeys: input.suppressedChangeKeys
     });

@@ -45,9 +45,10 @@ test("Google Contacts client lee paginas y devuelve nextSyncToken", async () => 
   assert.equal(result.nextSyncToken, "sync-next");
   assert.deepEqual(result.contacts.map((contact) => contact.externalId), ["people/1", "people/2"]);
   assert.equal(new URL(urls[0]).searchParams.get("requestSyncToken"), "true");
-  assert.equal(new URL(urls[0]).searchParams.get("personFields"), "names,emailAddresses,phoneNumbers,organizations,metadata");
+  assert.equal(new URL(urls[0]).searchParams.get("personFields"), "names,emailAddresses,phoneNumbers,organizations,birthdays,metadata");
   assert.equal(new URL(urls[0]).searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
   assert.equal(new URL(urls[1]).searchParams.get("pageToken"), "page-2");
+  assert.equal(new URL(urls[1]).searchParams.get("requestSyncToken"), null);
 });
 
 test("Google Contacts client usa syncToken en modo incremental", async () => {
@@ -85,6 +86,25 @@ test("Google Contacts client identifica syncToken vencido", async () => {
         error: {
           message: "Sync token is expired",
           details: [{ reason: "EXPIRED_SYNC_TOKEN" }]
+        }
+      }, 400)
+    }),
+    (error) => {
+      assert.ok(error instanceof GoogleContactsClientError);
+      assert.equal(error.code, "GOOGLE_CONTACTS_EXPIRED_SYNC_TOKEN");
+      return true;
+    }
+  );
+});
+
+test("Google Contacts client trata invalid argument con syncToken como cursor incompatible", async () => {
+  await assert.rejects(
+    readGoogleContacts({
+      accessToken: "token",
+      syncToken: "incompatible",
+      fetchImpl: async () => jsonResponse({
+        error: {
+          message: "Request contains an invalid argument."
         }
       }, 400)
     }),

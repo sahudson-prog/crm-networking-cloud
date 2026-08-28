@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   applyContactSyncPreview,
   contactAppMergePlanFromPreviewChange,
-  contactIdentityValuesForCreate
+  contactIdentityValuesForCreate,
+  DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS
 } from "../lib/contactSyncApply.ts";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator.ts";
 
@@ -40,6 +41,7 @@ test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", 
       completeInvocation: async (_id, finalResult) => {
         completed = finalResult.cursorSaved;
       },
+      assertStorageReady: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
@@ -72,6 +74,7 @@ test("applyContactSyncPreview no guarda cursor si quedan cambios pendientes", as
     },
     {
       applyChange: async () => "contact-1",
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -104,6 +107,7 @@ test("applyContactSyncPreview no guarda cursor si falla algun cambio", async () 
       applyChange: async () => {
         throw new Error("falla controlada");
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -122,6 +126,45 @@ test("applyContactSyncPreview no guarda cursor si falla algun cambio", async () 
   assert.equal(result.cursorSaved, false);
   assert.equal(cursorSaved, false);
   assert.equal(result.errors[0].message, "falla controlada");
+});
+
+test("applyContactSyncPreview valida almacenamiento antes de crear contactos", async () => {
+  let applied = false;
+  let failedInvocation = false;
+
+  await assert.rejects(
+    applyContactSyncPreview(
+      {
+        changes: [baseChange],
+        provider: "google",
+        totalPreviewChanges: 1
+      },
+      {
+        applyChange: async () => {
+          applied = true;
+          return "contact-1";
+        },
+        assertStorageReady: async () => {
+          throw new Error("storage incompleto");
+        },
+        completeInvocation: async () => undefined,
+        createInvocation: async () => "invocation-1",
+        failInvocation: async () => {
+          failedInvocation = true;
+        },
+        getUserId: async () => "user-1",
+        saveCursor: async () => undefined
+      }
+    ),
+    /storage incompleto/
+  );
+
+  assert.equal(applied, false);
+  assert.equal(failedInvocation, true);
+});
+
+test("contactos importados parten fuera de foco networking por defecto", () => {
+  assert.equal(DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS, false);
 });
 
 test("applyContactSyncPreview ignora filas informativas sin cambios al calcular pendientes", async () => {
@@ -151,6 +194,7 @@ test("applyContactSyncPreview ignora filas informativas sin cambios al calcular 
         applied.push(change.id);
         return "contact-1";
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -188,6 +232,7 @@ test("applyContactSyncPreview distingue aplicados y fallidos en seleccion parcia
         if (change.id === failingChange.id) throw new Error("falla controlada");
         return "contact-1";
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -225,10 +270,11 @@ test("applyContactSyncPreview registra detalle de errores no Error desde Supabas
       applyChange: async () => {
         throw {
           code: "23505",
-          details: "Key (user_id, normalized_email) already exists.",
+          details: "Key (user_id, contact_id, normalized_email) already exists.",
           message: "duplicate key value violates unique constraint"
         };
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -284,7 +330,7 @@ test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fus
           focus: false,
           headhunter: false,
           id: "people/1",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Alberto V",
           networkingStatus: "Pendiente",
           phones: ["+56228371378"],

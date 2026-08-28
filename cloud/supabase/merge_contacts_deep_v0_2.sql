@@ -145,9 +145,8 @@ begin
     ordinality = 1,
     'app'
   from unnest(v_emails) with ordinality as email_item(email_value, ordinality)
-  on conflict (user_id, normalized_email)
+  on conflict (user_id, contact_id, normalized_email)
   do update set
-    contact_id = excluded.contact_id,
     email = excluded.email,
     domain = excluded.domain,
     is_primary = excluded.is_primary,
@@ -177,9 +176,8 @@ begin
     ordinality = 1,
     'app'
   from unnest(v_phones) with ordinality as phone_item(phone_value, ordinality)
-  on conflict (user_id, normalized_phone)
+  on conflict (user_id, contact_id, normalized_phone)
   do update set
-    contact_id = excluded.contact_id,
     phone = excluded.phone,
     normalized_phone_last8 = excluded.normalized_phone_last8,
     is_primary = excluded.is_primary,

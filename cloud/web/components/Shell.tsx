@@ -10,38 +10,52 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
+  const isObjectives = pathname.startsWith("/objetivos");
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand">
           <h1 className="brand-title">CRM Networking</h1>
-          <p className="brand-subtitle">Replica cloud - beta espejo</p>
         </div>
         <nav className="nav" aria-label="Navegacion principal">
-          <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
-            <Icon name="sparkles" />
-            Dashboard
-          </Link>
-          <Link className={`nav-link ${pathname === "/contactos" ? "active" : ""}`} href="/contactos">
-            <Icon name="users" />
-            Contactos
-          </Link>
-          <Link className={`nav-link ${isSystem ? "active" : ""}`} href="/sistema">
-            <Icon name="settings" />
-            Sistema
-          </Link>
-          <Link className={`nav-link ${isAccount ? "active" : ""}`} href="/cuenta">
-            <Icon name="user" />
-            Cuenta
-          </Link>
-          <ActivitySyncButton variant="focus_incremental" />
+          <div className="nav-primary">
+            <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
+              <Icon name="sparkles" />
+              Dashboard
+            </Link>
+            <Link className={`nav-link ${pathname === "/contactos" ? "active" : ""}`} href="/contactos">
+              <Icon name="users" />
+              Contactos
+            </Link>
+            <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">
+              <Icon name="target" />
+              Objetivos
+            </Link>
+          </div>
+          <div className="nav-utility">
+            <Link
+              aria-label="Sistema"
+              className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
+              href="/sistema"
+              title="Sistema"
+            >
+              <Icon name="settings" />
+              <span className="sr-only">Sistema</span>
+            </Link>
+            <Link
+              aria-label="Cuenta"
+              className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
+              href="/cuenta"
+              title="Cuenta"
+            >
+              <Icon name="user" />
+              <span className="sr-only">Cuenta</span>
+            </Link>
+            <ActivitySyncButton variant="focus_incremental" square />
+          </div>
         </nav>
       </header>
-      <div className="banner">
-        Modo espejo: esta app usa la copia importada en Supabase. Google Contacts esta en beta con confirmacion previa;
-        el Coach ya puede actualizar y cerrar sugerencias dentro de esta copia cloud.
-      </div>
       {children}
     </main>
   );

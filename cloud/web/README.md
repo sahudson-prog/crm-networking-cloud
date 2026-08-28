@@ -1,11 +1,11 @@
 # CRM Networking Cloud Web
 
-Primera base web de la replica cloud. Esta version es deliberadamente solo lectura:
+Primera base web de la version cloud. Esta version parte como beta controlada:
 
-- lee datos importados en Supabase;
+- lee datos de la app en Supabase;
 - permite validar login y aislamiento por usuario;
-- muestra Dashboard, Contactos y Sistema como primera comparacion;
-- no modifica contactos, interacciones, referidos, ToDos ni servicios Google.
+- muestra Dashboard, Contactos, Cuenta y Sistema;
+- usa Google en modo lectura/sincronizacion confirmada, sin escribir de vuelta al proveedor.
 
 ## Configuracion local
 
@@ -52,4 +52,4 @@ No subir claves secretas, connection strings, contrasenas ni exports con datos p
 
 ## Alcance v0.1
 
-La primera meta no es reemplazar Streamlit. Es ver los datos ya importados en Supabase desde una web nueva, ordenada y lista para crecer.
+La primera meta es validar la app cloud con modelo propio, Supabase como base de la app y proveedores externos conectados por adaptadores.

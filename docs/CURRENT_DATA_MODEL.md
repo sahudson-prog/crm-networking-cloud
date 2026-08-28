@@ -113,6 +113,211 @@ Estado de sincronizacion incremental. El codigo usa `CRM_Sync_State!A:C`.
 | Valor/cursor | Cursor o fecha de sync | Sincronizacion incremental | Texto/API token/fecha |
 | Ultima actualizacion | Momento de escritura | Diagnostico | Fecha/hora |
 
+## Cloud dev: diagnostico de lecturas externas
+
+En Supabase cloud dev existe la tabla `external_interaction_read_diagnostics` para diagnosticar lecturas de proveedores antes de convertirlas en interacciones de la app. En v1 se usa para Google Calendar: guarda un resumen tecnico acotado del evento, emails detectados, contactos mapeados, estado (`candidate`, `not_mapped`, `filtered_out`) y motivo de exclusion. No guarda descripcion/cuerpo crudo del evento, no es fuente de verdad operacional y no reemplaza `interactions` ni `external_interaction_sources`.
+
+Tambien existe `sync_run_logs` como bitacora operativa de sincronizaciones/importaciones por usuario. Guarda una fila por paso relevante (`provider`, `resource_type`, `operation`, `scope_label`, `step`, `status`, `detail`, `metadata`, `created_at`) y se usa para diagnosticar flujos de contactos, correos, calendario y futuras fuentes sin mezclar mensajes tecnicos en la UI de Cuenta. Antes de escribir, la app redacta correos, telefonos, tokens y claves sensibles de `metadata`. No reemplaza `audit_log`: `audit_log` sigue siendo historial de cambios de negocio; `sync_run_logs` es observabilidad del proceso.
+
+## Cloud dev: cuentas, privacidad y seguridad
+
+Base vigente antes del sprint multiusuario:
+
+| Tabla | Alcance | Que representa | Estado |
+|---|---|---|---|
+| `profiles` | Usuario | Perfil minimo asociado a `auth.users` | Existe, pero aun no contiene rol, plan, estado beta ni preferencias avanzadas |
+| `connected_accounts` | Usuario | Cuentas externas conectadas por proveedor, email, scopes conocidos, capacidades, estado y revocacion interna | Existe y la UI Cuenta ya lo usa como fuente persistente de conexion; permite marcar una cuenta como revocada sin borrar datos importados. Los botones de importacion exigen conexion activa mas token OAuth fresco de sesion; el token por si solo no basta si la cuenta fue desvinculada. Permiso renovable aun requiere definir refresh tokens cifrados |
+| `service_connectors` | Global | Catalogo de proveedores y servicios disponibles | Existe como catalogo base; debe conectarse a capabilities por plan y permisos reales |
+| `usage_limits` | Usuario | Limites configurables por usuario | Existe como base; falta relacionarlo con plan/capabilities y enforcement completo |
+| `usage_events` | Usuario | Eventos de consumo de cuotas | Existe como base; falta registrar todos los flujos relevantes |
+| `sync_run_logs` | Usuario | Bitacora tecnica de sync/importacion | Existe con redaccion central de datos sensibles; falta definir retencion antes de beta |
+| `audit_log` | Usuario | Historial de cambios de negocio o seguridad | Existe; debe cubrir acciones sensibles de cuenta, permisos, roles y conexiones |
+
+Brechas para beta:
+
+- Falta modelo persistente de roles, planes, capabilities, organizaciones, membresias y entitlements.
+- Falta reemplazar el gate admin beta por permisos reales respaldados por backend/RLS.
+- Falta definir estrategia aprobada para tokens OAuth renovables: cifrado, revocacion, auditoria y quien puede descifrarlos.
+- Falta documentar y probar derechos del titular: acceso, rectificacion, supresion, oposicion, portabilidad y bloqueo.
+- Falta definir retencion y permisos finales de visores admin; los logs de sync ya pasan por redaccion central y Calendar diagnostico ya guarda payload acotado, no descripcion cruda.
+
+Auditoria tecnica 2026-08-26:
+
+| Area | Estado observado | Implicancia |
+|---|---|---|
+| Tablas privadas de usuario | Tienen `user_id` y policies por `auth.uid()` en el schema base | Buen punto de partida para beta; falta prueba real con dos usuarios |
+| `connected_accounts` | Existe con proveedor, scopes conocidos, capacidades, estado y revocacion | La UI Cuenta ya lo lee como fuente persistente de conexion y permite desvincular una cuenta en la app; falta cerrar persistencia segura de tokens renovables |
+| Admin UI | `adminAccess.ts` consulta `current_user_has_capability` | Mejor punto de partida beta; falta ejecutar modelo SQL y probar que usuarios normales no acceden |
+| Maestros globales | `headhunter_companies` y dominios son globales | Correcto como alcance global; la escritura debe quedar restringida a `admin.manage_global_masters` con `restrict_headhunter_master_admin_writes_v0_1.sql` |
+| Roles y planes | No hay tablas formales de roles, planes, organizaciones, membresias ni entitlements | Bloquea beta escalable, tiers de servicio, sponsors y permisos finos |
+
+Primer corte v0.1 ejecutado y verificado en Supabase dev:
+
+| Tabla propuesta | Alcance | Proposito |
+|---|---|---|
+| `app_capabilities` | Global | Catalogo de capacidades accionables, como importar contactos, usar Coach o administrar accesos |
+| `app_roles` | Global | Roles base: usuario, beta tester, soporte admin, administrador sistema y administrador sponsor |
+| `app_role_capabilities` | Global | Relacion entre roles y capacidades incluidas |
+| `subscription_plans` | Global | Tiers o planes comerciales: beta personal, gratis, pro, premium y patrocinado base |
+| `subscription_plan_capabilities` | Global | Capacidades disponibles por plan, con limites configurables por capacidad |
+| `user_access_profiles` | Usuario | Estado de acceso, plan vigente y estado beta por usuario |
+| `user_role_assignments` | Usuario/Sistema | Roles asignados a usuarios con vigencia y trazabilidad |
+| `user_capability_overrides` | Usuario/Sistema | Excepciones para otorgar, bloquear o limitar una capacidad puntual |
+| `organizations` | Global/Sistema | Empresas sponsor, outplacement, partners o internas |
+| `organization_memberships` | Usuario/Sistema | Vinculo entre usuarios y organizaciones, sin acceso automatico a datos privados |
+| `user_plan_sponsorships` | Usuario/Sistema | Plan financiado por una organizacion para un usuario |
+
+El modelo incluye la funcion `current_user_has_capability(capability_code)`, pensada como resolvedor central para que UI, acciones internas, Coach, sync y RLS consulten la misma fuente de permisos. La app cloud ya tiene helpers cliente para consultar y exigir esta capability antes de acciones sensibles.
+
+Funcion de reinicio de datos personales:
+
+| Funcion | Alcance | Proposito | Que conserva |
+|---|---|---|---|
+| `reset_current_user_app_data_v0_1('BORRAR MIS DATOS')` | Usuario | Borra los datos operativos del usuario autenticado para partir la app desde cero | Conserva `auth.users`, `profiles`, plan, roles, capabilities, organizaciones y maestros globales |
+
+La funcion exige capability `data.delete_account` y confirmacion literal. En beta, esa capability queda disponible para `system_admin` y para el plan `beta_personal`; si falta en una base existente, aplicar `cloud/supabase/grant_reset_data_capability_v0_1.sql`. Borra contactos, medios de contacto, snapshots externos, IDs externos, interacciones, participantes, fuentes externas, diagnosticos, referidos, objetivos, ToDos, configuracion personal, cursores, limites/uso, logs de sync, auditoria y cuentas externas conectadas del usuario. No borra datos de otros usuarios ni datos globales.
+
+Tablas que borra explicitamente, siempre filtrando por `user_id = auth.uid()` y en el mismo orden definido en `cloud/supabase/reset_current_user_app_data_v0_1.sql`:
+
+| Orden | Tabla | Que borra |
+|---|---|---|
+| 1 | `metric_snapshots` | Metricas guardadas del usuario |
+| 2 | `usage_events` | Eventos de uso/cuotas del usuario |
+| 3 | `usage_limits` | Limites configurados para el usuario |
+| 4 | `data_exports` | Registros de exportaciones del usuario |
+| 5 | `import_batches` | Registros de importaciones del usuario |
+| 6 | `sync_run_logs` | Logs operativos de sincronizacion/importacion |
+| 7 | `sync_cursors` | Cursores de sincronizacion incremental |
+| 8 | `external_interaction_read_diagnostics` | Lecturas diagnosticas crudas de interacciones externas |
+| 9 | `object_review_state` | Punteros de revision de objetos por Coach/sync |
+| 10 | `action_invocations` | Acciones internas invocadas por UI, Coach o sistema |
+| 11 | `todos` | Sugerencias/pendientes del Coach |
+| 12 | `todo_configs` | Configuracion personal de reglas/sugerencias |
+| 13 | `referrals` | Referidos del usuario |
+| 14 | `contact_objective_assignments` | Vinculos entre contactos y objetivos |
+| 15 | `objectives` | Objetivos profesionales del usuario |
+| 16 | `external_interaction_sources` | Fuentes externas vinculadas a interacciones |
+| 17 | `interaction_participants` | Participantes de interacciones |
+| 18 | `interactions` | Interacciones propias de la app |
+| 19 | `contact_emails` | Correos de contactos |
+| 20 | `contact_phones` | Telefonos de contactos |
+| 21 | `external_contact_snapshots` | Espejo de contactos desde proveedores como Google |
+| 22 | `external_contact_ids` | IDs externos vinculados a contactos |
+| 23 | `contacts` | Contactos locales de la app |
+| 24 | `connected_accounts` | Cuentas externas conectadas en la app |
+| 25 | `user_settings` | Configuracion personal del usuario |
+| 26 | `audit_log` | Auditoria operativa asociada al usuario |
+
+Tablas/datos que conserva explicitamente:
+
+| Dato o tabla | Motivo |
+|---|---|
+| `auth.users` | Mantiene la cuenta de acceso/login |
+| `profiles` | Mantiene el perfil minimo del usuario |
+| `user_access_profiles` | Mantiene estado de acceso, beta y plan |
+| `user_role_assignments` | Mantiene roles asignados |
+| `user_capability_overrides` | Mantiene excepciones de permisos si existen |
+| `app_capabilities`, `app_roles`, `app_role_capabilities` | Catalogo global de capacidades y roles |
+| `subscription_plans`, `subscription_plan_capabilities` | Catalogo global de planes y capacidades por plan |
+| `organizations`, `organization_memberships`, `user_plan_sponsorships` | Estructura de organizaciones, membresias y patrocinios |
+| `service_connectors` | Catalogo global de proveedores/conectores |
+| `headhunter_companies`, `headhunter_company_domains` | Maestro global de empresas headhunter y dominios |
+
+Si se agrega una tabla nueva con datos personales del usuario, debe decidirse explicitamente si queda dentro de esta funcion de reinicio y actualizar este listado junto con el SQL.
+
+Nota de bootstrap: el primer `system_admin` debe asignarse manualmente desde Supabase/service role despues de ejecutar la migracion. No debe existir una ruta de auto-promocion admin desde la app.
+
+Archivos operativos del corte:
+
+| Archivo | Proposito |
+|---|---|
+| `cloud/supabase/add_account_access_model_v0_1.sql` | Crea tablas, seeds, policies, funcion de capability, trigger de alta de usuario y backfill inicial |
+| `cloud/supabase/bootstrap_first_system_admin_v0_1.sql` | Asigna o reactiva manualmente `system_admin`, `beta_tester` y `user` al primer administrador por email |
+| `cloud/supabase/grant_reset_data_capability_v0_1.sql` | Agrega `data.delete_account` al rol `system_admin` y al plan `beta_personal` en bases existentes |
+| `cloud/supabase/verify_account_access_model_v0_1.sql` | Verifica tablas, RLS, seeds, funcion y trigger del modelo de acceso |
+| `cloud/supabase/verify_multiuser_readiness_v0_1.sql` | Verifica preparacion estructural multiusuario sin leer datos: tablas privadas con columna de dueno, RLS/policies, tablas globales sin `user_id`, resolvedor de capacidades y trigger de alta |
+| `tools/dev_maintenance/supabase/restore_system_admin_by_email_v0_1.sql` | Recupera en dev un usuario administrador por email cuando una prueba dejo desactivado su rol admin |
+
+Manual de referencia: `docs/PRIVACY_SECURITY_COMPLIANCE.md`.
+
+## Cloud dev: maestro de empresas headhunter
+
+En Supabase cloud dev existe el primer corte del maestro de empresas headhunter:
+
+| Tabla | Que representa | Uso principal |
+|---|---|---|
+| `headhunter_companies` | Catalogo global de empresas headhunter oficiales de la app | Nombre canonico para agrupar contactos headhunter |
+| `headhunter_company_domains` | Catalogo global de dominios asociados a una empresa headhunter | Resolver empresa por email/dominio y evitar agrupaciones sueltas |
+
+Regla vigente: este maestro es transversal a todos los usuarios y no lleva `user_id`. El maestro no modifica contactos por si solo. Sirve como referencia para que proximos pasos del editor/tablero puedan sugerir completar empresa, detectar ambiguedades y agrupar tarjetas por empresa oficial. La lectura es para usuarios autenticados; la escritura debe quedar reservada a administradores con capability `admin.manage_global_masters`.
+
+Columnas vigentes:
+
+| Tabla | Columna | Formato | Uso |
+|---|---|---|---|
+| `headhunter_companies` | `id` | `uuid` | Identificador interno de la empresa headhunter oficial |
+| `headhunter_companies` | `display_name` | `text`, no vacio | Nombre visible canonico de la empresa |
+| `headhunter_companies` | `normalized_name` | `text`, no vacio, unico si `is_active = true` | Nombre normalizado para comparar sin depender de mayusculas, acentos o espacios |
+| `headhunter_companies` | `notes` | `text`, default vacio | Nota administrativa sobre origen o correcciones del registro |
+| `headhunter_companies` | `is_active` | `boolean` | Permite desactivar una empresa sin borrar historial del maestro |
+| `headhunter_companies` | `created_at`, `updated_at` | `timestamptz` | Auditoria tecnica basica del registro |
+| `headhunter_company_domains` | `id` | `uuid` | Identificador interno del dominio |
+| `headhunter_company_domains` | `company_id` | `uuid` hacia `headhunter_companies.id` | Empresa oficial a la que pertenece el dominio |
+| `headhunter_company_domains` | `domain` | `text`, formato `@dominio.com` | Dominio visible guardado |
+| `headhunter_company_domains` | `normalized_domain` | `text`, formato `@dominio.com`, unico si `is_active = true` | Dominio normalizado para resolver contactos por email |
+| `headhunter_company_domains` | `is_primary` | `boolean` | Marca el dominio principal cuando una empresa tiene varios |
+| `headhunter_company_domains` | `is_active` | `boolean` | Permite desactivar un dominio sin borrar historial del maestro |
+| `headhunter_company_domains` | `created_at`, `updated_at` | `timestamptz` | Auditoria tecnica basica del registro |
+
+Poblamiento inicial aprobado: usar solo datos propios de la app que ya tengan marca headhunter, contacto activo y empresa no vacia. Los dominios se toman desde correos/dominios registrados, excluyendo dominios personales como Gmail/Hotmail/iCloud. Si un dominio apunta a mas de una empresa, no se carga automaticamente y queda para revision manual. Los SQL de apoyo son `cloud/supabase/preview_headhunter_company_master_seed_from_contacts_v0_1.sql` y `cloud/supabase/seed_headhunter_company_master_from_contacts_v0_1.sql`.
+
+Fuente complementaria aprobada: `Listado Headhunters Lukkap Chile.csv`, usada como base externa confiable para enriquecer el maestro. Los SQL `cloud/supabase/preview_headhunter_company_master_seed_lukkap_csv_v0_1.sql` y `cloud/supabase/seed_headhunter_company_master_lukkap_csv_v0_1.sql` cargan solo empresa y dominios corporativos derivados de correos. Dominios personales quedan fuera. `Mandomedio` se carga como empresa unica para `@mandomedio.com`; si cargas previas dejaron variantes como `Mando Medio` o `Insigni - Mandomedio`, el SQL `cloud/supabase/fix_headhunter_master_mandomedio_v0_1.sql` las consolida en una sola empresa activa. `@headhunter.cl` queda como `GDAHeadhunter`. Si el maestro fue creado con `user_id`, ejecutar `cloud/supabase/make_headhunter_company_master_global_v0_2.sql` para convertirlo en catalogo global. Para cerrar la escritura beta abierta, ejecutar despues `cloud/supabase/restrict_headhunter_master_admin_writes_v0_1.sql`.
+
+## Cloud dev: objetivos de busqueda profesional
+
+Primer corte propuesto. La migracion esta preparada en `cloud/supabase/add_objectives_v0_1.sql`, pero no debe considerarse ejecutada hasta confirmarlo en Supabase dev.
+
+| Tabla | Alcance | Que representa | Uso principal |
+|---|---|---|---|
+| `objectives` | Usuario | Objetivos profesionales declarados por el usuario | Mantener empresas, industrias, cargos y funciones objetivo como entidades propias |
+| `contact_objective_assignments` | Usuario | Relacion many-to-many entre contactos y objetivos | Asociar contactos a objetivos sin usar hashtags libres |
+
+Columnas propuestas:
+
+| Tabla | Columna | Formato | Uso |
+|---|---|---|---|
+| `objectives` | `id` | `uuid` | Identificador interno del objetivo |
+| `objectives` | `user_id` | `uuid` hacia `profiles.id` | Dueño del objetivo |
+| `objectives` | `objective_name` | `text`, no vacio | Nombre visible del objetivo |
+| `objectives` | `objective_name_normalized` | `text`, no vacio | Nombre normalizado para evitar duplicados dentro del mismo tipo |
+| `objectives` | `objective_type` | `COMPANY`, `INDUSTRY`, `ROLE`, `FUNCTION` | Tipo de objetivo |
+| `objectives` | `priority_level` | `HIGH`, `MEDIUM`, `LOW` | Prioridad declarada por el usuario |
+| `objectives` | `objective_description` | `text`, default vacio | Nota opcional del objetivo |
+| `objectives` | `is_active` | `boolean` | Permite ocultar/desactivar sin perder asociaciones historicas |
+| `objectives` | `created_at`, `updated_at` | `timestamptz` | Auditoria tecnica basica |
+| `contact_objective_assignments` | `id` | `uuid` | Identificador interno de la asociacion |
+| `contact_objective_assignments` | `user_id` | `uuid` hacia `profiles.id` | Dueño de la asociacion |
+| `contact_objective_assignments` | `contact_id` | `uuid` hacia `contacts.id` | Contacto asociado |
+| `contact_objective_assignments` | `objective_id` | `uuid` hacia `objectives.id` | Objetivo asociado |
+| `contact_objective_assignments` | `assigned_by_actor` | `user`, `coach`, `system`, `import` | Origen de la asociacion |
+| `contact_objective_assignments` | `assigned_at` | `timestamptz` | Momento funcional de la asociacion |
+| `contact_objective_assignments` | `created_at`, `updated_at` | `timestamptz` | Auditoria tecnica basica |
+
+Regla vigente del diseno: en el MVP, los contactos solo seleccionan objetivos previamente declarados en la vista `Objetivos`. No existe tag libre paralelo. El filtro global de Contactos/Dashboard usa objetivos por ID.
+
+Metricas derivadas vigentes: no existe una tabla nueva para KPIs de objetivos en este corte. El resumen por objetivo se calcula desde `objectives`, `contact_objective_assignments`, `contacts`, `interaction_participants` e `interactions`. Reglas:
+
+- La capa de metricas calcula objetivos activos aunque tengan cero contactos; la UI los oculta por defecto cuando no tienen contactos ni cafes para los filtros activos.
+- `Contactos` cuenta contactos activos asociados al objetivo.
+- `Cafes` cuenta interacciones unicas tipo `calendar` o `call` asociadas a uno o mas contactos del objetivo; si dos contactos del mismo objetivo participan en la misma cita/llamada, se cuenta una sola vez para ese objetivo.
+- `Ultima actividad` usa la fecha mas reciente de esos cafes.
+- `Mayor estado` usa el estado networking mas avanzado entre los contactos asociados al objetivo.
+- El orden inicial es prioridad alta, media, baja; luego tipo, cantidad de contactos y nombre.
+- En Dashboard, las metricas se acotan a `Fecha_Inicio_Networking`.
+- Por defecto, la tabla oculta objetivos sin contactos ni cafes para los filtros activos. El usuario puede activar `Mostrar objetivos sin actividad`.
+
+Si mas adelante se requiere historico, comparacion entre periodos o performance para muchos usuarios, se evaluara persistir snapshots en `metric_snapshots` o una tabla especifica con nombres descriptivos.
+
 ## CRM_ToDos
 
 | Columna | Que representa | Uso principal | Formato requerido |
@@ -140,7 +345,7 @@ Estado de sincronizacion incremental. El codigo usa `CRM_Sync_State!A:C`.
 
 | Columna | Que representa | Uso principal | Formato requerido |
 |---|---|---|---|
-| `Tipo_ToDo` | Tipo de sugerencia o regla concreta configurable | Configurar comportamiento | Texto controlado. En configuracion puede ser granular, por ejemplo `RULE_STATUS_TO_CONTACTED` |
+| `Tipo_ToDo` | Tipo de sugerencia o regla concreta configurable | Configurar comportamiento | Texto controlado. Solo deben existir tipos aprobados e implementados para el MVP, por ejemplo `RULE_STATUS_TO_CONTACTED` |
 | `Descripcion` | Explicacion del tipo | UI/configuracion | Texto |
 | `Motor_Tipo` | Regla, hibrido o IA | Ordenar complejidad | RULE, HYBRID o AI |
 | `Modo_Ejecucion` | Como se ejecuta | Preguntar/auto/desactivar | `Preguntar`, `Automatico` o `Desactivado` |
@@ -191,3 +396,5 @@ El export contiene datos personales y minutas. No debe subirse a GitHub ni compa
 - 2026-07-22: Se documenta `CRM_Relaciones` actual A:D como modelo legacy de referidos, incluyendo su limitacion frente al nuevo diseno futuro.
 - 2026-07-22: El codigo queda compatible con `CRM_Relaciones!A:Q` y normaliza columnas legacy/ampliadas sin migracion masiva automatica.
 - 2026-07-22: Se documenta export espejo local como lectura de respaldo/migracion sin modificacion de datos.
+- 2026-08-26: Se agrega seccion de cuentas, privacidad y seguridad y se registra auditoria tecnica inicial: RLS privado existe como base, pero faltan roles/capabilities persistentes, gate admin real y `connected_accounts` como fuente de verdad operativa.
+- 2026-08-26: Se documenta la propuesta no ejecutada `add_account_access_model_v0_1.sql` para modelo de acceso beta multiusuario.

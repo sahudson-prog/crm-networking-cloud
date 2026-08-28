@@ -150,6 +150,14 @@ function buildLogMessage(row: CoachActionLogRow) {
     row.suggestedStatus
   );
   const hasStatusChange = Boolean(row.currentStatus || row.suggestedStatus);
+  if (row.todoType === "HEADHUNTER_COMPANY_DETECTED" && row.suggestedCompany) {
+    return (
+      <span className="coach-log-message-text">
+        Registra a <strong>{compactSummaryName(row.contactName || row.summary)}</strong> como headhunter, en{" "}
+        <strong>{row.suggestedCompany}</strong>.
+      </span>
+    );
+  }
   if (!hasStatusChange) return <span className="coach-log-message-text">{summary.prefix}</span>;
 
   return (

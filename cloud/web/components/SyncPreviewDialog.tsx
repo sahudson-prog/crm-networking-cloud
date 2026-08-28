@@ -6,6 +6,7 @@ import { withContactMergeDecision, type ContactMergeResult, type ContactMergeSou
 import type { SyncPreviewChange, SyncPreviewChangeType } from "../lib/syncOrchestrator";
 import { ContactMergeDialog } from "./ContactMergeDialog";
 import { Button } from "./ui/Button";
+import { ProgressBar, type ProgressBarProps } from "./ui/ProgressBar";
 
 type SyncPreviewDialogProps = {
   open: boolean;
@@ -15,12 +16,14 @@ type SyncPreviewDialogProps = {
   feedbackMessage?: string;
   feedbackTone?: "error" | "info";
   applying?: boolean;
+  progress?: ProgressBarProps;
   onClose: () => void;
   onApply: (selectedChanges: SyncPreviewChange[]) => void;
   onOpenSavedDuplicateMerge?: (sources: ContactMergeSource[]) => void;
+  tabKeys?: readonly SyncPreviewTabKey[];
 };
 
-type SyncPreviewTabKey = "new" | "modified" | "consolidation" | "duplicate_complex" | "deleted" | "unchanged";
+type SyncPreviewTabKey = "new" | "modified" | "consolidation" | "duplicate_complex" | "deleted" | "skipped";
 
 const PREVIEW_TABS: Array<{ key: SyncPreviewTabKey; label: string; types: SyncPreviewChangeType[]; description?: string }> = [
   { key: "new", label: "Nuevos", types: ["new"] },
@@ -43,7 +46,7 @@ const PREVIEW_TABS: Array<{ key: SyncPreviewTabKey; label: string; types: SyncPr
     types: ["duplicate_complex"]
   },
   { key: "deleted", label: "Eliminaciones", types: ["deactivated", "deleted"] },
-  { key: "unchanged", label: "Sin cambios", types: ["unchanged"] }
+  { key: "skipped", label: "Omitidas", types: ["skipped"] }
 ];
 
 export function SyncPreviewDialog({
@@ -56,6 +59,8 @@ export function SyncPreviewDialog({
   onClose,
   onOpenSavedDuplicateMerge,
   open,
+  progress,
+  tabKeys,
   title = "Cambios detectados"
 }: SyncPreviewDialogProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -63,6 +68,10 @@ export function SyncPreviewDialog({
   const [mergeDialogChange, setMergeDialogChange] = useState<SyncPreviewChange | null>(null);
   const [mergeDecisions, setMergeDecisions] = useState<Record<string, ContactMergeResult>>({});
   const wasOpenRef = useRef(false);
+  const tabsConfig = useMemo(() => {
+    const allowed = new Set(tabKeys ?? PREVIEW_TABS.map((tab) => tab.key));
+    return PREVIEW_TABS.filter((tab) => allowed.has(tab.key));
+  }, [tabKeys]);
 
   useEffect(() => {
     if (!open) {
@@ -76,29 +85,28 @@ export function SyncPreviewDialog({
         ? new Set(Array.from(current).filter((id) => remainingIds.has(id)))
         : new Set(changes.filter((change) => change.defaultSelected && !change.blocking).map((change) => change.id))
     ));
-    setActiveTab(firstTabWithChanges(changes));
+    setActiveTab(firstTabWithChanges(changes, tabsConfig));
     setMergeDialogChange(null);
     setMergeDecisions((current) => {
       if (!wasAlreadyOpen) return {};
       return Object.fromEntries(Object.entries(current).filter(([changeId]) => remainingIds.has(changeId)));
     });
     wasOpenRef.current = true;
-  }, [changes, open]);
+  }, [changes, open, tabsConfig]);
 
   const tabs = useMemo(
-    () => PREVIEW_TABS.map((tab) => ({
+    () => tabsConfig.map((tab) => ({
       ...tab,
       changes: sortChangesByTitle(changes.filter((change) => tab.types.includes(change.type)))
     })),
-    [changes]
+    [changes, tabsConfig]
   );
 
   if (!open) return null;
 
   const activeTabData = tabs.find((tab) => tab.key === activeTab) || tabs[0];
   const activeChanges = activeTabData?.changes || [];
-  const readOnlyTab = activeTab === "unchanged";
-  const actionableChanges = changes.filter((change) => !change.blocking);
+  const actionableChanges = changes.filter(isActionableChange);
   const selectedChanges = actionableChanges
     .filter((change) => selectedIds.has(change.id))
     .map((change) => {
@@ -109,6 +117,11 @@ export function SyncPreviewDialog({
   const footerSummary = selectionSummary(tabs, selectedIds, pendingCount);
   const mergeDialogSources = mergeDialogChange ? mergeSourcesFromChange(mergeDialogChange) : [];
   const mergeDialogMode = mergeDialogChange ? mergeDialogCopy(mergeDialogChange) : null;
+
+  function handleClose() {
+    if (applying) return;
+    onClose();
+  }
 
   function toggle(change: SyncPreviewChange, selected: boolean) {
     if (change.blocking) return;
@@ -135,18 +148,14 @@ export function SyncPreviewDialog({
   function renderChangeCard(change: SyncPreviewChange) {
     return (
       <article className={`sync-preview-card ${change.type}`} key={change.id}>
-        {change.type === "unchanged" ? (
-          <span className="sync-preview-card-status" aria-label="Sin cambios">OK</span>
-        ) : (
-          <label className="sync-preview-card-select">
-            <input
-              checked={selectedIds.has(change.id)}
-              disabled={change.blocking}
-              onChange={(event) => toggle(change, event.target.checked)}
-              type="checkbox"
-            />
-          </label>
-        )}
+        <label className="sync-preview-card-select">
+          <input
+            checked={selectedIds.has(change.id)}
+            disabled={change.blocking}
+            onChange={(event) => toggle(change, event.target.checked)}
+            type="checkbox"
+          />
+        </label>
         <div className="sync-preview-card-content">
           <div className="sync-preview-card-head">
             <strong>{change.title}</strong>
@@ -187,7 +196,7 @@ export function SyncPreviewDialog({
             <h2 id="sync-preview-title">{title}</h2>
             <p>{description}</p>
           </div>
-          <Button icon="close" square aria-label="Cerrar preview de sincronizacion" onClick={onClose} />
+          <Button disabled={applying} icon="close" square aria-label="Cerrar preview de sincronizacion" onClick={handleClose} />
         </header>
 
         <div className="sync-preview-tabs" role="tablist" aria-label="Tipos de cambios detectados">
@@ -207,14 +216,10 @@ export function SyncPreviewDialog({
         </div>
 
         <div className="sync-preview-toolbar">
-          {readOnlyTab ? (
-            <span>{activeChanges.length} contactos revisados sin cambios.</span>
-          ) : (
-            <div>
-              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(true)}>Seleccionar todos</Button>
-              <Button disabled={!activeChanges.some((change) => !change.blocking)} onClick={() => selectAllInTab(false)}>Limpiar seleccion</Button>
-            </div>
-          )}
+          <div>
+            <Button disabled={!activeChanges.some(isActionableChange)} onClick={() => selectAllInTab(true)}>Seleccionar todos</Button>
+            <Button disabled={!activeChanges.some(isActionableChange)} onClick={() => selectAllInTab(false)}>Limpiar seleccion</Button>
+          </div>
         </div>
 
         <div className="sync-preview-body">
@@ -253,13 +258,13 @@ export function SyncPreviewDialog({
         <footer className="sync-preview-footer">
           <div className="sync-preview-selection-summary">
             <span>{footerSummary}</span>
-            <strong>{pendingCount} quedaran pendientes.</strong>
-            {feedbackMessage ? (
+            {feedbackMessage && feedbackTone === "error" ? (
               <span className={feedbackTone === "error" ? "form-error" : "meta"}>{feedbackMessage}</span>
             ) : null}
+            {progress ? <ProgressBar {...progress} compact /> : null}
           </div>
           <div className="modal-actions">
-            <Button onClick={onClose}>Cancelar</Button>
+            <Button disabled={applying} onClick={handleClose}>Cancelar</Button>
             <Button disabled={!selectedChanges.length || applying} onClick={() => onApply(selectedChanges)} tone="primary">
               {applying ? "Aplicando..." : "Aplicar seleccion"}
             </Button>
@@ -268,6 +273,7 @@ export function SyncPreviewDialog({
 
         <ContactMergeDialog
           description={mergeDialogMode?.description}
+          minSources={1}
           onClose={() => setMergeDialogChange(null)}
           onSave={(result) => {
             if (!mergeDialogChange) return;
@@ -276,6 +282,7 @@ export function SyncPreviewDialog({
             setMergeDialogChange(null);
           }}
           open={Boolean(mergeDialogChange && mergeDialogSources.length >= 1)}
+          saveLabel="Guardar cambios"
           sources={mergeDialogSources}
           title={mergeDialogMode?.title}
         />
@@ -305,10 +312,10 @@ function duplicateGroupSummary(
 ): ReactNode {
   const total = metadataNumber(change, "duplicateGroupTotalCount");
   const saved = metadataNumber(change, "duplicateGroupSavedCount");
-  const imported = metadataNumber(change, "duplicateGroupImportedCount");
+  const connected = metadataNumber(change, "duplicateGroupConnectedCount");
   const savedSources = duplicateGroupSavedSources(change);
   const savedText = saved === 1 ? "1 guardado" : `${saved} guardados`;
-  const importedText = imported === 1 ? "1 importado" : `${imported} importados`;
+  const connectedText = connected === 1 ? "1 de fuente conectada" : `${connected} de fuente conectada`;
   const canOpenSavedMerge = savedSources.length >= 2 && savedSources.length <= 3 && onOpenSavedDuplicateMerge;
 
   return (
@@ -324,7 +331,7 @@ function duplicateGroupSummary(
         </button>
       ) : savedText}
       {" y "}
-      {importedText}
+      {connectedText}
     </>
   );
 }
@@ -333,15 +340,19 @@ function canEditData(change: SyncPreviewChange) {
   return ["new", "modified", "consolidation", "duplicate_complex"].includes(change.type) && mergeSourcesFromChange(change).length >= 1;
 }
 
+function isActionableChange(change: SyncPreviewChange) {
+  return !change.blocking && change.type !== "unchanged";
+}
+
 function duplicatePendingNotice(change: SyncPreviewChange) {
   const savedCount = metadataNumber(change, "internalDuplicateSavedCount");
-  const importedCount = metadataNumber(change, "importedDuplicateCount");
-  if (savedCount > 1 && importedCount > 0) {
+  const connectedCount = metadataNumber(change, "connectedDuplicateCount");
+  if (savedCount > 1 && connectedCount > 0) {
     const savedNoun = savedCount === 1 ? "duplicado ya guardado" : "duplicados ya guardados";
-    const importedNoun = importedCount === 1 ? "adicional" : "adicionales";
+    const connectedNoun = connectedCount === 1 ? "adicional" : "adicionales";
     return (
       <span className="sync-preview-duplicate-warning">
-        recomendacion: primero resolver {savedCount} {savedNoun}, antes de importar {importedCount} {importedNoun}
+        recomendacion: primero resolver {savedCount} {savedNoun}, antes de agregar {connectedCount} {connectedNoun}
       </span>
     );
   }
@@ -402,7 +413,7 @@ function isContactMergeSource(value: unknown): value is ContactMergeSource {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const source = value as Record<string, unknown>;
   return typeof source.id === "string"
-    && (source.kind === "Guardado" || source.kind === "Importado")
+    && (source.kind === "Guardado" || source.kind === "Fuente conectada")
     && typeof source.name === "string"
     && Array.isArray(source.emails)
     && Array.isArray(source.phones)
@@ -412,7 +423,7 @@ function isContactMergeSource(value: unknown): value is ContactMergeSource {
 }
 
 function renderFieldValue(field: SyncPreviewChange["fields"][number], changeType: SyncPreviewChangeType) {
-  if (changeType === "new" || changeType === "duplicate_complex") {
+  if (changeType === "new" || changeType === "duplicate_complex" || changeType === "skipped") {
     return <span className="sync-preview-field-values">{formatFieldValue(field.after || field.before)}</span>;
   }
 
@@ -469,7 +480,7 @@ function formatFieldValue(value?: string | null) {
 }
 
 function visibleFields(change: SyncPreviewChange) {
-  if (change.type === "new" || change.type === "duplicate_complex" || change.type === "deleted" || change.type === "unchanged") {
+  if (change.type === "new" || change.type === "duplicate_complex" || change.type === "deleted" || change.type === "skipped") {
     return change.fields.filter((field) => field.after?.trim() || field.before?.trim());
   }
   return change.fields.filter((field) => field.changed);
@@ -486,8 +497,11 @@ function cleanSortTitle(value: string) {
   return value.trim().toLowerCase();
 }
 
-function firstTabWithChanges(changes: SyncPreviewChange[]): SyncPreviewTabKey {
-  return PREVIEW_TABS.find((tab) => changes.some((change) => tab.types.includes(change.type)))?.key || "new";
+function firstTabWithChanges(
+  changes: SyncPreviewChange[],
+  tabs: Array<{ key: SyncPreviewTabKey; types: SyncPreviewChangeType[] }>
+): SyncPreviewTabKey {
+  return tabs.find((tab) => changes.some((change) => tab.types.includes(change.type)))?.key || tabs[0]?.key || "new";
 }
 
 function emptyTabMessage(label: string) {
@@ -499,12 +513,25 @@ function selectionSummary(
   selectedIds: Set<string>,
   pendingCount: number
 ) {
-  const parts = tabs
-    .filter((tab) => tab.changes.some((change) => !change.blocking))
-    .map((tab) => {
-      const selected = tab.changes.filter((change) => !change.blocking && selectedIds.has(change.id)).length;
-      return `${tab.label}: ${selected}`;
-    });
+  const actionableTabs = tabs.filter((tab) => tab.changes.some(isActionableChange));
+  const actionableCount = actionableTabs.reduce((total, tab) => total + tab.changes.filter(isActionableChange).length, 0);
+  const selectedCount = actionableTabs.reduce((total, tab) => (
+    total + tab.changes.filter((change) => isActionableChange(change) && selectedIds.has(change.id)).length
+  ), 0);
 
-  return parts.length ? `Seleccionados - ${parts.join(" - ")}` : `Sin seleccion accionable - pendientes: ${pendingCount}`;
+  if (!actionableCount) return "No hay cambios para aplicar.";
+
+  const parts = actionableTabs
+    .map((tab) => {
+      const selected = tab.changes.filter((change) => isActionableChange(change) && selectedIds.has(change.id)).length;
+      return `${tab.label}: ${selected}`;
+    })
+    .filter((part) => !part.endsWith(": 0"));
+
+  if (!selectedCount) return `${pendingText(pendingCount)} sin seleccionar.`;
+  return `Seleccionados: ${parts.join(" · ")}. ${pendingText(pendingCount)} pendientes.`;
+}
+
+function pendingText(count: number) {
+  return count === 1 ? "1 cambio" : `${count} cambios`;
 }

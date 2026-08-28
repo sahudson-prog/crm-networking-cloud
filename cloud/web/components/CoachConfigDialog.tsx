@@ -8,9 +8,13 @@ import {
   todoConfigCanAutoApply,
   todoConfigCondition,
   todoConfigExample,
+  todoConfigFamily,
+  todoConfigFamilyDescription,
+  todoConfigFamilyLabel,
+  todoConfigFamilyOrder,
   todoConfigLabel,
   todoConfigScope,
-  type TodoConfigEngine,
+  type TodoConfigFamily,
   type TodoConfigMode,
   type TodoConfigRow
 } from "../lib/coachConfig";
@@ -21,12 +25,6 @@ type CoachConfigDialogProps = {
   onClose: () => void;
   onOpenHistory?: () => void;
   onSaved?: () => void;
-};
-
-const ENGINE_LABELS: Record<TodoConfigEngine, string> = {
-  RULE: "Reglas",
-  HYBRID: "Hibridas",
-  AI: "IA"
 };
 
 export function CoachConfigDialog({ open, onClose, onOpenHistory, onSaved }: CoachConfigDialogProps) {
@@ -61,13 +59,7 @@ export function CoachConfigDialog({ open, onClose, onOpenHistory, onSaved }: Coa
     };
   }, [open]);
 
-  const groupedConfigs = useMemo(() => {
-    return {
-      RULE: configs.filter((config) => config.engine_type === "RULE"),
-      HYBRID: configs.filter((config) => config.engine_type === "HYBRID"),
-      AI: configs.filter((config) => config.engine_type === "AI")
-    };
-  }, [configs]);
+  const groupedConfigs = useMemo(() => groupConfigsByFamily(configs), [configs]);
 
   const changedCount = configs.filter((config) => draftModes[config.id] && draftModes[config.id] !== config.user_mode).length;
 
@@ -113,12 +105,14 @@ export function CoachConfigDialog({ open, onClose, onOpenHistory, onSaved }: Coa
           {loading ? <div className="muted-text">Leyendo configuracion...</div> : null}
           {!loading && !configs.length ? <div className="muted-text">No hay reglas configurables todavia.</div> : null}
 
-          {(["RULE", "HYBRID", "AI"] as TodoConfigEngine[]).map((engine) => {
-            const rows = groupedConfigs[engine];
+          {groupedConfigs.map(({ family, rows }) => {
             if (!rows.length) return null;
             return (
-              <section className="coach-config-group" key={engine}>
-                <h3>{ENGINE_LABELS[engine]}</h3>
+              <section className="coach-config-group" key={family}>
+                <div className="coach-config-group-title">
+                  <h3>{todoConfigFamilyLabel(family)}</h3>
+                  <span>{todoConfigFamilyDescription(family)}</span>
+                </div>
                 <div className="coach-config-list">
                   {rows.map((config) => (
                     <ConfigRow
@@ -150,6 +144,18 @@ export function CoachConfigDialog({ open, onClose, onOpenHistory, onSaved }: Coa
       </section>
     </div>
   );
+}
+
+function groupConfigsByFamily(configs: TodoConfigRow[]) {
+  const groups = new Map<TodoConfigFamily, TodoConfigRow[]>();
+  for (const config of configs) {
+    const family = todoConfigFamily(config);
+    if (!groups.has(family)) groups.set(family, []);
+    groups.get(family)?.push(config);
+  }
+  return Array.from(groups.entries())
+    .map(([family, rows]) => ({ family, rows }))
+    .sort((a, b) => todoConfigFamilyOrder(a.family) - todoConfigFamilyOrder(b.family));
 }
 
 function ConfigRow({

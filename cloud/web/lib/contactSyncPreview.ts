@@ -1,8 +1,7 @@
 import type { ContactRow } from "./readModel.ts";
 import {
   contactRowToMergeSource,
-  externalContactToMergeSource,
-  type ContactMergeSource
+  externalContactToMergeSource
 } from "./contactMerge.ts";
 import {
   phoneIdentitiesFor,
@@ -10,10 +9,14 @@ import {
   phoneIdentitySet,
   phoneMatchesSet
 } from "./phoneIdentity.ts";
+import {
+  externalContactSnapshotMetadata
+} from "./externalContactSnapshots.ts";
 import type {
   ExternalContactInput,
   SyncPreviewChange,
   SyncPreviewFieldChange,
+  SyncMode,
   SyncProvider
 } from "./syncOrchestrator.ts";
 
@@ -30,7 +33,20 @@ export type ContactSyncPreviewInput = {
   externalContacts: ExternalContactInput[];
   externalIdToContactId?: Record<string, string | null | undefined>;
   knownExternalValuesByContactId?: Record<string, KnownExternalContactValue[]>;
+  mode?: SyncMode;
   suppressedChangeKeys?: string[];
+};
+
+export type ContactSyncPreviewBranchTrace = {
+  externalId: string;
+  externalName: string;
+  linkedContactId: string | null;
+  linkedContactFound: boolean;
+  secondaryMatchContactIds: string[];
+  stage: "external_id" | "second_order_identity" | "new_contact";
+  resultType: SyncPreviewChange["type"];
+  fieldCount: number;
+  note?: string;
 };
 
 export function buildContactSyncPreview(input: ContactSyncPreviewInput): SyncPreviewChange[] {
@@ -40,22 +56,18 @@ export function buildContactSyncPreview(input: ContactSyncPreviewInput): SyncPre
   const changes: SyncPreviewChange[] = [];
 
   for (const externalContact of input.externalContacts) {
-    const linkedContactId = input.externalIdToContactId?.[externalContact.externalId] ?? null;
+    const linkedContactId = linkedContactIdForExternalContact(externalContact, input.externalIdToContactId ?? {});
     const linkedContact = linkedContactId ? appById.get(linkedContactId) : null;
 
-    if (!linkedContact) {
-      const existingCandidates = findExistingCandidates(input.appContacts, externalContact);
-      if (existingCandidates.length) {
-        changes.push(linkExistingContactChange(input.provider, existingCandidates, externalContact));
-        continue;
+    if (isExternalDeleted(externalContact)) {
+      if (linkedContact && !suppressed.has(deletedContactChangeKey(linkedContact.id))) {
+        changes.push(deletedContactChange(input.provider, linkedContact));
       }
-      changes.push(newContactChange(input.provider, externalContact));
       continue;
     }
 
-    const consolidationContacts = findConsolidationCandidates(input.appContacts, linkedContact, externalContact);
-    if (consolidationContacts.length) {
-      changes.push(consolidationChange(input.provider, linkedContact, consolidationContacts, externalContact));
+    if (!linkedContact) {
+      changes.push(newContactChange(input.provider, externalContact));
       continue;
     }
 
@@ -74,9 +86,17 @@ export function buildContactSyncPreview(input: ContactSyncPreviewInput): SyncPre
         metadata: {
           appContactId: linkedContact.id,
           externalId: externalContact.externalId,
+          externalMetadata: externalContact.metadata ?? {},
+          externalMetadataByExternalId: {
+            [externalContact.externalId]: externalContact.metadata ?? {}
+          },
+          externalSnapshot: externalContactSnapshotMetadata(externalContact),
+          externalSnapshotsByExternalId: {
+            [externalContact.externalId]: externalContactSnapshotMetadata(externalContact)
+          },
           mergeSources: [
             contactRowToMergeSource(linkedContact, "Guardado"),
-            externalContactToMergeSource(externalContact, "Importado")
+            externalContactToMergeSource(externalContact, "Fuente conectada")
           ],
           provider: input.provider
         },
@@ -88,44 +108,64 @@ export function buildContactSyncPreview(input: ContactSyncPreviewInput): SyncPre
     }
   }
 
-  for (const [contactId, externalContacts] of externalByLinkedContact.entries()) {
-    const contact = appById.get(contactId);
-    if (!contact || externalContacts.length) continue;
-    if (suppressed.has(deletedContactChangeKey(contactId))) continue;
-    changes.push(deletedContactChange(input.provider, contact));
+  if ((input.mode ?? "historical") === "historical") {
+    for (const [contactId, externalContacts] of externalByLinkedContact.entries()) {
+      const contact = appById.get(contactId);
+      if (!contact || externalContacts.length) continue;
+      if (suppressed.has(deletedContactChangeKey(contactId))) continue;
+      changes.push(deletedContactChange(input.provider, contact));
+    }
   }
 
-  return splitComplexConsolidations(mergeDuplicateTargetChanges(mergeConnectedConsolidationChanges(changes)));
+  return mergeDuplicateTargetChanges(changes);
 }
 
-function linkExistingContactChange(
-  provider: SyncProvider,
-  candidates: ContactRow[],
-  externalContact: ExternalContactInput
-): SyncPreviewChange {
-  const candidate = candidates[0];
-  const fields: SyncPreviewFieldChange[] = [
-    ...matchingFields(candidate, externalContact),
-    ...singleValueFields(candidate, externalContact, { preserveExistingAppValues: true }),
-    ...multiValueFields(candidate, externalContact, [], new Set())
-  ];
+export function traceContactSyncPreviewBranches(input: ContactSyncPreviewInput): ContactSyncPreviewBranchTrace[] {
+  const appById = new Map(input.appContacts.map((contact) => [contact.id, contact]));
+  const suppressed = new Set(input.suppressedChangeKeys ?? []);
 
-  return {
-    defaultSelected: true,
-    fields,
-    id: stableChangeId(provider, "consolidation", candidate.id, externalContact.externalId),
-    metadata: {
-      consolidationTargetContactId: candidate.id,
+  return input.externalContacts.map((externalContact) => {
+    const linkedContactId = linkedContactIdForExternalContact(externalContact, input.externalIdToContactId ?? {});
+    const linkedContact = linkedContactId ? appById.get(linkedContactId) : null;
+    const secondaryMatchContactIds = findExistingCandidates(
+      input.appContacts,
+      externalContact,
+      linkedContact?.id ?? linkedContactId ?? ""
+    ).map((contact) => contact.id);
+
+    if (linkedContact) {
+      const fields = modifiedFields(
+        linkedContact,
+        externalContact,
+        input.knownExternalValuesByContactId?.[linkedContact.id] ?? [],
+        suppressed
+      );
+      return {
+        externalId: externalContact.externalId,
+        externalName: externalContact.displayName,
+        fieldCount: fields.length,
+        linkedContactFound: true,
+        linkedContactId,
+        resultType: fields.length ? "modified" : "unchanged",
+        secondaryMatchContactIds,
+        stage: "external_id"
+      };
+    }
+
+    return {
       externalId: externalContact.externalId,
-      mergeSources: [
-        ...candidates.map((item) => contactRowToMergeSource(item, "Guardado")),
-        externalContactToMergeSource(externalContact, "Importado")
-      ],
-      provider
-    },
-    title: candidate.display_name || externalContact.displayName,
-    type: "consolidation"
-  };
+      externalName: externalContact.displayName,
+      fieldCount: wholeContactFields(externalContact).length,
+      linkedContactFound: false,
+      linkedContactId,
+      note: secondaryMatchContactIds.length
+        ? "El ID externo no esta enlazado; correo/telefono coincidente se revisa despues en duplicados."
+        : linkedContactId ? "El ID externo apuntaba a un contacto que no esta en el set activo evaluado." : undefined,
+      resultType: "new",
+      secondaryMatchContactIds,
+      stage: "new_contact"
+    };
+  });
 }
 
 function newContactChange(provider: SyncProvider, externalContact: ExternalContactInput): SyncPreviewChange {
@@ -135,8 +175,16 @@ function newContactChange(provider: SyncProvider, externalContact: ExternalConta
     id: stableChangeId(provider, "new", externalContact.externalId),
     metadata: {
       externalId: externalContact.externalId,
+      externalMetadata: externalContact.metadata ?? {},
+      externalMetadataByExternalId: {
+        [externalContact.externalId]: externalContact.metadata ?? {}
+      },
+      externalSnapshot: externalContactSnapshotMetadata(externalContact),
+      externalSnapshotsByExternalId: {
+        [externalContact.externalId]: externalContactSnapshotMetadata(externalContact)
+      },
       mergeSources: [
-        externalContactToMergeSource(externalContact, "Importado")
+        externalContactToMergeSource(externalContact, "Fuente conectada")
       ],
       provider
     },
@@ -181,43 +229,18 @@ function unchangedContactChange(
     metadata: {
       appContactId: contact.id,
       externalId: externalContact.externalId,
+      externalMetadata: externalContact.metadata ?? {},
+      externalMetadataByExternalId: {
+        [externalContact.externalId]: externalContact.metadata ?? {}
+      },
+      externalSnapshot: externalContactSnapshotMetadata(externalContact),
+      externalSnapshotsByExternalId: {
+        [externalContact.externalId]: externalContactSnapshotMetadata(externalContact)
+      },
       provider
     },
     title: contact.display_name || externalContact.displayName,
     type: "unchanged"
-  };
-}
-
-function consolidationChange(
-  provider: SyncProvider,
-  linkedContact: ContactRow,
-  candidates: ContactRow[],
-  externalContact: ExternalContactInput
-): SyncPreviewChange {
-  const candidate = candidates[0];
-  const savedSources = uniqueContacts([candidate, linkedContact, ...candidates]);
-  const fields: SyncPreviewFieldChange[] = [
-    ...matchingFields(candidate, externalContact),
-    ...singleValueFields(candidate, externalContact, { preserveExistingAppValues: true }),
-    ...multiValueFields(candidate, externalContact, [], new Set())
-  ];
-
-  return {
-    defaultSelected: true,
-    fields,
-    id: stableChangeId(provider, "consolidation", linkedContact.id, candidate.id, externalContact.externalId),
-    metadata: {
-      appContactId: linkedContact.id,
-      consolidationTargetContactId: candidate.id,
-      externalId: externalContact.externalId,
-      mergeSources: [
-        ...savedSources.map((item) => contactRowToMergeSource(item, "Guardado")),
-        externalContactToMergeSource(externalContact, "Importado")
-      ],
-      provider
-    },
-    title: candidate.display_name || linkedContact.display_name || externalContact.displayName,
-    type: "consolidation"
   };
 }
 
@@ -370,256 +393,6 @@ function mergeDuplicateTargetChanges(changes: SyncPreviewChange[]) {
   return merged;
 }
 
-function mergeConnectedConsolidationChanges(changes: SyncPreviewChange[]) {
-  const consolidationIndexes = changes
-    .map((change, index) => ({ change, index }))
-    .filter((item) => item.change.type === "consolidation");
-  if (consolidationIndexes.length < 2) return changes;
-
-  const parent = new Map<number, number>();
-  const sourceToIndex = new Map<string, number>();
-  for (const item of consolidationIndexes) parent.set(item.index, item.index);
-
-  for (const item of consolidationIndexes) {
-    for (const source of mergeSourcesFromChange(item.change)) {
-      const key = mergeSourceKey(source);
-      const previous = sourceToIndex.get(key);
-      if (previous === undefined) {
-        sourceToIndex.set(key, item.index);
-        continue;
-      }
-      union(parent, previous, item.index);
-    }
-  }
-
-  const groups = new Map<number, Array<{ change: SyncPreviewChange; index: number }>>();
-  for (const item of consolidationIndexes) {
-    const root = find(parent, item.index);
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root)?.push(item);
-  }
-
-  const replacementByIndex = new Map<number, SyncPreviewChange[] | null>();
-  for (const group of groups.values()) {
-    if (group.length < 2) continue;
-    const firstIndex = Math.min(...group.map((item) => item.index));
-    const groupedChanges = group.map((item) => item.change);
-    const replacements = consolidationGroupIsComplex(groupedChanges)
-      ? complexDuplicateChanges(groupedChanges)
-      : [mergeConsolidationGroup(groupedChanges)];
-    for (const item of group) replacementByIndex.set(item.index, item.index === firstIndex ? replacements : null);
-  }
-
-  if (!replacementByIndex.size) return changes;
-  return changes.flatMap((change, index) => {
-    if (!replacementByIndex.has(index)) return [change];
-    const replacement = replacementByIndex.get(index);
-    return replacement ?? [];
-  });
-}
-
-function mergeConsolidationGroup(group: SyncPreviewChange[]): SyncPreviewChange {
-  const allSources = uniqueMergeSources(group.flatMap(mergeSourcesFromChange));
-  const targetContactId = chooseConsolidationTarget(allSources, group);
-  const visibleSources = visibleSourcesForMerge(allSources, targetContactId);
-  const hiddenCount = Math.max(0, allSources.length - visibleSources.length);
-  const savedSourceCount = allSources.filter((source) => source.kind === "Guardado").length;
-  const importedSourceCount = allSources.filter((source) => source.kind === "Importado").length;
-  const first = group[0];
-  const provider = metadataString(first, "provider");
-  const externalIds = visibleSources
-    .filter((source) => source.kind === "Importado")
-    .map((source) => source.id);
-  const sourceContactId = visibleSources.find((source) => source.kind === "Guardado" && source.id !== targetContactId)?.id
-    || metadataString(first, "appContactId")
-    || targetContactId;
-
-  return {
-    ...first,
-    blocking: group.some((change) => change.blocking),
-    defaultSelected: group.some((change) => change.defaultSelected),
-    fields: mergeManyFields(group.flatMap((change) => change.fields)),
-    id: stableChangeId(
-      (provider || "sync") as SyncProvider,
-      "consolidation",
-      targetContactId,
-      ...visibleSources.map((source) => source.id)
-    ),
-    metadata: {
-      ...first.metadata,
-      appContactId: sourceContactId,
-      consolidationTargetContactId: targetContactId,
-      duplicatePendingCount: hiddenCount,
-      importedDuplicateCount: importedSourceCount,
-      internalDuplicateSavedCount: savedSourceCount,
-      externalId: externalIds[0] || metadataString(first, "externalId"),
-      externalIds,
-      mergeSources: visibleSources,
-      provider: provider || first.metadata?.provider
-    },
-    title: visibleSources.find((source) => source.id === targetContactId)?.name || first.title,
-    type: "consolidation"
-  };
-}
-
-function consolidationGroupIsComplex(group: SyncPreviewChange[]) {
-  const sources = uniqueMergeSources(group.flatMap(mergeSourcesFromChange));
-  const savedCount = sources.filter((source) => source.kind === "Guardado").length;
-  return savedCount !== 1 || sources.length > MAX_MERGE_SOURCES;
-}
-
-function splitComplexConsolidations(changes: SyncPreviewChange[]) {
-  return changes.flatMap((change) => {
-    if (change.type !== "consolidation") return [change];
-    return consolidationGroupIsComplex([change]) ? complexDuplicateChanges([change]) : [change];
-  });
-}
-
-function complexDuplicateChanges(group: SyncPreviewChange[]): SyncPreviewChange[] {
-  const allSources = uniqueMergeSources(group.flatMap(mergeSourcesFromChange));
-  const provider = (metadataString(group[0], "provider") || "sync") as SyncProvider;
-  const groupId = stableChangeId(provider, "duplicate_complex_group", ...allSources.map((item) => item.id).sort());
-  const groupLabel = duplicateGroupLabel(allSources);
-  const linkedExternalIds = new Set(
-    group
-      .filter((change) => metadataString(change, "appContactId"))
-      .map((change) => metadataString(change, "externalId"))
-      .filter(Boolean)
-  );
-  const savedCount = allSources.filter((source) => source.kind === "Guardado").length;
-  const savedSources = allSources.filter((source) => source.kind === "Guardado");
-  const importedSources = allSources.filter((source) => source.kind === "Importado");
-  const importableSources = importedSources.filter((source) => !linkedExternalIds.has(source.id));
-  const sourcesForRows = importableSources.length ? importableSources : importedSources;
-
-  return sourcesForRows.map((source) => ({
-    defaultSelected: false,
-    fields: wholeMergeSourceFields(source),
-    id: stableChangeId(provider, "duplicate_complex", source.id, ...allSources.map((item) => item.id)),
-    metadata: {
-      duplicateGroupId: groupId,
-      duplicateGroupImportedCount: importedSources.length,
-      duplicateGroupLabel: groupLabel,
-      duplicateGroupSavedCount: savedCount,
-      duplicateGroupSavedSources: savedSources,
-      duplicateGroupTotalCount: allSources.length,
-      externalId: source.id,
-      mergeSources: [source],
-      provider
-    },
-    reason: "Duplicado complejo detectado durante la importacion.",
-    title: source.name,
-    type: "duplicate_complex"
-  }));
-}
-
-function duplicateGroupLabel(sources: ContactMergeSource[]) {
-  return mostFrequentValue(sources.flatMap((source) => source.emails.map(normalizeEmail)))
-    || mostFrequentValue(sources.map((source) => cleanValue(source.name)).filter(Boolean))
-    || mostFrequentValue(sources.flatMap((source) => source.phones.map(normalizePhone)))
-    || "Duplicados complejos";
-}
-
-function mostFrequentValue(values: string[]) {
-  const counts = new Map<string, { count: number; value: string }>();
-  for (const value of values) {
-    const clean = cleanValue(value);
-    if (!clean) continue;
-    const key = clean.toLowerCase();
-    const current = counts.get(key);
-    counts.set(key, { count: (current?.count ?? 0) + 1, value: current?.value ?? clean });
-  }
-  const best = [...counts.values()].sort((first, second) => second.count - first.count || first.value.localeCompare(second.value))[0];
-  return best && best.count > 1 ? best.value : "";
-}
-
-function wholeMergeSourceFields(source: ContactMergeSource): SyncPreviewFieldChange[] {
-  return [
-    { after: source.name, changed: true, label: "Nombre" },
-    { after: source.company, changed: true, label: "Empresa" },
-    { after: source.role, changed: true, label: "Cargo" },
-    ...source.emails.map((email) => ({ after: normalizeEmail(email), changed: true, label: "Correo" })),
-    ...source.phones.map((phone) => ({ after: phone, changed: true, label: "Telefono" }))
-  ].filter((field) => cleanValue(field.after));
-}
-
-function mergeManyFields(fields: SyncPreviewFieldChange[]) {
-  return fields.reduce<SyncPreviewFieldChange[]>((merged, field) => mergeFields(merged, [field]), []);
-}
-
-function mergeSourcesFromChange(change: SyncPreviewChange): ContactMergeSource[] {
-  return metadataArray(change, "mergeSources").filter(isContactMergeSource);
-}
-
-function uniqueMergeSources(sources: ContactMergeSource[]) {
-  const seen = new Set<string>();
-  const unique: ContactMergeSource[] = [];
-  for (const source of sources) {
-    const key = mergeSourceKey(source);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(source);
-  }
-  return unique;
-}
-
-function chooseConsolidationTarget(sources: ContactMergeSource[], group: SyncPreviewChange[]) {
-  const appSources = sources.filter((source) => source.kind === "Guardado");
-  if (!appSources.length) return metadataString(group[0], "consolidationTargetContactId");
-  const targetVotes = new Map<string, number>();
-  for (const change of group) {
-    const targetId = metadataString(change, "consolidationTargetContactId");
-    if (targetId) targetVotes.set(targetId, (targetVotes.get(targetId) ?? 0) + 1);
-  }
-  return [...appSources].sort((first, second) => {
-    const scoreDiff = mergeSourceScore(second, targetVotes) - mergeSourceScore(first, targetVotes);
-    return scoreDiff || first.name.localeCompare(second.name);
-  })[0].id;
-}
-
-function mergeSourceScore(source: ContactMergeSource, targetVotes: Map<string, number>) {
-  return (targetVotes.get(source.id) ?? 0) * 10
-    + source.emails.length * 3
-    + source.phones.length * 2
-    + (source.company?.trim() ? 2 : 0)
-    + (source.role?.trim() ? 2 : 0)
-    + (source.name.trim() && source.name !== "Sin nombre" ? 1 : 0);
-}
-
-function visibleSourcesForMerge(sources: ContactMergeSource[], targetContactId: string) {
-  const target = sources.find((source) => source.id === targetContactId);
-  const savedSources = sources.filter((source) => source.kind === "Guardado" && source.id !== targetContactId);
-  const importedSources = sources.filter((source) => source.kind === "Importado");
-  return [target, ...savedSources, ...importedSources].filter((source): source is ContactMergeSource => Boolean(source)).slice(0, MAX_MERGE_SOURCES);
-}
-
-function isContactMergeSource(value: unknown): value is ContactMergeSource {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const source = value as Record<string, unknown>;
-  return typeof source.id === "string"
-    && (source.kind === "Guardado" || source.kind === "Importado")
-    && typeof source.name === "string"
-    && Array.isArray(source.emails)
-    && Array.isArray(source.phones)
-    && typeof source.focus === "boolean"
-    && typeof source.headhunter === "boolean"
-    && typeof source.networkingStatus === "string";
-}
-
-function find(parent: Map<number, number>, index: number): number {
-  const current = parent.get(index) ?? index;
-  if (current === index) return index;
-  const root = find(parent, current);
-  parent.set(index, root);
-  return root;
-}
-
-function union(parent: Map<number, number>, first: number, second: number) {
-  const firstRoot = find(parent, first);
-  const secondRoot = find(parent, second);
-  if (firstRoot !== secondRoot) parent.set(secondRoot, firstRoot);
-}
-
 function mergeKey(change: SyncPreviewChange) {
   if (change.type === "new" || change.type === "duplicate_complex") return "";
   if (change.type === "modified") return `modified:${metadataString(change, "appContactId")}`;
@@ -659,6 +432,8 @@ function mergeChange(first: SyncPreviewChange, second: SyncPreviewChange): SyncP
       ...second.metadata,
       externalId: metadataString(first, "externalId") || metadataString(second, "externalId"),
       externalIds: mergeExternalIds(first, second),
+      externalMetadataByExternalId: mergeExternalMetadata(first, second),
+      externalSnapshotsByExternalId: mergeExternalSnapshots(first, second),
       mergeSources: sourceMerge.sources
     }
   };
@@ -698,8 +473,38 @@ function mergeExternalIds(first: SyncPreviewChange, second: SyncPreviewChange) {
   return Array.from(ids);
 }
 
-function mergeSources(first: SyncPreviewChange, second: SyncPreviewChange) {
-  return mergeSourcesForPreview(first, second).sources;
+function mergeExternalMetadata(first: SyncPreviewChange, second: SyncPreviewChange) {
+  return [first, second].reduce<Record<string, unknown>>((merged, change) => {
+    const byId = change.metadata?.externalMetadataByExternalId;
+    if (isRecord(byId)) {
+      for (const [key, value] of Object.entries(byId)) {
+        if (key && isRecord(value)) merged[key] = value;
+      }
+    }
+    const externalId = metadataString(change, "externalId");
+    const metadata = change.metadata?.externalMetadata;
+    if (externalId && isRecord(metadata)) merged[externalId] = metadata;
+    return merged;
+  }, {});
+}
+
+function mergeManyExternalSnapshots(changes: SyncPreviewChange[]) {
+  return changes.reduce<Record<string, unknown>>((merged, change) => {
+    const byId = change.metadata?.externalSnapshotsByExternalId;
+    if (isRecord(byId)) {
+      for (const [key, value] of Object.entries(byId)) {
+        if (key && isRecord(value)) merged[key] = value;
+      }
+    }
+    const externalId = metadataString(change, "externalId");
+    const snapshot = change.metadata?.externalSnapshot;
+    if (externalId && isRecord(snapshot)) merged[externalId] = snapshot;
+    return merged;
+  }, {});
+}
+
+function mergeExternalSnapshots(first: SyncPreviewChange, second: SyncPreviewChange) {
+  return mergeManyExternalSnapshots([first, second]);
 }
 
 function mergeSourcesForPreview(first: SyncPreviewChange, second: SyncPreviewChange) {
@@ -731,8 +536,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function findConsolidationCandidates(appContacts: ContactRow[], linkedContact: ContactRow, externalContact: ExternalContactInput) {
-  return findExistingCandidates(appContacts, externalContact, linkedContact.id);
+function isExternalDeleted(externalContact: ExternalContactInput) {
+  return isRecord(externalContact.metadata) && externalContact.metadata.google_deleted === true;
 }
 
 function findExistingCandidates(appContacts: ContactRow[], externalContact: ExternalContactInput, excludedContactId = "") {
@@ -747,15 +552,22 @@ function findExistingCandidates(appContacts: ContactRow[], externalContact: Exte
   });
 }
 
-function uniqueContacts(contacts: ContactRow[]) {
-  const seen = new Set<string>();
-  const unique: ContactRow[] = [];
-  for (const contact of contacts) {
-    if (seen.has(contact.id)) continue;
-    seen.add(contact.id);
-    unique.push(contact);
+function linkedContactIdForExternalContact(
+  externalContact: ExternalContactInput,
+  externalIdToContactId: Record<string, string | null | undefined>
+) {
+  const direct = externalIdToContactId[externalContact.externalId];
+  if (direct) return direct;
+  for (const previousId of previousResourceNames(externalContact)) {
+    const previous = externalIdToContactId[previousId];
+    if (previous) return previous;
   }
-  return unique;
+  return null;
+}
+
+function previousResourceNames(externalContact: ExternalContactInput) {
+  if (!isRecord(externalContact.metadata) || !Array.isArray(externalContact.metadata.previous_resource_names)) return [];
+  return externalContact.metadata.previous_resource_names.filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
 }
 
 function groupExternalContactsByLinkedContact(externalContacts: ExternalContactInput[], externalIdToContactId: Record<string, string | null | undefined>) {
@@ -764,7 +576,7 @@ function groupExternalContactsByLinkedContact(externalContacts: ExternalContactI
     if (contactId && !grouped.has(contactId)) grouped.set(contactId, []);
   }
   for (const externalContact of externalContacts) {
-    const contactId = externalIdToContactId[externalContact.externalId];
+    const contactId = linkedContactIdForExternalContact(externalContact, externalIdToContactId);
     if (!contactId) continue;
     if (!grouped.has(contactId)) grouped.set(contactId, []);
     grouped.get(contactId)?.push(externalContact);

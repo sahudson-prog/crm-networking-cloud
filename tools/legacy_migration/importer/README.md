@@ -1,6 +1,8 @@
-# Cloud importer
+# Herramienta historica de migracion
 
-Esta carpeta contiene herramientas transicionales para preparar el import del ZIP espejo local hacia Supabase/Postgres.
+Esta carpeta contiene herramientas transicionales usadas durante la primera carga de desarrollo desde la app anterior hacia Supabase/Postgres.
+
+No forma parte del runtime cloud ni del flujo oficial del producto. La app nueva debe poblarse desde conectores y, si mas adelante se necesita continuidad de datos, se debe adaptar la informacion al modelo vigente antes de cargarla.
 
 ## Estado
 
@@ -11,7 +13,7 @@ Esta carpeta contiene herramientas transicionales para preparar el import del ZI
 ## Uso preview
 
 ```powershell
-venv\Scripts\python.exe cloud\importer\preview_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --pretty
+venv\Scripts\python.exe tools\legacy_migration\importer\preview_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --pretty
 ```
 
 El preview revisa:
@@ -28,7 +30,7 @@ No escribe en Supabase, no toca Google Sheets y no muestra nombres, correos, tel
 ## Uso dry-run de carga
 
 ```powershell
-venv\Scripts\python.exe cloud\importer\load_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --user-id "UUID_DEL_USUARIO_SUPABASE" --pretty
+venv\Scripts\python.exe tools\legacy_migration\importer\load_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --user-id "UUID_DEL_USUARIO_SUPABASE" --pretty
 ```
 
 El dry-run transforma el ZIP a las tablas destino y muestra conteos planeados, pero no conecta ni escribe en Supabase.
@@ -38,7 +40,7 @@ El dry-run transforma el ZIP a las tablas destino y muestra conteos planeados, p
 1. Instalar dependencia opcional:
 
 ```powershell
-venv\Scripts\python.exe -m pip install -r cloud\importer\requirements.txt
+venv\Scripts\python.exe -m pip install -r tools\legacy_migration\importer\requirements.txt
 ```
 
 2. Crear un usuario en Supabase Auth o iniciar sesion con tu usuario.
@@ -60,7 +62,7 @@ $env:CRM_NETWORKING_DATABASE_URL="postgresql://..."
 6. Ejecutar carga real solo si el dry-run esta correcto:
 
 ```powershell
-venv\Scripts\python.exe cloud\importer\load_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --user-id "UUID_DEL_USUARIO_SUPABASE" --apply --pretty
+venv\Scripts\python.exe tools\legacy_migration\importer\load_export.py "C:\ruta\crm-networking-export-YYYYMMDD-HHMMSS.zip" --user-id "UUID_DEL_USUARIO_SUPABASE" --apply --pretty
 ```
 
 La carga aborta si el usuario destino ya tiene datos en tablas privadas, para evitar pisar informacion.

@@ -102,7 +102,7 @@ El indicador compartido debe vivir junto al icono de tipo de interaccion, usando
 - Debe abrirse desde `+` para crear una interaccion manual asociada al contacto actual.
 - La UI distingue tipo de canal (`Correo`, `Cita`, `Llamada`, `Mensaje`, `Nota manual`) y sentido (`Saliente`, `Entrante`, `Interno / nota`, `Sin definir`).
 - El guardado debe pasar por `interactionActions.ts`; no crear guardados locales por vista.
-- La fuente original de una interaccion importada no se edita desde este modal. El usuario edita `user_notes_raw`.
+- La fuente original de una interaccion vinculada a proveedor no se edita desde este modal. El usuario edita `user_notes_raw`.
 
 ## Links inline de accion
 
@@ -131,8 +131,9 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 - Componente cloud actual: `SyncPreviewDialog`.
 - Sirve para contactos, mail, calendario y futuros proveedores. No debe estar amarrado a Google ni a una vista especifica.
 - Debe mostrarse antes de aplicar cambios que vienen de una fuente externa.
-- Debe agrupar cambios por tipo: `Nuevos`, `Modificaciones`, `Duplicados fusionables`, `Duplicados complejos`, `Eliminaciones` y `Sin cambios`.
-- En sync de contactos, la agrupacion preferida es por pestanas: una para `Nuevos`, otra para `Modificaciones`, otra para `Duplicados fusionables`, otra para `Duplicados complejos`, otra para `Eliminaciones` y otra informativa para `Sin cambios`. Cada pestana accionable muestra el conteo de contactos afectados y seleccion/desmarcado de todos. El footer aplica en una sola accion la seleccion total de todas las pestanas.
+- Debe agrupar cambios por tipo. Para importacion inicial de contactos desde una fuente conectada, la decision se basa solo en ID externo: `Nuevos`, `Modificaciones` y `Eliminaciones`. Los elementos `Sin cambios` no se muestran como pestana del modal; pueden aparecer solo como conteo diagnostico si el flujo lo necesita.
+- `Duplicados fusionables` y `Duplicados complejos` pertenecen a la revision posterior de duplicados, no al primer paso de importacion desde Google Contacts u otra fuente. Si un contacto externo no trae ID enlazado, entra como `Nuevo` aunque coincida por correo o telefono con un contacto guardado; esa coincidencia se revisa despues en la herramienta de duplicados.
+- En sync de contactos, la agrupacion preferida es por pestanas. Cada pestana accionable muestra el conteo de contactos afectados y seleccion/desmarcado de todos. El footer aplica en una sola accion la seleccion total de todas las pestanas.
 - Las eliminaciones siempre van al final de los cambios accionables y con su propio set de acciones. No deben mezclarse visualmente con altas, enriquecimientos o enlaces de identidad.
 - La accion `No eliminar ni volver a sugerir` queda pausada. Si se retoma, no debe vivir junto al boton principal de aplicar seleccion; debe tener una ubicacion separada y explicacion clara.
 - El tipo de cambio se muestra como titulo de seccion, no como etiqueta repetida dentro de cada tarjeta.
@@ -143,17 +144,16 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 - El tipo de cambio va en negrita por color: `agregar` en verde, `eliminar` en rojo y `coincide` en azul.
 - El dato en si va en texto normal, sin color de enfasis ni negrita; `sin datos` va gris/cursiva.
 - Los campos modificados usan `--crm-warning` solo para destacar datos concretos, no todo el renglon.
-- `Modificaciones` puede mostrar reemplazos y eliminaciones no aplicados para transparencia, junto con agregados reales. `Duplicados fusionables` debe mostrar solo datos que se agregan al contacto guardado y campos que coinciden; no mostrar reemplazos ignorados ni eliminaciones.
-- En cambios `Modificaciones` y `Duplicados fusionables`, mostrar solo campos cambiados o nexos relevantes; no listar datos que no cambiaron.
+- `Modificaciones` puede mostrar reemplazos y eliminaciones no aplicados para transparencia, junto con agregados reales.
+- En cambios `Modificaciones`, mostrar solo campos cambiados o nexos relevantes; no listar datos que no cambiaron.
 - En campos simples, usar formato `Campo antes --> despues`.
 - En campos multivalor como correos o telefonos, evitar `sin datos --> nuevo correo` si no corresponde a reemplazo. Usar operaciones explicitas: `Correo agregar correo@dominio.com`, `Correo eliminar correo@dominio.com` o, solo si realmente se detecta reemplazo, `Correo antiguo@dominio.com --> nuevo@dominio.com`.
 - En contactos completos `Nuevos` o `Eliminados`, no usar `agregar`/`eliminar` dentro de correos o telefonos; la seccion ya explica el tipo de cambio. Mostrar solo los datos existentes.
-- En `Duplicados fusionables`, no mostrar IDs externos al usuario. Mostrar el atributo que justifica la propuesta con formato `Correo coincide --> smith@gmail.com`.
+- En revision posterior de duplicados, no mostrar IDs externos al usuario. Mostrar el atributo que justifica la propuesta con formato `Correo coincide --> smith@gmail.com`.
 - Una accion de enlazar y combinar tambien puede traer modificaciones de datos. En ese caso se usa el mismo formato interno que `Modificaciones` y se agregan las lineas de coincidencia necesarias.
-- En `Duplicados fusionables`, los campos simples existentes de la app tienen prioridad sobre el proveedor. Nombre, empresa y cargo solo deben completarse desde la fuente si la app esta vacia.
 - La app es fuente principal del contacto. Si la app tiene un dato local y la fuente conectada viene vacia, eso no debe interpretarse automaticamente como eliminacion. El vacio de proveedor significa `sin dato en origen`, no orden de borrar.
-- Para campos simples como nombre, empresa o cargo, ante `Modificaciones` y `Duplicados fusionables`: si la app esta vacia y la fuente trae dato, proponer enriquecimiento; si la app ya tiene dato, no reemplazarlo automaticamente aunque la fuente traiga un valor distinto; si la app tiene dato y la fuente no, no proponer eliminar por defecto. En `Modificaciones`, esos reemplazos o eliminaciones no aplicadas pueden mostrarse con `(no aplicado)` para que el usuario entienda la diferencia detectada.
-- Para campos multivalor como correos y telefonos: proponer eliminar solo valores que fueron importados desde esa misma fuente y que desaparecieron de esa fuente. No eliminar datos manuales, enriquecidos por el usuario o provenientes de otra fuente.
+- Para campos simples como nombre, empresa o cargo, ante `Modificaciones`: si la app esta vacia y la fuente trae dato, proponer enriquecimiento; si la app ya tiene dato, no reemplazarlo automaticamente aunque la fuente traiga un valor distinto; si la app tiene dato y la fuente no, no proponer eliminar por defecto. Esos reemplazos o eliminaciones no aplicadas pueden mostrarse con `(no aplicado)` para que el usuario entienda la diferencia detectada.
+- Para campos multivalor como correos y telefonos: proponer eliminar solo valores conocidos desde esa misma fuente conectada y que desaparecieron de esa fuente. No eliminar datos manuales, enriquecidos por el usuario o provenientes de otra fuente.
 - Los campos sin dato se muestran como `sin datos` en gris/cursiva.
 - Para contactos nuevos o eliminados, mostrar solo campos con dato; no mostrar campos vacios.
 - Los cambios vienen seleccionados por defecto salvo que sean bloqueantes.
@@ -162,15 +162,14 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 - Al aplicar una seleccion parcial con exito, los cambios aplicados deben desaparecer del preview actual sin volver a consultar el proveedor. Los cambios no seleccionados quedan visibles como pendientes. Si no quedan cambios accionables, el preview puede cerrarse.
 - Si la aplicacion falla, el preview debe permanecer abierto con los cambios originales para no ocultar nada que no fue aplicado.
 - El modal debe devolver los cambios seleccionados al flujo que lo invoco; no debe aplicar datos por si mismo.
-- Cuando un cambio de `Nuevos`, `Modificaciones`, `Duplicados fusionables` o `Duplicados complejos` requiera revisar datos antes de aplicar, mostrar un boton compacto `Editar datos` justo despues del nombre del contacto, con icono oficial `edit`.
+- El footer del modal debe mostrar una sola linea de estado accionable: seleccionados y pendientes, o `No hay cambios para aplicar.` si no existen filas accionables. No mostrar en el footer conteos tecnicos como objetos leidos, candidatos revisados o `posibles interacciones`; eso vive en logs o diagnostico admin.
+- En el footer, los mensajes informativos del flujo llamador se omiten si ya existe el detalle en el modal. Solo se muestran errores reales o progreso de aplicacion.
+- Cuando un cambio de `Nuevos` o `Modificaciones` requiera revisar datos antes de aplicar, mostrar un boton compacto `Editar datos` justo despues del nombre del contacto, con icono oficial `edit`.
 - `Modificaciones` debe mostrar la descripcion: `Por defecto, no pisaremos ningun dato del contacto guardado; solo completaremos campos faltantes. Puede editar la propuesta en "Editar datos".`
-- `Duplicados fusionables` contiene solo grupos de 2 o 3 contactos origen en total y exactamente 1 contacto `Guardado`. La descripcion de la pestana debe decir: `Estos casos tienen 2 o 3 contactos duplicados con 1 contacto existente. Por defecto, no pisaremos ningun dato del contacto guardado; solo completaremos campos faltantes. Puede editar la propuesta en "Editar datos".`
-- `Duplicados complejos` contiene grupos conectados por correo o telefono con 4 o mas contactos origen, o cualquier grupo con multiples contactos `Guardado`. No se intenta fusionar en el preview. Los contactos importables aparecen como filas independientes, desmarcadas por defecto, para que el usuario decida si los importa y luego los fusiona con la herramienta de revision de duplicados. La descripcion de la pestana debe decir: `Estos casos tienen 4 o mas contactos duplicados o multiples contactos existentes. Por defecto, no pisaremos ningun dato del contacto guardado; solo completaremos campos faltantes. Puede editar la propuesta en "Editar datos".`
-- En `Duplicados complejos`, los contactos importables deben agruparse visualmente por el dato que mejor explica la duplicidad. Priorizar correo compartido; si no existe, usar nombre compartido; si tampoco existe, usar telefono normalizado. El titulo del grupo debe seguir el formato `dato o nombre (N duplicados: X guardado(s) y Y importado(s))`, pero el conteo puede ir como texto secundario para mantener el titulo limpio.
 - `Editar datos` debe abrir el flujo global de resultante/contacto como borrador dentro del preview. No guarda por si mismo; solo adjunta la decision estructurada al cambio seleccionado y la escritura ocurre al presionar `Aplicar seleccion`.
-- Dentro de ese popup, la accion principal debe decir `Ajustar propuesta`, no `Guardar`, para evitar que el usuario crea que el contacto real ya fue modificado.
+- Dentro de ese popup, la accion principal debe decir `Guardar cambios`. En contexto de preview, debe quedar claro en la descripcion del modal que nada se escribe en la app hasta presionar `Aplicar seleccion` en la ventana anterior.
 - Al volver al preview despues de ajustar el borrador, la tarjeta debe indicar `Propuesta ajustada` mientras siga pendiente de `Aplicar seleccion`.
-- Para contactos nuevos y duplicados complejos, `Editar datos` funciona como editor del contacto nuevo prellenado desde la fuente importada. Para modificaciones, permite elegir que campos aceptar. Para duplicados fusionables, permite decidir el contacto resultante.
+- Para contactos nuevos, `Editar datos` funciona como editor del contacto nuevo prellenado desde la fuente conectada. Para modificaciones, permite elegir que campos aceptar.
 
 ## Fusionar contactos
 
@@ -178,7 +177,7 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 - Debe aceptar 2 o 3 contactos maximo para evitar una interfaz inmanejable.
 - Layout preferido: contactos origen side by side y una columna/panel de contacto resultante.
 - Los bloques equivalentes de informacion deben quedar alineados entre columnas para comparar campo por campo: identidad, correos, telefonos y datos app. En los contactos origen, evitar borde externo de tarjeta; separarlos con lineas verticales minimalistas. Dentro de cada columna, preferir divisiones con lineas minimalistas antes que mini bloques anidados. El resultado si debe mantenerse como tarjeta con borde, porque representa la decision final.
-- En tarjetas origen, la unica etiqueta superior necesaria es `Guardado` o `Importado`; evitar textos secundarios como `contacto app`, `proveedor` o `referido` si no aportan a la decision.
+- En tarjetas origen, la unica etiqueta superior necesaria es `Guardado` o `Fuente conectada`; evitar textos secundarios como `contacto app`, `proveedor` o `referido` si no aportan a la decision.
 - El bloque de identidad no debe repetir etiquetas internas cuando hay datos. Debe mostrar nombre arriba y empresa/cargo abajo, siguiendo el patron de tarjetas de contacto. Solo usar placeholders como `Empresa` o `Cargo` cuando el dato esta vacio.
 - Para campos simples como nombre, empresa y cargo, el usuario puede elegir una identidad de origen o editar el resultado manualmente. Si el resultado coincide exactamente con un origen, el bloque de ese origen se marca en verde.
 - Para correos, telefonos y otros campos multivalor, el usuario selecciona que valores conservar/agregar en el resultante. Tambien puede alternarlos desde las tarjetas origen cuando aparecen ahi. Los valores seleccionados se marcan en verde en todas las tarjetas origen donde aparezcan.
@@ -186,11 +185,11 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 - `Foco networking` y `Headhunter` no se muestran como "elige origen A/B"; se muestran como switches del resultante.
 - Los switches de `Foco networking` y `Headhunter` deben venir activos por defecto si cualquiera de los contactos origen tiene el valor activo.
 - `Estado networking` debe venir por defecto con el estado mas avanzado entre los contactos origen, usando la prelacion oficial: Pendiente, Contactado, Agendado, Cita concretada, Agradecimiento enviado. Debe quedar editable antes de guardar.
-- En tarjetas origen, los datos app solo se muestran para contactos `Guardado`. No se muestran en contactos `Importado`, porque foco, headhunter y estado networking son atributos internos de la app.
+- En tarjetas origen, los datos app solo se muestran para contactos `Guardado`. No se muestran en contactos `Fuente conectada`, porque foco, headhunter y estado networking son atributos internos de la app.
 - En contactos `Guardado`, el bloque de datos app puede ser seleccionable para copiar foco, headhunter y estado al resultado, pero no debe pintarse verde por coincidencia; no aporta lo suficiente y agrega ruido visual.
 - Las acciones de guardar fusion deben explicar que interacciones, referidos, ToDos, IDs externos e historial quedaran asociados al contacto resultante.
 - Referencia visual cloud actual: `ContactMergePreview` en `/sistema/diseno`, alimentada por el componente productivo `ContactMergeWorkspace`.
-- Primer uso productivo: `SyncPreviewDialog` abre `ContactMergeDialog` desde el boton `Editar datos` en `Nuevos`, `Modificaciones`, `Duplicados fusionables` y `Duplicados complejos`; guarda una decision estructurada de resultante antes de aplicar la seleccion.
+- Primer uso productivo: `SyncPreviewDialog` abre `ContactMergeDialog` desde el boton `Editar datos` en `Nuevos` y `Modificaciones`; guarda una decision estructurada de resultante antes de aplicar la seleccion. La revision de duplicados usa la misma funcion global de fusion, pero como etapa separada a la importacion.
 - Para fusiones manuales, no crear selectores fuera del modal. Usar el mismo `ContactMergeDialog` y agregar contactos desde el control interno `Agregar contacto guardado`, con tope de 3 contactos.
 - Pendiente tecnico: la fusion profunda de historiales entre contactos app (interacciones, referidos, ToDos e historial completo) debe implementarse como accion interna separada antes de usar esta funcion como fusion definitiva usuario/Coach.
 
@@ -198,15 +197,40 @@ Los botones de proveedor representan servicios conectados o disponibles para com
 
 - La seccion Cuenta concentra perfil, plan, conexiones externas, sync delicado, respaldos y acciones de seguridad.
 - Las vistas operativas pueden invocar sync contextual, pero la administracion principal de permisos y conexiones vive en Cuenta.
+- Los botones de sync deben separar accion y estado: el boton solo ejecuta/revisa, y los mensajes de error, resultado o transicion van en un espacio reservado con `.activity-sync-message` o una franja equivalente dentro del panel. No mostrar el resumen inline si ya existe un preview/modal con el detalle de cambios. Durante conexion, revision o reconexion de proveedor, mostrar un estado informativo breve en ese espacio; reservar el tono rojo para errores definitivos que requieren accion del usuario.
 - Los conectores deben mostrarse con `ProviderButton` y declarar si estan disponibles o deshabilitados. No crear botones de proveedor locales por vista.
-- Las acciones delicadas, como aplicar cambios importados, desconectar servicios, exportar datos o eliminar cuenta, deben usar confirmacion y registro auditable cuando se implementen.
+- Las acciones delicadas, como aplicar cambios desde una fuente conectada, desconectar servicios, exportar datos o eliminar cuenta, deben usar confirmacion y registro auditable cuando se implementen.
 - Cuenta debe usar `Panel`, `Button`, `ProviderButton`, `compact-list` y tokens `--crm-*`; evitar estilos inline salvo excepciones temporales.
+- La cabecera global separa navegacion principal y acciones secundarias. `Dashboard`, `Contactos` y `Objetivos` van a la izquierda con texto visible; `Sistema`, `Cuenta` y actualizaciones globales van a la derecha como botones compactos de icono con tooltip.
+
+## Filtro global de contactos
+
+- Dashboard y Contactos deben usar el mismo `ContactFilterControls`, ubicado fuera de paneles blancos y alineado a la izquierda sobre el fondo de la app.
+- La vista por defecto muestra solo buscador universal, selectores compactos `Foco` y `Headhunter`, `Mas filtros` y el resumen `Mostrando X de Y contactos`, en una misma fila.
+- El buscador universal cubre nombre, correo, telefono, empresa, cargo, dominio y estado; no duplicar esos campos como filtros visibles salvo que exista una necesidad nueva validada.
+- `Foco` y `Headhunter` deben permitir tres estados: `Si`, `No` y `Todos`. `Foco` parte en `Si` por defecto; `Headhunter` parte en `Todos`.
+- Al expandir `Mas filtros`, mostrar `Estado` como grupo de botones multi-seleccionables en el orden oficial y con color suave de la paleta. El filtro de objetivos usa chips scrolleables basados en IDs de `objectives`; las categorias de objetivos deben convivir en una sola franja horizontal y pasar a scroll horizontal si no caben. No reintroducir hashtags libres como fuente de verdad.
+- En Contactos, las acciones masivas pueden asignar objetivos existentes a los contactos seleccionados desde un selector compacto multiobjetivo. Esa accion agrega asociaciones; no debe borrar objetivos ya vinculados al contacto.
+
+## Sistema y mantencion admin
+
+- Las vistas admin deben vivir bajo `Sistema`, no mezcladas con Cuenta de usuario final.
+- Los limites, cuotas y capacidad de proveedores deben mostrarse como filas compactas: nombre del parametro, proveedor, seguro app editable, limite proveedor editable, acumulado con `ProgressBar` global y texto de ventana de reseteo.
+- Cuando haya varios parametros de distintos proveedores, agrupar por servicio con una linea minimalista y titulo corto. Dentro de cada servicio, mantener arriba los parametros de mayor impacto operativo.
+- El orden visual de limites debe priorizar mayor espera o impacto si se agota la cuota: primero limites que no se liberan solos o se liberan mensualmente, luego diarios y al final ventanas cortas por minuto.
+- Si una cuota depende de usuarios u otra variable de capacidad, la UI debe mostrar la variable considerada y calcular el indicador agregado desde el catalogo global, no como numero hardcoded por vista.
+- Los topes por corrida, como contactos/correos/citas por revision, deben vivir en el catalogo global y ser leidos por los flujos reales. No dejarlos como constantes invisibles si afectan la experiencia del usuario.
+- Una vista admin visible no reemplaza permisos reales: antes de produccion, el acceso debe estar respaldado por roles/capabilities y RLS, no solo por ocultar links.
 
 ## Burbujas Coach IA
 
 - Usar el componente global del Coach; no crear burbujas por vista.
 - El resumen debe ser corto y directo. Para cambios de estado: `Cambia el estado de NOMBRE de ESTADO ACTUAL a ESTADO SUGERIDO.`
-- En el resumen, nombres largos se muestran con maximo tres palabras completas y la cuarta como inicial. Ejemplo: `Manuel del Castillo M.`
+- En el resumen, nombres largos se muestran con maximo dos palabras completas y la tercera como inicial. Ejemplo: `Manuel del C.`
+- En vista general, el Coach agrupa sugerencias activas por destino de accion. Para cambios de estado, agrupar solo por estado final sugerido, no por estado inicial. Para empresa headhunter detectada, usar un solo grupo de headhunters, independiente de la empresa detectada. La agrupacion no debe ser una burbuja: debe ser un titular de texto clickeable, sin fecha, con el mismo estilo tipografico del resumen de burbuja.
+- Cada titular de agrupacion se expande o colapsa de forma independiente. Al expandir, muestra debajo sus burbujas individuales ordenadas por fecha; los otros grupos no cambian.
+- Si una agrupacion esta colapsada, su titular lleva checkbox y selecciona todas sus sugerencias hijas. Si esta expandida, el titular no lleva checkbox y solo las burbujas individuales se pueden seleccionar.
+- En el encabezado del panel Coach, junto a `N sugerencias activas`, debe existir siempre el selector `ver detallado` o `ver agrupado` para activar o desactivar la agrupacion global.
 - El resumen nunca debe truncarse con puntos suspensivos. Si falta ancho, el texto se apila dentro de la burbuja.
 - La fecha de la burbuja va al final del resumen, en gris, cursiva y formato `5 jul 2026`.
 - Al expandir, mostrar el detalle de evidencia. En citas, incluir asunto y dias transcurridos cuando exista interaccion asociada.
@@ -286,6 +310,7 @@ Cuando una lista de opciones puede crecer, usar un selector buscable reutilizabl
 - Componente cloud actual: `ContactSearchSelect`.
 - Uso inicial: vincular un referido con un contacto existente.
 - Debe permitir escribir para filtrar por nombre, empresa, cargo, correo o telefono.
+- Para busquedas que filtran una vista completa, como Contactos, usar el mismo estandar visual de input compacto y no el selector desplegable, salvo que el usuario este eligiendo un contacto especifico.
 - Debe usar el estandar de campos compactos: alto base 36px, radio 8px, texto 14px, placeholder gris/italica sin bold y opciones con titulo 13px-14px y metadata 12px. No agrandar el input por contexto de modal o panel.
 - La primera opcion funcional debe permitir dejar el objeto `Sin vinculo` cuando el vinculo sea opcional.
 - La lista desplegable debe limitar resultados visibles y usar scroll interno para no empujar el modal.
@@ -301,6 +326,24 @@ Cuando una ficha secundaria propone completar datos de un objeto principal, no e
 - Al desmarcar, el cambio se revierte en pantalla y no se guarda.
 - El guardado debe reutilizar la accion oficial del objeto destino, por ejemplo `saveContactFromEditor` para contactos.
 - Textos de tooltip: `Actualizar desde referido` para campos de reemplazo como empresa/cargo y `Agregar desde referido` para listas como correos/telefonos.
+
+## Acciones masivas
+
+- Cuando una vista permita acciones por lote, agruparlas por proposito con labels cortos, por ejemplo `Seleccionar`, `Foco`, `Headhunter` y `Estado`.
+- Las acciones dentro de cada grupo deben ser botones compactos de icono con tooltip; evitar botones largos repetidos como `Foco si`, `Foco no`, `Headhunter si`, `Headhunter no` cuando el grupo ya explica el contexto.
+- Mostrar un resumen breve del alcance antes del toolbox, por ejemplo `160 contactos en tabla · 1 seleccionados`.
+- Si la accion requiere parametro, como estado networking, usar selector compacto junto al boton de confirmar.
+- Las tablas operativas deben permitir ordenar por columnas visibles haciendo clic en el encabezado cuando el orden sea relevante para el usuario.
+- En la tabla de Contactos, la marca headhunter debe mostrarse como indicador compacto junto a empresa/cargo, no como columna separada de dominio. Usar acento para empresa reconocida por el maestro y advertencia con `!` cuando falte decidir o corregir empresa headhunter.
+
+## Barras de progreso
+
+- Componente cloud actual: `ProgressBar`.
+- Usar para procesos largos o delicados: aplicar sincronizacion, revisar fuentes conectadas, importar datos, reconstruir historicos o ejecutar automatizaciones por lote.
+- Si el total es conocido, mostrar avance real con `value` y `max`, una etiqueta corta y un detalle numerico simple, por ejemplo `42 aplicados / 0 fallidos`.
+- Si el total aun no es conocido, usar `indeterminate` con una etiqueta clara, por ejemplo `Revisando contactos`.
+- No crear barras locales con CSS propio. La barra debe usar tokens de paleta oficiales: fondo `--crm-field-soft`, borde `--crm-border`, acento `--crm-accent`, advertencia `--crm-warning`, positivo `--crm-positive` y peligro `--crm-danger`.
+- La variante compacta es el estandar para paneles y modales; mantenerla sutil para que informe sin competir con la accion principal.
 
 ## Paleta oficial
 
@@ -323,13 +366,15 @@ La app debe usar una paleta acotada. Si se necesita un color nuevo, primero se a
 
 ## Estados oficiales
 
-| Estado | Color |
-|---|---|
-| Pendiente | `#dc2626` |
-| Contactado | `#ea580c` |
-| Agendado | `#16a34a` |
-| Cita concretada | `#0284c7` |
-| Agradecimiento enviado | `#1d4ed8` |
+| Estado | Color principal | Fondo suave |
+|---|---|---|
+| Pendiente | `--crm-status-pendiente` / `#dc2626` | `--crm-status-pendiente-soft` / `#fff1f2` |
+| Contactado | `--crm-status-contactado` / `#ea580c` | `--crm-status-contactado-soft` / `#fff7ed` |
+| Agendado | `--crm-status-agendado` / `#16a34a` | `--crm-status-agendado-soft` / `#f0fdf4` |
+| Cita concretada | `--crm-status-cita` / `#0284c7` | `--crm-status-cita-soft` / `#f0f9ff` |
+| Agradecimiento enviado | `--crm-status-agradecimiento` / `#1d4ed8` | `--crm-status-agradecimiento-soft` / `#eff6ff` |
+
+Usar el color principal para puntos, bordes, badges y acentos pequenos. Usar el fondo suave para columnas, franjas o zonas donde el estado estructura un conjunto de tarjetas.
 
 ## Implementacion actual
 
@@ -345,6 +390,7 @@ La app debe usar una paleta acotada. Si se necesita un color nuevo, primero se a
 - `cloud/web/components/ui/Panel.tsx`: panel base cloud para evitar encabezados y contenedores hardcodeados por vista.
 - `cloud/web/components/ui/ProviderIcon.tsx`: iconos y botones globales para proveedores Google, Apple y Microsoft, con variante deshabilitada.
 - `cloud/web/components/ui/ContactSearchSelect.tsx`: selector buscable global de contactos para vinculos y acciones contextuales.
+- `cloud/web/components/ui/ProgressBar.tsx`: barra global de progreso para sync, importaciones, revisiones y procesos por lote.
 - `cloud/web/components/DashboardPipeline.tsx`: pipeline cloud con colores oficiales de estado.
 - `cloud/web/components/CoachPreview.tsx`: primera version cloud reutilizable del Coach read-only.
 - `cloud/web/components/InteractionEditorDialog.tsx`: editor global de interacciones/minutas para ficha y futuros contextos.

@@ -73,7 +73,7 @@ def import_psycopg():
         import psycopg
     except ImportError as exc:
         raise RuntimeError(
-            "Missing dependency 'psycopg'. Install cloud/importer/requirements.txt "
+            "Missing dependency 'psycopg'. Install tools/legacy_migration/importer/requirements.txt "
             "inside the venv before running --apply."
         ) from exc
     return psycopg

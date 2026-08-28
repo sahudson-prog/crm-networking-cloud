@@ -23,6 +23,7 @@ export type GoogleMessagePayload = {
 export type GoogleGmailMessage = {
   id?: string | null;
   threadId?: string | null;
+  historyId?: string | null;
   internalDate?: string | null;
   snippet?: string | null;
   payload?: GoogleMessagePayload | null;
@@ -34,11 +35,22 @@ export type GoogleCalendarEvent = {
   description?: string | null;
   location?: string | null;
   htmlLink?: string | null;
+  created?: string | null;
+  updated?: string | null;
+  status?: string | null;
   start?: {
     dateTime?: string | null;
     date?: string | null;
   } | null;
+  end?: {
+    dateTime?: string | null;
+    date?: string | null;
+  } | null;
   organizer?: {
+    email?: string | null;
+    self?: boolean | null;
+  } | null;
+  creator?: {
     email?: string | null;
     self?: boolean | null;
   } | null;
@@ -108,6 +120,7 @@ export function mapCalendarEventToExternalInteraction(input: {
   event: GoogleCalendarEvent;
   userEmail: string;
   contactsByEmail: GoogleContactIndex;
+  matchedContactEmails?: string[];
 }): ExternalInteractionInput | null {
   const eventId = clean(input.event.id);
   if (!eventId) return null;
@@ -120,10 +133,14 @@ export function mapCalendarEventToExternalInteraction(input: {
   const organizerAddress = input.event.organizer?.email && normalizeEmail(input.event.organizer.email) !== userEmail
     ? [{ email: normalizeEmail(input.event.organizer.email), name: "" }]
     : [];
+  const inferredAddresses = (input.matchedContactEmails ?? [])
+    .map((email) => ({ email: normalizeEmail(email), name: "" }))
+    .filter((address) => address.email && address.email !== userEmail);
 
-  const participants = dedupeParticipants([
+  const participants = dedupeParticipantsByIdentity([
     ...participantsForAddresses(organizerAddress, "FROM", contactIndex),
-    ...participantsForAddresses(attendeeAddresses, "TO", contactIndex)
+    ...participantsForAddresses(attendeeAddresses, "TO", contactIndex),
+    ...participantsForAddresses(inferredAddresses, "MATCH", contactIndex)
   ]);
 
   if (!participants.length) return null;
@@ -147,7 +164,8 @@ export function mapCalendarEventToExternalInteraction(input: {
     sourceDetail: location ? `${description}\n\nUbicacion/Link: ${location}` : description,
     participants,
     metadata: {
-      google_calendar_event_id: eventId
+      google_calendar_event_id: eventId,
+      inferred_contact_match: inferredAddresses.length > 0
     },
     source: "google_calendar_adapter"
   };
@@ -251,6 +269,19 @@ function dedupeParticipants(participants: ExternalInteractionParticipantInput[])
       participant.contactId || "",
       participant.email?.toLowerCase() || "",
       participant.role?.toUpperCase() || ""
+    ].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeParticipantsByIdentity(participants: ExternalInteractionParticipantInput[]) {
+  const seen = new Set<string>();
+  return participants.filter((participant) => {
+    const key = [
+      participant.contactId || "",
+      participant.email?.toLowerCase() || ""
     ].join("|");
     if (seen.has(key)) return false;
     seen.add(key);

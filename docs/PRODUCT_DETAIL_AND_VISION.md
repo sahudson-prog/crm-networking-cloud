@@ -22,7 +22,7 @@ Vista de gestion diaria.
 
 Incluye:
 
-- KPIs de actividad reciente: total cafes, contactos realizados y contactos HH realizados, con barras de primera vez cuando aplica.
+- KPIs de actividad reciente: total cafes, contactos realizados y contactos headhunter realizados, con barras de primera vez cuando aplica.
 - Selector semanal/mensual para KPIs, limitado por fecha global de inicio de networking y maximo 12 periodos.
 - Ultimas interacciones.
 - Empresas headhunter.
@@ -43,6 +43,34 @@ Incluye:
 - Marca de headhunter.
 - Cambio masivo de estado.
 - Acceso a ficha individual.
+- En la tabla, la marca headhunter no requiere una columna separada de dominio: debe aparecer como icono compacto junto a empresa/cargo. Si la empresa calza con el maestro se muestra como reconocida; si falta empresa headhunter cargada, hay coincidencia solo por dominio, no existe match o hay ambiguedad, el icono debe advertir que falta revisar.
+
+Vista futura a explorar: tablero visual por estado networking, con tarjetas de contactos o empresas headhunter arrastrables entre columnas. Esta vista no reemplaza la tabla ni el filtro global; seria una forma grafica de trabajar avances, usando los mismos estados oficiales y acciones internas de cambio de estado.
+
+### Objetivos de busqueda profesional
+
+Los objetivos representan las prioridades profesionales declaradas por el usuario. Funcionan como etiquetas estructuradas, no como hashtags libres.
+
+Tipos iniciales:
+
+- Empresa.
+- Industria.
+- Cargo.
+- Funcion.
+
+Cada objetivo pertenece a un usuario, tiene nombre, tipo, prioridad opcional, descripcion opcional y estado activo/inactivo. La pantalla `Objetivos` debe permitir crear, editar, activar/desactivar y eliminar objetivos cuando corresponda, agrupados por tipo.
+
+Un contacto puede quedar asociado a cero, uno o multiples objetivos. La asociacion debe usar el ID interno del objetivo, no el texto visible, para que cambiar `Nubank` por `Nubank / Nu Holdings` no rompa los contactos ya asociados.
+
+Los objetivos se integran en:
+
+- Ficha de contacto: mostrar chips compactos con los objetivos asociados.
+- Editor/creador de contacto: seleccionar o deseleccionar objetivos ya creados.
+- Vista Contactos y Dashboard: filtrar por objetivos usando el filtro global.
+- Dashboard: resumen compacto por objetivo, ordenado por prioridad, con contactos asociados, cafes, ultima actividad y mayor estado networking resumido.
+- Futuras metricas avanzadas: objetivos de prioridad alta con cero contactos, objetivos con muchos contactos y poca actividad, y vistas de gestion por objetivo.
+
+Alcance MVP aprobado: CRUD basico de objetivos, selector reutilizable en contactos, visualizacion en ficha, filtro de contactos por objetivo y tabla resumen inicial en Dashboard. Quedan fuera por ahora mapas visuales, scoring, recomendaciones IA, relaciones entre objetivos, tags libres y dashboards avanzados.
 
 ### Ficha de contacto
 
@@ -109,6 +137,14 @@ Estado actual implementado: existe una primera version del popup `Referidos y co
 
 Agrupacion de contactos headhunter por empresa/dominio para facilitar seguimiento a empresas de seleccion.
 
+La direccion objetivo es tener un maestro de empresas headhunter con dominios asociados. Esto permitira que la app agrupe contactos headhunter bajo una empresa oficial, complete el campo empresa cuando exista una unica coincidencia confiable por dominio y pida decision del usuario cuando haya empresa no reconocida o multiples candidatos. En vistas operativas, como el tablero de estados, los contactos headhunter podran agruparse temporalmente en una tarjeta de empresa: se muestra el contacto con estado mas avanzado y mover la tarjeta actualiza el estado de todos los contactos del grupo.
+
+Primer corte cloud aprobado: el maestro vive como un catalogo global de empresas headhunter con dominios asociados, transversal a todos los usuarios. La regla de producto es: si el contacto ya trae una empresa que coincide con el maestro, se respeta esa empresa oficial; si no trae empresa y uno de sus dominios coincide con una unica empresa del maestro, la app puede proponerlo como sugerencia del Coach; si no hay match confiable o hay mas de una posibilidad, la app debe pedir decision del usuario antes de modificar el contacto.
+
+En vistas de contacto masivas, el dominio headhunter no debe competir como columna visible principal. El indicador operativo vive junto a empresa/cargo: azul/acento cuando el maestro reconoce la empresa y advertencia cuando la marca headhunter requiere completar o corregir empresa.
+
+En el editor de contacto, si la marca headhunter esta activa, el campo empresa debe apoyarse en el maestro global: sugerir empresas oficiales mientras el usuario escribe y advertir cuando la empresa escrita no coincide con el maestro o existen multiples candidatos. La deteccion positiva por dominio debe vivir como regla/sugerencia del Coach, con mensaje tipo `Registra a {contacto} como headhunter, en {empresa}`, no como mensaje dentro del editor. La app no debe modificar automaticamente nombre, empresa o cargo sin una accion explicita del usuario.
+
 ### Coach IA y pendientes
 
 Panel de sugerencias accionables.
@@ -121,6 +157,7 @@ Incluye:
 - Configuracion por regla concreta de sugerencia, con opciones para no volver a sugerir, ejecutar sin consultar o pedir confirmacion siempre.
 - Mascota original del Coach IA ubicada a la izquierda de la conversacion, con animacion suave.
 - Sugerencias presentadas como conversacion compacta en lenguaje humano, agrupadas por tipo de motor, con cerca de cuatro mensajes visibles y scroll propio para el resto.
+- Cuando existan muchas sugerencias equivalentes, el Coach debe poder agruparlas en una sola burbuja resumen, por ejemplo `25 propuestas de cambio de estado a Agradecimiento enviado`, expandible para revisar el detalle.
 - Acciones contextuales dentro de cada sugerencia, por ejemplo ir a la ficha del contacto o agregar minuta desde una cita concretada.
 - Historial simple de sugerencias que ya no estan vigentes, filtrable por `done`, `dismissed`, `expired` y `auto resolved`, con motivo de cierre, regla, evidencia y acceso directo al contacto para investigar que paso.
 
@@ -141,7 +178,7 @@ El modelo de planes no debe ser rigido. La plataforma debe poder marcar cada tip
 
 Los tipos de sugerencia y automatizacion deben poder cambiar de tier sin reprogramar la logica central. La configuracion por usuario, como no volver a sugerir, pedir confirmacion siempre o ejecutar sin preguntar, debe respetar primero el plan disponible y luego la preferencia del usuario.
 
-En el end game, los planes comerciales deben alimentar un mantenedor de perfiles/capacidades mas amplio. Ese mantenedor define vistas disponibles, permisos, conectores, cuotas, limites de sync/import, acciones automatizables, exportaciones y auditoria. El perfil efectivo del usuario puede combinar plan personal, patrocinio de empresa, upgrades, permisos especiales y configuracion individual.
+En el end game, los planes comerciales deben alimentar un mantenedor de perfiles/capacidades mas amplio. Ese mantenedor define vistas disponibles, permisos, conectores, cuotas, limites de sync/import, acciones automatizables, exportaciones y auditoria. El perfil efectivo del usuario puede combinar plan personal, patrocinio de empresa, upgrades, permisos especiales y configuracion individual. El modelo no debe ser un invento propio ad hoc: debe apoyarse en patrones estandar como RBAC para roles base, ABAC para condiciones/contexto, feature flags o capability matrix para capacidades por plan, y politicas de base/RLS para que la restriccion sea real y no solo visual.
 
 La exportacion masiva o sincronizacion saliente de contactos hacia proveedores externos no es una prioridad del MVP y no debe habilitarse en planes gratuitos. Es una capacidad sensible por riesgo de abuso, ya que podria incentivar creacion de cuentas gratis para importar datos, exportarlos y agotar cuotas. Si se implementa, debe quedar asociada a tiers superiores, reglas anti-abuso y condiciones comerciales a definir, por ejemplo antiguedad o pago minimo acumulado. En cambio, importar contactos hacia la app si es prioritario porque reduce friccion de entrada y permite que el usuario empiece a usar el producto rapidamente.
 
@@ -176,6 +213,21 @@ Principios:
 - Los reportes para empresas deben partir por agregados anonimizados, no por trazas individuales.
 - Cualquier uso avanzado de datos debe tener consentimiento, control y explicacion clara.
 - Las metricas deben poder recalcularse desde datos base y no depender de calculos dispersos en la UI.
+
+### Privacidad, seguridad y cumplimiento
+
+La beta debe partir con privacidad por diseno. La app trata datos personales de contactos, interacciones, correos, citas, minutas, referidos, objetivos y actividad del usuario, por lo que debe explicar finalidad, pedir solo permisos necesarios, separar datos privados de datos agregados y permitir trazabilidad.
+
+El manual vivo de referencia es `docs/PRIVACY_SECURITY_COMPLIANCE.md`. Ese documento baja a producto las obligaciones y criterios derivados de Ley 19.628 y Ley 21.719, cuya entrada principal en vigencia esta prevista para el 01-12-2026, ademas de criterios OAuth/Google para datos conectados.
+
+Implicancias de producto para beta:
+
+- Cuenta debe distinguir cuenta de acceso, cuentas conectadas, permisos activos, permisos conocidos por servicio, plan y acciones delicadas. Desvincular una cuenta externa debe cortar la conexion en la app sin borrar automaticamente datos ya importados.
+- Una empresa patrocinadora no obtiene acceso automatico al detalle privado del usuario.
+- El usuario debe poder entender que datos importo, desde que proveedor y con que permiso.
+- Las automatizaciones del Coach deben ser explicables, configurables y auditables.
+- La eliminacion, portabilidad y revocacion de permisos deben quedar disenadas antes de beta amplia, aunque se implementen por etapas.
+- Los logs y pantallas de soporte no deben exponer contenido personal innecesario.
 
 ## Estados oficiales de networking
 
@@ -212,7 +264,7 @@ La app tambien debe ser autocontenida para interacciones. Un usuario debe poder 
 Cuando una interaccion venga desde un servicio externo, la app debe distinguir dos capas:
 
 - Interaccion de la app: lo que el usuario ve, edita y usa para Coach, KPIs y seguimiento.
-- Objeto externo vinculado: correo, evento de calendario, mensaje u otro elemento importado desde un proveedor como Google, Apple o Microsoft.
+- Objeto externo vinculado: correo, evento de calendario, mensaje u otro elemento conectado desde un proveedor como Google, Apple o Microsoft.
 
 La app debe mostrar la interaccion propia, no el objeto crudo del proveedor. Al importar un correo o cita, la app crea o actualiza una interaccion equivalente con titulo, fecha, tipo, participantes y minuta editable. La minuta editable es el texto que puede modificar el usuario y la fuente principal que lee Coach; el detalle original del proveedor debe conservarse separado para trazabilidad y sync.
 
@@ -222,21 +274,27 @@ Las interacciones vinculadas a proveedores deben mostrar iconos compactos del se
 
 La sincronizacion no debe depender de botones especificos de una vista. Deben existir funciones oficiales reutilizables para sincronizar contactos, mail, calendario y futuros mensajes, con inputs claros (proveedor, cuenta, alcance, modo, cursores, limites) y outputs claros (conteos, errores, objetos afectados, cursores resultantes). Asi un boton, la ficha de un contacto, el Dashboard, Coach IA o una automatizacion pueden invocar el mismo flujo sin duplicar logica.
 
-Cuando una sincronizacion detecte cambios que pueden modificar datos de la app, debe existir una etapa de revision previa. Esa revision muestra cambios nuevos, modificados, enlaces/combinaciones sugeridas, desactivaciones o eliminaciones, con tarjetas claras y checkboxes para elegir que aplicar. Los cambios desmarcados no se aplican y quedan pendientes para la proxima sincronizacion mientras la diferencia siga vigente. Solo una accion explicita de supresion, como `No eliminar ni volver a sugerir`, impide que ese cambio especifico vuelva a aparecer.
+Cuando una sincronizacion detecte cambios que pueden modificar datos de la app, debe existir una etapa de revision previa. En contactos, esa revision inicial muestra cambios nuevos, modificados, desactivaciones o eliminaciones usando el ID externo como criterio de pareo; las fusiones por correo o telefono quedan para una revision posterior de duplicados. Los cambios desmarcados no se aplican y quedan pendientes para la proxima sincronizacion mientras la diferencia siga vigente. Solo una accion explicita de supresion, como `No eliminar ni volver a sugerir`, impide que ese cambio especifico vuelva a aparecer.
 
-En contactos nuevos, modificaciones y enlaces/combinaciones, el usuario debe poder aceptar la propuesta por defecto o abrir `Editar datos` antes de aplicar. Esa edicion funciona como borrador dentro del preview: para un contacto nuevo permite ajustar el contacto que se va a crear, para una modificacion permite elegir que datos aceptar, y para un enlace/combinacion permite definir el contacto resultante. Nada se guarda hasta que el usuario presiona `Aplicar seleccion`. Por eso, el boton principal del popup debe decir `Ajustar propuesta` y al volver al preview la tarjeta debe quedar marcada como `Propuesta ajustada`.
+En contactos nuevos y modificaciones, el usuario debe poder aceptar la propuesta por defecto o abrir `Editar datos` antes de aplicar. Esa edicion funciona como borrador dentro del preview: para un contacto nuevo permite ajustar el contacto que se va a crear, y para una modificacion permite elegir que datos aceptar. Nada se guarda hasta que el usuario presiona `Aplicar seleccion`. El boton principal del popup dice `Guardar cambios`, pero en este contexto guarda el borrador de la propuesta; al volver al preview la tarjeta debe quedar marcada como `Propuesta ajustada`.
 
 Si el usuario aplica solo una parte de los cambios revisados, la app debe quitar del preview actual lo que se aplico correctamente y mantener visible lo que quedo pendiente, sin volver a leer Google u otro proveedor. Si la aplicacion falla, el preview no debe ocultarse, para que el usuario pueda revisar o reintentar.
 
 En contactos, la app es la fuente principal una vez que el dato esta dentro del producto. Las fuentes externas enriquecen o proponen cambios, pero un campo vacio en la fuente conectada no borra automaticamente un dato local. Las eliminaciones se revisan aparte, al final del flujo, y deben permitir ignorar ese cambio a futuro cuando el usuario decide conservar el dato local.
 
+Para sincronizar contactos de manera robusta, el producto debe distinguir entre la ficha local/canonica y la version importada desde cada fuente conectada. La version importada es una foto del proveedor y conserva sus valores originales; la ficha local es la version que el usuario usa, edita y que la app normaliza. Al volver a sincronizar, la app compara la nube actual con la ultima version importada, no con la ficha local ya formateada. Asi se detectan cambios reales del proveedor sin generar falsos cambios por normalizacion de telefonos o decisiones locales del usuario.
+
+Los datos que una fuente conectada entrega pero que aun no son parte de la ficha local, como cumpleanos, deben guardarse primero como metadata de la version importada. No deben aparecer ni modificar el contacto local hasta que exista una decision de producto sobre como mostrarlos, editarlos y usarlos en Coach o recordatorios.
+
+La revision de duplicados debe ser una etapa separada a la importacion. Si dos contactos de Google tienen IDs distintos, ambos pueden entrar como contactos importados aunque compartan correo o telefono; despues el usuario puede fusionarlos en un contacto local unico. Si existen duplicados pendientes que puedan afectar la asociacion de correos o calendarios, Cuenta debe mostrar una alerta clara y puede bloquear o advertir antes de ejecutar sync de actividad.
+
 Cuando existan duplicados o conflictos de identidad, el producto debe usar una funcion global de Fusionar contactos. Esta funcion puede ser invocada por sync, por el usuario o por Coach IA, y debe recibir 2 o 3 contactos maximo. La interfaz muestra los contactos origen lado a lado y un contacto resultante. El usuario decide que nombre, empresa, cargo, correos, telefonos y otros datos conservar. Los campos binarios de la app, como foco networking y headhunter, no se eligen desde una columna: aparecen como switches del contacto resultante, por defecto activos si cualquiera de los contactos origen los tenia activos. El estado de networking parte por defecto en el estado mas avanzado entre los contactos origen, pero el usuario puede cambiarlo antes de guardar. El mismo patron puede usarse como editor de borrador dentro del preview de sincronizacion, incluso si hay una sola fuente importada.
 
-Al confirmar una fusion, la app debe mover interacciones, referidos, sugerencias/ToDos, IDs externos y datos relacionados al contacto resultante, dejando trazabilidad y sin borrar historial. La fusion implicita durante sync solo debe usarse cuando no hay conflicto; si hay conflicto de datos o varios contactos posibles, debe derivar a esta funcion.
+Al confirmar una fusion, la app debe mover interacciones, referidos, sugerencias/ToDos, IDs externos y datos relacionados al contacto resultante, dejando trazabilidad y sin borrar historial. La fusion no debe ocurrir dentro de la importacion inicial de contactos; si se detectan duplicados, debe derivarse a la revision posterior de duplicados.
 
 Al eliminar una interaccion vinculada a un proveedor, el usuario debe entender que si el objeto externo sigue existiendo podria volver a importarse en una sincronizacion futura. La app debe ofrecer una opcion para prevenir futuras importaciones de ese objeto, reversible desde configuracion de sync.
 
-### Importador flexible
+### Carga flexible
 
 Uploader con mapeo visual de columnas para cargar contactos desde CSV/Excel.
 
@@ -255,7 +313,9 @@ La seccion Cuenta debe concentrar las funciones sensibles del usuario:
 - Conexiones con servicios externos, partiendo por Google en v1.
 - Estado de sincronizacion por fuente.
 - Acciones delicadas de sync, como revisar cambios desde contactos conectados antes de aplicar.
+- Fecha de inicio de networking, con confirmacion antes de cambiarla, porque define desde cuando se revisan correos y citas historicas y puede modificar los indicadores del Dashboard.
 - Backups y exportaciones de datos.
+- Reinicio de datos personales de la app, con doble confirmacion, para que el usuario pueda borrar contactos, interacciones, objetivos, sugerencias, conexiones y configuracion personal sin eliminar su usuario, plan ni rol.
 - Eliminacion o desactivacion de cuenta, con confirmacion y explicacion de impacto.
 
 Las vistas operativas, como Contactos o Ficha, pueden invocar funciones de sincronizacion en contexto cuando haga sentido, pero la administracion principal de conexiones, permisos y sincronizaciones delicadas debe vivir en Cuenta para que el usuario entienda que afectan datos y autorizaciones.
@@ -305,9 +365,11 @@ La experiencia debe diseñarse desde ahora con componentes faciles de transforma
 
 ## Historial
 
+- 2026-08-26: Se agrega privacidad por diseno como condicion previa a beta multiusuario y se define `docs/PRIVACY_SECURITY_COMPLIANCE.md` como manual vivo.
+- 2026-08-26: Se inicia el corte de cuentas, roles y capacidades para beta: la app debe distinguir usuario normal, beta tester, soporte/admin, plan vigente, cuentas conectadas y permisos efectivos antes de sumar usuarios reales.
 - 2026-07-15: Se separa la descripcion de producto/vision de los documentos tecnicos y de plan.
-- 2026-07-15: Se actualizan KPIs del Dashboard a total cafes, contactos realizados y contactos HH realizados.
-- 2026-07-15: Se agregan barras/etiquetas de primera vez en KPIs de contactos y empresas HH.
+- 2026-07-15: Se actualizan KPIs del Dashboard a total cafes, contactos realizados y contactos headhunter realizados.
+- 2026-07-15: Se agregan barras/etiquetas de primera vez en KPIs de contactos y empresas headhunter.
 - 2026-07-15: Los KPIs respetan fecha global de inicio de networking y muestran maximo 12 semanas/meses.
 - 2026-07-17: Contactos usa un filtro global que integra pipeline, filtros de tabla y orden.
 - 2026-07-20: Se agrega vision de niveles de suscripcion para Coach IA: Basica, Pro y Networking Goat.
@@ -322,18 +384,20 @@ La experiencia debe diseñarse desde ahora con componentes faciles de transforma
 - 2026-07-22: Se ajusta vision de referidos: tarjetas separan apunte y vinculo, no muestran estado cuando no hay contacto vinculado y queda pendiente consolidar el flujo crear/vincular.
 - 2026-07-22: Se redefine referido como objeto propio separado de contacto y se aprueba un flujo global que usa un editor oficial de contacto para crear, editar o vincular contactos desde referidos.
 - 2026-07-30: Cloud conecta la ficha de contacto al flujo global de referidos y contactos, manteniendo separados el apunte libre del referido y el contacto oficial vinculado.
-- 2026-07-30: Se extiende la vision autocontenida a interacciones: la app debe tener interacciones propias y vincularlas a objetos externos importados, conservando fuente cruda separada de minuta editable, links al origen, control de reimportacion tras eliminacion y funciones oficiales de sync reutilizables por vista, Coach, reglas o automatizaciones.
+- 2026-07-30: Se extiende la vision autocontenida a interacciones: la app debe tener interacciones propias y vincularlas a objetos externos de fuentes conectadas, conservando fuente cruda separada de minuta editable, links al origen, control de relectura tras eliminacion y funciones oficiales de sync reutilizables por vista, Coach, reglas o automatizaciones.
 - 2026-07-31: Se define preview de sincronizacion como etapa comun antes de aplicar cambios externos: tarjetas seleccionables por tipo de cambio, campos modificados destacados y cambios desmarcados reaparecen mientras sigan vigentes.
 - 2026-08-03: Se define Cuenta como ubicacion principal para credenciales, plan, conexiones externas, sincronizaciones delicadas, backups y eliminacion/desactivacion de cuenta.
 - 2026-08-03: El preview de sincronizacion permite usar `Editar datos` como borrador antes de aplicar contactos nuevos, modificaciones y enlaces/combinaciones, reutilizando el patron global de contacto resultante.
 - 2026-07-22: Se implementa primera version funcional del flujo `Referidos y contactos`.
 - 2026-07-22: Editor oficial de contacto agrega desactivacion con confirmacion y preservacion de historial.
 - 2026-07-22: Se incorpora la vision de contactos con identidad propia de la app y proveedores externos como conectores.
-- 2026-07-22: Se define MVP cloud como replica ordenada de lo actual, Google-only v1, app local paralela, export/import espejo, OAuth read-only y web responsive/PWA primero.
+- 2026-07-22: Se define MVP cloud Google-only v1, app local paralela, OAuth read-only y web responsive/PWA primero.
+- 2026-08-11: Se ajusta la vision cloud: la nueva app debe tener base propia limpia y cargarse desde conectores; la continuidad de datos desde la app anterior sera una migracion separada al modelo vigente, no una adaptacion permanente del producto.
 - 2026-07-22: Se explicita que la interfaz se probara como web desktop y web mobile, evitando botones secundarios a ancho completo y componentes que se deformen en pantalla chica.
 - 2026-07-22: Se agrega export espejo local como primer paso visible de respaldo/migracion cloud.
 - 2026-07-27: Se agrega vision de acciones internas ejecutables para que Coach IA, reglas y UI puedan usar las mismas funciones oficiales con confirmacion y trazabilidad.
-- 2026-07-27: Se inicia la replica cloud visible con una web en modo lectura para Dashboard, Contactos y Sistema, pensada para comparar datos importados antes de reemplazar la app local.
+- 2026-08-21: El maestro headhunter queda conectado al Coach mediante la regla `Registra a {contacto} como headhunter, en {empresa}`: si un contacto marcado como headhunter no tiene empresa y su dominio coincide con una unica empresa oficial, Coach puede proponer completar ese dato.
+- 2026-07-27: Se inicia la version cloud visible con una web en modo lectura para Dashboard, Contactos y Sistema, pensada para comparar comportamiento antes de reemplazar la app local.
 - 2026-07-29: Se amplia vision de planes para incluir matriz flexible de capacidades por tier, automatizaciones/sync por plan, membresias patrocinadas por outplacement, upgrades individuales y analitica agregada con privacidad.
 - 2026-07-30: Se agrega vision de mantenedor de perfiles/capacidades como capa superior a planes comerciales: vistas, permisos, cuotas, conectores, automatizaciones, exportaciones y auditoria.
 - 2026-08-10: Se ajusta vision comercial de conectores: importar contactos hacia la app es prioridad de onboarding; exportar o sincronizar contactos hacia proveedores externos queda fuera del MVP y se considera capacidad premium futura con reglas anti-abuso, cuotas y condiciones comerciales por definir.

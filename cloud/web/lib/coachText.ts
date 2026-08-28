@@ -3,12 +3,16 @@ import type { InteractionRow, TodoRow } from "./readModel";
 export type ParsedState = {
   Estado_CRM?: string;
   networking_status?: string;
+  Empresa?: string;
+  company?: string;
 };
 
 export type ParsedEvidence = {
   regla?: string;
   motivo?: string;
   interacciones?: string[];
+  dominio?: string;
+  empresa?: string;
 };
 
 export function parseCoachState(value: string | null | undefined): ParsedState {
@@ -48,6 +52,11 @@ export function buildCoachDetail(
     const channel = interaction?.interaction_type === "message" ? "mensaje" : "correo";
     return `Se comunicaron por ${channel}${daysSince}.`;
   }
+  if (rule === "HEADHUNTER_COMPANY_DETECTED") {
+    const domain = evidence.dominio ? ` por el dominio ${evidence.dominio}` : "";
+    const company = evidence.empresa ? `: ${evidence.empresa}` : "";
+    return `Detecte una empresa headhunter${domain}${company}.`;
+  }
   return todo.reason || evidence.motivo || readableTodoType(todo.todo_type);
 }
 
@@ -55,12 +64,11 @@ export function buildInteractionsByEvidenceId(interactions: InteractionRow[]) {
   const byId = new Map<string, InteractionRow>();
   for (const interaction of interactions) {
     byId.set(interaction.id, interaction);
-    if (interaction.legacy_entry_id) byId.set(interaction.legacy_entry_id, interaction);
   }
   return byId;
 }
 
-export function findEvidenceInteraction<T extends Pick<InteractionRow, "id" | "legacy_entry_id">>(
+export function findEvidenceInteraction<T extends Pick<InteractionRow, "id">>(
   evidence: ParsedEvidence,
   interactionsByEvidenceId: Map<string, T>
 ) {
@@ -79,8 +87,8 @@ export function shortContactName(value: string) {
 
 export function compactSummaryName(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 3) return parts.join(" ") || value;
-  return `${parts.slice(0, 3).join(" ")} ${parts[3].charAt(0)}.`;
+  if (parts.length <= 2) return parts.join(" ") || value;
+  return `${parts.slice(0, 2).join(" ")} ${parts[2].charAt(0)}.`;
 }
 
 export function formatCoachDate(value: string | null | undefined) {

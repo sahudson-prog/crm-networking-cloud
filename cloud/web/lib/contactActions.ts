@@ -1,14 +1,18 @@
 import { supabase } from "./supabaseClient";
 import { cleanContactCompany, cleanContactRole } from "./format";
+import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
+import { setContactObjectiveAssignments } from "./objectiveActions";
 import type { ContactRow } from "./readModel";
 
-const OFFICIAL_NETWORKING_STATUSES = new Set([
+export const NETWORKING_STATUSES = [
   "Pendiente",
   "Contactado",
   "Agendado",
   "Cita concretada",
   "Agradecimiento enviado"
-]);
+] as const;
+
+const OFFICIAL_NETWORKING_STATUSES = new Set<string>(NETWORKING_STATUSES);
 
 export type ContactEditorInput = {
   contactId?: string;
@@ -21,6 +25,7 @@ export type ContactEditorInput = {
   headhunterDomains: string[];
   emails: string[];
   phones: string[];
+  objectiveIds?: string[];
   source?: string;
 };
 
@@ -28,9 +33,15 @@ export type ContactFlagsInput = {
   networkingFocus?: boolean;
   isHeadhunter?: boolean;
   source?: string;
+  reviewCoach?: boolean;
 };
 
-export async function updateContactNetworkingStatus(contactId: string, nextStatus: string) {
+export async function updateContactNetworkingStatus(
+  contactId: string,
+  nextStatus: string,
+  source = "contact_profile",
+  options: { reviewCoach?: boolean } = {}
+) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   if (!OFFICIAL_NETWORKING_STATUSES.has(nextStatus)) throw new Error("Estado networking no valido.");
 
@@ -62,7 +73,7 @@ export async function updateContactNetworkingStatus(contactId: string, nextStatu
       input_json: {
         current_status: contact.networking_status,
         suggested_status: nextStatus,
-        source: "contact_profile"
+        source
       },
       requires_confirmation: false,
       confirmed_at: now
@@ -99,6 +110,9 @@ export async function updateContactNetworkingStatus(contactId: string, nextStatu
       .eq("id", invocation.id)
       .eq("user_id", userId);
     if (invocationDoneError) throw invocationDoneError;
+    if (options.reviewCoach !== false) {
+      await triggerCoachRuleReviewForContacts([contactId], "contact.update_networking_status");
+    }
   } catch (error) {
     await supabase
       .from("action_invocations")
@@ -199,6 +213,9 @@ export async function updateContactFlags(contactId: string, flags: ContactFlagsI
       .eq("id", invocation.id)
       .eq("user_id", userId);
     if (invocationDoneError) throw invocationDoneError;
+    if (flags.reviewCoach !== false) {
+      await triggerCoachRuleReviewForContacts([contactId], "contact.update_flags");
+    }
   } catch (error) {
     await supabase
       .from("action_invocations")
@@ -286,6 +303,13 @@ export async function saveContactFromEditor(input: ContactEditorInput) {
     if (!contactId) throw new Error("No pude determinar el ID del contacto.");
     await replaceContactEmails(userId, contactId, normalized.emails);
     await replaceContactPhones(userId, contactId, normalized.phones);
+    if (normalized.objectiveIds !== undefined) {
+      await setContactObjectiveAssignments({
+        contactId,
+        objectiveIds: normalized.objectiveIds,
+        source: "user"
+      });
+    }
 
     const after = await readContactSnapshot(userId, contactId);
     await supabase.from("audit_log").insert({
@@ -310,6 +334,7 @@ export async function saveContactFromEditor(input: ContactEditorInput) {
       .eq("user_id", userId);
     if (invocationDoneError) throw invocationDoneError;
 
+    await triggerCoachRuleReviewForContacts([contactId], actionName);
     return { contactId };
   } catch (error) {
     await supabase
@@ -336,6 +361,7 @@ function normalizeContactEditorInput(input: ContactEditorInput) {
     headhunterDomains: uniqueClean(input.headhunterDomains.map(normalizeDomain).filter(Boolean)),
     emails: uniqueClean(input.emails.map(normalizeEmail).filter(Boolean)),
     phones: uniqueClean(input.phones.map((phone) => phone.trim()).filter(Boolean)),
+    objectiveIds: input.objectiveIds === undefined ? undefined : uniqueClean(input.objectiveIds),
     source: input.source
   };
 }
@@ -473,6 +499,9 @@ export function contactToEditorInput(contact: ContactRow): ContactEditorInput {
     headhunterDomains: contact.headhunter_domains ?? [],
     emails: (contact.contact_emails ?? []).map((item) => item.email),
     phones: (contact.contact_phones ?? []).map((item) => item.phone),
+    objectiveIds: (contact.contact_objective_assignments ?? [])
+      .map((assignment) => assignment.objective_id)
+      .filter(Boolean),
     source: "contact_profile"
   };
 }

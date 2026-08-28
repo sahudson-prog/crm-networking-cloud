@@ -10,7 +10,15 @@ import {
   type ContactEditorInput
 } from "../lib/contactActions";
 import type { ContactRow } from "../lib/readModel";
+import { readHeadhunterCompanyMaster } from "../lib/headhunterCompanyActions";
+import {
+  normalizeHeadhunterCompanyName,
+  resolveHeadhunterCompany,
+  type HeadhunterCompanyMasterRow,
+  type HeadhunterCompanyResolution
+} from "../lib/headhunterCompanyMaster";
 import { Button } from "./ui/Button";
+import { ObjectiveSelector } from "./ObjectiveSelector";
 import { ProviderButton, type ProviderIconName } from "./ui/ProviderIcon";
 
 type ContactEditorDialogProps = {
@@ -36,9 +44,14 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   const [networkingStatus, setNetworkingStatus] = useState("Pendiente");
   const [networkingFocus, setNetworkingFocus] = useState(true);
   const [isHeadhunter, setIsHeadhunter] = useState(false);
-  const [headhunterDomainsText, setHeadhunterDomainsText] = useState("");
+  const [preservedHeadhunterDomains, setPreservedHeadhunterDomains] = useState<string[]>([]);
   const [emailValues, setEmailValues] = useState<string[]>([""]);
   const [phoneValues, setPhoneValues] = useState<string[]>([""]);
+  const [objectiveIds, setObjectiveIds] = useState<string[]>([]);
+  const [objectivesTouched, setObjectivesTouched] = useState(false);
+  const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
+  const [headhunterMasterError, setHeadhunterMasterError] = useState(false);
+  const [companyInputFocused, setCompanyInputFocused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -52,17 +65,60 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
     setNetworkingStatus(source?.networkingStatus ?? "Pendiente");
     setNetworkingFocus(source?.networkingFocus ?? true);
     setIsHeadhunter(source?.isHeadhunter ?? false);
-    setHeadhunterDomainsText((source?.headhunterDomains ?? []).join("\n"));
+    setPreservedHeadhunterDomains(source?.headhunterDomains ?? []);
     setEmailValues(withEmptyRow(source?.emails ?? []));
     setPhoneValues(withEmptyRow(source?.phones ?? []));
+    setObjectiveIds(source?.objectiveIds ?? []);
+    setObjectivesTouched(false);
     setMessage("");
+    setCompanyInputFocused(false);
   }, [contact, initialValues, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setHeadhunterMasterError(false);
+    readHeadhunterCompanyMaster()
+      .then((rows) => {
+        if (active) setHeadhunterMaster(rows);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHeadhunterMaster([]);
+        setHeadhunterMasterError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   const emails = useMemo(() => emailValues.map(normalizeEmail).filter(Boolean), [emailValues]);
   const phones = useMemo(() => phoneValues.map((phone) => phone.trim()).filter(Boolean), [phoneValues]);
-  const headhunterDomains = useMemo(() => splitLines(headhunterDomainsText), [headhunterDomainsText]);
   const invalidEmails = emails.filter((email) => !isValidEmail(email));
   const invalidPhones = phones.filter((phone) => !isValidPhone(phone));
+  const headhunterResolution = useMemo(() => {
+    if (!isHeadhunter || !headhunterMaster?.length) return null;
+    return resolveHeadhunterCompany(
+      {
+        company,
+        headhunter_domains: preservedHeadhunterDomains,
+        contact_emails: emails.map((email) => ({
+          email,
+          domain: email.includes("@") ? `@${email.slice(email.lastIndexOf("@") + 1)}` : null
+        }))
+      },
+      headhunterMaster
+    );
+  }, [company, emails, preservedHeadhunterDomains, headhunterMaster, isHeadhunter]);
+  const companyMatches = useMemo(() => {
+    if (!isHeadhunter || !headhunterMaster?.length) return [];
+    const query = normalizeHeadhunterCompanyName(company);
+    if (!query) return [];
+    return headhunterMaster
+      .filter((row) => row.normalizedName.includes(query))
+      .slice(0, 8);
+  }, [company, headhunterMaster, isHeadhunter]);
+  const showCompanyMatches = companyInputFocused && companyMatches.length > 0;
   const canSave = Boolean(displayName.trim()) && !invalidEmails.length && !invalidPhones.length && !saving;
 
   if (!open) return null;
@@ -80,9 +136,10 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
         networkingStatus,
         networkingFocus,
         isHeadhunter,
-        headhunterDomains,
+        headhunterDomains: preservedHeadhunterDomains,
         emails,
         phones,
+        objectiveIds: objectivesTouched ? objectiveIds : undefined,
         source: initialValues?.source || "contact_editor"
       });
       onSaved?.(result.contactId);
@@ -118,13 +175,48 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
           <div className="field-row">
             <label className="field">
               <span>Empresa</span>
-              <input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Sin empresa" />
+              <div className="headhunter-company-field">
+                <input
+                  autoComplete="off"
+                  value={company}
+                  onBlur={() => setCompanyInputFocused(false)}
+                  onChange={(event) => setCompany(event.target.value)}
+                  onFocus={() => setCompanyInputFocused(true)}
+                  placeholder="Sin empresa"
+                />
+                {showCompanyMatches ? (
+                  <div className="headhunter-company-menu">
+                    {companyMatches.map((row) => (
+                      <button
+                        key={row.id}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setCompany(row.displayName);
+                          setCompanyInputFocused(false);
+                        }}
+                        type="button"
+                      >
+                        {row.displayName}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </label>
             <label className="field">
               <span>Cargo</span>
               <input value={role} onChange={(event) => setRole(event.target.value)} placeholder="Sin cargo" />
             </label>
           </div>
+
+          {isHeadhunter ? (
+            <HeadhunterCompanyEditorHint
+              companyHasOpenMatches={showCompanyMatches}
+              companyText={company}
+              masterError={headhunterMasterError}
+              resolution={headhunterResolution}
+            />
+          ) : null}
 
           <div className="field-row">
             <ContactValueList
@@ -162,15 +254,14 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
             </div>
           </div>
 
-          <label className="field">
-            <span>Empresas headhunter</span>
-            <textarea
-              value={headhunterDomainsText}
-              onChange={(event) => setHeadhunterDomainsText(event.target.value)}
-              placeholder="@empresa.cl, una por linea"
-              rows={3}
-            />
-          </label>
+          <ObjectiveSelector
+            disabled={saving}
+            selectedObjectiveIds={objectiveIds}
+            onChange={(nextIds) => {
+              setObjectiveIds(nextIds);
+              setObjectivesTouched(true);
+            }}
+          />
         </div>
 
         {message ? <div className="modal-message danger-text">{message}</div> : null}
@@ -182,6 +273,53 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
           </Button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+function HeadhunterCompanyEditorHint({
+  companyHasOpenMatches,
+  companyText,
+  masterError,
+  resolution
+}: {
+  companyHasOpenMatches: boolean;
+  companyText: string;
+  masterError: boolean;
+  resolution: HeadhunterCompanyResolution | null;
+}) {
+  if (masterError) {
+    return (
+      <div className="headhunter-editor-hint warning">
+        No pude leer el maestro de empresas headhunter.
+      </div>
+    );
+  }
+  if (!resolution) return null;
+  if (!companyText.trim()) return null;
+  if (resolution.status === "matched_company") return null;
+  if (resolution.status === "matched_domain") return null;
+  if (companyHasOpenMatches) return null;
+  if (resolution.status === "company_mismatch") {
+    const candidateText = resolution.candidates.map((candidate) => candidate.displayName).join(", ");
+    return (
+      <div className="headhunter-editor-hint warning">
+        {candidateText
+          ? `La empresa escrita no coincide con el maestro. Posible: ${candidateText}.`
+          : "La empresa escrita no coincide con el maestro headhunter."}
+      </div>
+    );
+  }
+  if (resolution.status === "ambiguous") {
+    return (
+      <div className="headhunter-editor-hint warning">
+        Hay mas de una empresa posible para esos dominios.
+      </div>
+    );
+  }
+  return (
+    <div className="headhunter-editor-hint warning">
+      Selecciona una empresa headhunter del maestro o crea una nueva en Sistema.
     </div>
   );
 }
@@ -282,13 +420,6 @@ function ToggleField({
   );
 }
 
-function splitLines(value: string) {
-  return value
-    .split(/[\n;]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function withEmptyRow(values: string[]) {
   const clean = values.map((value) => value.trim()).filter(Boolean);
   return clean.length ? clean : [""];
@@ -296,11 +427,11 @@ function withEmptyRow(values: string[]) {
 
 function readableContactError(error: unknown) {
   const message = error instanceof Error ? error.message : "No pude guardar el contacto.";
-  if (message.includes("uq_contact_emails_user_normalized")) {
-    return "Uno de esos correos ya existe en otro contacto.";
+  if (message.includes("uq_contact_emails_user_normalized") || message.includes("uq_contact_emails_contact_normalized")) {
+    return "Uno de esos correos esta repetido en este contacto.";
   }
-  if (message.includes("uq_contact_phones_user_normalized")) {
-    return "Uno de esos telefonos ya existe en otro contacto.";
+  if (message.includes("uq_contact_phones_user_normalized") || message.includes("uq_contact_phones_contact_normalized")) {
+    return "Uno de esos telefonos esta repetido en este contacto.";
   }
   return message;
 }

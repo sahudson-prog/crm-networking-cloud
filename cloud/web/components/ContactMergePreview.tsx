@@ -24,7 +24,7 @@ const exampleContacts: ContactMergeSource[] = [
     focus: false,
     headhunter: false,
     id: "google-a",
-    kind: "Importado",
+    kind: "Fuente conectada",
     name: "Alberto V",
     networkingStatus: "Pendiente",
     phones: ["+56 2 2837 1378"],
@@ -63,7 +63,7 @@ export function ContactMergePreview() {
         actions={(
           <>
             <Button icon="close">Cancelar</Button>
-            <Button icon="check" tone="primary">Ajustar propuesta</Button>
+            <Button icon="check" tone="primary">Guardar cambios</Button>
           </>
         )}
       />

@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { withDismissedInteractionMetadata } from "./interactionState";
+import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
 import type { InteractionRow } from "./readModel";
 
 const INTERACTION_TYPES = new Set(["email", "calendar", "call", "message", "manual"]);
@@ -121,6 +122,7 @@ export async function saveInteractionFromEditor(input: InteractionEditorInput) {
       .eq("user_id", userId);
     if (invocationDoneError) throw invocationDoneError;
 
+    await triggerCoachRuleReviewForContacts([normalized.contactId], actionName);
     return { interactionId };
   } catch (error) {
     await supabase
@@ -210,6 +212,7 @@ export async function dismissInteraction(interactionId: string, input: {
       .eq("user_id", userId);
     if (invocationDoneError) throw invocationDoneError;
 
+    await triggerCoachRuleReviewForContacts(await readInteractionContactIds(userId, interactionId), actionName);
     return { interactionId };
   } catch (error) {
     await supabase
@@ -268,6 +271,17 @@ async function readInteractionSnapshot(userId: string, interactionId: string | u
   if (error) throw error;
   if (!data) throw new Error("No encontre la interaccion.");
   return data;
+}
+
+async function readInteractionContactIds(userId: string, interactionId: string) {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("interaction_participants")
+    .select("contact_id")
+    .eq("interaction_id", interactionId)
+    .eq("user_id", userId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.contact_id).filter(Boolean);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
