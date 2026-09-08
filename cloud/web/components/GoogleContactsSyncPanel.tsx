@@ -5,11 +5,12 @@ import { applyContactSyncPreview, type ApplyContactSyncPreviewResult, type Apply
 import { mergeContactsDeep } from "../lib/contactMergeActions";
 import type { ContactMergeResult, ContactMergeSource } from "../lib/contactMerge";
 import { GOOGLE_CONTACTS_READONLY_SCOPE, GoogleContactsClientError } from "../lib/googleContactsClient";
+import { GOOGLE_INTERACTIONS_READONLY_SCOPES } from "../lib/googleInteractionClient";
 import { prepareGoogleContactSyncPreview, type GoogleContactSyncCheckpoint, type PrepareGoogleContactSyncResult } from "../lib/googleContactSyncFlow";
 import { readAllActiveContacts } from "../lib/cloudData";
 import { requireCurrentUserCapability } from "../lib/accessControl";
-import { readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { reconnectGoogle } from "../lib/googleAuthSession";
+import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
+import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import { ACTIVITY_SYNC_MAX_CONTACT_PAGES } from "../lib/interactionSyncLimits";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
@@ -25,6 +26,7 @@ import { SyncPreviewDialog } from "./SyncPreviewDialog";
 type GoogleSyncState = {
   accessToken: string;
   applying: boolean;
+  connectedAccountId: string | null;
   contactsInScope: number;
   diagnostics: GoogleContactSyncCheckpoint[];
   loading: boolean;
@@ -39,6 +41,7 @@ type GoogleSyncState = {
 const initialState: GoogleSyncState = {
   accessToken: "",
   applying: false,
+  connectedAccountId: null,
   contactsInScope: 0,
   diagnostics: [],
   error: "",
@@ -51,26 +54,50 @@ const initialState: GoogleSyncState = {
 };
 
 const GOOGLE_CONTACT_SYNC_TABS = ["new", "modified", "deleted"] as const;
+const GOOGLE_DATA_AUTHORIZATION_SCOPES = [
+  ...GOOGLE_AUTH_LOGIN_SCOPES,
+  GOOGLE_CONTACTS_READONLY_SCOPE,
+  ...GOOGLE_INTERACTIONS_READONLY_SCOPES.split(" ")
+];
 
 type GoogleContactsSyncPanelProps = {
   compact?: boolean;
+  googleAccessToken?: string;
+  googleCapabilityAvailable?: boolean;
   googleConnected?: boolean;
+  googleConnectionLoading?: boolean;
+  googleDisabledReason?: string;
+  registerRememberedScopes?: boolean;
 };
 
-export function GoogleContactsSyncPanel({ compact = false, googleConnected = true }: GoogleContactsSyncPanelProps) {
+export function GoogleContactsSyncPanel({
+  compact = false,
+  googleAccessToken,
+  googleCapabilityAvailable = true,
+  googleConnected = true,
+  googleConnectionLoading = false,
+  googleDisabledReason = "",
+  registerRememberedScopes = true
+}: GoogleContactsSyncPanelProps) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<GoogleSyncState>(initialState);
   const [mergeContacts, setMergeContacts] = useState<ContactRow[]>([]);
   const [savedDuplicateMergeSources, setSavedDuplicateMergeSources] = useState<ContactMergeSource[] | null>(null);
   const [savedDuplicateMerging, setSavedDuplicateMerging] = useState(false);
+  const effectiveAccessToken = googleAccessToken ?? state.accessToken;
+  const compactDisabledReason = compact ? googleDisabledReason
+    || (googleConnectionLoading ? "Estamos verificando la autorización de Google." : "")
+    || (!googleConnected || !effectiveAccessToken ? "Autoriza Google para importar." : "")
+    || (!googleCapabilityAvailable ? "Actualiza la autorización de Google para habilitar contactos." : "") : "";
 
   useEffect(() => {
     let active = true;
-    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes: true }), loadGoogleContactStats()]).then(([googleConnection, stats]) => {
+    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes }), loadGoogleContactStats()]).then(([googleConnection, stats]) => {
       if (!active) return;
       setState((current) => ({
         ...current,
         accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         contactsInScope: stats.contactsInScope,
         linkedContacts: stats.linkedContacts
       }));
@@ -78,7 +105,7 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
     return () => {
       active = false;
     };
-  }, []);
+  }, [registerRememberedScopes]);
 
   const summary = useMemo(() => {
     const changes = state.preview?.preview ?? [];
@@ -93,7 +120,7 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
 
   async function connectGoogle() {
     try {
-      await reconnectGoogle(GOOGLE_CONTACTS_READONLY_SCOPE, `${window.location.origin}/cuenta`);
+      await reconnectGoogle(GOOGLE_DATA_AUTHORIZATION_SCOPES, `${window.location.origin}/cuenta`);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -117,8 +144,12 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
     }
 
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    setState((current) => ({ ...current, accessToken: googleConnection.accessToken }));
-    if (!googleConnection.connected || !googleConnection.accessToken) {
+    setState((current) => ({
+      ...current,
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null
+    }));
+    if (!googleConnection.connected || !googleConnection.accessToken || !googleConnectionHasCapability(googleConnection, "contacts_read")) {
       setState((current) => ({
         ...current,
         error: "",
@@ -163,6 +194,7 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
       const syncLimits = await loadActivitySyncLimitValues();
       const preview = await prepareGoogleContactSyncPreview({
         accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         forceFullSync,
         maxPages: syncLimits.contactPages || ACTIVITY_SYNC_MAX_CONTACT_PAGES,
         onCheckpoint: (checkpoint) => {
@@ -190,6 +222,7 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
     } catch (error) {
       logStep("Error", error instanceof Error ? error.message : "No pude preparar la sincronizacion de contactos.", "error");
       if (error instanceof GoogleContactsClientError && error.code === "GOOGLE_CONTACTS_AUTH_REQUIRED") {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           accessToken: "",
@@ -257,6 +290,7 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
     try {
       const result = await applyContactSyncPreview({
         changes: selectedChanges,
+        connectedAccountId: state.connectedAccountId,
         cursorAfter: previewBeforeApply.cursorAfter,
         cursorLabel: "",
         onProgress: (progress) => {
@@ -376,6 +410,13 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
   }
 
   function handlePrimarySyncClick() {
+    if (compactDisabledReason) {
+      setState((current) => ({
+        ...current,
+        error: compactDisabledReason
+      }));
+      return;
+    }
     if (!googleConnected) {
       setState((current) => ({
         ...current,
@@ -452,13 +493,14 @@ export function GoogleContactsSyncPanel({ compact = false, googleConnected = tru
           <span>{state.linkedContacts} vinculados · {state.contactsInScope} en foco</span>
         </div>
         <div className="toolbar">
-          <Button disabled={state.loading || !googleConnected || !state.accessToken} icon="users" onClick={handlePrimarySyncClick} tone="primary">
-            {state.loading ? "Revisando..." : "Importar"}
+          <Button disabled={Boolean(compactDisabledReason) || state.loading} icon="users" onClick={handlePrimarySyncClick} tone="primary">
+            {googleConnectionLoading ? "Verificando..." : state.loading ? "Revisando..." : "Importar"}
           </Button>
           <Button icon="trash" onClick={() => confirmImportedDataDelete("contactos")} tone="danger">
             Borrar importados
           </Button>
         </div>
+        {compactDisabledReason && !state.loading ? <p className="connected-service-reason">{compactDisabledReason}</p> : null}
         <div className="connected-service-feedback">{syncFeedback}</div>
       </div>
     );

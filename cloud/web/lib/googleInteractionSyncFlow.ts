@@ -854,6 +854,9 @@ function effectiveSyncErrors(
   }
 ) {
   if (!errors.length) return errors;
+  const hasPermissionError = errors.some((error) => error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
+  if (hasPermissionError) return errors;
+
   const hasSuccessfulRequestedService =
     (input.includeMail !== false && Boolean(input.mail?.ok)) ||
     (input.includeCalendar !== false && Boolean(input.calendar?.ok));

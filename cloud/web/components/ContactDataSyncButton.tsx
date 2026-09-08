@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { applyContactSyncPreview, type ApplyContactSyncPreviewResult, type ApplyContactSyncProgress } from "../lib/contactSyncApply";
 import { buildContactSyncPreview } from "../lib/contactSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
-import { readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { reconnectGoogle } from "../lib/googleAuthSession";
+import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
+import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import { GOOGLE_CONTACTS_READONLY_SCOPE, GoogleContactsClientError, readGoogleContact } from "../lib/googleContactsClient";
+import { GOOGLE_INTERACTIONS_READONLY_SCOPES } from "../lib/googleInteractionClient";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
@@ -29,6 +30,7 @@ export type ContactDataSyncNotice = {
 type ContactDataSyncState = {
   accessToken: string;
   applying: boolean;
+  connectedAccountId: string | null;
   error: string;
   loading: boolean;
   message: string;
@@ -40,6 +42,7 @@ type ContactDataSyncState = {
 const initialState: ContactDataSyncState = {
   accessToken: "",
   applying: false,
+  connectedAccountId: null,
   error: "",
   loading: false,
   message: "",
@@ -60,7 +63,8 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
       if (!active) return;
       setState((current) => ({
         ...current,
-        accessToken: googleConnection.accessToken
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null
       }));
     });
     return () => {
@@ -77,7 +81,11 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
   }, [onNoticeChange]);
 
   async function connectGoogle() {
-    await reconnectGoogle(GOOGLE_CONTACTS_READONLY_SCOPE);
+    await reconnectGoogle([
+      ...GOOGLE_AUTH_LOGIN_SCOPES,
+      GOOGLE_CONTACTS_READONLY_SCOPE,
+      ...GOOGLE_INTERACTIONS_READONLY_SCOPES.split(" ")
+    ]);
   }
 
   async function reviewContactData() {
@@ -105,8 +113,12 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
       progress: null
     }));
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    setState((current) => ({ ...current, accessToken: googleConnection.accessToken }));
-    if (!googleConnection.connected || !googleConnection.accessToken) {
+    setState((current) => ({
+      ...current,
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null
+    }));
+    if (!googleConnection.connected || !googleConnection.accessToken || !googleConnectionHasCapability(googleConnection, "contacts_read")) {
       setState((current) => ({ ...current, accessToken: "", error: "", loading: true, message: "Reconectando Google..." }));
       await connectGoogle();
       return;
@@ -151,6 +163,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
       const [externalContact, knownValues] = await Promise.all([
         readGoogleContact({
           accessToken: googleConnection.accessToken,
+          connectedAccountId: googleConnection.account?.id ?? null,
           resourceName: externalId
         }),
         readKnownValues(externalId)
@@ -175,6 +188,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
     } catch (error) {
       logStep("Error", error instanceof Error ? error.message : "No pude revisar datos del contacto.", "error");
       if (error instanceof GoogleContactsClientError && error.code === "GOOGLE_CONTACTS_AUTH_REQUIRED") {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           applying: false,
@@ -246,6 +260,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
     try {
       const result = await applyContactSyncPreview({
         changes: selectedChanges,
+        connectedAccountId: state.connectedAccountId,
         cursorLabel: `contact:${contact.id}`,
         onProgress: (progress) => {
           setState((current) => ({

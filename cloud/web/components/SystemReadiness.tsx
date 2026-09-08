@@ -51,7 +51,7 @@ export function SystemReadiness() {
         </div>
         <div className="compact-row">
           <strong>Costos</strong>
-          <span>Sin procesos automaticos ni llamadas a IA. Solo lectura manual desde la web.</span>
+          <span>Operaciones controladas desde la aplicacion web.</span>
         </div>
       </div>
       <div className="toolbar" style={{ marginTop: 14 }}>

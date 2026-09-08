@@ -21,8 +21,8 @@ import {
   interactionPreviewChanges
 } from "../lib/interactionSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
-import { readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { reconnectGoogle } from "../lib/googleAuthSession";
+import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
+import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import type { ContactRow } from "../lib/readModel";
 import { calendarFutureWindowIso, readNetworkingStartIso } from "../lib/syncDate";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
@@ -32,6 +32,7 @@ import { SyncPreviewDialog } from "./SyncPreviewDialog";
 import { Button } from "./ui/Button";
 
 const GOOGLE_ACCOUNT_READONLY_SCOPES = [
+  ...GOOGLE_AUTH_LOGIN_SCOPES,
   GOOGLE_CONTACTS_READONLY_SCOPE,
   GOOGLE_INTERACTIONS_READONLY_SCOPES
 ].join(" ");
@@ -54,6 +55,7 @@ export type ActivitySyncNotice = {
 type ActivitySyncState = {
   accessToken: string;
   applying: boolean;
+  connectedAccountId: string | null;
   error: string;
   lastRun: SyncGoogleInteractionsResult | null;
   loading: boolean;
@@ -65,6 +67,7 @@ type ActivitySyncState = {
 const initialState: ActivitySyncState = {
   accessToken: "",
   applying: false,
+  connectedAccountId: null,
   error: "",
   lastRun: null,
   loading: false,
@@ -95,6 +98,7 @@ export function ActivitySyncButton({
       setState((current) => ({
         ...current,
         accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         userEmail: googleConnection.userEmail
       }));
     });
@@ -138,8 +142,15 @@ export function ActivitySyncButton({
 
     setState((current) => ({ ...current, error: "", loading: true, message: "Conectando con Google..." }));
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    setState((current) => ({ ...current, accessToken: googleConnection.accessToken, userEmail: googleConnection.userEmail }));
-    if (!googleConnection.connected || !googleConnection.accessToken) {
+    const includeMail = googleConnectionHasCapability(googleConnection, "gmail_read");
+    const includeCalendar = googleConnectionHasCapability(googleConnection, "calendar_read");
+    setState((current) => ({
+      ...current,
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null,
+      userEmail: googleConnection.userEmail
+    }));
+    if (!googleConnection.connected || !googleConnection.accessToken || (!includeMail && !includeCalendar)) {
       setState((current) => ({ ...current, error: "", loading: true, message: "Reconectando Google..." }));
       await connectGoogle();
       return;
@@ -156,7 +167,14 @@ export function ActivitySyncButton({
     }
 
     setState((current) => ({ ...current, error: "", lastRun: null, loading: true, message: "Revisando actividad conectada..." }));
-    await runSync({ accessToken: googleConnection.accessToken, dryRun: true, userEmail: googleConnection.userEmail });
+    await runSync({
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null,
+      dryRun: true,
+      includeCalendar,
+      includeMail,
+      userEmail: googleConnection.userEmail
+    });
   }
 
   async function applySync(selectedChanges: SyncPreviewChange[]) {
@@ -176,8 +194,15 @@ export function ActivitySyncButton({
 
     setState((current) => ({ ...current, error: "", message: "Conectando con Google..." }));
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    setState((current) => ({ ...current, accessToken: googleConnection.accessToken, userEmail: googleConnection.userEmail }));
-    if (!googleConnection.connected || !googleConnection.accessToken) {
+    const includeMail = googleConnectionHasCapability(googleConnection, "gmail_read");
+    const includeCalendar = googleConnectionHasCapability(googleConnection, "calendar_read");
+    setState((current) => ({
+      ...current,
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null,
+      userEmail: googleConnection.userEmail
+    }));
+    if (!googleConnection.connected || !googleConnection.accessToken || (!includeMail && !includeCalendar)) {
       setState((current) => ({ ...current, accessToken: "", error: "", message: "Reconectando Google..." }));
       await connectGoogle();
       return;
@@ -189,10 +214,26 @@ export function ActivitySyncButton({
       return;
     }
     setState((current) => ({ ...current, applying: true, error: "", message: "Aplicando..." }));
-    await runSync({ accessToken: googleConnection.accessToken, dryRun: false, externalIds, userEmail: googleConnection.userEmail });
+    await runSync({
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null,
+      dryRun: false,
+      externalIds,
+      includeCalendar,
+      includeMail,
+      userEmail: googleConnection.userEmail
+    });
   }
 
-  async function runSync(input: { accessToken: string; dryRun: boolean; externalIds?: string[]; userEmail: string }) {
+  async function runSync(input: {
+    accessToken: string;
+    connectedAccountId: string | null;
+    dryRun: boolean;
+    externalIds?: string[];
+    includeCalendar: boolean;
+    includeMail: boolean;
+    userEmail: string;
+  }) {
     const runId = createSyncRunId();
     const scopeLabel = variant === "single_contact" ? `contacto:${contact?.display_name ?? contact?.id ?? ""}` : "foco";
     let stepOrder = 0;
@@ -229,14 +270,15 @@ export function ActivitySyncButton({
         calendarFutureTimeMax: calendarFutureWindow.until,
         calendarFutureTimeMin: calendarFutureWindow.from,
         calendarTimeMin: since,
+        connectedAccountId: input.connectedAccountId,
         contactIds: variant === "single_contact" && contact?.id ? [contact.id] : undefined,
         cursorLabel: variant === "single_contact" && contact?.id ? `contact:${contact.id}` : undefined,
         dryRun: input.dryRun,
         focusedOnly: variant === "focus_incremental",
         gmailQuery: variant === "single_contact" ? gmailContactQuery(contactEmails) : null,
         gmailSince: since,
-        includeCalendar: true,
-        includeMail: true,
+        includeCalendar: input.includeCalendar,
+        includeMail: input.includeMail,
         maxCalendarEvents: syncLimits.calendarEvents || ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
         maxMailMessages: syncLimits.mailMessages || ACTIVITY_SYNC_MAX_MAIL_MESSAGES,
         maxPages: Math.max(syncLimits.calendarPages, syncLimits.mailPages) || ACTIVITY_SYNC_MAX_MAIL_PAGES,
@@ -246,8 +288,9 @@ export function ActivitySyncButton({
         userEmail: input.userEmail
       });
       const message = resultMessage(result);
-      const authOnlyFailure = isAuthOnlyFailure(result);
-      if (authOnlyFailure) {
+      const authFailure = hasGoogleInteractionAuthFailure(result);
+      if (authFailure) {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           accessToken: "",
@@ -271,7 +314,7 @@ export function ActivitySyncButton({
         lastRun: result,
         loading: false,
         message,
-        previewOpen: input.dryRun && !authOnlyFailure
+        previewOpen: input.dryRun
       }));
       logStep(input.dryRun ? "Preview listo" : "Aplicacion terminada", activityLogSummary(result), result.ok ? "success" : "warning", {
         errors: result.errors,
@@ -284,6 +327,7 @@ export function ActivitySyncButton({
     } catch (error) {
       logStep("Error", error instanceof Error ? error.message : "No pude actualizar la actividad.", "error");
       if (error instanceof GoogleInteractionClientError && error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           accessToken: "",
@@ -344,11 +388,8 @@ export function ActivitySyncButton({
   );
 }
 
-function isAuthOnlyFailure(result: SyncGoogleInteractionsResult) {
-  if (!result.errors.length) return false;
-  const allErrorsAreAuth = result.errors.every((error) => error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
-  const noServiceSucceeded = !(result.mail?.ok || result.calendar?.ok);
-  return allErrorsAreAuth && noServiceSucceeded;
+function hasGoogleInteractionAuthFailure(result: SyncGoogleInteractionsResult) {
+  return result.errors.some((error) => error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
 }
 
 function previewDescription(variant: ActivitySyncButtonProps["variant"], contactName?: string) {

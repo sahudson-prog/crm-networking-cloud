@@ -37,26 +37,20 @@ npm run typecheck
 npm run build
 ```
 
+Para pruebas por subsistema, consulta `docs/TESTING.md`.
+
 ## Estructura del repositorio
 
 - `cloud/web/`: aplicación web cloud.
 - `cloud/supabase/`: schema, migraciones y verificaciones Supabase/Postgres.
-- `docs/`: documentación especializada del producto, arquitectura, datos, UI, QA, privacidad y plan.
+- `docs/`: documentación especializada vigente.
 - `tools/dev_maintenance/`: utilidades de mantenimiento del ambiente de desarrollo.
 - `tools/legacy_migration/`: herramientas aisladas para migraciones legacy hacia el modelo cloud.
 
 ## Documentación
 
-- `AGENTS.md`: reglas de trabajo para Codex en este repositorio.
-- `cloud/web/README.md`: configuración local y alcance técnico de la app cloud.
-- `docs/PRODUCT_DETAIL_AND_VISION.md`: producto, experiencia y visión.
-- `docs/CURRENT_PLAN.md`: plan vigente de trabajo.
-- `docs/BACKLOG.md`: pendientes e ideas priorizables.
-- `docs/ARCHITECTURE_CURRENT.md`: arquitectura e inventario técnico actual.
-- `docs/CURRENT_DATA_MODEL.md`: modelo de datos actual.
-- `docs/DATA_MODEL_BLUEPRINT.md`: diseño de datos objetivo.
-- `docs/RULES_MASTER.md`: reglas de Coach y lógicas de negocio.
-- `docs/UI_STYLE_GUIDE.md`: guía visual y componentes reutilizables.
-- `docs/QA_CHECKLIST.md`: validaciones funcionales y técnicas.
-- `docs/PRIVACY_SECURITY_COMPLIANCE.md`: privacidad, seguridad y cumplimiento.
-- `docs/OPERATING_MODEL.md`: uso y mantenimiento de la documentación.
+- `AGENTS.md`: instrucciones transversales para Codex.
+- `cloud/web/README.md`: configuración local y comandos del runtime web.
+- `docs/README.md`: mapa de documentación especializada.
+- `docs/planning/NOW.md`: foco activo.
+- `docs/planning/BACKLOG.md`: pendientes vigentes.

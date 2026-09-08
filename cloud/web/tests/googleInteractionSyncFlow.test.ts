@@ -128,7 +128,7 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
   ]);
 });
 
-test("syncGoogleInteractions no bloquea Calendar si falta permiso Gmail", async () => {
+test("syncGoogleInteractions falla cerrado si Gmail devuelve permiso invalido aunque Calendar lea datos", async () => {
   const calendarBatches: ExternalInteractionBatchInput[] = [];
 
   const result = await syncGoogleInteractions({
@@ -169,9 +169,12 @@ test("syncGoogleInteractions no bloquea Calendar si falta permiso Gmail", async 
     markCursorExpired: async () => {}
   });
 
-  assert.equal(result.ok, true);
-  assert.deepEqual(result.errors, []);
-  assert.equal(result.warnings.includes("Gmail necesita permiso de lectura."), true);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.errors, [{
+    code: "GOOGLE_INTERACTIONS_AUTH_REQUIRED",
+    message: "Gmail necesita permiso de lectura."
+  }]);
+  assert.equal(result.warnings.includes("Gmail necesita permiso de lectura."), false);
   assert.equal(calendarBatches[0].items.length, 1);
 });
 

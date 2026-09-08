@@ -270,6 +270,50 @@
   margin-bottom: 16px;
 }
 
+.auth-entry-panel {
+  max-width: 460px;
+  margin: 64px auto;
+}
+
+.auth-entry-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.auth-google-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-google-button .provider-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.auth-email-fallback {
+  border-top: 1px solid var(--crm-border);
+  padding-top: 12px;
+}
+
+.auth-email-fallback summary {
+  cursor: pointer;
+  color: var(--crm-muted);
+  font-size: 13px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.auth-turnstile {
+  min-height: 65px;
+}
+
+.auth-captcha-message {
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .empty-value,
 .empty,
 .empty-meta {
@@ -307,17 +351,101 @@ textarea::placeholder {
 
 .account-page {
   display: grid;
-  gap: 16px;
+  gap: 22px;
 }
 
-.account-grid {
+.account-section {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
+  border-top: 1px solid var(--crm-border);
+  padding-top: 16px;
+}
+
+.account-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.account-section-primary {
+  display: grid;
+  gap: 14px;
+}
+
+.account-section-title {
+  display: grid;
+  gap: 3px;
+}
+
+.account-section-title h2 {
+  margin: 0;
+  color: var(--crm-text);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.account-section-title span {
+  color: var(--crm-muted);
+  font-size: 13px;
+}
+
+.account-inline-list {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.account-inline-list > div {
+  display: grid;
+  gap: 2px;
+  min-width: min(220px, 100%);
+}
+
+.account-inline-list span,
+.account-provider-row span,
+.account-source-main span,
+.account-danger-row span {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.account-inline-list strong,
+.account-provider-name strong,
+.account-source-main strong,
+.account-danger-row strong {
+  color: var(--crm-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.account-provider-list {
+  display: grid;
+  gap: 2px;
 }
 
 .account-provider-row {
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 4px 0;
+}
+
+.account-provider-row.muted {
+  opacity: 0.62;
+}
+
+.account-provider-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.account-provider-name .provider-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .account-login-provider,
@@ -364,7 +492,29 @@ textarea::placeholder {
 
 .account-setting-panel {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  padding: 12px;
+}
+
+.account-setting-copy {
+  display: grid;
+  gap: 3px;
+  max-width: 760px;
+}
+
+.account-setting-copy strong {
+  color: var(--crm-text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.account-setting-copy span {
+  color: var(--crm-muted);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .account-setting-row {
@@ -381,6 +531,54 @@ textarea::placeholder {
 .connected-service-card {
   display: grid;
   gap: 12px;
+}
+
+.account-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-source-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  padding: 10px 12px;
+}
+
+.account-source-row.expanded {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.account-source-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.account-source-main > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-source-main small {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.account-source-actions {
+  justify-self: end;
+}
+
+.account-source-status {
+  color: var(--crm-muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .connected-service-head {
@@ -485,6 +683,7 @@ textarea::placeholder {
 .connected-service-actions {
   display: grid;
   gap: 8px;
+  grid-column: 1 / -1;
 }
 
 .connected-service-action {
@@ -505,8 +704,49 @@ textarea::placeholder {
   gap: 2px;
 }
 
+.connected-service-action-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.connected-service-action-reason {
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 250px;
+  text-align: right;
+}
+
 .connected-service-feedback {
   grid-column: 1 / -1;
+}
+
+.connected-service-reason {
+  grid-column: 1 / -1;
+  color: var(--crm-muted);
+  font-size: 12px;
+  margin: -4px 0 4px;
+}
+
+.account-danger-list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-danger-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  padding: 10px 12px;
+}
+
+.account-danger-row > div {
+  display: grid;
+  gap: 3px;
 }
 
 .sync-diagnostics {
@@ -739,8 +979,14 @@ textarea::placeholder {
     grid-template-columns: 1fr;
   }
 
-  .access-admin-grid,
   .access-user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .access-diagnostic-detail,
+  .access-diagnostic-facts,
+  .access-admin-summary {
+    grid-column: 1 / -1;
     grid-template-columns: 1fr;
   }
 
@@ -832,11 +1078,279 @@ textarea::placeholder {
   gap: 6px;
 }
 
-.access-admin-grid {
-  align-items: start;
+.access-admin-layout {
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.8fr);
+}
+
+.access-admin-panel {
+  gap: 12px;
+}
+
+.access-admin-authorize {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(220px, 1fr) auto;
+}
+
+.access-admin-authorize .field {
+  margin: 0;
+}
+
+.access-table-toolbar {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1fr);
+}
+
+.access-search {
+  align-items: center;
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  display: flex;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.access-search input {
+  background: transparent;
+  border: 0;
+  color: var(--crm-text);
+  font-size: 14px;
+  outline: 0;
+  width: 100%;
+}
+
+.access-search input::placeholder {
+  color: var(--crm-empty-value);
+  font-style: italic;
+}
+
+.access-filter-tabs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.access-filter-tabs button {
+  align-items: center;
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  color: var(--crm-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.access-filter-tabs button.active {
+  background: var(--crm-text);
+  border-color: var(--crm-text);
+  color: #fff;
+}
+
+.access-bulk-bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-bulk-bar > span {
+  color: var(--crm-muted);
+  font-size: 12px;
+  margin-right: 2px;
+}
+
+.access-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.access-table {
+  min-width: 1120px;
+}
+
+.access-table th,
+.access-table td {
+  font-size: 12px;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.access-table tbody tr {
+  cursor: pointer;
+}
+
+.access-table tbody tr.selected {
+  background: var(--crm-field-soft);
+}
+
+.access-name-button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.access-name-button strong,
+.access-name-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.access-name-button strong {
+  color: var(--crm-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.access-name-button span,
+.access-muted-cell {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.access-inline-list {
+  color: var(--crm-text);
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.access-status-pill {
+  align-items: center;
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 24px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.access-status-pill.authorized {
+  background: var(--crm-status-agendado-soft);
+  border-color: var(--crm-status-agendado);
+  color: var(--crm-status-agendado);
+}
+
+.access-status-pill.revoked {
+  background: var(--crm-status-pendiente-soft);
+  border-color: var(--crm-danger);
+  color: var(--crm-danger);
+}
+
+.access-status-pill.missing {
+  background: var(--crm-surface);
+  color: var(--crm-muted);
+}
+
+.access-detail-panel {
+  border-top: 1px solid var(--crm-border);
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.access-detail-panel.empty {
+  color: var(--crm-muted);
+  font-size: 13px;
+}
+
+.access-detail-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.access-detail-header h4 {
+  color: var(--crm-text);
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0 0 3px;
+}
+
+.access-detail-header span {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.access-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.access-detail-grid {
+  display: grid;
+  gap: 8px 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.access-detail-grid > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.access-detail-grid b {
+  color: var(--crm-muted);
+  font-size: 11.2px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.access-detail-grid em {
+  color: var(--crm-text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.access-detail-edit {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) minmax(280px, 1.2fr);
+}
+
+.access-detail-edit .field {
+  margin: 0;
+}
+
+.access-detail-section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.access-detail-section > span {
+  color: var(--crm-muted);
+  font-size: 11.2px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .access-admin-users {
@@ -848,13 +1362,13 @@ textarea::placeholder {
 
 .access-user-row {
   align-items: center;
-  background: var(--crm-bg);
+  background: transparent;
   border: 1px solid var(--crm-border);
   border-radius: var(--radius-sm);
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.7fr) minmax(180px, 1fr) minmax(230px, 1fr);
-  padding: 10px;
+  gap: 8px 12px;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(140px, 0.55fr) minmax(170px, 0.8fr) minmax(280px, 1.15fr);
+  padding: 9px 10px;
 }
 
 .access-user-main {
@@ -911,16 +1425,15 @@ textarea::placeholder {
 
 .access-admin-summary {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .access-summary-block {
-  background: var(--crm-bg);
-  border: 1px solid var(--crm-border);
-  border-radius: var(--radius-sm);
+  border-top: 1px solid var(--crm-border);
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 7px;
+  padding-top: 8px;
 }
 
 .access-summary-block strong {
@@ -930,16 +1443,306 @@ textarea::placeholder {
 }
 
 .access-summary-block div {
-  display: grid;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   max-height: 132px;
   overflow: auto;
 }
 
 .access-summary-block span {
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
   color: var(--crm-muted);
   font-size: 12px;
   line-height: 1.35;
+  padding: 3px 7px;
+}
+
+.access-catalogs {
+  border-top: 1px solid var(--crm-border);
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.access-catalogs-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--crm-text);
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 0;
+  text-align: left;
+}
+
+.access-catalogs-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.access-catalogs-toggle strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.access-catalogs-toggle em,
+.access-catalogs-toggle b {
+  color: var(--crm-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+@media (max-width: 920px) {
+  .access-admin-authorize,
+  .access-table-toolbar,
+  .access-detail-edit,
+  .access-detail-grid,
+  .access-diagnostic-facts,
+  .access-admin-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .access-detail-header {
+    display: grid;
+  }
+
+  .access-detail-actions {
+    justify-content: flex-start;
+  }
+
+  .access-table-wrap {
+    max-height: 320px;
+  }
+}
+
+.beta-access-panel {
+  gap: 12px;
+}
+
+.beta-access-form {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(220px, 1fr) auto;
+}
+
+.beta-access-form .field {
+  margin: 0;
+}
+
+.beta-access-list {
+  display: grid;
+  gap: 8px;
+}
+
+.beta-access-row {
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.beta-access-row summary {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  list-style: none;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.beta-access-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.beta-access-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.beta-access-main strong,
+.beta-access-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.beta-access-main strong {
+  color: var(--crm-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.beta-access-main span {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.beta-access-pill {
+  align-items: center;
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 26px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.beta-access-pill.authorized {
+  background: var(--crm-status-agendado-soft);
+  border-color: var(--crm-status-agendado);
+  color: var(--crm-status-agendado);
+}
+
+.beta-access-pill.revoked {
+  background: var(--crm-status-pendiente-soft);
+  border-color: var(--crm-danger);
+  color: var(--crm-danger);
+}
+
+.beta-access-pill.neutral {
+  background: var(--crm-surface);
+  color: var(--crm-muted);
+}
+
+.beta-access-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.beta-access-detail {
+  border-top: 1px solid var(--crm-border);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 10px;
+}
+
+.beta-access-detail div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.beta-access-detail span {
+  color: var(--crm-muted);
+  font-size: 11.2px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.beta-access-detail strong {
+  color: var(--crm-text);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.access-diagnostic-detail {
+  border-top: 1px solid var(--crm-border);
+  display: grid;
+  gap: 7px;
+  grid-column: 1 / -1;
+  padding-top: 8px;
+}
+
+.access-diagnostic-line {
+  align-items: center;
+  color: var(--crm-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 6px 10px;
+  line-height: 1.35;
+}
+
+.access-diagnostic-line strong {
+  color: var(--crm-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.access-diagnostic-facts {
+  color: var(--crm-muted);
+  display: grid;
+  font-size: 12px;
+  gap: 6px 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  line-height: 1.35;
+}
+
+.access-diagnostic-facts b {
+  color: var(--crm-text);
+  font-weight: 700;
+}
+
+.access-diagnostic-list {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.access-diagnostic-list > span {
+  color: var(--crm-muted);
+  font-size: 11.2px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.access-diagnostic-list strong {
+  color: var(--crm-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.access-diagnostic-chip-list {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.access-diagnostic-chip-list em {
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
+  color: var(--crm-text);
+  display: inline-flex;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.25;
+  max-width: 100%;
+  min-height: 24px;
+  overflow-wrap: normal;
+  padding: 3px 8px;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.access-diagnostic-chip-list button {
+  background: transparent;
+  border: 0;
+  color: var(--crm-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 0;
 }
 
 .duplicate-review-head {
@@ -6156,8 +6959,17 @@ code {
   .objectives-column-grid,
   .contact-profile-grid,
   .contact-method-grid,
-  .account-grid {
+  .account-source-row,
+  .account-source-row.expanded,
+  .account-danger-row {
     grid-template-columns: 1fr;
+  }
+
+  .account-inline-list,
+  .account-source-main,
+  .account-source-actions {
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .maintenance-limit-card {
@@ -6174,6 +6986,17 @@ code {
 
   .connected-service-action .toolbar {
     width: auto;
+  }
+
+  .connected-service-action-controls {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .connected-service-action-reason {
+    flex-basis: 100%;
+    max-width: none;
+    text-align: left;
   }
 
   .referral-link-symbol {

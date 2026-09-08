@@ -17,8 +17,8 @@ import {
   interactionPreviewChanges
 } from "../lib/interactionSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
-import { readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { reconnectGoogle } from "../lib/googleAuthSession";
+import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
+import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import {
   ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
   ACTIVITY_SYNC_MAX_CALENDAR_PAGES,
@@ -36,6 +36,7 @@ import { Button } from "./ui/Button";
 import { ProviderButton } from "./ui/ProviderIcon";
 
 const GOOGLE_ACCOUNT_READONLY_SCOPES = [
+  ...GOOGLE_AUTH_LOGIN_SCOPES,
   GOOGLE_CONTACTS_READONLY_SCOPE,
   GOOGLE_INTERACTIONS_READONLY_SCOPES
 ].join(" ");
@@ -53,6 +54,7 @@ type GoogleInteractionsState = {
   accessToken: string;
   activeResource: ActivitySyncResource | null;
   applying: boolean;
+  connectedAccountId: string | null;
   error: string;
   lastRun: SyncGoogleInteractionsResult | null;
   loading: boolean;
@@ -67,6 +69,7 @@ const initialState: GoogleInteractionsState = {
   accessToken: "",
   activeResource: null,
   applying: false,
+  connectedAccountId: null,
   error: "",
   lastRun: null,
   loading: false,
@@ -89,22 +92,61 @@ const initialState: GoogleInteractionsState = {
 };
 
 type GoogleInteractionsSyncPanelProps = {
+  calendarDisabledReason?: string;
   compact?: boolean;
+  googleAccessToken?: string;
+  googleCalendarAvailable?: boolean;
   googleConnected?: boolean;
+  googleConnectionLoading?: boolean;
+  googleMailAvailable?: boolean;
+  mailDisabledReason?: string;
+  networkingStartReady?: boolean;
+  registerRememberedScopes?: boolean;
 };
 
-export function GoogleInteractionsSyncPanel({ compact = false, googleConnected = true }: GoogleInteractionsSyncPanelProps) {
+export function GoogleInteractionsSyncPanel({
+  calendarDisabledReason = "",
+  compact = false,
+  googleAccessToken,
+  googleCalendarAvailable = true,
+  googleConnected = true,
+  googleConnectionLoading = false,
+  googleMailAvailable = true,
+  mailDisabledReason = "",
+  networkingStartReady = true,
+  registerRememberedScopes = true
+}: GoogleInteractionsSyncPanelProps) {
   const [state, setState] = useState<GoogleInteractionsState>(initialState);
   const activeResource = state.activeResource ?? "mail";
   const previewChanges = interactionPreviewChanges(state.lastRun);
+  const effectiveAccessToken = googleAccessToken ?? state.accessToken;
+  const mailActionDisabledReason = compact ? mailDisabledReason
+    || googleResourceDisabledReason({
+      accessToken: effectiveAccessToken,
+      available: googleMailAvailable,
+      connected: googleConnected,
+      loading: googleConnectionLoading,
+      networkingStartReady,
+      serviceLabel: "correos"
+    }) : "";
+  const calendarActionDisabledReason = compact ? calendarDisabledReason
+    || googleResourceDisabledReason({
+      accessToken: effectiveAccessToken,
+      available: googleCalendarAvailable,
+      connected: googleConnected,
+      loading: googleConnectionLoading,
+      networkingStartReady,
+      serviceLabel: "calendario"
+    }) : "";
 
   useEffect(() => {
     let active = true;
-    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes: true }), loadActivitySyncLimitValues(), loadActivityImportStats()]).then(([googleConnection, syncLimits, stats]) => {
+    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes }), loadActivitySyncLimitValues(), loadActivityImportStats()]).then(([googleConnection, syncLimits, stats]) => {
       if (!active) return;
       setState((current) => ({
         ...current,
         accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         stats,
         syncLimits,
         userEmail: googleConnection.userEmail
@@ -113,7 +155,7 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
     return () => {
       active = false;
     };
-  }, []);
+  }, [registerRememberedScopes]);
 
   async function connectGoogle() {
     try {
@@ -151,6 +193,20 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
   }
 
   async function runSync(dryRun: boolean, resource: ActivitySyncResource, externalIds: string[] = []) {
+    const disabledReason = resource === "calendar" ? calendarActionDisabledReason : mailActionDisabledReason;
+    if (disabledReason) {
+      setState((current) => ({
+        ...current,
+        activeResource: resource,
+        applying: false,
+        error: disabledReason,
+        loading: false,
+        message: "",
+        previewOpen: true
+      }));
+      return;
+    }
+
     if (!googleConnected) {
       setState((current) => ({
         ...current,
@@ -183,10 +239,11 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
     setState((current) => ({
       ...current,
       accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null,
       userEmail: googleConnection.userEmail
     }));
 
-    if (!googleConnection.connected || !googleConnection.accessToken) {
+    if (!googleConnection.connected || !googleConnection.accessToken || !googleConnectionHasCapability(googleConnection, capabilityForResource(resource))) {
       setState((current) => ({
         ...current,
         error: "",
@@ -245,6 +302,7 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
       });
       const result = await syncGoogleInteractions({
         accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         calendarFutureTimeMax: calendarFutureWindow.until,
         calendarFutureTimeMin: calendarFutureWindow.from,
         calendarTimeMin: historicalStart,
@@ -262,6 +320,25 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
         ...(externalIds.length ? { externalIds } : {}),
         userEmail: googleConnection.userEmail
       });
+      if (hasGoogleInteractionAuthFailure(result)) {
+        invalidateActiveGoogleDataAuthorization();
+        setState((current) => ({
+          ...current,
+          accessToken: "",
+          activeResource: resource,
+          applying: false,
+          error: "El permiso de Google vencio o no incluye Gmail/Calendar. Vuelve a conectar Google.",
+          loading: false,
+          message: "",
+          previewOpen: true,
+          stats: current.stats,
+          syncLimits
+        }));
+        logStep("Autorizacion Google invalidada", "Google rechazo el token actual para este servicio.", "warning", {
+          errors: result.errors
+        });
+        return;
+      }
 
       setState((current) => ({
         ...current,
@@ -286,6 +363,7 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
     } catch (error) {
       logStep("Error", error instanceof Error ? error.message : "No pude sincronizar correos y calendario.", "error");
       if (error instanceof GoogleInteractionClientError && error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           accessToken: "",
@@ -335,9 +413,12 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
             <strong>Correos</strong>
             <span>{state.stats.linkedMail} vinculados</span>
           </div>
-          <div className="toolbar">
-            <Button disabled={state.loading || state.applying || !googleConnected || !state.accessToken} icon="mail" onClick={reviewMail} tone="primary">
-              {state.loading && activeResource === "mail" ? "Revisando..." : "Importar"}
+          <div className="toolbar connected-service-action-controls">
+            {mailActionDisabledReason && !state.loading ? (
+              <span className="connected-service-action-reason">{mailActionDisabledReason}</span>
+            ) : null}
+            <Button disabled={Boolean(mailActionDisabledReason) || state.loading || state.applying} icon="mail" onClick={reviewMail} tone="primary">
+              {googleConnectionLoading ? "Verificando..." : state.loading && activeResource === "mail" ? "Revisando..." : "Importar"}
             </Button>
             <Button icon="trash" onClick={() => confirmImportedDataDelete("correos")} tone="danger">
               Borrar importados
@@ -349,9 +430,12 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
             <strong>Citas calendario</strong>
             <span>{state.stats.linkedCalendar} vinculadas</span>
           </div>
-          <div className="toolbar">
-            <Button disabled={state.loading || state.applying || !googleConnected || !state.accessToken} icon="calendar" onClick={reviewCalendar} tone="primary">
-              {state.loading && activeResource === "calendar" ? "Revisando..." : "Importar"}
+          <div className="toolbar connected-service-action-controls">
+            {calendarActionDisabledReason && !state.loading ? (
+              <span className="connected-service-action-reason">{calendarActionDisabledReason}</span>
+            ) : null}
+            <Button disabled={Boolean(calendarActionDisabledReason) || state.loading || state.applying} icon="calendar" onClick={reviewCalendar} tone="primary">
+              {googleConnectionLoading ? "Verificando..." : state.loading && activeResource === "calendar" ? "Revisando..." : "Importar"}
             </Button>
             <Button icon="trash" onClick={() => confirmImportedDataDelete("citas")} tone="danger">
               Borrar importadas
@@ -393,6 +477,21 @@ export function GoogleInteractionsSyncPanel({ compact = false, googleConnected =
   );
 }
 
+function googleResourceDisabledReason(input: {
+  accessToken: string;
+  available: boolean;
+  connected: boolean;
+  loading: boolean;
+  networkingStartReady: boolean;
+  serviceLabel: string;
+}) {
+  if (input.loading) return "Estamos verificando la autorización de Google.";
+  if (!input.connected || !input.accessToken) return "Autoriza Google para importar.";
+  if (!input.available) return `Actualiza la autorización de Google para habilitar ${input.serviceLabel}.`;
+  if (!input.networkingStartReady) return "Define primero la fecha de inicio de networking.";
+  return "";
+}
+
 async function loadActivityImportStats(): Promise<ActivityImportStats> {
   if (!supabase) {
     return { contactsInScope: 0, linkedCalendar: 0, linkedMail: 0, totalContacts: 0 };
@@ -426,6 +525,14 @@ async function countRows(table: string, filters: Record<string, string | boolean
 
 function reviewMessage(resource: ActivitySyncResource) {
   return resource === "calendar" ? "Revisando citas sin guardar cambios..." : "Revisando correos sin guardar cambios...";
+}
+
+function capabilityForResource(resource: ActivitySyncResource) {
+  return resource === "calendar" ? "calendar_read" : "gmail_read";
+}
+
+function hasGoogleInteractionAuthFailure(result: SyncGoogleInteractionsResult) {
+  return result.errors.some((error) => error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
 }
 
 function applyMessage(resource: ActivitySyncResource) {

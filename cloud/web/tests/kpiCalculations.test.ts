@@ -118,7 +118,7 @@ test("contactos realizados cuenta personas distintas y separa primer contacto", 
   assert.equal(contactos.accumulated, 2);
 });
 
-test("contactos HH realizados cuenta dominios distintos, no cantidad de contactos", () => {
+test("contactos headhunter realizados cuenta dominios distintos, no cantidad de contactos", () => {
   const contacts = [
     contact({
       id: "hh1",
@@ -167,7 +167,7 @@ test("contactos HH realizados cuenta dominios distintos, no cantidad de contacto
       networkingStartDate: new Date(2026, 3, 1),
       today: new Date(2026, 3, 30)
     }),
-    "Contactos HH realizados"
+    "Contactos headhunter realizados"
   );
 
   assert.deepEqual(pointByLabel(hh, "abr 26"), { label: "abr 26", total: 2, firstTime: 2 });

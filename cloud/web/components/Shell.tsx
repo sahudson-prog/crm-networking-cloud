@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
 import { Icon } from "./ui/Icon";
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
   const pathname = usePathname();
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
@@ -53,6 +53,18 @@ export function Shell({ children }: { children: ReactNode }) {
               <span className="sr-only">Cuenta</span>
             </Link>
             <ActivitySyncButton variant="focus_incremental" square />
+            {onSignOut ? (
+              <button
+                aria-label="Cerrar sesión"
+                className="nav-link nav-link-icon"
+                onClick={onSignOut}
+                title="Cerrar sesión"
+                type="button"
+              >
+                <Icon name="close" />
+                <span className="sr-only">Cerrar sesión</span>
+              </button>
+            ) : null}
           </div>
         </nav>
       </header>

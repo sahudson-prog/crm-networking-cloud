@@ -237,7 +237,7 @@ export function ReadOnlyDashboard() {
     });
   }
 
-  if (state.loading) return <section className="panel">Leyendo la replica cloud...</section>;
+  if (state.loading) return <section className="panel">Cargando dashboard...</section>;
   if (state.error) return <section className="panel">Error: {state.error}</section>;
 
   return (
@@ -255,7 +255,7 @@ export function ReadOnlyDashboard() {
         />
       </div>
 
-      <Panel title="KPIs" caption="Replica inicial del bloque superior del dashboard local">
+      <Panel title="KPIs" caption="Resumen de actividad y objetivos">
         <div className="section-toolbar">
           <span className="metric-label">Periodo KPI</span>
           <div className="button-group">
