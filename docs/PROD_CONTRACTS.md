@@ -4,7 +4,7 @@
 
 Proteger el estado persistente de Coffeecito al promover versiones completas de software. Este documento define clasificación y revisión de cambios; no congela todo el schema ni reemplaza los documentos de datos, seguridad o arquitectura.
 
-Los contratos se identificaron en código y SQL locales. Esto no certifica el estado de DEV remoto ni presupone que PROD ya esté creado. Los controles automáticos descritos abajo son propuestas, todavía no implementadas.
+Los contratos se identificaron en código y SQL locales. Esto no certifica el estado de DEV remoto ni presupone que PROD ya esté creado. La baseline y sus controles automáticos están implementados localmente en `cloud/supabase`, pero todavía no han sido ejecutados contra una base desechable ni remota.
 
 ## Qué se promueve y qué permanece
 
@@ -88,8 +88,8 @@ Rollback de software no deshace una migration ni recupera datos. Debe seguir fun
 
 - **Warning por diff sensible:** comparar revisión candidata con la revisión productiva aprobada e identificada; señalar SQL, Auth, ruta Google, permisos y configuración. En revisión local incluir archivos nuevos. No bloquear por nombre de carpeta ni inferir RED solo por coincidencia de texto.
 - **Warning de contrato:** solicitar clasificación y evidencia de impacto cuando cambia una interfaz o configuración sensible; derivar al owner correspondiente sin auditar toda la documentación.
-- **Fallo por integridad:** una vez creada la baseline y el registro de migrations aplicadas, comparar hashes y rechazar edición de una migration ya desplegada. Evoluciones nuevas se añaden, no reescriben historia aplicada.
-- **Fallo por incompatibilidad demostrada:** en Supabase desechable ejecutar bootstrap y evolución con fixtures sintéticas, verificar firmas/respuestas consumidas, integridad y aislamiento; probar usuario permitido, revocado, otro propietario, anon y privilegios administrativos. Comprobar también permisos de RPC internas y operaciones invoker como reset. El runner debe devolver error si cualquier assertion falla, aunque SQL haya terminado sin excepción.
+- **Fallo por integridad:** una vez desplegada la baseline y disponible el registro de migrations aplicadas, comparar hashes y rechazar la edición de una migration ya desplegada. Evoluciones nuevas se añaden, no reescriben historia aplicada.
+- **Fallo por incompatibilidad demostrada:** en Supabase desechable ejecutar bootstrap y evolución con fixtures sintéticas, verificar firmas/respuestas consumidas, integridad y aislamiento; probar usuario permitido, revocado, otro propietario, anon y privilegios administrativos. Comprobar también permisos de RPC internas y operaciones `SECURITY DEFINER` estrechas como reset y merge. El runner debe devolver error si cualquier assertion falla, aunque SQL haya terminado sin excepción.
 - **Fallo por exposición confirmada:** revisar diffs/artefactos para claves secretas, service role cliente, `.env.local` versionado o seeds con datos personales; detectar nombres `NEXT_PUBLIC_*` sensibles. Los valores ambiguos generan revisión, no se imprimen. No marcar una publishable/site key pública como secreto por su nombre.
 - **Gate de release propuesto:** RED sin aprobación/plan de recuperación impide promover a PROD, no editar DEV. Builds y ensayos no ejecutan operaciones remotas ni despliegues automáticos.
 
@@ -97,4 +97,4 @@ Rollback de software no deshace una migration ni recupera datos. Debe seguir fun
 
 Mantener [ARCHITECTURE.md](ARCHITECTURE.md) como arquitectura lógica compartida; no crear una copia `PROD_ARCHITECTURE.md`. Proponer después `PROD_ENVIRONMENT.md` para configuración por ambiente sin valores sensibles y `RELEASE_RUNBOOK.md` para promoción, mantenimiento, backup y rollback. Inicialmente recuperación puede ser una sección del runbook; separar `DATA_RECOVERY.md` cuando haya procedimientos de restauración detallados y ensayados. Esos documentos futuros no se crean en esta tarea.
 
-Antes de automatizar, acordar revisión base de comparación, registro de migrations desplegadas y criterios de recuperación. El repo por sí solo no demuestra paridad remota. El siguiente paso es aprobar el manifiesto de bootstrap 0B: estructuras ordenadas, semillas globales separadas, verificadores y exclusión de datos/operaciones DEV; luego ensayarlo en Supabase desechable, sin tocar DEV remoto.
+Antes de automatizar, acordar revisión base de comparación, registro de migrations desplegadas y criterios de recuperación. El repo por sí solo no demuestra paridad remota. El siguiente paso es ensayar la baseline consolidada, sus semillas globales y verificadores sobre dos bases Supabase desechables vacías, sin tocar DEV remoto.

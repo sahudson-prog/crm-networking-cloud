@@ -112,7 +112,7 @@ Sí existen funciones SQL con `SECURITY DEFINER`:
 - `current_user_has_capability`, para consultar capacidades desde tablas de acceso y ser usada por frontend y policies;
 - funciones de validación de storage/sync y maestro headhunter, orientadas a diagnóstico de estructura.
 
-También existen funciones relevantes con `SECURITY INVOKER`, como `reset_current_user_app_data_v0_1` y `merge_contacts_deep`. Estas usan `auth.uid()` y operan sobre datos del usuario autenticado.
+`reset_current_user_app_data_v0_1` y `merge_contacts_deep` son funciones `SECURITY DEFINER` estrechas: exigen `auth.uid()`, verifican la capability correspondiente y limitan cada operación al `user_id` autenticado. Su owner esperado es `postgres`, los roles cliente no pueden alterarlas y solo `authenticated` recibe `EXECUTE`.
 
 El bootstrap del primer `system_admin` está en SQL manual. Requiere ejecución controlada desde Supabase o un contexto con privilegios suficientes; no existe ruta de auto-promoción admin desde la app.
 
