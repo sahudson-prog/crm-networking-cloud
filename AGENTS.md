@@ -24,6 +24,7 @@ Este archivo contiene solo instrucciones transversales para trabajar en este rep
 - Editar código local, migrations o adaptadores puede ser parte normal de una tarea autorizada.
 - Ejecutar efectos sobre sistemas remotos o datos reales requiere autorización explícita cuando no esté implícito en la tarea: migrations remotas, cambios productivos, permisos reales, OAuth real, escritura a proveedores externos u operaciones destructivas.
 - Si el usuario ya autorizó explícitamente una operación, no pedir confirmación de nuevo salvo que aparezca un riesgo material no evidente.
+- Antes de implementar un cambio incompatible o sensible sobre contratos persistentes, marcarlo como `PROD CONTRACT CHANGE` y presentar impacto, compatibilidad, migration, rollback y necesidad de backup/mantenimiento según `docs/PROD_CONTRACTS.md`. No incorporarlo silenciosamente a una tarea normal; requiere aprobación de ese alcance.
 
 ## Validación
 
@@ -52,6 +53,7 @@ Consulta documentación adicional solo según el tipo de tarea:
 - Acciones internas: `docs/ACTIONS.md`.
 - Coach: `docs/COACH_RULES.md`.
 - Auth, RLS, roles y permisos: `docs/SECURITY_ACCESS.md`.
+- Compatibilidad de releases y estado persistente PROD: `docs/PROD_CONTRACTS.md`.
 - Privacidad y datos personales: `docs/PRIVACY_COMPLIANCE.md`.
 - UI: `docs/UI_SYSTEM.md`.
 - Testing: `docs/TESTING.md`.
