@@ -21,6 +21,17 @@ La URL no se guarda en el repositorio ni se pasa como argumento del proceso. Par
 
 La conexión debe usar el rol `postgres` del proyecto Supabase. El preflight lo exige porque las funciones `SECURITY DEFINER` quedan explícitamente bajo ese owner; los roles cliente no son propietarios y no pueden alterar esas funciones.
 
+## Validación local con Docker
+
+Cuando el entorno Supabase local tiene `psql` solo dentro de su contenedor PostgreSQL, el mismo harness puede enviar cada SQL por stdin con `-DockerContainer`. El nombre del contenedor debe pasarse explícitamente; el script no busca ni elige contenedores por su cuenta.
+
+```powershell
+$env:COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP = 'YES'
+./cloud/supabase/run_prod_bootstrap.ps1 -DockerContainer '<contenedor-postgres-local>'
+```
+
+Este modo es exclusivo para una base local y desechable. Ejecutar el bootstrap contra Supabase PROD remoto requiere autorización explícita y no se habilita mediante este parámetro.
+
 ## Fuera del bootstrap automático
 
 Después del bootstrap se configuran manualmente: primer email PROD en allowlist, primer `system_admin`, Before User Created Hook, Site URL y redirects, Google OAuth, Turnstile, SMTP y secretos. Tampoco se migran automáticamente usuarios ni datos personales.

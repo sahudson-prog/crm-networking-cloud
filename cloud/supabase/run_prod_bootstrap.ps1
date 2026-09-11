@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+  [string]$DockerContainer
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -7,13 +9,25 @@ if ($env:COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP -ne 'YES') {
   throw 'Set COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP=YES to confirm this is a disposable empty database.'
 }
 
-if ([string]::IsNullOrWhiteSpace($env:COFFEECITO_BOOTSTRAP_DATABASE_URL)) {
-  throw 'COFFEECITO_BOOTSTRAP_DATABASE_URL is required.'
-}
+$useDocker = -not [string]::IsNullOrWhiteSpace($DockerContainer)
+$docker = $null
+$psql = $null
 
-$psql = Get-Command psql -ErrorAction SilentlyContinue
-if (-not $psql) {
-  throw 'psql is not available. Install or provide it outside this script before running the bootstrap.'
+if ($useDocker) {
+  $docker = Get-Command docker -ErrorAction SilentlyContinue
+  if (-not $docker) {
+    throw 'docker is not available.'
+  }
+}
+else {
+  if ([string]::IsNullOrWhiteSpace($env:COFFEECITO_BOOTSTRAP_DATABASE_URL)) {
+    throw 'COFFEECITO_BOOTSTRAP_DATABASE_URL is required when DockerContainer is not provided.'
+  }
+
+  $psql = Get-Command psql -ErrorAction SilentlyContinue
+  if (-not $psql) {
+    throw 'psql is not available. Install or provide it outside this script before running the bootstrap.'
+  }
 }
 
 $supabaseDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -55,19 +69,30 @@ $orderedFiles = @(
 
 $previousPgDatabase = $env:PGDATABASE
 try {
-  # Keep the connection string out of command arguments and console output.
-  $env:PGDATABASE = $env:COFFEECITO_BOOTSTRAP_DATABASE_URL
+  if (-not $useDocker) {
+    # Keep the connection string out of command arguments and console output.
+    $env:PGDATABASE = $env:COFFEECITO_BOOTSTRAP_DATABASE_URL
+  }
 
   foreach ($sqlFile in $orderedFiles) {
     Write-Host "Applying $([System.IO.Path]::GetFileName($sqlFile))"
-    & $psql.Source --no-psqlrc --set ON_ERROR_STOP=1 --file $sqlFile
+    if ($useDocker) {
+      Get-Content -LiteralPath $sqlFile -Raw |
+        & $docker.Source exec -i $DockerContainer psql -U postgres -d postgres --no-psqlrc --set ON_ERROR_STOP=1
+    }
+    else {
+      & $psql.Source --no-psqlrc --set ON_ERROR_STOP=1 --file $sqlFile
+    }
+
     if ($LASTEXITCODE -ne 0) {
       throw "psql failed while applying $([System.IO.Path]::GetFileName($sqlFile))."
     }
   }
 }
 finally {
-  $env:PGDATABASE = $previousPgDatabase
+  if (-not $useDocker) {
+    $env:PGDATABASE = $previousPgDatabase
+  }
 }
 
 Write-Host 'Bootstrap and all verifiers completed successfully.'
