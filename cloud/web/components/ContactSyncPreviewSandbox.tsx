@@ -99,15 +99,15 @@ export function ContactSyncPreviewSandbox() {
         }
       );
 
-      const remainingChanges = remainingPreviewChanges(state.changes, selectedChanges);
+      const remainingChanges = remainingPreviewChanges(state.changes, result.appliedChangeIds);
       setState((current) => ({
         ...current,
         applying: false,
-        changes: result.ok ? remainingChanges : current.changes,
+        changes: remainingChanges,
         applyMessage: applyResultMessage(result),
         lastApply: result
       }));
-      setOpen(result.ok ? hasActionableChanges(remainingChanges) : true);
+      setOpen(hasActionableChanges(remainingChanges));
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -144,6 +144,8 @@ export function ContactSyncPreviewSandbox() {
         applying={state.applying}
         changes={state.changes}
         description="Simulacion segura: usa el mismo aplicador real, pero con escritura simulada. Los cambios no seleccionados quedan pendientes."
+        feedbackMessage={state.error || state.applyMessage}
+        feedbackTone={state.error || state.lastApply?.failedCount ? "error" : "info"}
         onApply={applyPreview}
         onClose={() => setOpen(false)}
         open={open}
@@ -163,7 +165,8 @@ function simulatedContactId(change: SyncPreviewChange) {
 
 function applyResultMessage(result: ApplyContactSyncPreviewResult) {
   const cursor = result.cursorSaved ? "cursor avanzado" : "cursor sin avanzar";
-  return `Simulacion aplicada: ${result.appliedCount} aplicados - ${result.pendingCount} pendientes - ${cursor}.`;
+  const prefix = result.ok ? "Simulacion aplicada" : "Simulacion parcial";
+  return `${prefix}: ${result.appliedCount} aplicados - ${result.failedCount} fallidos - ${result.pendingCount} pendientes - ${cursor}.`;
 }
 
 function metadataString(change: SyncPreviewChange, key: string) {
@@ -171,9 +174,9 @@ function metadataString(change: SyncPreviewChange, key: string) {
   return typeof value === "string" ? value : "";
 }
 
-function remainingPreviewChanges(changes: SyncPreviewChange[], selectedChanges: SyncPreviewChange[]) {
-  const selectedIds = new Set(selectedChanges.map((change) => change.id));
-  return changes.filter((change) => change.type === "unchanged" || !selectedIds.has(change.id));
+function remainingPreviewChanges(changes: SyncPreviewChange[], appliedChangeIds: string[]) {
+  const appliedIds = new Set(appliedChangeIds);
+  return changes.filter((change) => change.type === "unchanged" || !appliedIds.has(change.id));
 }
 
 function actionableChangeCount(changes: SyncPreviewChange[]) {

@@ -4,7 +4,7 @@ import type { IconName } from "./Icon";
 
 type PanelProps = {
   title: string;
-  caption?: string;
+  caption?: ReactNode;
   action?: {
     label: string;
     icon: IconName;

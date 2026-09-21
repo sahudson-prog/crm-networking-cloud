@@ -1,5 +1,6 @@
 import { upsertSyncCursor } from "./syncCursorStore.ts";
 import { supabase } from "./supabaseClient.ts";
+import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers.ts";
 import {
   contactMergeDecisionFromPreviewChange,
   defaultContactMergeResult,
@@ -7,6 +8,10 @@ import {
   type ContactMergeSource
 } from "./contactMerge.ts";
 import { mergeContactsDeep } from "./contactMergeActions.ts";
+import {
+  externalContactSnapshotDbPayload,
+  externalContactSnapshotsFromPreviewChange
+} from "./externalContactSnapshots.ts";
 import type {
   SyncIssue,
   SyncPreviewChange,
@@ -21,12 +26,22 @@ export type ApplyContactSyncPreviewInput = {
   connectedAccountId?: string | null;
   cursorAfter?: string | null;
   cursorLabel?: string;
+  onProgress?: (progress: ApplyContactSyncProgress) => void;
   source?: string;
+};
+
+export type ApplyContactSyncProgress = {
+  appliedCount: number;
+  failedCount: number;
+  processedCount: number;
+  totalCount: number;
 };
 
 export type ApplyContactSyncPreviewResult = {
   ok: boolean;
+  appliedChangeIds: string[];
   appliedCount: number;
+  failedChangeIds: string[];
   failedCount: number;
   pendingCount: number;
   cursorSaved: boolean;
@@ -37,6 +52,7 @@ export type ApplyContactSyncPreviewResult = {
 
 type ApplyContactSyncDependencies = {
   applyChange: (change: SyncPreviewChange, context: ApplyContactSyncContext) => Promise<string | null>;
+  assertStorageReady: () => Promise<void>;
   completeInvocation: (invocationId: string | null, result: ApplyContactSyncPreviewResult, input: ApplyContactSyncPreviewInput) => Promise<void>;
   createInvocation: (input: ApplyContactSyncPreviewInput) => Promise<string | null>;
   failInvocation: (invocationId: string | null, error: unknown) => Promise<void>;
@@ -56,6 +72,8 @@ const SIMPLE_FIELD_TO_COLUMN: Record<string, string> = {
   Nombre: "display_name"
 };
 
+export const DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS = false;
+
 export async function applyContactSyncPreview(
   input: ApplyContactSyncPreviewInput,
   dependencies: Partial<ApplyContactSyncDependencies> = {}
@@ -63,10 +81,12 @@ export async function applyContactSyncPreview(
   const deps = defaultDependencies(dependencies);
   const selectedActionableChanges = input.changes.filter((change) => change.type !== "unchanged");
   const result: ApplyContactSyncPreviewResult = {
+    appliedChangeIds: [],
     appliedCount: 0,
     contactIds: [],
     cursorSaved: false,
     errors: [],
+    failedChangeIds: [],
     failedCount: 0,
     ok: true,
     pendingCount: Math.max(0, (input.totalPreviewChanges ?? selectedActionableChanges.length) - selectedActionableChanges.length),
@@ -76,16 +96,24 @@ export async function applyContactSyncPreview(
 
   try {
     const userId = await deps.getUserId();
+    await deps.assertStorageReady();
     const contactIds = new Set<string>();
+    const totalCount = selectedActionableChanges.length;
+    let processedCount = 0;
+
+    notifyProgress(input, result, processedCount, totalCount);
 
     for (const change of selectedActionableChanges) {
       if (change.blocking) {
         result.failedCount += 1;
+        result.failedChangeIds.push(change.id);
         result.errors.push({
           code: "CONTACT_SYNC_CHANGE_BLOCKING",
           message: "El cambio esta bloqueado y no se puede aplicar.",
           objectId: metadataString(change, "appContactId")
         });
+        processedCount += 1;
+        notifyProgress(input, result, processedCount, totalCount);
         continue;
       }
 
@@ -97,18 +125,26 @@ export async function applyContactSyncPreview(
         });
         if (contactId) contactIds.add(contactId);
         result.appliedCount += 1;
+        result.appliedChangeIds.push(change.id);
       } catch (error) {
         result.failedCount += 1;
+        result.failedChangeIds.push(change.id);
         result.errors.push({
           code: "CONTACT_SYNC_APPLY_FAILED",
-          message: error instanceof Error ? error.message : "No pude aplicar el cambio de contacto.",
-          objectId: metadataString(change, "appContactId")
+          externalId: metadataString(change, "externalId"),
+          message: errorMessage(error, "No pude aplicar el cambio de contacto."),
+          objectId: changeObjectId(change)
         });
       }
+      processedCount += 1;
+      notifyProgress(input, result, processedCount, totalCount);
     }
 
     result.contactIds = Array.from(contactIds);
     result.ok = result.failedCount === 0;
+    if (result.contactIds.length) {
+      await triggerCoachRuleReviewForContacts(result.contactIds, input.source || "sync.contacts.apply_preview");
+    }
 
     if (result.ok && input.cursorAfter && result.pendingCount === 0) {
       await deps.saveCursor(input);
@@ -125,9 +161,24 @@ export async function applyContactSyncPreview(
   }
 }
 
+function notifyProgress(
+  input: ApplyContactSyncPreviewInput,
+  result: ApplyContactSyncPreviewResult,
+  processedCount: number,
+  totalCount: number
+) {
+  input.onProgress?.({
+    appliedCount: result.appliedCount,
+    failedCount: result.failedCount,
+    processedCount,
+    totalCount
+  });
+}
+
 function defaultDependencies(overrides: Partial<ApplyContactSyncDependencies>): ApplyContactSyncDependencies {
   return {
     applyChange: applyContactSyncChange,
+    assertStorageReady: assertContactSyncStorageReady,
     completeInvocation: completeActionInvocation,
     createInvocation: createActionInvocation,
     failInvocation: failActionInvocation,
@@ -147,6 +198,14 @@ function defaultDependencies(overrides: Partial<ApplyContactSyncDependencies>): 
     },
     ...overrides
   };
+}
+
+async function assertContactSyncStorageReady() {
+  const db = requireSupabase();
+  const { error } = await db.rpc("validate_contact_sync_storage_v0_1");
+  if (!error) return;
+  const message = errorMessage(error, "La base de datos no esta lista para importar contactos.");
+  throw new Error(`La base de datos no esta lista para importar contactos. Ejecuta primero cloud/supabase/prepare_contact_sync_storage_v0_1.sql. Detalle: ${message}`);
 }
 
 async function applyContactSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
@@ -169,7 +228,7 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
       company: mergeDecision?.company.trim() ?? payload.company ?? "",
       role: mergeDecision?.role.trim() ?? payload.role ?? "",
       networking_status: mergeDecision?.networkingStatus || "Pendiente",
-      networking_focus: mergeDecision?.focus ?? true,
+      networking_focus: mergeDecision?.focus ?? DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS,
       is_headhunter: mergeDecision?.headhunter ?? false,
       is_active: true,
       sync_status: "synced"
@@ -179,6 +238,7 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
   if (error) throw error;
 
   const contactId = data.id as string;
+  await upsertExternalContactId(contactId, change, context);
   if (mergeDecision) {
     for (const email of mergeDecision.emails) {
       await upsertContactEmail(contactId, email, context);
@@ -189,9 +249,27 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
   } else {
     await applyFieldOperations(contactId, change.fields, context);
   }
-  await upsertExternalContactId(contactId, change, context);
+  await upsertExternalContactSnapshots(change, context);
   await auditChange(contactId, change, context);
   return contactId;
+}
+
+export function contactIdentityValuesForCreate(change: SyncPreviewChange, mergeDecision: ContactMergeResult | null = null) {
+  if (mergeDecision) {
+    return {
+      emails: uniqueClean(mergeDecision.emails.map(normalizeEmail)),
+      phones: uniqueClean(mergeDecision.phones.map(normalizePhone))
+    };
+  }
+
+  return {
+    emails: uniqueClean(change.fields
+      .filter((field) => field.apply !== false && field.label === "Correo" && field.operation !== "remove")
+      .map((field) => normalizeEmail(field.after ?? ""))),
+    phones: uniqueClean(change.fields
+      .filter((field) => field.apply !== false && field.label === "Telefono" && field.operation !== "remove")
+      .map((field) => normalizePhone(field.after ?? "")))
+  };
 }
 
 async function updateContactFromSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
@@ -200,6 +278,7 @@ async function updateContactFromSyncChange(change: SyncPreviewChange, context: A
   if (mergeDecision) {
     await applyContactMergeDecision(contactId, mergeDecision, context);
     await upsertExternalContactId(contactId, change, context);
+    await upsertExternalContactSnapshots(change, context);
     await auditChange(contactId, change, context);
     return contactId;
   }
@@ -207,6 +286,7 @@ async function updateContactFromSyncChange(change: SyncPreviewChange, context: A
   await applyContactFieldPatch(contactId, change.fields, context);
   await applyFieldOperations(contactId, change.fields, context);
   await upsertExternalContactId(contactId, change, context);
+  await upsertExternalContactSnapshots(change, context);
   await auditChange(contactId, change, context);
   return contactId;
 }
@@ -224,6 +304,7 @@ async function consolidateContactFromSyncChange(change: SyncPreviewChange, conte
       targetContactId
     });
     await upsertExternalContactId(targetContactId, change, context);
+    await upsertExternalContactSnapshots(change, context);
     await auditChange(targetContactId, change, context);
     return targetContactId;
   }
@@ -231,6 +312,7 @@ async function consolidateContactFromSyncChange(change: SyncPreviewChange, conte
   if (mergeDecision) {
     await applyContactMergeDecision(targetContactId, mergeDecision, context);
     await upsertExternalContactId(targetContactId, change, context);
+    await upsertExternalContactSnapshots(change, context);
     await auditChange(targetContactId, change, context);
     return targetContactId;
   }
@@ -238,6 +320,7 @@ async function consolidateContactFromSyncChange(change: SyncPreviewChange, conte
   await applyContactFieldPatch(targetContactId, change.fields, context);
   await applyFieldOperations(targetContactId, change.fields, context);
   await upsertExternalContactId(targetContactId, change, context);
+  await upsertExternalContactSnapshots(change, context);
   await auditChange(targetContactId, change, context);
   return targetContactId;
 }
@@ -295,7 +378,7 @@ async function upsertContactEmail(contactId: string, rawEmail: string, context: 
     domain: domainFromEmail(email),
     is_primary: false,
     source: context.provider
-  }, { onConflict: "user_id,normalized_email" });
+  }, { onConflict: "user_id,contact_id,normalized_email" });
   if (error) throw error;
 }
 
@@ -311,7 +394,7 @@ async function upsertContactPhone(contactId: string, rawPhone: string, context: 
     normalized_phone_last8: normalized.slice(-8) || null,
     is_primary: false,
     source: context.provider
-  }, { onConflict: "user_id,normalized_phone" });
+  }, { onConflict: "user_id,contact_id,normalized_phone" });
   if (error) throw error;
 }
 
@@ -363,7 +446,7 @@ async function applyEmailOperation(contactId: string, field: SyncPreviewFieldCha
   if ((field.operation === "add" || !field.operation) && field.after) {
     const email = normalizeEmail(field.after);
     if (!email) return;
-    const { error } = await db.from("contact_emails").insert({
+    const { error } = await db.from("contact_emails").upsert({
       user_id: context.userId,
       contact_id: contactId,
       email,
@@ -371,7 +454,7 @@ async function applyEmailOperation(contactId: string, field: SyncPreviewFieldCha
       domain: domainFromEmail(email),
       is_primary: false,
       source: context.provider
-    });
+    }, { onConflict: "user_id,contact_id,normalized_email" });
     if (error) throw error;
   }
 }
@@ -393,7 +476,7 @@ async function applyPhoneOperation(contactId: string, field: SyncPreviewFieldCha
   if ((field.operation === "add" || !field.operation) && field.after) {
     const normalized = normalizePhone(field.after);
     if (!normalized) return;
-    const { error } = await db.from("contact_phones").insert({
+    const { error } = await db.from("contact_phones").upsert({
       user_id: context.userId,
       contact_id: contactId,
       phone: field.after.trim(),
@@ -401,7 +484,7 @@ async function applyPhoneOperation(contactId: string, field: SyncPreviewFieldCha
       normalized_phone_last8: normalized.slice(-8) || null,
       is_primary: false,
       source: context.provider
-    });
+    }, { onConflict: "user_id,contact_id,normalized_phone" });
     if (error) throw error;
   }
 }
@@ -412,7 +495,7 @@ async function upsertExternalContactId(contactId: string, change: SyncPreviewCha
 
   const db = requireSupabase();
   for (const externalId of externalIds) {
-    const { error } = await db
+    const { data, error } = await db
       .from("external_contact_ids")
       .upsert({
         user_id: context.userId,
@@ -421,10 +504,44 @@ async function upsertExternalContactId(contactId: string, change: SyncPreviewCha
         provider: context.provider,
         external_id: externalId,
         is_active: true,
-        last_seen_at: new Date().toISOString()
-      }, { onConflict: "user_id,provider,external_id" });
+        last_seen_at: new Date().toISOString(),
+        metadata: externalMetadataForChange(change, externalId)
+      }, { onConflict: "user_id,provider,external_id" })
+      .select("contact_id,is_active")
+      .single();
+    if (error) throw error;
+    if (data?.contact_id !== contactId || data?.is_active !== true) {
+      throw new Error("No pude confirmar que el ID externo quedara enlazado al contacto resultante.");
+    }
+  }
+}
+
+async function upsertExternalContactSnapshots(change: SyncPreviewChange, context: ApplyContactSyncContext) {
+  const entries = externalContactSnapshotsFromPreviewChange(change);
+  if (!entries.length) return;
+
+  const db = requireSupabase();
+  for (const entry of entries) {
+    const { error } = await db
+      .from("external_contact_snapshots")
+      .upsert(externalContactSnapshotDbPayload({
+        connectedAccountId: context.connectedAccountId,
+        externalId: entry.externalId,
+        provider: context.provider,
+        snapshot: entry.snapshot,
+        userId: context.userId
+      }), { onConflict: "user_id,provider,external_id" });
     if (error) throw error;
   }
+}
+
+function externalMetadataForChange(change: SyncPreviewChange, externalId: string) {
+  const byId = change.metadata?.externalMetadataByExternalId;
+  if (isRecord(byId) && isRecord(byId[externalId])) return byId[externalId];
+  const primaryExternalId = metadataString(change, "externalId");
+  const metadata = change.metadata?.externalMetadata;
+  if (primaryExternalId === externalId && isRecord(metadata)) return metadata;
+  return {};
 }
 
 function externalIdsFromChange(change: SyncPreviewChange) {
@@ -460,7 +577,7 @@ function isContactMergeSource(value: unknown): value is ContactMergeSource {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const source = value as Record<string, unknown>;
   return typeof source.id === "string"
-    && (source.kind === "Guardado" || source.kind === "Importado")
+    && (source.kind === "Guardado" || source.kind === "Fuente conectada")
     && typeof source.name === "string"
     && Array.isArray(source.emails)
     && Array.isArray(source.phones)
@@ -505,8 +622,10 @@ async function completeActionInvocation(invocationId: string | null, result: App
     .update({
       status: result.ok ? "executed" : "failed",
       output_json: {
+        applied_change_ids: result.appliedChangeIds,
         applied_count: result.appliedCount,
         failed_count: result.failedCount,
+        failed_change_ids: result.failedChangeIds,
         pending_count: result.pendingCount,
         cursor_saved: result.cursorSaved,
         contact_ids: result.contactIds,
@@ -530,7 +649,7 @@ async function failActionInvocation(invocationId: string | null, error: unknown)
     .from("action_invocations")
     .update({
       status: "failed",
-      error_message: error instanceof Error ? error.message : "Error al aplicar preview de contactos."
+      error_message: errorMessage(error, "Error al aplicar preview de contactos.")
     })
     .eq("id", invocationId)
     .eq("user_id", userId);
@@ -565,6 +684,40 @@ function requiredMetadata(change: SyncPreviewChange, key: string) {
 function metadataString(change: SyncPreviewChange, key: string) {
   const value = change.metadata?.[key];
   return typeof value === "string" ? value : "";
+}
+
+function changeObjectId(change: SyncPreviewChange) {
+  return metadataString(change, "appContactId")
+    || metadataString(change, "consolidationTargetContactId")
+    || metadataString(change, "externalId")
+    || change.id;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [
+      stringValue(record.message),
+      stringValue(record.details),
+      stringValue(record.hint),
+      stringValue(record.code)
+    ].filter(Boolean);
+    if (parts.length) return parts.join(" ");
+  }
+  return fallback;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function uniqueClean(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function requireSupabase() {

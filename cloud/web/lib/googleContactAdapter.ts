@@ -20,6 +20,22 @@ export type GooglePersonOrganization = {
   title?: string | null;
 };
 
+export type GooglePersonDate = {
+  year?: number | null;
+  month?: number | null;
+  day?: number | null;
+};
+
+export type GooglePersonFieldMetadata = {
+  primary?: boolean | null;
+};
+
+export type GooglePersonBirthday = {
+  date?: GooglePersonDate | null;
+  text?: string | null;
+  metadata?: GooglePersonFieldMetadata | null;
+};
+
 export type GooglePersonMetadata = {
   deleted?: boolean | null;
   previousResourceNames?: string[] | null;
@@ -32,6 +48,7 @@ export type GooglePerson = {
   emailAddresses?: GooglePersonEmail[] | null;
   phoneNumbers?: GooglePersonPhone[] | null;
   organizations?: GooglePersonOrganization[] | null;
+  birthdays?: GooglePersonBirthday[] | null;
   metadata?: GooglePersonMetadata | null;
 };
 
@@ -46,6 +63,7 @@ export function mapGooglePersonToExternalContact(input: {
   const phones = unique((input.person.phoneNumbers ?? []).map((phone) => clean(phone.value) || clean(phone.canonicalForm)).filter(Boolean));
   const primaryName = firstName(input.person.names ?? []);
   const organization = firstOrganization(input.person.organizations ?? []);
+  const birthdays = googleBirthdays(input.person.birthdays ?? []);
   const displayName = primaryName || emails[0] || phones[0] || "Contacto sin nombre";
 
   return {
@@ -58,6 +76,8 @@ export function mapGooglePersonToExternalContact(input: {
     metadata: {
       google_deleted: Boolean(input.person.metadata?.deleted),
       google_etag: clean(input.person.etag) || null,
+      google_birthdays: birthdays,
+      google_primary_birthday: birthdays[0] ?? null,
       missing_display_name: !primaryName,
       previous_resource_names: input.person.metadata?.previousResourceNames ?? []
     },
@@ -93,6 +113,30 @@ function firstOrganization(organizations: GooglePersonOrganization[]) {
     if (company || role) return { company, role };
   }
   return { company: "", role: "" };
+}
+
+function googleBirthdays(birthdays: GooglePersonBirthday[]) {
+  return birthdays
+    .map((birthday) => {
+      const year = validDatePart(birthday.date?.year);
+      const month = validDatePart(birthday.date?.month);
+      const day = validDatePart(birthday.date?.day);
+      const text = clean(birthday.text);
+      if (!year && !month && !day && !text) return null;
+      return {
+        ...(year ? { year } : {}),
+        ...(month ? { month } : {}),
+        ...(day ? { day } : {}),
+        ...(text ? { text } : {}),
+        ...(birthday.metadata?.primary ? { primary: true } : {})
+      };
+    })
+    .filter((birthday): birthday is NonNullable<typeof birthday> => Boolean(birthday))
+    .sort((first, second) => Number(Boolean(second.primary)) - Number(Boolean(first.primary)));
+}
+
+function validDatePart(value?: number | null) {
+  return Number.isInteger(value) && value && value > 0 ? value : null;
 }
 
 function normalizeEmail(value?: string | null) {

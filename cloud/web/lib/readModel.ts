@@ -7,6 +7,31 @@ export type ContactPhoneRow = {
   phone: string;
 };
 
+export type ObjectiveType = "COMPANY" | "INDUSTRY" | "ROLE" | "FUNCTION";
+
+export type ObjectivePriority = "HIGH" | "MEDIUM" | "LOW";
+
+export type ObjectiveRow = {
+  id: string;
+  objective_name: string;
+  objective_name_normalized: string;
+  objective_type: ObjectiveType;
+  priority_level: ObjectivePriority;
+  objective_description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContactObjectiveAssignmentRow = {
+  id: string;
+  contact_id: string;
+  objective_id: string;
+  assigned_by_actor: string;
+  assigned_at: string;
+  objective?: ObjectiveRow | null;
+};
+
 export type ContactRow = {
   id: string;
   display_name: string;
@@ -20,6 +45,12 @@ export type ContactRow = {
   updated_at: string;
   contact_emails?: ContactEmailRow[];
   contact_phones?: ContactPhoneRow[];
+  contact_objective_assignments?: ContactObjectiveAssignmentRow[];
+};
+
+export type ContactListRow = ContactRow & {
+  last_interaction_at: string | null;
+  days_since_last_interaction: number | null;
 };
 
 export type ContactReferralRow = {
@@ -39,7 +70,6 @@ export type ContactReferralRow = {
 
 export type InteractionRow = {
   id: string;
-  legacy_entry_id?: string | null;
   interaction_type: "email" | "calendar" | "call" | "message" | "manual";
   direction: "inbound" | "outbound" | "internal" | "unknown" | null;
   occurred_at: string | null;
@@ -53,8 +83,6 @@ export type InteractionRow = {
     deleted_by?: string;
     delete_reason?: string;
     prevent_reimport?: boolean;
-    legacy_contact_label?: string;
-    legacy_google_id?: string;
     [key: string]: unknown;
   } | null;
 };
@@ -82,7 +110,7 @@ export type StatusCount = {
   count: number;
 };
 
-export type MirrorSummary = {
+export type AppSummary = {
   contacts: number;
   activeContacts: number;
   focusContacts: number;
@@ -151,6 +179,13 @@ export type ReferralActionRow = {
   referredName: string;
   status: string;
   notes: string;
+};
+
+export type DashboardReferralRow = ContactReferralRow & {
+  referrerName: string;
+  referrerStatus: string;
+  linkedContactCompany: string;
+  linkedContactRole: string;
 };
 
 export type ContactProfileData = {

@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CRM Networking Cloud",
-  description: "Replica cloud en modo lectura de CRM Networking."
+  title: "Coffeecito",
+  description: "Gestiona contactos, objetivos e interacciones profesionales en Coffeecito."
 };
 
 export default function RootLayout({

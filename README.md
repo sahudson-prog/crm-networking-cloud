@@ -1,77 +1,56 @@
 # CRM Networking
 
-Web app en Streamlit para administrar networking durante una busqueda laboral.
+CRM Networking es una aplicación web para gestionar contactos, objetivos, interacciones y sugerencias de seguimiento durante una búsqueda profesional.
 
-## Estado actual
+## Aplicación actual
 
-La aplicacion principal vive en `app.py`. Integra Google Contacts, Google Sheets, Gmail y Google Calendar para mantener un CRM personal con contactos, estados, interacciones, relaciones/referidos, empresas headhunter y sugerencias de accion.
+El único runtime activo del producto vive en `cloud/web`.
 
-El resumen entregado por herramientas externas se usa solo como contexto inicial. La fuente confiable para continuar el desarrollo es el codigo actual, la planilla conectada y el comportamiento real de Streamlit.
+- Next.js / React / TypeScript.
+- Supabase/Postgres como base de datos de la app.
+- Google como proveedor conectado para lectura e importación/sincronización.
 
-## Ejecucion local
+La antigua app local/Streamlit ya no forma parte del runtime activo. Las herramientas legacy que sigan en el repositorio están aisladas para migraciones puntuales, no para ejecutar el producto.
 
-```powershell
-cd "C:\Users\Sergio\OneDrive\Documentos\CRM Networking"
-.\venv\Scripts\activate
-streamlit run app.py
-```
-
-## Instalacion
+## Inicio rápido
 
 ```powershell
-python -m venv venv
-venv\Scripts\python.exe -m pip install -r requirements.txt
+cd cloud\web
+npm install
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-## Verificacion minima
+Completa `.env.local` con las variables indicadas en `cloud/web/README.md`. La app abre normalmente en `http://localhost:3000`.
+
+También existen accesos desde la raíz del repositorio:
+
+- `abrir_app_cloud.bat`: abre la app cloud local.
+- `validar_app_cloud.bat`: ejecuta validaciones básicas de la app cloud.
+
+## Validación básica
+
+Desde `cloud/web`:
 
 ```powershell
-venv\Scripts\python.exe -m py_compile app.py
+npm run typecheck
+npm run build
 ```
 
-La verificacion funcional completa requiere ejecutar Streamlit con credenciales Google validas y acceso a la planilla.
+Para pruebas por subsistema, consulta `docs/TESTING.md`.
 
-## Archivos locales sensibles
+## Estructura del repositorio
 
-Estos archivos deben existir localmente para usar las integraciones de Google, pero no deben subirse ni compartirse:
+- `cloud/web/`: aplicación web cloud.
+- `cloud/supabase/`: schema, migraciones y verificaciones Supabase/Postgres.
+- `docs/`: documentación especializada vigente.
+- `tools/dev_maintenance/`: utilidades de mantenimiento del ambiente de desarrollo.
+- `tools/legacy_migration/`: herramientas aisladas para migraciones legacy hacia el modelo cloud.
 
-- `credentials.json`
-- `token.json`
+## Documentación
 
-## Documentacion del proyecto
-
-La documentacion se mantiene minima y con proposito claro.
-
-Documentos vivos:
-
-- `AGENTS.md`: reglas de trabajo para Codex.
-- `docs/PRODUCT_DETAIL_AND_VISION.md`: detalle de producto, experiencia y vision futura.
-- `docs/BACKLOG.md`: ideas y pendientes en formato priorizable.
-- `docs/CURRENT_PLAN.md`: plan de trabajo actual conectado al backlog.
-- `docs/OPERATING_MODEL.md`: como se usan y mantienen los documentos.
-- `docs/QA_CHECKLIST.md`: checklist de validacion.
-
-Documentos de referencia que solo se actualizan cuando cambia la arquitectura o el modelo:
-
-- `docs/ARCHITECTURE_CURRENT.md`: arquitectura actual e inventario de funciones.
-- `docs/CURRENT_DATA_MODEL.md`: modelo de datos actual en Google Sheets.
-- `docs/DATA_MODEL_BLUEPRINT.md`: blueprint futuro de datos para Postgres.
-
-## Piezas principales
-
-- `app.py`: aplicacion Streamlit completa.
-- `tools/`: scripts auxiliares de respaldo/migracion.
-- `backups/`: respaldos locales creados antes de cambios relevantes.
-- `Planificacion.docx`: documento inicial de planificacion.
-- `CODEX_PROJECT_CONTEXT.md`: notas verificadas de contexto historico.
-
-## Direccion tecnica
-
-La app actual usa Google Sheets como base de datos. La direccion objetivo es una plataforma multiusuario con:
-
-- Postgres como base principal.
-- Login por usuario.
-- OAuth Google por usuario.
-- Importadores Google/CSV/Excel.
-- Backups descargables.
-- Despliegue en nube con limites de uso.
+- `AGENTS.md`: instrucciones transversales para Codex.
+- `cloud/web/README.md`: configuración local y comandos del runtime web.
+- `docs/README.md`: mapa de documentación especializada.
+- `docs/planning/NOW.md`: foco activo.
+- `docs/planning/BACKLOG.md`: pendientes vigentes.

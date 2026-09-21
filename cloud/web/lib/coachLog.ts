@@ -23,7 +23,6 @@ type RawTodoHistory = {
 
 type RawInteraction = {
   id: string;
-  legacy_entry_id: string | null;
   interaction_type: "email" | "calendar" | "call" | "message" | "manual";
   occurred_at: string | null;
   subject: string | null;
@@ -50,6 +49,8 @@ export type CoachActionLogRow = {
   contactName: string;
   currentStatus: string;
   suggestedStatus: string;
+  currentCompany: string;
+  suggestedCompany: string;
   summary: string;
   reason: string;
   ruleName: string;
@@ -117,30 +118,16 @@ async function readInteractionsByEvidenceIds(evidenceIds: string[], userId: stri
   if (!supabase || !evidenceIds.length) return new Map<string, InteractionRow>();
 
   const uuidIds = evidenceIds.filter(isUuid);
-  const queries = [];
-  if (uuidIds.length) {
-    queries.push(
-      supabase
-        .from("interactions")
-        .select("id,legacy_entry_id,interaction_type,occurred_at,subject")
-        .eq("user_id", userId)
-        .in("id", uuidIds)
-    );
-  }
-  queries.push(
-    supabase
-      .from("interactions")
-      .select("id,legacy_entry_id,interaction_type,occurred_at,subject")
-      .eq("user_id", userId)
-      .in("legacy_entry_id", evidenceIds)
-  );
+  if (!uuidIds.length) return new Map<string, InteractionRow>();
 
-  const results = await Promise.all(queries);
-  const interactions: InteractionRow[] = [];
-  for (const result of results) {
-    if (result.error) throw result.error;
-    interactions.push(...((result.data ?? []) as RawInteraction[]).map(mapInteraction));
-  }
+  const { data, error } = await supabase
+    .from("interactions")
+    .select("id,interaction_type,occurred_at,subject")
+    .eq("user_id", userId)
+    .in("id", uuidIds);
+  if (error) throw error;
+
+  const interactions = ((data ?? []) as RawInteraction[]).map(mapInteraction);
   return buildInteractionsByEvidenceId(interactions);
 }
 
@@ -187,6 +174,8 @@ function mapTodo(
     contactName,
     currentStatus: textValue(current.Estado_CRM || current.networking_status),
     suggestedStatus: textValue(suggested.Estado_CRM || suggested.networking_status),
+    currentCompany: textValue(current.Empresa || current.company),
+    suggestedCompany: textValue(suggested.Empresa || suggested.company),
     summary: row.summary || contactName,
     reason: row.reason,
     ruleName: textValue(evidence.regla),
@@ -205,7 +194,6 @@ function fallbackActor(status: CoachHistoryStatus): CoachHistoryActor {
 function mapInteraction(row: RawInteraction): InteractionRow {
   return {
     id: row.id,
-    legacy_entry_id: row.legacy_entry_id,
     interaction_type: row.interaction_type,
     direction: null,
     occurred_at: row.occurred_at,

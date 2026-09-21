@@ -5,6 +5,7 @@ import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
 import { MetricCard } from "./ui/MetricCard";
+import { ProgressBar } from "./ui/ProgressBar";
 import { ProviderButton, ProviderIcon } from "./ui/ProviderIcon";
 import { StatusBadge } from "./StatusBadge";
 import { SyncPreviewDialog } from "./SyncPreviewDialog";
@@ -50,6 +51,46 @@ const states = [
   "Agendado",
   "Cita concretada",
   "Agradecimiento enviado"
+];
+
+type CoverBoardCard = {
+  company: string;
+  id: string;
+  kind: "contact" | "headhunter";
+  name: string;
+};
+
+type CoverBoardColumn = {
+  cards: CoverBoardCard[];
+  id: string;
+  title: string;
+};
+
+const initialCoverBoardColumns: CoverBoardColumn[] = [
+  {
+    id: "pendiente",
+    title: "Pendiente",
+    cards: [
+      { company: "LATAM Airlines", id: "alienor", kind: "contact", name: "Alienor Tordeur" },
+      { company: "Grange", id: "francisca", kind: "contact", name: "Francisca Garib" },
+      { company: "Spencer Stuart", id: "ignacio", kind: "headhunter", name: "Ignacio Spencer" },
+      { company: "Korn Ferry", id: "korn", kind: "headhunter", name: "Korn Ferry" },
+      { company: "RedSalud", id: "fiona", kind: "contact", name: "Fiona Ruckert" },
+      { company: "Duke", id: "jorge", kind: "contact", name: "Jorge Kehdy" },
+      { company: "Virtus", id: "virtus", kind: "headhunter", name: "Virtus Partners" }
+    ]
+  },
+  {
+    id: "contactado",
+    title: "Contactado",
+    cards: [
+      { company: "Simon Kucher", id: "manuel", kind: "contact", name: "Manuel Osorio" },
+      { company: "Egon Zehnder", id: "egon", kind: "headhunter", name: "Egon Zehnder" },
+      { company: "Patria", id: "ricardo", kind: "contact", name: "Ricardo Smith" },
+      { company: "Talengo", id: "adriana", kind: "headhunter", name: "Adriana Villanueva" },
+      { company: "Page Executive", id: "page", kind: "headhunter", name: "Page Executive" }
+    ]
+  }
 ];
 
 const syncPreviewChanges: SyncPreviewChange[] = [
@@ -105,7 +146,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           focus: false,
           headhunter: false,
           id: "people/ricardo-a",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Ricardo Smith",
           networkingStatus: "Pendiente",
           phones: ["+56 9 8888 1111"],
@@ -117,7 +158,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           focus: false,
           headhunter: false,
           id: "people/ricardo-b",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Ricardo S.",
           networkingStatus: "Pendiente",
           phones: ["+56 9 7777 1111"],
@@ -137,7 +178,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
     id: "design-dup-complex-alberto",
     metadata: {
       duplicateGroupId: "design-dup-group-alberto",
-      duplicateGroupImportedCount: 3,
+      duplicateGroupConnectedCount: 3,
       duplicateGroupLabel: "Alberto Villate",
       duplicateGroupSavedCount: 2,
       duplicateGroupTotalCount: 5,
@@ -148,7 +189,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           focus: false,
           headhunter: false,
           id: "people/alberto-v",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Alberto V",
           networkingStatus: "Pendiente",
           phones: ["56228371378"],
@@ -169,7 +210,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
     id: "design-dup-complex-alberto-g",
     metadata: {
       duplicateGroupId: "design-dup-group-alberto",
-      duplicateGroupImportedCount: 3,
+      duplicateGroupConnectedCount: 3,
       duplicateGroupLabel: "Alberto Villate",
       duplicateGroupSavedCount: 2,
       duplicateGroupTotalCount: 5,
@@ -180,7 +221,7 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           focus: false,
           headhunter: false,
           id: "people/alberto-g",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Alberto Villate Galarce",
           networkingStatus: "Pendiente",
           phones: ["56228371378"],
@@ -206,6 +247,46 @@ const syncPreviewChanges: SyncPreviewChange[] = [
 
 export function DesignSystemPreview() {
   const [syncPreviewOpen, setSyncPreviewOpen] = useState(false);
+  const [boardColumns, setBoardColumns] = useState<CoverBoardColumn[]>(initialCoverBoardColumns);
+  const [draggingCardId, setDraggingCardId] = useState("");
+  const [dropIndicator, setDropIndicator] = useState<{ columnId: string; index: number } | null>(null);
+
+  function moveBoardCard(cardId: string, targetColumnId: string, targetIndex: number) {
+    setBoardColumns((current) => {
+      let movedCard: CoverBoardCard | null = null;
+      let sourceColumnId = "";
+      let sourceIndex = -1;
+      const withoutMoved = current.map((column) => {
+        const nextCards = column.cards.filter((card, index) => {
+          if (card.id !== cardId) return true;
+          movedCard = card;
+          sourceColumnId = column.id;
+          sourceIndex = index;
+          return false;
+        });
+        return { ...column, cards: nextCards };
+      });
+
+      if (!movedCard) return current;
+      const normalizedTargetIndex = sourceColumnId === targetColumnId && sourceIndex >= 0 && sourceIndex < targetIndex
+        ? targetIndex - 1
+        : targetIndex;
+
+      return withoutMoved.map((column) => {
+        if (column.id !== targetColumnId) return column;
+        const insertAt = Math.max(0, Math.min(normalizedTargetIndex, column.cards.length));
+        return {
+          ...column,
+          cards: [
+            ...column.cards.slice(0, insertAt),
+            movedCard as CoverBoardCard,
+            ...column.cards.slice(insertAt)
+          ]
+        };
+      });
+    });
+    setDropIndicator(null);
+  }
 
   return (
     <div className="grid">
@@ -283,6 +364,36 @@ export function DesignSystemPreview() {
 
       <section className="panel">
         <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Barras de progreso</h2>
+            <span className="panel-caption">Procesos largos con avance visible, reutilizables en sync e importaciones.</span>
+          </div>
+        </div>
+        <div className="progress-reference">
+          <ProgressBar
+            detail="42 aplicados / 0 fallidos"
+            label="Aplicando contactos"
+            max={120}
+            value={42}
+          />
+          <ProgressBar
+            detail="18 aplicados / 2 fallidos"
+            label="Aplicando con advertencias"
+            max={80}
+            tone="warning"
+            value={20}
+          />
+          <ProgressBar
+            detail="Esperando respuesta del proveedor"
+            indeterminate
+            label="Preparando revision"
+            tone="neutral"
+          />
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
           <h2 className="panel-title">Servicios conectados</h2>
           <span className="panel-caption">Botones globales por proveedor, con version activa y deshabilitada.</span>
         </div>
@@ -311,9 +422,8 @@ export function DesignSystemPreview() {
             <button type="button"><span>Duplicados fusionables</span><strong>1</strong></button>
             <button type="button"><span>Duplicados complejos</span><strong>1</strong></button>
             <button type="button"><span>Eliminaciones</span><strong>1</strong></button>
-            <button type="button"><span>Sin cambios</span><strong>4</strong></button>
           </div>
-          <span className="panel-caption">Las eliminaciones quedan separadas para evitar aplicar cambios delicados por error.</span>
+          <span className="panel-caption">El preview muestra solo cambios revisables. Los elementos sin cambios quedan fuera del modal para no confundir la seleccion.</span>
         </div>
         <ContactSyncPreviewSandbox />
         <SyncPreviewDialog
@@ -339,6 +449,35 @@ export function DesignSystemPreview() {
 
       <section className="panel">
         <ContactMergePreview />
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Tablero Cover Flow</h2>
+            <span className="panel-caption">Maqueta funcional: arrastra una tarjeta a la otra columna. Cinco tarjetas visibles por scroll.</span>
+          </div>
+        </div>
+        <div className="state-cover-board" aria-label="Maqueta tablero Cover Flow por estados">
+          {boardColumns.map((column) => (
+            <CoverFlowColumn
+              column={column}
+              draggingCardId={draggingCardId}
+              dropIndex={dropIndicator?.columnId === column.id ? dropIndicator.index : null}
+              key={column.id}
+              onDragEnd={() => {
+                setDraggingCardId("");
+                setDropIndicator(null);
+              }}
+              onDragStart={(cardId) => {
+                setDraggingCardId(cardId);
+                setDropIndicator(null);
+              }}
+              onDropIndexChange={(index) => setDropIndicator({ columnId: column.id, index })}
+              onDropCard={moveBoardCard}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="panel">
@@ -371,6 +510,80 @@ export function DesignSystemPreview() {
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function CoverFlowColumn({
+  column,
+  draggingCardId,
+  dropIndex,
+  onDragEnd,
+  onDragStart,
+  onDropIndexChange,
+  onDropCard
+}: {
+  column: CoverBoardColumn;
+  draggingCardId: string;
+  dropIndex: number | null;
+  onDragEnd: () => void;
+  onDragStart: (cardId: string) => void;
+  onDropIndexChange: (index: number) => void;
+  onDropCard: (cardId: string, targetColumnId: string, targetIndex: number) => void;
+}) {
+  return (
+    <div
+      className={`state-cover-column ${draggingCardId ? "drop-ready" : ""}`}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const cardId = event.dataTransfer.getData("text/plain") || draggingCardId;
+        if (cardId) onDropCard(cardId, column.id, dropIndex ?? column.cards.length);
+        onDragEnd();
+      }}
+    >
+      <div className="state-cover-column-head">
+        <StatusBadge status={column.title} />
+        <strong>{column.cards.length}</strong>
+      </div>
+      <div className="state-cover-scroll">
+        {column.cards.map((card, index) => (
+          <div key={card.id}>
+            {dropIndex === index ? <div className="state-cover-drop-line" /> : null}
+            <div
+              className={`state-cover-card ${card.kind} ${draggingCardId === card.id ? "dragging" : ""}`}
+              data-board-card
+              draggable
+              onDragEnd={onDragEnd}
+              onDragOver={(event) => {
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                onDropIndexChange(event.clientY < rect.top + rect.height / 2 ? index : index + 1);
+              }}
+              onDragStart={(event) => {
+                const dragImage = event.currentTarget.cloneNode(true) as HTMLElement;
+                dragImage.classList.add("state-cover-drag-image");
+                document.body.appendChild(dragImage);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", card.id);
+                event.dataTransfer.setDragImage(dragImage, 24, 24);
+                window.setTimeout(() => dragImage.remove(), 0);
+                onDragStart(card.id);
+              }}
+            >
+              <span className="state-cover-card-icon">
+                <Icon name={card.kind === "headhunter" ? "search" : "user"} />
+              </span>
+              <div>
+                <strong>{card.name}</strong>
+                <span>{card.company}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {dropIndex === column.cards.length && column.cards.length ? <div className="state-cover-drop-line" /> : null}
+        {!column.cards.length ? <div className="state-cover-empty">Suelta una tarjeta aca</div> : null}
+      </div>
     </div>
   );
 }

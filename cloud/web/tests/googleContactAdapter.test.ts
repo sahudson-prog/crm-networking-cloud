@@ -62,6 +62,27 @@ test("Google Contacts prefiere telefono visible sobre canonicalForm para evitar 
   assert.deepEqual(result.phones, ["+569985064738"]);
 });
 
+test("Google Contacts conserva cumpleanos como metadata de fuente sin mapearlo al contacto local", () => {
+  const result = mapGooglePersonToExternalContact({
+    person: {
+      resourceName: "people/birthday",
+      names: [{ displayName: "Cumple Contacto" }],
+      birthdays: [
+        { date: { month: 7, day: 9 }, text: "9 de julio" },
+        { date: { year: 1986, month: 4, day: 2 }, metadata: { primary: true } }
+      ]
+    }
+  });
+
+  assert.ok(result);
+  assert.equal("birthday" in result, false);
+  assert.deepEqual(result.metadata?.google_primary_birthday, { year: 1986, month: 4, day: 2, primary: true });
+  assert.deepEqual(result.metadata?.google_birthdays, [
+    { year: 1986, month: 4, day: 2, primary: true },
+    { month: 7, day: 9, text: "9 de julio" }
+  ]);
+});
+
 test("Google Contacts conserva deleted y previousResourceNames como metadata de sync", () => {
   const result = mapGooglePersonToExternalContact({
     person: {

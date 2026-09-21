@@ -1,19 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateNetworkingStatusCandidate } from "../lib/coachRuleEngine.ts";
+import { evaluateHeadhunterCompanyCandidate, evaluateNetworkingStatusCandidate } from "../lib/coachRuleEngine.ts";
 
 type TestContact = {
   id: string;
   display_name: string;
+  company: string;
   networking_status: string;
   networking_focus: boolean;
+  is_headhunter: boolean;
+  headhunter_domains: string[];
   is_active: boolean;
   updated_at: string;
+  contact_emails: Array<{ email: string; domain: string | null }>;
 };
 
 type TestInteraction = {
   id: string;
-  legacy_entry_id: string | null;
   interaction_type: "email" | "calendar" | "call" | "message" | "manual";
   direction: "inbound" | "outbound" | "internal" | "unknown";
   occurred_at: string;
@@ -26,16 +29,19 @@ type TestInteraction = {
 const baseContact: TestContact = {
   id: "contact-1",
   display_name: "Ana Pereira",
+  company: "",
   networking_status: "Pendiente",
   networking_focus: true,
+  is_headhunter: false,
+  headhunter_domains: [],
   is_active: true,
-  updated_at: "2026-07-28T10:00:00Z"
+  updated_at: "2026-07-28T10:00:00Z",
+  contact_emails: []
 };
 
 function interaction(overrides: Partial<TestInteraction> = {}): TestInteraction {
   return {
     id: "interaction-1",
-    legacy_entry_id: null,
     interaction_type: "email",
     direction: "outbound",
     occurred_at: "2026-07-20T10:00:00Z",
@@ -125,6 +131,50 @@ test("contacto fuera de foco no genera sugerencia", () => {
     { ...baseContact, networking_focus: false },
     [interaction()],
     new Date("2026-07-28T12:00:00Z")
+  );
+
+  assert.equal(candidate, null);
+});
+
+test("headhunter sin empresa y dominio unico sugiere completar empresa", () => {
+  const candidate = evaluateHeadhunterCompanyCandidate(
+    {
+      ...baseContact,
+      is_headhunter: true,
+      contact_emails: [{ email: "ana@intertrust.cl", domain: "intertrust.cl" }]
+    },
+    [
+      {
+        id: "company-1",
+        displayName: "Intertrust",
+        normalizedName: "intertrust",
+        domains: ["@intertrust.cl"]
+      }
+    ]
+  );
+
+  assert.equal(candidate?.ruleId, "HEADHUNTER_COMPANY_DETECTED");
+  assert.equal(candidate?.todoType, "HEADHUNTER_COMPANY_DETECTED");
+  assert.equal(candidate?.suggestedState.Empresa, "Intertrust");
+  assert.equal(candidate?.action.action, "contact.update_company");
+});
+
+test("headhunter con empresa escrita no genera sugerencia de empresa detectada", () => {
+  const candidate = evaluateHeadhunterCompanyCandidate(
+    {
+      ...baseContact,
+      company: "Intertrust",
+      is_headhunter: true,
+      contact_emails: [{ email: "ana@intertrust.cl", domain: "intertrust.cl" }]
+    },
+    [
+      {
+        id: "company-1",
+        displayName: "Intertrust",
+        normalizedName: "intertrust",
+        domains: ["@intertrust.cl"]
+      }
+    ]
   );
 
   assert.equal(candidate, null);

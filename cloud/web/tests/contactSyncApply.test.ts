@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyContactSyncPreview, contactAppMergePlanFromPreviewChange } from "../lib/contactSyncApply.ts";
+import {
+  applyContactSyncPreview,
+  contactAppMergePlanFromPreviewChange,
+  contactIdentityValuesForCreate,
+  DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS
+} from "../lib/contactSyncApply.ts";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator.ts";
 
 const baseChange: SyncPreviewChange = {
@@ -36,6 +41,7 @@ test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", 
       completeInvocation: async (_id, finalResult) => {
         completed = finalResult.cursorSaved;
       },
+      assertStorageReady: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
@@ -49,6 +55,8 @@ test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", 
   assert.equal(result.appliedCount, 1);
   assert.equal(result.pendingCount, 0);
   assert.equal(result.cursorSaved, true);
+  assert.deepEqual(result.appliedChangeIds, [baseChange.id]);
+  assert.deepEqual(result.failedChangeIds, []);
   assert.equal(cursorSaved, true);
   assert.equal(completed, true);
   assert.deepEqual(applied, [baseChange.id]);
@@ -66,6 +74,7 @@ test("applyContactSyncPreview no guarda cursor si quedan cambios pendientes", as
     },
     {
       applyChange: async () => "contact-1",
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -98,6 +107,7 @@ test("applyContactSyncPreview no guarda cursor si falla algun cambio", async () 
       applyChange: async () => {
         throw new Error("falla controlada");
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -111,9 +121,50 @@ test("applyContactSyncPreview no guarda cursor si falla algun cambio", async () 
   assert.equal(result.ok, false);
   assert.equal(result.appliedCount, 0);
   assert.equal(result.failedCount, 1);
+  assert.deepEqual(result.appliedChangeIds, []);
+  assert.deepEqual(result.failedChangeIds, [baseChange.id]);
   assert.equal(result.cursorSaved, false);
   assert.equal(cursorSaved, false);
   assert.equal(result.errors[0].message, "falla controlada");
+});
+
+test("applyContactSyncPreview valida almacenamiento antes de crear contactos", async () => {
+  let applied = false;
+  let failedInvocation = false;
+
+  await assert.rejects(
+    applyContactSyncPreview(
+      {
+        changes: [baseChange],
+        provider: "google",
+        totalPreviewChanges: 1
+      },
+      {
+        applyChange: async () => {
+          applied = true;
+          return "contact-1";
+        },
+        assertStorageReady: async () => {
+          throw new Error("storage incompleto");
+        },
+        completeInvocation: async () => undefined,
+        createInvocation: async () => "invocation-1",
+        failInvocation: async () => {
+          failedInvocation = true;
+        },
+        getUserId: async () => "user-1",
+        saveCursor: async () => undefined
+      }
+    ),
+    /storage incompleto/
+  );
+
+  assert.equal(applied, false);
+  assert.equal(failedInvocation, true);
+});
+
+test("contactos importados parten fuera de foco networking por defecto", () => {
+  assert.equal(DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS, false);
 });
 
 test("applyContactSyncPreview ignora filas informativas sin cambios al calcular pendientes", async () => {
@@ -143,6 +194,7 @@ test("applyContactSyncPreview ignora filas informativas sin cambios al calcular 
         applied.push(change.id);
         return "contact-1";
       },
+      assertStorageReady: async () => undefined,
       completeInvocation: async () => undefined,
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
@@ -155,6 +207,88 @@ test("applyContactSyncPreview ignora filas informativas sin cambios al calcular 
   assert.equal(result.appliedCount, 0);
   assert.equal(result.pendingCount, 0);
   assert.deepEqual(applied, []);
+});
+
+test("applyContactSyncPreview distingue aplicados y fallidos en seleccion parcial", async () => {
+  const failingChange: SyncPreviewChange = {
+    ...baseChange,
+    id: "google:modified:contact-2:people/2",
+    metadata: {
+      appContactId: "contact-2",
+      externalId: "people/2"
+    },
+    title: "Contacto con falla"
+  };
+
+  const result = await applyContactSyncPreview(
+    {
+      changes: [baseChange, failingChange],
+      cursorAfter: "cursor-nuevo",
+      provider: "google",
+      totalPreviewChanges: 2
+    },
+    {
+      applyChange: async (change) => {
+        if (change.id === failingChange.id) throw new Error("falla controlada");
+        return "contact-1";
+      },
+      assertStorageReady: async () => undefined,
+      completeInvocation: async () => undefined,
+      createInvocation: async () => "invocation-1",
+      failInvocation: async () => undefined,
+      getUserId: async () => "user-1",
+      saveCursor: async () => undefined
+    }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.appliedCount, 1);
+  assert.equal(result.failedCount, 1);
+  assert.deepEqual(result.appliedChangeIds, [baseChange.id]);
+  assert.deepEqual(result.failedChangeIds, [failingChange.id]);
+});
+
+test("applyContactSyncPreview registra detalle de errores no Error desde Supabase", async () => {
+  const duplicateComplexChange: SyncPreviewChange = {
+    defaultSelected: true,
+    fields: [{ after: "anamaria@example.com", changed: true, label: "Correo" }],
+    id: "google:duplicate_complex:people/anamaria",
+    metadata: {
+      externalId: "people/anamaria"
+    },
+    title: "Anamaria",
+    type: "duplicate_complex"
+  };
+
+  const result = await applyContactSyncPreview(
+    {
+      changes: [duplicateComplexChange],
+      provider: "google",
+      totalPreviewChanges: 1
+    },
+    {
+      applyChange: async () => {
+        throw {
+          code: "23505",
+          details: "Key (user_id, contact_id, normalized_email) already exists.",
+          message: "duplicate key value violates unique constraint"
+        };
+      },
+      assertStorageReady: async () => undefined,
+      completeInvocation: async () => undefined,
+      createInvocation: async () => "invocation-1",
+      failInvocation: async () => undefined,
+      getUserId: async () => "user-1",
+      saveCursor: async () => undefined
+    }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].externalId, "people/anamaria");
+  assert.equal(result.errors[0].objectId, "people/anamaria");
+  assert.match(result.errors[0].message, /duplicate key value/);
+  assert.match(result.errors[0].message, /normalized_email/);
+  assert.match(result.errors[0].message, /23505/);
 });
 
 test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fusion profunda", () => {
@@ -196,7 +330,7 @@ test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fus
           focus: false,
           headhunter: false,
           id: "people/1",
-          kind: "Importado",
+          kind: "Fuente conectada",
           name: "Alberto V",
           networkingStatus: "Pendiente",
           phones: ["+56228371378"],
@@ -212,4 +346,27 @@ test("contactAppMergePlanFromPreviewChange detecta contactos app origen para fus
 
   assert.deepEqual(plan.sourceContactIds, ["contact-source"]);
   assert.equal(plan.sources.length, 3);
+});
+
+test("contactIdentityValuesForCreate deriva correos y telefonos antes de crear contacto", () => {
+  const change: SyncPreviewChange = {
+    defaultSelected: true,
+    fields: [
+      { after: "ANA@EXAMPLE.COM", changed: true, label: "Correo", operation: "add" },
+      { after: "ana@example.com", changed: true, label: "Correo", operation: "add" },
+      { after: "+56 9 7139 3328", changed: true, label: "Telefono", operation: "add" },
+      { after: "+56 9 7139 3328", changed: true, label: "Telefono", operation: "add" },
+      { after: "No aplica", apply: false, changed: true, label: "Correo", operation: "add" },
+      { before: "old@example.com", changed: true, label: "Correo", operation: "remove" }
+    ],
+    id: "google:duplicate_complex:people/ana",
+    metadata: { externalId: "people/ana" },
+    title: "Ana Maria",
+    type: "duplicate_complex"
+  };
+
+  assert.deepEqual(contactIdentityValuesForCreate(change), {
+    emails: ["ana@example.com"],
+    phones: ["+56971393328"]
+  });
 });

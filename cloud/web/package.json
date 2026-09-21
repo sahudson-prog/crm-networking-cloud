@@ -2,6 +2,9 @@
   "name": "crm-networking-cloud-web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,8 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test:kpis": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/kpiCalculations.test.ts",
     "test:rules": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/coachRuleEngine.test.ts",
+    "test:headhunter-master": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/headhunterCompanyMaster.test.ts",
+    "test:logs": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/syncRunLog.test.ts tests/externalInteractionReadDiagnostics.test.ts",
     "test:google-adapter": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/googleInteractionAdapter.test.ts tests/googleInteractionClient.test.ts tests/googleInteractionSyncFlow.test.ts tests/googleContactAdapter.test.ts tests/googleContactsClient.test.ts",
-    "test:sync": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/syncOrchestrator.test.ts tests/contactSyncPreview.test.ts tests/phoneIdentity.test.ts tests/syncCursorStore.test.ts tests/googleContactSyncFlow.test.ts tests/contactSyncApply.test.ts tests/contactMerge.test.ts tests/contactDuplicateReview.test.ts"
+    "test:sync": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/syncOrchestrator.test.ts tests/contactSyncPreview.test.ts tests/phoneIdentity.test.ts tests/syncCursorStore.test.ts tests/googleContactSyncFlow.test.ts tests/googleInteractionAdapter.test.ts tests/googleInteractionClient.test.ts tests/googleInteractionSyncFlow.test.ts tests/contactSyncApply.test.ts tests/contactMerge.test.ts tests/contactDuplicateReview.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

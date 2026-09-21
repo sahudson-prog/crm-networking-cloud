@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Button } from "./ui/Button";
 
 type ImportBatch = {
   id: string;
@@ -48,11 +47,11 @@ export function SystemReadiness() {
         </div>
         <div className="compact-row">
           <strong>App</strong>
-          <span>Modo beta espejo. Contactos ya puede probar sync Google con confirmacion previa.</span>
+          <span>Version cloud beta. Contactos ya puede probar sync Google con confirmacion previa.</span>
         </div>
         <div className="compact-row">
           <strong>Costos</strong>
-          <span>Sin procesos automaticos ni llamadas a IA. Solo lectura manual desde la web.</span>
+          <span>Operaciones controladas desde la aplicacion web.</span>
         </div>
       </div>
       <div className="toolbar" style={{ marginTop: 14 }}>
@@ -62,10 +61,15 @@ export function SystemReadiness() {
         <Link className="button" href="/cuenta">
           Cuenta y conexiones
         </Link>
-        <Button icon="settings" square aria-label="Configuracion futura" />
+        <Link className="button" href="/sistema/mantencion">
+          Mantencion admin
+        </Link>
+        <Link className="button" href="/sistema/logs">
+          Logs
+        </Link>
       </div>
-      {error ? <p className="meta">Error leyendo imports: {error}</p> : null}
-      <h3 className="panel-title" style={{ marginTop: 18 }}>Ultimos imports</h3>
+      {error ? <p className="meta">Error leyendo cargas: {error}</p> : null}
+      <h3 className="panel-title" style={{ marginTop: 18 }}>Ultimas cargas</h3>
       <div className="compact-list" style={{ marginTop: 10 }}>
         {batches.length ? (
           batches.map((batch) => (
@@ -75,7 +79,7 @@ export function SystemReadiness() {
             </div>
           ))
         ) : (
-          <span className="empty">Aun no aparecen imports para esta sesion.</span>
+          <span className="empty">Aun no aparecen cargas para esta sesion.</span>
         )}
       </div>
     </section>

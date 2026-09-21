@@ -2,15 +2,28 @@
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { readAllActiveContacts, readContactProfile } from "../lib/cloudData";
-import type { ContactProfileData, ContactRow } from "../lib/readModel";
+import { readContactListRows, readContactProfile } from "../lib/cloudData";
+import type { ContactListRow, ContactProfileData } from "../lib/readModel";
 import { ContactProfile } from "./ContactProfile";
 import { ContactTable } from "./ContactTable";
+
+async function retryOnce<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (firstError) {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    try {
+      return await read();
+    } catch {
+      throw firstError;
+    }
+  }
+}
 
 export function ReadOnlyContacts() {
   const searchParams = useSearchParams();
   const contactId = searchParams.get("contactId") ?? "";
-  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [contacts, setContacts] = useState<ContactListRow[]>([]);
   const [profile, setProfile] = useState<ContactProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,6 +34,11 @@ export function ReadOnlyContacts() {
     setProfile(data);
   }, [contactId]);
 
+  const loadContacts = useCallback(async () => {
+    const data = await readContactListRows();
+    setContacts(data);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -29,10 +47,10 @@ export function ReadOnlyContacts() {
       setError("");
       try {
         if (contactId) {
-          const data = await readContactProfile(contactId);
+          const data = await retryOnce(() => readContactProfile(contactId));
           if (!cancelled) setProfile(data);
         } else {
-          const data = await readAllActiveContacts();
+          const data = await retryOnce(readContactListRows);
           if (!cancelled) setContacts(data);
         }
       } catch (loadError) {
@@ -57,5 +75,5 @@ export function ReadOnlyContacts() {
     return <ContactProfile profile={profile} onReload={loadProfile} />;
   }
 
-  return <ContactTable contacts={contacts} />;
+  return <ContactTable contacts={contacts} onReload={loadContacts} />;
 }

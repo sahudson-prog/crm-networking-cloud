@@ -1,7 +1,7 @@
-import type { MirrorSummary } from "../lib/readModel";
+import type { AppSummary } from "../lib/readModel";
 import { MetricCard } from "./ui/MetricCard";
 
-export function Metrics({ summary }: { summary: MirrorSummary }) {
+export function Metrics({ summary }: { summary: AppSummary }) {
   const items = [
     { label: "Contactos", value: summary.contacts, icon: "users" },
     { label: "En foco", value: summary.focusContacts, icon: "target" },

@@ -1,6 +1,6 @@
 -- CRM Networking cloud schema v0.1
 -- Target: Supabase/Postgres development project.
--- Purpose: empty schema for the first cloud mirror import.
+-- Purpose: empty schema for the cloud app with provider connectors.
 -- This script is designed to be safe to rerun in a dev database.
 -- Do not run on production without a migration review and backups.
 
@@ -65,8 +65,6 @@ create table if not exists public.connected_accounts (
 create table if not exists public.contacts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  legacy_app_contact_id text,
-  legacy_google_id text,
   display_name text not null default '',
   company text not null default '',
   role text not null default '',
@@ -78,14 +76,12 @@ create table if not exists public.contacts (
       'Cita concretada',
       'Agradecimiento enviado'
     )),
-  networking_focus boolean not null default true,
+  networking_focus boolean not null default false,
   closeness_level text,
   is_headhunter boolean not null default false,
   headhunter_domains text[] not null default array[]::text[],
   is_active boolean not null default true,
   sync_status text,
-  legacy_milestones jsonb not null default '{}'::jsonb,
-  legacy_notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -99,6 +95,27 @@ create table if not exists public.external_contact_ids (
   external_id text not null,
   is_active boolean not null default true,
   last_seen_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.external_contact_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  connected_account_id uuid references public.connected_accounts(id) on delete set null,
+  provider text not null,
+  external_id text not null,
+  display_name text not null default '',
+  company text not null default '',
+  role text not null default '',
+  emails jsonb not null default '[]'::jsonb,
+  phones jsonb not null default '[]'::jsonb,
+  birthdays jsonb not null default '[]'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  content_hash text,
+  is_deleted boolean not null default false,
+  last_seen_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -111,7 +128,7 @@ create table if not exists public.contact_emails (
   normalized_email text not null,
   domain text,
   is_primary boolean not null default false,
-  source text not null default 'import',
+  source text not null default 'app',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -124,15 +141,40 @@ create table if not exists public.contact_phones (
   normalized_phone text not null,
   normalized_phone_last8 text,
   is_primary boolean not null default false,
-  source text not null default 'import',
+  source text not null default 'app',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.headhunter_companies (
+  id uuid primary key default gen_random_uuid(),
+  display_name text not null,
+  normalized_name text not null,
+  notes text not null default '',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint headhunter_companies_display_name_not_blank check (btrim(display_name) <> ''),
+  constraint headhunter_companies_normalized_name_not_blank check (btrim(normalized_name) <> '')
+);
+
+create table if not exists public.headhunter_company_domains (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.headhunter_companies(id) on delete cascade,
+  domain text not null,
+  normalized_domain text not null,
+  is_primary boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint headhunter_company_domains_domain_not_blank check (btrim(domain) <> ''),
+  constraint headhunter_company_domains_normalized_domain_not_blank check (btrim(normalized_domain) <> ''),
+  constraint headhunter_company_domains_domain_shape check (position('@' in normalized_domain) = 1)
 );
 
 create table if not exists public.interactions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  legacy_entry_id text,
   provider text,
   provider_event_id text,
   provider_thread_id text,
@@ -188,10 +230,30 @@ create table if not exists public.external_interaction_sources (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.external_interaction_read_diagnostics (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  provider text not null,
+  source_service text not null,
+  external_id text not null,
+  occurred_at timestamptz,
+  subject text not null default '',
+  participant_emails text[] not null default array[]::text[],
+  matched_emails text[] not null default array[]::text[],
+  mapped_contact_ids uuid[] not null default array[]::uuid[],
+  candidate_status text not null
+    check (candidate_status in ('candidate', 'not_mapped', 'filtered_out')),
+  exclusion_reason text not null default '',
+  read_context jsonb not null default '{}'::jsonb,
+  raw_payload jsonb not null default '{}'::jsonb,
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.referrals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  legacy_referral_id text,
   referred_by_contact_id uuid not null references public.contacts(id) on delete cascade,
   linked_contact_id uuid references public.contacts(id) on delete set null,
   referred_name text not null default '',
@@ -227,7 +289,6 @@ create table if not exists public.todo_configs (
 create table if not exists public.todos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  legacy_todo_id text,
   todo_type text not null,
   engine_type text not null
     check (engine_type in ('RULE', 'HYBRID', 'AI')),
@@ -349,6 +410,23 @@ create table if not exists public.usage_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.sync_run_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  run_id uuid not null default gen_random_uuid(),
+  provider text not null,
+  resource_type text not null,
+  operation text not null,
+  scope_label text,
+  step_order integer not null default 0,
+  step text not null,
+  status text not null default 'info'
+    check (status in ('info', 'running', 'success', 'warning', 'error')),
+  detail text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.audit_log (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -376,32 +454,23 @@ create unique index if not exists uq_user_settings_user_key
   on public.user_settings(user_id, setting_key);
 create unique index if not exists uq_service_connectors_provider_service
   on public.service_connectors(provider, service_type);
-create unique index if not exists uq_contacts_legacy_app_contact_id
-  on public.contacts(user_id, legacy_app_contact_id)
-  where legacy_app_contact_id is not null and legacy_app_contact_id <> '';
-create unique index if not exists uq_contacts_legacy_google_id
-  on public.contacts(user_id, legacy_google_id)
-  where legacy_google_id is not null and legacy_google_id <> '';
 create unique index if not exists uq_external_contact_ids_provider_external
   on public.external_contact_ids(user_id, provider, external_id);
-create unique index if not exists uq_contact_emails_user_normalized
-  on public.contact_emails(user_id, normalized_email);
-create unique index if not exists uq_contact_phones_user_normalized
-  on public.contact_phones(user_id, normalized_phone);
-create unique index if not exists uq_interactions_legacy_entry_id
-  on public.interactions(user_id, legacy_entry_id)
-  where legacy_entry_id is not null and legacy_entry_id <> '';
+create unique index if not exists uq_external_contact_snapshots_provider_external
+  on public.external_contact_snapshots(user_id, provider, external_id);
+drop index if exists public.uq_contact_emails_user_normalized;
+drop index if exists public.uq_contact_phones_user_normalized;
+create unique index if not exists uq_contact_emails_contact_normalized
+  on public.contact_emails(user_id, contact_id, normalized_email);
+create unique index if not exists uq_contact_phones_contact_normalized
+  on public.contact_phones(user_id, contact_id, normalized_phone);
 create unique index if not exists uq_external_interaction_sources_provider_external
   on public.external_interaction_sources(user_id, provider, source_service, external_id)
   where is_active = true;
-create unique index if not exists uq_referrals_legacy_referral_id
-  on public.referrals(user_id, legacy_referral_id)
-  where legacy_referral_id is not null and legacy_referral_id <> '';
+create unique index if not exists uq_external_interaction_read_diag_provider_external
+  on public.external_interaction_read_diagnostics(user_id, provider, source_service, external_id);
 create unique index if not exists uq_todo_configs_user_type
   on public.todo_configs(user_id, todo_type);
-create unique index if not exists uq_todos_legacy_todo_id
-  on public.todos(user_id, legacy_todo_id)
-  where legacy_todo_id is not null and legacy_todo_id <> '';
 create unique index if not exists uq_todos_dedup_key
   on public.todos(user_id, dedup_key)
   where dedup_key is not null and dedup_key <> '';
@@ -431,6 +500,17 @@ create index if not exists idx_contact_phones_user_contact
 create index if not exists idx_contact_phones_user_last8
   on public.contact_phones(user_id, normalized_phone_last8)
   where normalized_phone_last8 is not null and normalized_phone_last8 <> '';
+create unique index if not exists uq_headhunter_companies_name_active
+  on public.headhunter_companies(normalized_name)
+  where is_active = true;
+create unique index if not exists uq_headhunter_company_domains_domain_active
+  on public.headhunter_company_domains(normalized_domain)
+  where is_active = true;
+create index if not exists idx_headhunter_company_domains_company
+  on public.headhunter_company_domains(company_id)
+  where is_active = true;
+create index if not exists idx_external_contact_snapshots_user_provider
+  on public.external_contact_snapshots(user_id, provider);
 create index if not exists idx_interactions_user_occurred
   on public.interactions(user_id, occurred_at desc);
 create index if not exists idx_interactions_user_active_occurred
@@ -450,6 +530,10 @@ create index if not exists idx_external_interaction_sources_thread
 create index if not exists idx_external_interaction_sources_prevent_reimport
   on public.external_interaction_sources(user_id, prevent_reimport)
   where prevent_reimport = true;
+create index if not exists idx_external_interaction_read_diag_user_service_date
+  on public.external_interaction_read_diagnostics(user_id, provider, source_service, occurred_at);
+create index if not exists idx_external_interaction_read_diag_status
+  on public.external_interaction_read_diagnostics(user_id, provider, source_service, candidate_status);
 create index if not exists idx_referrals_user_referred_by
   on public.referrals(user_id, referred_by_contact_id);
 create index if not exists idx_referrals_user_linked
@@ -458,6 +542,10 @@ create index if not exists idx_todos_user_status
   on public.todos(user_id, status);
 create index if not exists idx_usage_events_user_created
   on public.usage_events(user_id, created_at desc);
+create index if not exists idx_sync_run_logs_user_created
+  on public.sync_run_logs(user_id, created_at desc);
+create index if not exists idx_sync_run_logs_user_run
+  on public.sync_run_logs(user_id, run_id, step_order);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
@@ -489,6 +577,11 @@ create trigger set_external_contact_ids_updated_at
 before update on public.external_contact_ids
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_external_contact_snapshots_updated_at on public.external_contact_snapshots;
+create trigger set_external_contact_snapshots_updated_at
+before update on public.external_contact_snapshots
+for each row execute function public.set_updated_at();
+
 drop trigger if exists set_contact_emails_updated_at on public.contact_emails;
 create trigger set_contact_emails_updated_at
 before update on public.contact_emails
@@ -499,6 +592,16 @@ create trigger set_contact_phones_updated_at
 before update on public.contact_phones
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_headhunter_companies_updated_at on public.headhunter_companies;
+create trigger set_headhunter_companies_updated_at
+before update on public.headhunter_companies
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_headhunter_company_domains_updated_at on public.headhunter_company_domains;
+create trigger set_headhunter_company_domains_updated_at
+before update on public.headhunter_company_domains
+for each row execute function public.set_updated_at();
+
 drop trigger if exists set_interactions_updated_at on public.interactions;
 create trigger set_interactions_updated_at
 before update on public.interactions
@@ -507,6 +610,11 @@ for each row execute function public.set_updated_at();
 drop trigger if exists set_external_interaction_sources_updated_at on public.external_interaction_sources;
 create trigger set_external_interaction_sources_updated_at
 before update on public.external_interaction_sources
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_external_interaction_read_diagnostics_updated_at on public.external_interaction_read_diagnostics;
+create trigger set_external_interaction_read_diagnostics_updated_at
+before update on public.external_interaction_read_diagnostics
 for each row execute function public.set_updated_at();
 
 drop trigger if exists set_referrals_updated_at on public.referrals;
@@ -560,11 +668,15 @@ alter table public.service_connectors enable row level security;
 alter table public.connected_accounts enable row level security;
 alter table public.contacts enable row level security;
 alter table public.external_contact_ids enable row level security;
+alter table public.external_contact_snapshots enable row level security;
 alter table public.contact_emails enable row level security;
 alter table public.contact_phones enable row level security;
+alter table public.headhunter_companies enable row level security;
+alter table public.headhunter_company_domains enable row level security;
 alter table public.interactions enable row level security;
 alter table public.interaction_participants enable row level security;
 alter table public.external_interaction_sources enable row level security;
+alter table public.external_interaction_read_diagnostics enable row level security;
 alter table public.referrals enable row level security;
 alter table public.todo_configs enable row level security;
 alter table public.todos enable row level security;
@@ -575,6 +687,7 @@ alter table public.import_batches enable row level security;
 alter table public.data_exports enable row level security;
 alter table public.usage_limits enable row level security;
 alter table public.usage_events enable row level security;
+alter table public.sync_run_logs enable row level security;
 alter table public.audit_log enable row level security;
 alter table public.metric_snapshots enable row level security;
 
@@ -619,6 +732,13 @@ for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+drop policy if exists "External contact snapshots are owned by user" on public.external_contact_snapshots;
+create policy "External contact snapshots are owned by user"
+on public.external_contact_snapshots
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 drop policy if exists "Contact emails are owned by user" on public.contact_emails;
 create policy "Contact emails are owned by user"
 on public.contact_emails
@@ -632,6 +752,26 @@ on public.contact_phones
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+drop policy if exists "Headhunter companies are owned by user" on public.headhunter_companies;
+drop policy if exists "Headhunter companies are globally readable" on public.headhunter_companies;
+drop policy if exists "Headhunter companies are manageable in beta" on public.headhunter_companies;
+drop policy if exists "Headhunter companies are admin writable" on public.headhunter_companies;
+create policy "Headhunter companies are globally readable"
+on public.headhunter_companies
+for select
+to authenticated
+using (is_active = true);
+
+drop policy if exists "Headhunter company domains are owned by user" on public.headhunter_company_domains;
+drop policy if exists "Headhunter company domains are globally readable" on public.headhunter_company_domains;
+drop policy if exists "Headhunter company domains are manageable in beta" on public.headhunter_company_domains;
+drop policy if exists "Headhunter company domains are admin writable" on public.headhunter_company_domains;
+create policy "Headhunter company domains are globally readable"
+on public.headhunter_company_domains
+for select
+to authenticated
+using (is_active = true);
 
 drop policy if exists "Interactions are owned by user" on public.interactions;
 create policy "Interactions are owned by user"
@@ -650,6 +790,13 @@ with check (auth.uid() = user_id);
 drop policy if exists "External interaction sources are owned by user" on public.external_interaction_sources;
 create policy "External interaction sources are owned by user"
 on public.external_interaction_sources
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "External interaction read diagnostics are owned by user" on public.external_interaction_read_diagnostics;
+create policy "External interaction read diagnostics are owned by user"
+on public.external_interaction_read_diagnostics
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
@@ -724,6 +871,13 @@ for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+drop policy if exists "Sync run logs are owned by user" on public.sync_run_logs;
+create policy "Sync run logs are owned by user"
+on public.sync_run_logs
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 drop policy if exists "Audit log is owned by user" on public.audit_log;
 create policy "Audit log is owned by user"
 on public.audit_log
@@ -737,3 +891,81 @@ on public.metric_snapshots
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+create or replace function public.validate_contact_sync_storage_v0_1()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  missing_or_stale text[] := array[]::text[];
+begin
+  if to_regclass('public.external_contact_snapshots') is null then
+    missing_or_stale := array_append(missing_or_stale, 'external_contact_snapshots table');
+  end if;
+
+  if to_regclass('public.uq_external_contact_snapshots_provider_external') is null then
+    missing_or_stale := array_append(missing_or_stale, 'external contact snapshot unique index');
+  end if;
+
+  if to_regclass('public.uq_contact_emails_contact_normalized') is null then
+    missing_or_stale := array_append(missing_or_stale, 'contact email per-contact unique index');
+  end if;
+
+  if to_regclass('public.uq_contact_phones_contact_normalized') is null then
+    missing_or_stale := array_append(missing_or_stale, 'contact phone per-contact unique index');
+  end if;
+
+  if to_regclass('public.uq_contact_emails_user_normalized') is not null then
+    missing_or_stale := array_append(missing_or_stale, 'old global email unique index still exists');
+  end if;
+
+  if to_regclass('public.uq_contact_phones_user_normalized') is not null then
+    missing_or_stale := array_append(missing_or_stale, 'old global phone unique index still exists');
+  end if;
+
+  if array_length(missing_or_stale, 1) is not null then
+    raise exception 'CONTACT_SYNC_STORAGE_NOT_READY: %', array_to_string(missing_or_stale, ', ');
+  end if;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.validate_contact_sync_storage_v0_1() to authenticated;
+
+create or replace function public.validate_headhunter_company_master_v0_1()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  missing_or_stale text[] := array[]::text[];
+begin
+  if to_regclass('public.headhunter_companies') is null then
+    missing_or_stale := array_append(missing_or_stale, 'headhunter_companies table');
+  end if;
+
+  if to_regclass('public.headhunter_company_domains') is null then
+    missing_or_stale := array_append(missing_or_stale, 'headhunter_company_domains table');
+  end if;
+
+  if to_regclass('public.uq_headhunter_companies_name_active') is null then
+    missing_or_stale := array_append(missing_or_stale, 'headhunter company name unique index');
+  end if;
+
+  if to_regclass('public.uq_headhunter_company_domains_domain_active') is null then
+    missing_or_stale := array_append(missing_or_stale, 'headhunter company domain unique index');
+  end if;
+
+  if array_length(missing_or_stale, 1) is not null then
+    raise exception 'HEADHUNTER_COMPANY_MASTER_NOT_READY: %', array_to_string(missing_or_stale, ', ');
+  end if;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.validate_headhunter_company_master_v0_1() to authenticated;

@@ -3,7 +3,7 @@ import { phoneIdentitiesFor } from "./phoneIdentity.ts";
 import type { ContactRow } from "./readModel.ts";
 import type { ExternalContactInput, SyncPreviewChange } from "./syncOrchestrator.ts";
 
-export type ContactMergeSourceKind = "Guardado" | "Importado";
+export type ContactMergeSourceKind = "Guardado" | "Fuente conectada";
 
 export type ContactMergeSource = {
   id: string;
@@ -52,7 +52,7 @@ export function contactRowToMergeSource(contact: ContactRow, kind: ContactMergeS
   };
 }
 
-export function externalContactToMergeSource(contact: ExternalContactInput, kind: ContactMergeSourceKind = "Importado"): ContactMergeSource {
+export function externalContactToMergeSource(contact: ExternalContactInput, kind: ContactMergeSourceKind = "Fuente conectada"): ContactMergeSource {
   return {
     company: cleanContactCompany(contact.company),
     emails: uniqueEmails(contact.emails ?? []),
@@ -68,7 +68,7 @@ export function externalContactToMergeSource(contact: ExternalContactInput, kind
 }
 
 export function defaultContactMergeResult(sources: ContactMergeSource[]): ContactMergeResult {
-  const identity = sources.find((source) => source.kind === "Guardado") ?? sources[0];
+  const identity = sources.find((source) => source.kind === "Guardado") ?? richestSource(sources);
   return {
     company: cleanContactCompany(identity?.company) || firstClean(sources.map((source) => cleanContactCompany(source.company))),
     emails: uniqueEmails(sources.flatMap((source) => source.emails)),
@@ -148,4 +148,24 @@ export function uniquePhones(values: string[]) {
 
 function firstClean(values: string[]) {
   return values.find((value) => value.trim()) ?? "";
+}
+
+function richestSource(sources: ContactMergeSource[]) {
+  return [...sources].sort((first, second) => sourceScore(second) - sourceScore(first))[0] ?? sources[0];
+}
+
+function sourceScore(source: ContactMergeSource) {
+  return (hasUsefulName(source) ? 5 : 0)
+    + (cleanContactCompany(source.company) ? 3 : 0)
+    + (cleanContactRole(source.role) ? 3 : 0)
+    + source.emails.length * 2
+    + source.phones.length * 2;
+}
+
+function hasUsefulName(source: ContactMergeSource) {
+  const name = source.name.trim().toLowerCase();
+  if (!name || name === "sin nombre") return false;
+  if (source.emails.map((email) => email.toLowerCase()).includes(name)) return false;
+  if (source.phones.map((phone) => phone.replace(/\D/g, "")).includes(name.replace(/\D/g, ""))) return false;
+  return true;
 }

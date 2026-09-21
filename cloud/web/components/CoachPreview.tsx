@@ -29,6 +29,7 @@ type CoachModuleProps = {
   botSize?: "normal" | "mini";
   maxVisible?: number;
   interactions?: InteractionRow[];
+  showIndividualSuggestions?: boolean;
   onExecuted?: () => void;
 };
 
@@ -44,10 +45,11 @@ export function CoachModule({
   botSize = "normal",
   maxVisible = 4,
   interactions = [],
+  showIndividualSuggestions: controlledShowIndividualSuggestions,
   onExecuted
 }: CoachModuleProps) {
   const visibleTodos = useMemo(
-    () => (contactId ? todos.filter((todo) => todo.object_id === contactId) : todos),
+    () => sortTodosByDate(contactId ? todos.filter((todo) => todo.object_id === contactId) : todos),
     [contactId, todos]
   );
   const count = contactId ? visibleTodos.length : total;
@@ -57,10 +59,15 @@ export function CoachModule({
   const [configOpen, setConfigOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [uncontrolledShowIndividualSuggestions, setUncontrolledShowIndividualSuggestions] = useState(Boolean(contactId));
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const showIndividualSuggestions = controlledShowIndividualSuggestions ?? uncontrolledShowIndividualSuggestions;
   const selectedTodos = useMemo(
     () => visibleTodos.filter((todo) => selectedIds.has(todo.id)),
     [selectedIds, visibleTodos]
   );
+  const groupedTodos = useMemo(() => groupCoachTodos(visibleTodos), [visibleTodos]);
+  const shouldGroupSuggestions = !contactId && !showIndividualSuggestions && groupedTodos.length > 0;
 
   useEffect(() => {
     setSelectedIds((previous) => {
@@ -69,11 +76,45 @@ export function CoachModule({
     });
   }, [visibleTodos]);
 
+  useEffect(() => {
+    if (controlledShowIndividualSuggestions === undefined) {
+      setUncontrolledShowIndividualSuggestions(Boolean(contactId));
+    }
+  }, [contactId, controlledShowIndividualSuggestions]);
+
+  useEffect(() => {
+    setExpandedGroupIds((previous) => {
+      const groupIds = new Set(groupedTodos.map((group) => group.id));
+      return new Set(Array.from(previous).filter((id) => groupIds.has(id)));
+    });
+  }, [groupedTodos]);
+
   function toggleTodo(todoId: string) {
     setSelectedIds((previous) => {
       const next = new Set(previous);
       if (next.has(todoId)) next.delete(todoId);
       else next.add(todoId);
+      return next;
+    });
+  }
+
+  function toggleTodos(todoIds: string[]) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      const allSelected = todoIds.every((todoId) => next.has(todoId));
+      for (const todoId of todoIds) {
+        if (allSelected) next.delete(todoId);
+        else next.add(todoId);
+      }
+      return next;
+    });
+  }
+
+  function toggleGroup(groupId: string) {
+    setExpandedGroupIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   }
@@ -172,15 +213,31 @@ export function CoachModule({
 
       <div className="coach-chat-scroll" style={{ ["--coach-visible" as string]: maxVisible }}>
         {visibleTodos.length ? (
-          visibleTodos.map((todo) => (
-            <CoachMessage
-              checked={selectedIds.has(todo.id)}
-              key={todo.id}
-              onToggle={() => toggleTodo(todo.id)}
-              todo={todo}
-              interactionsByEvidenceId={interactionsByEvidenceId}
-            />
-          ))
+          shouldGroupSuggestions ? (
+            groupedTodos.map((group) => (
+              <CoachGroupSection
+                checked={group.todos.every((todo) => selectedIds.has(todo.id))}
+                expanded={expandedGroupIds.has(group.id)}
+                key={group.id}
+                group={group}
+                interactionsByEvidenceId={interactionsByEvidenceId}
+                onGroupToggle={() => toggleGroup(group.id)}
+                onToggle={() => toggleTodos(group.todos.map((todo) => todo.id))}
+                selectedIds={selectedIds}
+                onTodoToggle={toggleTodo}
+              />
+            ))
+          ) : (
+            visibleTodos.map((todo) => (
+              <CoachMessage
+                checked={selectedIds.has(todo.id)}
+                key={todo.id}
+                onToggle={() => toggleTodo(todo.id)}
+                todo={todo}
+                interactionsByEvidenceId={interactionsByEvidenceId}
+              />
+            ))
+          )
         ) : (
           <details className="coach-message">
             <summary>
@@ -206,6 +263,45 @@ export function CoachModule({
       <CoachActionLogDialog open={logOpen} contactId={contactId} onClose={() => setLogOpen(false)} />
     </section>
   );
+}
+
+type CoachTodoGroup = {
+  id: string;
+  todos: TodoRow[];
+  todoType: string;
+  currentStatus: string;
+  suggestedStatus: string;
+  suggestedCompany: string;
+};
+
+function groupCoachTodos(todos: TodoRow[]): CoachTodoGroup[] {
+  const groups = new Map<string, CoachTodoGroup>();
+  for (const todo of todos) {
+    const current = parseCoachState(todo.current_state);
+    const suggested = parseCoachState(todo.suggested_state);
+    const currentStatus = current.Estado_CRM ?? current.networking_status ?? "";
+    const suggestedStatus = suggested.Estado_CRM ?? suggested.networking_status ?? "";
+    const suggestedCompany = suggested.Empresa ?? suggested.company ?? "";
+    const id = groupIdForTodo(todo.todo_type, suggestedStatus);
+    const existing = groups.get(id);
+    if (existing) {
+      existing.todos.push(todo);
+    } else {
+      groups.set(id, {
+        id,
+        todos: [todo],
+        todoType: todo.todo_type,
+        currentStatus,
+        suggestedStatus,
+        suggestedCompany
+      });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    const byDate = todoTime(b.todos[0]) - todoTime(a.todos[0]);
+    if (byDate) return byDate;
+    return a.todoType.localeCompare(b.todoType, "es");
+  });
 }
 
 function CoachMascot({ size }: { size: "normal" | "mini" }) {
@@ -249,7 +345,9 @@ function CoachMessage({
   const evidence = parseCoachEvidence(todo.evidence);
   const currentStatus = current.Estado_CRM ?? current.networking_status ?? "";
   const suggestedStatus = suggested.Estado_CRM ?? suggested.networking_status ?? "";
+  const suggestedCompany = suggested.Empresa ?? suggested.company ?? "";
   const hasStatusChange = Boolean(currentStatus || suggestedStatus);
+  const isHeadhunterCompanyTodo = todo.todo_type === "HEADHUNTER_COMPANY_DETECTED" && suggestedCompany;
   const evidenceInteraction = findEvidenceInteraction(evidence, interactionsByEvidenceId);
   const summary = buildCoachSummary(todo, currentStatus, suggestedStatus);
   const detail = buildCoachDetail(todo, evidence, evidenceInteraction);
@@ -266,6 +364,11 @@ function CoachMessage({
                 {summary.prefix} <strong className="coach-contact-name">{summaryName}</strong> de{" "}
                 <CoachState value={currentStatus || "sin estado"} /> a{" "}
                 <CoachState value={suggestedStatus || "sin estado"} />.
+              </>
+            ) : isHeadhunterCompanyTodo ? (
+              <>
+                Registra a <strong className="coach-contact-name">{summaryName}</strong> como headhunter, en{" "}
+                <strong className="coach-contact-name">{suggestedCompany}</strong>.
               </>
             ) : (
               summary.prefix
@@ -295,6 +398,91 @@ function CoachMessage({
   );
 }
 
+function CoachGroupSection({
+  checked,
+  expanded,
+  group,
+  interactionsByEvidenceId,
+  onGroupToggle,
+  onTodoToggle,
+  selectedIds,
+  onToggle
+}: {
+  checked: boolean;
+  expanded: boolean;
+  group: CoachTodoGroup;
+  interactionsByEvidenceId: Map<string, InteractionRow>;
+  onGroupToggle: () => void;
+  onTodoToggle: (todoId: string) => void;
+  selectedIds: Set<string>;
+  onToggle: () => void;
+}) {
+  const count = group.todos.length;
+  const noun = count === 1 ? "contacto" : "contactos";
+
+  return (
+    <div className="coach-group-section">
+      <div className={`coach-group-title-row ${expanded ? "expanded" : ""}`}>
+        <button className="coach-group-title" type="button" onClick={onGroupToggle}>
+          <span className="coach-message-text">
+            {group.currentStatus || group.suggestedStatus ? (
+              <>
+                Cambia el estado de <strong className="coach-contact-name">{count} {noun}</strong> a{" "}
+                <CoachState value={group.suggestedStatus || "sin estado"} />.
+              </>
+            ) : group.todoType === "HEADHUNTER_COMPANY_DETECTED" ? (
+              <>
+                Registra <strong className="coach-contact-name">{count} {noun}</strong> como headhunters.
+              </>
+            ) : (
+              <>
+                Revisa <strong className="coach-contact-name">{count} {noun}</strong> con sugerencias vigentes.
+              </>
+            )}
+          </span>
+        </button>
+        {!expanded ? (
+          <input
+            aria-label={`Seleccionar ${count} sugerencias agrupadas`}
+            checked={checked}
+            className="coach-message-check"
+            onChange={onToggle}
+            type="checkbox"
+          />
+        ) : null}
+      </div>
+      {expanded ? (
+        <div className="coach-group-messages">
+          {group.todos.map((todo) => (
+            <CoachMessage
+              checked={selectedIds.has(todo.id)}
+              key={todo.id}
+              onToggle={() => onTodoToggle(todo.id)}
+              todo={todo}
+              interactionsByEvidenceId={interactionsByEvidenceId}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CoachState({ value }: { value: string }) {
   return <span className={`coach-state ${statusClass(value)}`}>{value}</span>;
+}
+
+function groupIdForTodo(todoType: string, suggestedStatus: string) {
+  if (todoType === "NETWORKING_STATUS_CHANGE") return `${todoType}|${suggestedStatus}`;
+  if (todoType === "HEADHUNTER_COMPANY_DETECTED") return todoType;
+  return todoType;
+}
+
+function sortTodosByDate(todos: TodoRow[]) {
+  return [...todos].sort((a, b) => todoTime(b) - todoTime(a));
+}
+
+function todoTime(todo: Pick<TodoRow, "created_at">) {
+  const time = new Date(todo.created_at).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }

@@ -5,7 +5,8 @@ import {
   buildContactSyncPreview,
   changeKey,
   contactChangeKey,
-  deletedContactChangeKey
+  deletedContactChangeKey,
+  traceContactSyncPreviewBranches
 } from "../lib/contactSyncPreview.ts";
 import { syncContacts } from "../lib/syncOrchestrator.ts";
 import type { ContactRow } from "../lib/readModel.ts";
@@ -133,11 +134,11 @@ test("muestra nombre empresa y cargo distintos como no aplicados durante modific
   ]);
 });
 
-test("solo propone eliminar emails si eran conocidos como importados desde esa fuente", () => {
+test("solo propone eliminar emails si eran conocidos desde esa fuente", () => {
   const baseContact = contact({
     contact_emails: [
       { domain: "@empresa.cl", email: "manual@empresa.cl" },
-      { domain: "@empresa.cl", email: "importado@empresa.cl" }
+      { domain: "@empresa.cl", email: "proveedor@empresa.cl" }
     ],
     display_name: "Maria Solis",
     id: "contact-1"
@@ -155,14 +156,14 @@ test("solo propone eliminar emails si eran conocidos como importados desde esa f
     ],
     externalIdToContactId: { "people/1": "contact-1" },
     knownExternalValuesByContactId: {
-      "contact-1": [{ kind: "email", value: "importado@empresa.cl" }]
+      "contact-1": [{ kind: "email", value: "proveedor@empresa.cl" }]
     },
     provider: "google"
   });
 
   assert.equal(changes.length, 1);
   assert.deepEqual(changes[0].fields.map((field) => [field.operation, field.before, field.apply]), [
-    ["remove", "importado@empresa.cl", false]
+    ["remove", "proveedor@empresa.cl", false]
   ]);
 });
 
@@ -170,7 +171,7 @@ test("respeta cambios suprimidos para no volver a sugerirlos", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
-        contact_emails: [{ domain: "@empresa.cl", email: "importado@empresa.cl" }],
+        contact_emails: [{ domain: "@empresa.cl", email: "proveedor@empresa.cl" }],
         display_name: "Maria Solis",
         id: "contact-1"
       })
@@ -185,10 +186,10 @@ test("respeta cambios suprimidos para no volver a sugerirlos", () => {
     ],
     externalIdToContactId: { "people/1": "contact-1" },
     knownExternalValuesByContactId: {
-      "contact-1": [{ kind: "email", value: "importado@empresa.cl" }]
+      "contact-1": [{ kind: "email", value: "proveedor@empresa.cl" }]
     },
     provider: "google",
-    suppressedChangeKeys: [changeKey("email", "remove", "importado@empresa.cl")]
+    suppressedChangeKeys: [changeKey("email", "remove", "proveedor@empresa.cl")]
   });
 
   assert.equal(changes.length, 1);
@@ -257,7 +258,49 @@ test("respeta supresion de eliminacion completa de contacto", () => {
   assert.equal(changes.length, 0);
 });
 
-test("si el ID externo no esta enlazado pero coincide el correo, propone consolidacion y no contacto nuevo", () => {
+test("revision incremental no elimina contactos vinculados que no vienen en el lote", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        display_name: "Contacto fuera del lote incremental",
+        id: "contact-1"
+      })
+    ],
+    externalContacts: [],
+    externalIdToContactId: { "people/1": "contact-1" },
+    mode: "incremental",
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 0);
+});
+
+test("revision incremental elimina solo si Google marca el contacto como borrado", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        display_name: "Contacto borrado en Google",
+        id: "contact-1"
+      })
+    ],
+    externalContacts: [
+      {
+        displayName: "Contacto borrado en Google",
+        externalId: "people/1",
+        metadata: { google_deleted: true },
+        provider: "google"
+      }
+    ],
+    externalIdToContactId: { "people/1": "contact-1" },
+    mode: "incremental",
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].type, "deleted");
+});
+
+test("si el ID externo no esta enlazado, importa como nuevo aunque coincida correo", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -283,13 +326,13 @@ test("si el ID externo no esta enlazado pero coincide el correo, propone consoli
   });
 
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].type, "consolidation");
-  assert.equal(changes[0].metadata?.consolidationTargetContactId, "contact-jorge");
-  assert.equal(changes[0].fields.some((field) => field.label === "Correo" && field.operation === "match"), true);
-  assert.equal(changes[0].fields.some((field) => field.label === "Telefono" && field.operation === "match"), true);
+  assert.equal(changes[0].type, "new");
+  assert.equal(changes[0].metadata?.externalId, "people/current-jorge");
+  assert.equal(changes[0].fields.some((field) => field.label === "Correo" && field.after === "jorgekehdy@gmail.com"), true);
+  assert.equal(changes[0].fields.some((field) => field.label === "Telefono" && field.after === "56993333114"), true);
 });
 
-test("consolida en una sola linea varios objetos externos que apuntan al mismo contacto app", () => {
+test("importa dos contactos nuevos con distinto ID externo aunque compartan correo", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -317,14 +360,12 @@ test("consolida en una sola linea varios objetos externos que apuntan al mismo c
     provider: "google"
   });
 
-  assert.equal(changes.length, 1);
-  assert.equal(changes[0].type, "consolidation");
-  assert.deepEqual(changes[0].metadata?.externalIds, ["people/old-aaninat", "people/current-aaninat"]);
-  assert.equal(changes[0].fields.some((field) => field.label === "Nombre" && field.after === "Augusto Aninat"), false);
-  assert.equal(changes[0].fields.some((field) => field.label === "Telefono" && field.after === "56998247760"), true);
+  assert.equal(changes.length, 2);
+  assert.deepEqual(changes.map((change) => change.type), ["new", "new"]);
+  assert.deepEqual(changes.map((change) => change.metadata?.externalId), ["people/old-aaninat", "people/current-aaninat"]);
 });
 
-test("separa duplicados complejos cuando superan 3 contactos abordables en el editor", () => {
+test("no detecta duplicados complejos durante importacion inicial", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -365,14 +406,12 @@ test("separa duplicados complejos cuando superan 3 contactos abordables en el ed
 
   assert.equal(changes.length, 4);
   assert.deepEqual(changes.map((change) => change.type), [
-    "duplicate_complex",
-    "duplicate_complex",
-    "duplicate_complex",
-    "duplicate_complex"
+    "new",
+    "new",
+    "new",
+    "new"
   ]);
-  assert.equal(changes.every((change) => change.defaultSelected === false), true);
-  assert.equal(changes.every((change) => change.metadata?.duplicateGroupTotalCount === 5), true);
-  assert.equal(changes.every((change) => change.metadata?.duplicateGroupLabel === "aaninat@3di.cl"), true);
+  assert.equal(changes.every((change) => change.defaultSelected === true), true);
   assert.deepEqual(changes.map((change) => change.metadata?.externalId), [
     "people/aaninat-1",
     "people/aaninat-2",
@@ -381,7 +420,7 @@ test("separa duplicados complejos cuando superan 3 contactos abordables en el ed
   ]);
 });
 
-test("en duplicados complejos solo importa candidatos no enlazados y deja los ya guardados para revision local", () => {
+test("si hay contactos ya enlazados y otro ID no enlazado, el no enlazado entra como nuevo", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -424,18 +463,15 @@ test("en duplicados complejos solo importa candidatos no enlazados y deja los ya
     provider: "google"
   });
 
-  const complexDuplicates = changes.filter((change) => change.type === "duplicate_complex");
+  const newChanges = changes.filter((change) => change.type === "new");
+  const unchangedChanges = changes.filter((change) => change.type === "unchanged");
 
-  assert.equal(complexDuplicates.length, 1);
-  assert.equal(complexDuplicates[0].defaultSelected, false);
-  assert.equal(complexDuplicates[0].metadata?.externalId, "people/alberto-v");
-  assert.equal(complexDuplicates[0].metadata?.duplicateGroupSavedCount, 2);
-  assert.equal(complexDuplicates[0].metadata?.duplicateGroupImportedCount, 3);
-  assert.equal(complexDuplicates[0].metadata?.duplicateGroupTotalCount, 5);
-  assert.equal(complexDuplicates[0].metadata?.duplicateGroupLabel, "alberto.villate.g@astara.com");
+  assert.equal(newChanges.length, 1);
+  assert.equal(newChanges[0].metadata?.externalId, "people/alberto-v");
+  assert.equal(unchangedChanges.length, 2);
 });
 
-test("manda a complejos cuando hay multiples contactos guardados aunque el grupo quepa en el editor", () => {
+test("si multiples contactos guardados coinciden pero el ID externo no esta enlazado, igual entra como nuevo", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -462,13 +498,12 @@ test("manda a complejos cuando hay multiples contactos guardados aunque el grupo
   });
 
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].type, "duplicate_complex");
-  assert.equal(changes[0].defaultSelected, false);
-  assert.equal(changes[0].metadata?.duplicateGroupSavedCount, 2);
-  assert.equal(changes[0].metadata?.duplicateGroupImportedCount, 1);
+  assert.equal(changes[0].type, "new");
+  assert.equal(changes[0].defaultSelected, true);
+  assert.equal(changes[0].metadata?.externalId, "people/alberto-v");
 });
 
-test("en enlazar y combinar no pisa nombre existente de la app con nombre abreviado del proveedor", () => {
+test("no fusiona por telefono durante importacion inicial", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
       contact({
@@ -497,10 +532,9 @@ test("en enlazar y combinar no pisa nombre existente de la app con nombre abrevi
     provider: "google"
   });
 
-  assert.equal(changes.length, 1);
-  assert.equal(changes[0].type, "consolidation");
-  assert.deepEqual(changes[0].metadata?.externalIds, ["people/alberto-original", "people/alberto-duplicate"]);
-  assert.equal(changes[0].fields.some((field) => field.label === "Nombre" && field.operation === "replace"), false);
+  assert.equal(changes.length, 2);
+  assert.deepEqual(changes.map((change) => change.type), ["new", "new"]);
+  assert.deepEqual(changes.map((change) => change.metadata?.externalId), ["people/alberto-original", "people/alberto-duplicate"]);
 });
 
 test("marca contactos vinculados sin diferencias como revisados sin cambios", () => {
@@ -532,6 +566,165 @@ test("marca contactos vinculados sin diferencias como revisados sin cambios", ()
   assert.equal(changes[0].blocking, true);
 });
 
+test("prioriza el ID externo guardado antes que coincidencias por telefono o correo", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        company: "Empresa Uno",
+        contact_emails: [{ domain: "empresa.test", email: "contacto.pareado@empresa.test" }],
+        contact_phones: [{ phone: "+56 9 9000 0001" }],
+        display_name: "Contacto Pareado",
+        id: "contact-linked",
+        role: "Rol Uno"
+      })
+    ],
+    externalContacts: [
+      {
+        company: "Empresa Uno",
+        displayName: "Contacto Pareado",
+        emails: ["contacto.pareado@empresa.test"],
+        externalId: "people/linked-contact",
+        phones: ["+56 9 9000 0001"],
+        provider: "google",
+        role: "Rol Uno"
+      }
+    ],
+    externalIdToContactId: {
+      "people/linked-contact": "contact-linked"
+    },
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].type, "unchanged");
+  assert.equal(changes[0].id.includes("consolidation"), false);
+});
+
+test("no convierte un contacto ya pareado por ID externo en duplicado fusionable", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        contact_emails: [{ domain: "empresa.test", email: "contacto.pareado@empresa.test" }],
+        contact_phones: [{ phone: "+56 9 9000 0001" }],
+        display_name: "Contacto Pareado",
+        id: "contact-linked"
+      }),
+      contact({
+        contact_phones: [{ phone: "90000001" }],
+        display_name: "Otro contacto con mismo telefono",
+        id: "contact-otro"
+      })
+    ],
+    externalContacts: [
+      {
+        displayName: "Contacto Pareado",
+        emails: ["contacto.pareado@empresa.test"],
+        externalId: "people/linked-contact",
+        phones: ["+56 9 9000 0001"],
+        provider: "google"
+      }
+    ],
+    externalIdToContactId: {
+      "people/linked-contact": "contact-linked"
+    },
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].type, "unchanged");
+  assert.equal(changes[0].metadata?.appContactId, "contact-linked");
+});
+
+test("usa previousResourceNames de Google para no tratar cambio de ID como contacto nuevo", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        display_name: "Abdullah",
+        id: "contact-abdullah"
+      })
+    ],
+    externalContacts: [
+      {
+        displayName: "Abdullahhh",
+        externalId: "people/new-abdullah",
+        metadata: { previous_resource_names: ["people/old-abdullah"] },
+        provider: "google"
+      }
+    ],
+    externalIdToContactId: {
+      "people/old-abdullah": "contact-abdullah"
+    },
+    mode: "incremental",
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].type, "modified");
+  assert.equal(changes[0].metadata?.appContactId, "contact-abdullah");
+  assert.equal(changes[0].metadata?.externalId, "people/new-abdullah");
+});
+
+test("traza el arbol de decision del preview sin escribir datos", () => {
+  const input = {
+    appContacts: [
+      contact({
+        contact_emails: [{ domain: "empresa.test", email: "id@empresa.test" }],
+        contact_phones: [{ phone: "+56 9 9000 0001" }],
+        display_name: "Contacto por ID",
+        id: "contact-id"
+      }),
+      contact({
+        contact_emails: [{ domain: "empresa.test", email: "match@empresa.test" }],
+        display_name: "Contacto por correo",
+        id: "contact-email"
+      }),
+      contact({
+        contact_phones: [{ phone: "90000001" }],
+        display_name: "Coincidencia secundaria ignorada",
+        id: "contact-secondary"
+      })
+    ],
+    externalContacts: [
+      {
+        displayName: "Contacto por ID",
+        emails: ["id@empresa.test"],
+        externalId: "people/id",
+        phones: ["+56 9 9000 0001"],
+        provider: "google" as const
+      },
+      {
+        displayName: "Contacto por correo",
+        emails: ["match@empresa.test"],
+        externalId: "people/email",
+        provider: "google" as const
+      },
+      {
+        displayName: "Contacto nuevo",
+        externalId: "people/new",
+        provider: "google" as const
+      }
+    ],
+    externalIdToContactId: {
+      "people/id": "contact-id"
+    },
+    provider: "google" as const
+  };
+
+  const trace = traceContactSyncPreviewBranches(input);
+
+  assert.deepEqual(trace.map((item) => item.stage), [
+    "external_id",
+    "new_contact",
+    "new_contact"
+  ]);
+  assert.equal(trace[0].resultType, "unchanged");
+  assert.deepEqual(trace[0].secondaryMatchContactIds, ["contact-secondary"]);
+  assert.equal(trace[1].resultType, "new");
+  assert.deepEqual(trace[1].secondaryMatchContactIds, ["contact-email"]);
+  assert.match(trace[1].note ?? "", /se revisa despues en duplicados/);
+  assert.equal(trace[2].resultType, "new");
+});
+
 test("reconoce telefono fijo chileno aunque Google agregue codigo de pais", () => {
   const changes = buildContactSyncPreview({
     appContacts: [
@@ -550,6 +743,34 @@ test("reconoce telefono fijo chileno aunque Google agregue codigo de pais", () =
       }
     ],
     externalIdToContactId: { "people/ge": "contact-ge" },
+    provider: "google"
+  });
+
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].type, "unchanged");
+  assert.equal(changes[0].fields.some((field) => field.label === "Telefono" && field.operation === "add"), false);
+});
+
+test("no marca como modificado un telefono chileno enlazado por diferencia de signo mas", () => {
+  const changes = buildContactSyncPreview({
+    appContacts: [
+      contact({
+        contact_emails: [{ domain: "@gmail.com", email: "ajdelosh@gmail.com" }],
+        contact_phones: [{ phone: "56976455077" }, { phone: "19194505684" }],
+        display_name: "Alvaro de los Hoyos",
+        id: "contact-alvaro"
+      })
+    ],
+    externalContacts: [
+      {
+        displayName: "Alvaro de los Hoyos",
+        emails: ["ajdelosh@gmail.com"],
+        externalId: "people/alvaro",
+        phones: ["+56976455077", "+19194505684"],
+        provider: "google"
+      }
+    ],
+    externalIdToContactId: { "people/alvaro": "contact-alvaro" },
     provider: "google"
   });
 

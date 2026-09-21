@@ -10,10 +10,12 @@ with expected_tables(table_name) as (
     ('connected_accounts'),
     ('contacts'),
     ('external_contact_ids'),
+    ('external_contact_snapshots'),
     ('contact_emails'),
     ('contact_phones'),
     ('interactions'),
     ('interaction_participants'),
+    ('external_interaction_read_diagnostics'),
     ('referrals'),
     ('todo_configs'),
     ('todos'),
@@ -24,6 +26,7 @@ with expected_tables(table_name) as (
     ('data_exports'),
     ('usage_limits'),
     ('usage_events'),
+    ('sync_run_logs'),
     ('audit_log'),
     ('metric_snapshots')
 ),
@@ -53,10 +56,12 @@ where n.nspname = 'public'
     'connected_accounts',
     'contacts',
     'external_contact_ids',
+    'external_contact_snapshots',
     'contact_emails',
     'contact_phones',
     'interactions',
     'interaction_participants',
+    'external_interaction_read_diagnostics',
     'referrals',
     'todo_configs',
     'todos',
@@ -67,6 +72,7 @@ where n.nspname = 'public'
     'data_exports',
     'usage_limits',
     'usage_events',
+    'sync_run_logs',
     'audit_log',
     'metric_snapshots'
   )
@@ -85,10 +91,12 @@ where schemaname = 'public'
     'connected_accounts',
     'contacts',
     'external_contact_ids',
+    'external_contact_snapshots',
     'contact_emails',
     'contact_phones',
     'interactions',
     'interaction_participants',
+    'external_interaction_read_diagnostics',
     'referrals',
     'todo_configs',
     'todos',
@@ -99,7 +107,18 @@ where schemaname = 'public'
     'data_exports',
     'usage_limits',
     'usage_events',
+    'sync_run_logs',
     'audit_log',
     'metric_snapshots'
   )
 order by tablename, policyname;
+
+select
+  n.nspname as schema_name,
+  p.proname as function_name,
+  pg_get_function_identity_arguments(p.oid) as arguments
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('validate_contact_sync_storage_v0_1')
+order by p.proname;

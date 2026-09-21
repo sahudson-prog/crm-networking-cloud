@@ -15,6 +15,7 @@ export function ContactDuplicateReviewPanel() {
   const [groups, setGroups] = useState<ContactDuplicateGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ContactDuplicateGroup | null>(null);
   const [manualMergeOpen, setManualMergeOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -65,8 +66,8 @@ export function ContactDuplicateReviewPanel() {
     }
   }
 
-  return (
-    <Panel title="Revision de duplicados" caption="Detecta contactos guardados que comparten correo o telefono.">
+  const reviewList = (
+    <>
       <div className="duplicate-review-head">
         <div>
           <strong>{loading ? "Revisando..." : `${groups.length} grupos detectados`}</strong>
@@ -129,6 +130,44 @@ export function ContactDuplicateReviewPanel() {
           );
         })}
       </div>
+    </>
+  );
+
+  return (
+    <Panel title="Revision de duplicados">
+      <div className="duplicate-review-head compact">
+        <div>
+          <strong>{loading ? "Revisando..." : `${groups.length} grupos detectados`}</strong>
+          <span>Gestiona contactos guardados que comparten correo o telefono.</span>
+        </div>
+        <Button
+          disabled={loading || merging}
+          icon="users"
+          onClick={() => {
+            setReviewOpen(true);
+            void refresh();
+          }}
+        >
+          Gestionar duplicados
+        </Button>
+      </div>
+
+      {message && !reviewOpen ? <div className="duplicate-review-message">{message}</div> : null}
+
+      {reviewOpen ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <section className="modal-card duplicate-review-dialog">
+            <div className="modal-head">
+              <div>
+                <h2>Revision de duplicados</h2>
+                <p>Fusiona grupos guardados con el editor global.</p>
+              </div>
+              <Button icon="close" onClick={() => setReviewOpen(false)} square />
+            </div>
+            <div className="duplicate-review-dialog-body">{reviewList}</div>
+          </section>
+        </div>
+      ) : null}
 
       <ContactMergeDialog
         availableContacts={contacts}

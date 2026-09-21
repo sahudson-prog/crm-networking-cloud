@@ -1,26 +1,39 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { applyContactSyncPreview, type ApplyContactSyncPreviewResult } from "../lib/contactSyncApply";
+import { applyContactSyncPreview, type ApplyContactSyncPreviewResult, type ApplyContactSyncProgress } from "../lib/contactSyncApply";
 import { mergeContactsDeep } from "../lib/contactMergeActions";
 import type { ContactMergeResult, ContactMergeSource } from "../lib/contactMerge";
 import { GOOGLE_CONTACTS_READONLY_SCOPE, GoogleContactsClientError } from "../lib/googleContactsClient";
-import { prepareGoogleContactSyncPreview, type PrepareGoogleContactSyncResult } from "../lib/googleContactSyncFlow";
+import { GOOGLE_INTERACTIONS_READONLY_SCOPES } from "../lib/googleInteractionClient";
+import { prepareGoogleContactSyncPreview, type GoogleContactSyncCheckpoint, type PrepareGoogleContactSyncResult } from "../lib/googleContactSyncFlow";
 import { readAllActiveContacts } from "../lib/cloudData";
+import { requireCurrentUserCapability } from "../lib/accessControl";
+import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
+import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
+import { ACTIVITY_SYNC_MAX_CONTACT_PAGES } from "../lib/interactionSyncLimits";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
+import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
+import { loadActivitySyncLimitValues } from "../lib/usageLimitSettings";
 import { Button } from "./ui/Button";
 import { ContactMergeDialog } from "./ContactMergeDialog";
+import { ProgressBar } from "./ui/ProgressBar";
 import { ProviderButton } from "./ui/ProviderIcon";
 import { SyncPreviewDialog } from "./SyncPreviewDialog";
 
 type GoogleSyncState = {
   accessToken: string;
   applying: boolean;
+  connectedAccountId: string | null;
+  contactsInScope: number;
+  diagnostics: GoogleContactSyncCheckpoint[];
   loading: boolean;
   error: string;
+  linkedContacts: number;
   message: string;
+  progress: ApplyContactSyncProgress | null;
   preview: PrepareGoogleContactSyncResult | null;
   lastApply: ApplyContactSyncPreviewResult | null;
 };
@@ -28,40 +41,76 @@ type GoogleSyncState = {
 const initialState: GoogleSyncState = {
   accessToken: "",
   applying: false,
+  connectedAccountId: null,
+  contactsInScope: 0,
+  diagnostics: [],
   error: "",
   lastApply: null,
+  linkedContacts: 0,
   loading: false,
   message: "",
+  progress: null,
   preview: null
 };
 
-export function GoogleContactsSyncPanel() {
+const GOOGLE_CONTACT_SYNC_TABS = ["new", "modified", "deleted"] as const;
+const GOOGLE_DATA_AUTHORIZATION_SCOPES = [
+  ...GOOGLE_AUTH_LOGIN_SCOPES,
+  GOOGLE_CONTACTS_READONLY_SCOPE,
+  ...GOOGLE_INTERACTIONS_READONLY_SCOPES.split(" ")
+];
+
+type GoogleContactsSyncPanelProps = {
+  compact?: boolean;
+  googleAccessToken?: string;
+  googleCapabilityAvailable?: boolean;
+  googleConnected?: boolean;
+  googleConnectionLoading?: boolean;
+  googleDisabledReason?: string;
+  registerRememberedScopes?: boolean;
+};
+
+export function GoogleContactsSyncPanel({
+  compact = false,
+  googleAccessToken,
+  googleCapabilityAvailable = true,
+  googleConnected = true,
+  googleConnectionLoading = false,
+  googleDisabledReason = "",
+  registerRememberedScopes = true
+}: GoogleContactsSyncPanelProps) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<GoogleSyncState>(initialState);
   const [mergeContacts, setMergeContacts] = useState<ContactRow[]>([]);
   const [savedDuplicateMergeSources, setSavedDuplicateMergeSources] = useState<ContactMergeSource[] | null>(null);
   const [savedDuplicateMerging, setSavedDuplicateMerging] = useState(false);
+  const effectiveAccessToken = googleAccessToken ?? state.accessToken;
+  const compactDisabledReason = compact ? googleDisabledReason
+    || (googleConnectionLoading ? "Estamos verificando la autorización de Google." : "")
+    || (!googleConnected || !effectiveAccessToken ? "Autoriza Google para importar." : "")
+    || (!googleCapabilityAvailable ? "Actualiza la autorización de Google para habilitar contactos." : "") : "";
 
   useEffect(() => {
     let active = true;
-    supabase?.auth.getSession().then(({ data }) => {
+    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes }), loadGoogleContactStats()]).then(([googleConnection, stats]) => {
       if (!active) return;
       setState((current) => ({
         ...current,
-        accessToken: data.session?.provider_token ?? ""
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        contactsInScope: stats.contactsInScope,
+        linkedContacts: stats.linkedContacts
       }));
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [registerRememberedScopes]);
 
   const summary = useMemo(() => {
     const changes = state.preview?.preview ?? [];
     return {
       deleted: changes.filter((change) => change.type === "deleted" || change.type === "deactivated").length,
-      consolidated: changes.filter((change) => change.type === "consolidation").length,
-      duplicateComplex: changes.filter((change) => change.type === "duplicate_complex").length,
       modified: changes.filter((change) => change.type === "modified").length,
       new: changes.filter((change) => change.type === "new").length,
       unchanged: changes.filter((change) => change.type === "unchanged").length,
@@ -70,26 +119,44 @@ export function GoogleContactsSyncPanel() {
   }, [state.preview]);
 
   async function connectGoogle() {
-    if (!supabase) {
-      setState((current) => ({ ...current, error: "Supabase no esta configurado." }));
-      return;
+    try {
+      await reconnectGoogle(GOOGLE_DATA_AUTHORIZATION_SCOPES, `${window.location.origin}/cuenta`);
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "No pude conectar Google."
+      }));
     }
-
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/cuenta`,
-        scopes: GOOGLE_CONTACTS_READONLY_SCOPE
-      }
-    });
   }
 
   async function preparePreview(forceFullSync = false) {
-    if (!state.accessToken) {
+    try {
+      await requireCurrentUserCapability("contacts.import_google", "importar contactos desde Google");
+    } catch (error) {
       setState((current) => ({
         ...current,
-        error: "Primero conecta Google para autorizar lectura de contactos."
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        loading: false,
+        progress: null
       }));
+      setOpen(true);
+      return;
+    }
+
+    const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
+    setState((current) => ({
+      ...current,
+      accessToken: googleConnection.accessToken,
+      connectedAccountId: googleConnection.account?.id ?? null
+    }));
+    if (!googleConnection.connected || !googleConnection.accessToken || !googleConnectionHasCapability(googleConnection, "contacts_read")) {
+      setState((current) => ({
+        ...current,
+        error: "",
+        loading: true,
+        message: "Reconectando Google..."
+      }));
+      await connectGoogle();
       return;
     }
 
@@ -99,43 +166,98 @@ export function GoogleContactsSyncPanel() {
       lastApply: null,
       loading: true,
       message: "",
-      preview: null
+      progress: null,
+      preview: null,
+      diagnostics: []
     }));
 
+    const runId = createSyncRunId();
+    let stepOrder = 0;
+    const logStep = (step: string, detail?: string | null, status: "info" | "running" | "success" | "warning" | "error" = "info", metadata?: Record<string, unknown>) => {
+      stepOrder += 1;
+      void writeSyncRunLogStep({
+        detail,
+        metadata,
+        operation: forceFullSync ? "import_full" : "review",
+        provider: "google",
+        resourceType: "contacts",
+        runId,
+        scopeLabel: "cuenta",
+        status,
+        step,
+        stepOrder
+      });
+    };
+    logStep("Inicio", forceFullSync ? "Importacion completa solicitada." : "Revision solicitada.", "running");
+
     try {
+      const syncLimits = await loadActivitySyncLimitValues();
       const preview = await prepareGoogleContactSyncPreview({
-        accessToken: state.accessToken,
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
         forceFullSync,
-        maxPages: 5
+        maxPages: syncLimits.contactPages || ACTIVITY_SYNC_MAX_CONTACT_PAGES,
+        onCheckpoint: (checkpoint) => {
+          logStep(checkpoint.step, checkpoint.detail);
+          setState((current) => ({
+            ...current,
+            diagnostics: [...current.diagnostics, checkpoint]
+          }));
+        }
       });
 
       setState((current) => ({
         ...current,
         loading: false,
         message: previewMessage(preview),
+        progress: null,
         preview
       }));
+      logStep("Preview listo", previewLogSummary(preview.preview ?? []), "success", {
+        pages_read: preview.googleRead.pagesRead,
+        read_mode: preview.googleRead.mode,
+        total_google: preview.googleRead.totalItems
+      });
       setOpen(true);
     } catch (error) {
+      logStep("Error", error instanceof Error ? error.message : "No pude preparar la sincronizacion de contactos.", "error");
       if (error instanceof GoogleContactsClientError && error.code === "GOOGLE_CONTACTS_AUTH_REQUIRED") {
+        invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
           ...current,
           accessToken: "",
           error: "El permiso de Google vencio o no es valido. Vuelve a conectar Google y luego revisa cambios.",
-          loading: false
+          loading: false,
+          progress: null
         }));
+        setOpen(true);
         return;
       }
 
       setState((current) => ({
         ...current,
         error: error instanceof Error ? error.message : "No pude preparar la sincronizacion de contactos.",
-        loading: false
+        loading: false,
+        progress: null
       }));
+      setOpen(true);
     }
   }
 
   async function applyPreview(selectedChanges: SyncPreviewChange[]) {
+    try {
+      await requireCurrentUserCapability("contacts.import_google", "importar contactos desde Google");
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        applying: false,
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        progress: null
+      }));
+      setOpen(true);
+      return;
+    }
+
     const previewBeforeApply = state.preview;
     if (!previewBeforeApply) return;
 
@@ -143,36 +265,100 @@ export function GoogleContactsSyncPanel() {
       ...current,
       applying: true,
       error: "",
-      message: ""
+      message: "",
+      progress: {
+        appliedCount: 0,
+        failedCount: 0,
+        processedCount: 0,
+        totalCount: selectedChanges.filter((change) => change.type !== "unchanged").length
+      }
     }));
+
+    const runId = createSyncRunId();
+    void writeSyncRunLogStep({
+      detail: `${selectedChanges.length} cambio(s) seleccionados.`,
+      operation: "apply",
+      provider: "google",
+      resourceType: "contacts",
+      runId,
+      scopeLabel: "cuenta",
+      status: "running",
+      step: "Aplicacion iniciada",
+      stepOrder: 1
+    });
 
     try {
       const result = await applyContactSyncPreview({
         changes: selectedChanges,
+        connectedAccountId: state.connectedAccountId,
         cursorAfter: previewBeforeApply.cursorAfter,
         cursorLabel: "",
+        onProgress: (progress) => {
+          setState((current) => ({
+            ...current,
+            message: progress.totalCount
+              ? `Aplicando ${progress.processedCount} de ${progress.totalCount}: ${progress.appliedCount} aplicados, ${progress.failedCount} fallidos.`
+              : "Preparando aplicacion...",
+            progress
+          }));
+        },
         provider: "google",
         source: "google_contacts_sync_panel",
         totalPreviewChanges: actionableChangeCount(previewBeforeApply.preview ?? selectedChanges)
       });
 
-      const remainingChanges = remainingPreviewChanges(previewBeforeApply.preview ?? [], selectedChanges);
+      const remainingChanges = remainingPreviewChanges(previewBeforeApply.preview ?? [], result.appliedChangeIds);
       setState((current) => ({
         ...current,
         applying: false,
         lastApply: result,
         message: applyMessage(result),
-        preview: result.ok && remainingChanges.length
+        progress: null,
+        preview: remainingChanges.length
           ? { ...previewBeforeApply, preview: remainingChanges }
-          : result.ok
-            ? null
-            : previewBeforeApply
+          : null
       }));
-      setOpen(result.ok ? hasActionableChanges(remainingChanges) : true);
+      if (result.ok) {
+        const stats = await loadGoogleContactStats();
+        setState((current) => ({
+          ...current,
+          contactsInScope: stats.contactsInScope,
+          linkedContacts: stats.linkedContacts
+        }));
+      }
+      void writeSyncRunLogStep({
+        detail: `${result.appliedCount} aplicados, ${result.failedCount} fallidos, ${result.pendingCount} pendientes.`,
+        metadata: {
+          applied_change_ids: result.appliedChangeIds,
+          cursor_saved: result.cursorSaved,
+          failed_change_ids: result.failedChangeIds
+        },
+        operation: "apply",
+        provider: "google",
+        resourceType: "contacts",
+        runId,
+        scopeLabel: "cuenta",
+        status: result.ok ? "success" : "warning",
+        step: "Aplicacion terminada",
+        stepOrder: 2
+      });
+      setOpen(hasActionableChanges(remainingChanges));
     } catch (error) {
+      void writeSyncRunLogStep({
+        detail: error instanceof Error ? error.message : "No pude aplicar la seleccion.",
+        operation: "apply",
+        provider: "google",
+        resourceType: "contacts",
+        runId,
+        scopeLabel: "cuenta",
+        status: "error",
+        step: "Error aplicando",
+        stepOrder: 2
+      });
       setState((current) => ({
         ...current,
         applying: false,
+        progress: null,
         error: error instanceof Error ? error.message : "No pude aplicar la seleccion."
       }));
     }
@@ -224,67 +410,63 @@ export function GoogleContactsSyncPanel() {
   }
 
   function handlePrimarySyncClick() {
-    if (!state.accessToken) {
-      void connectGoogle();
+    if (compactDisabledReason) {
+      setState((current) => ({
+        ...current,
+        error: compactDisabledReason
+      }));
+      return;
+    }
+    if (!googleConnected) {
+      setState((current) => ({
+        ...current,
+        error: "Primero conecta Google para autorizar lectura de contactos."
+      }));
       return;
     }
     void preparePreview(false);
   }
 
-  return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <h2 className="panel-title">Sincronizar contactos</h2>
-          <span className="panel-caption">Lee cambios desde Google y confirma antes de guardarlos en la app.</span>
-        </div>
-        <div className="toolbar">
-          <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={connectGoogle} />
-          <Button disabled={state.loading} icon="sync" onClick={handlePrimarySyncClick} tone="primary">
-            {state.loading ? "Revisando..." : state.accessToken ? "Revisar cambios" : "Conectar Google"}
-          </Button>
-        </div>
-      </div>
-
-      <div className="compact-list">
-        <div className="compact-row">
-          <strong>Permiso</strong>
-          <span>{state.accessToken ? "Google conectado para lectura de contactos." : "Pendiente conectar Google."}</span>
-        </div>
-        <div className="compact-row">
-          <strong>Aplicacion</strong>
-          <span>Solo se guardan los cambios que selecciones. Lo no seleccionado queda pendiente.</span>
-        </div>
-        {state.preview ? (
-          <div className="compact-row">
-            <strong>Preview</strong>
-            <span>
-              {summary.total} revisados: {summary.new} nuevos, {summary.modified} modificaciones, {summary.consolidated} duplicados fusionables, {summary.duplicateComplex} duplicados complejos, {summary.deleted} eliminaciones, {summary.unchanged} sin cambios.
-            </span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="toolbar" style={{ marginTop: 14 }}>
-        <Button disabled={!state.accessToken || state.loading} onClick={() => preparePreview(true)}>
-          Forzar revision completa
-        </Button>
-      </div>
-
-      {state.message ? <p className="meta">{state.message}</p> : null}
-      {state.lastApply?.warnings.length ? (
-        <p className="meta">{state.lastApply.warnings.join(" ")}</p>
+  const syncFeedback = (
+    <>
+      {state.loading ? (
+        <ProgressBar
+          compact
+          detail="Leyendo fuente conectada"
+          indeterminate
+          label="Revisando contactos"
+          tone="neutral"
+        />
       ) : null}
-      {state.error ? <p className="form-error">{state.error}</p> : null}
+      {state.applying && state.progress ? (
+        <ProgressBar
+          compact
+          detail={`${state.progress.appliedCount} aplicados / ${state.progress.failedCount} fallidos`}
+          label="Aplicando contactos"
+          max={state.progress.totalCount}
+          tone={state.progress.failedCount ? "warning" : "primary"}
+          value={state.progress.processedCount}
+        />
+      ) : null}
 
       <SyncPreviewDialog
         applying={state.applying}
         changes={state.preview?.preview ?? []}
         description="Revisa los cambios detectados. Los cambios que no selecciones quedan pendientes para la proxima sincronizacion."
+        feedbackMessage={state.error || state.message || state.lastApply?.warnings.join(" ") || ""}
+        feedbackTone={state.error || state.lastApply?.failedCount ? "error" : "info"}
         onApply={applyPreview}
         onClose={() => setOpen(false)}
         onOpenSavedDuplicateMerge={openSavedDuplicateMerge}
         open={open}
+        progress={state.applying && state.progress ? {
+          detail: `${state.progress.appliedCount} aplicados / ${state.progress.failedCount} fallidos`,
+          label: "Aplicando contactos",
+          max: state.progress.totalCount,
+          tone: state.progress.failedCount ? "warning" : "primary",
+          value: state.progress.processedCount
+        } : undefined}
+        tabKeys={GOOGLE_CONTACT_SYNC_TABS}
         title="Cambios desde Google Contacts"
       />
 
@@ -300,7 +482,72 @@ export function GoogleContactsSyncPanel() {
         sources={savedDuplicateMergeSources ?? []}
         title="Fusionar duplicados guardados"
       />
+    </>
+  );
+
+  if (compact) {
+    return (
+      <div className="connected-service-action">
+        <div className="connected-service-action-main">
+          <strong>Contactos</strong>
+          <span>{state.linkedContacts} vinculados · {state.contactsInScope} en foco</span>
+        </div>
+        <div className="toolbar">
+          <Button disabled={Boolean(compactDisabledReason) || state.loading} icon="users" onClick={handlePrimarySyncClick} tone="primary">
+            {googleConnectionLoading ? "Verificando..." : state.loading ? "Revisando..." : "Importar"}
+          </Button>
+          <Button icon="trash" onClick={() => confirmImportedDataDelete("contactos")} tone="danger">
+            Borrar importados
+          </Button>
+        </div>
+        {compactDisabledReason && !state.loading ? <p className="connected-service-reason">{compactDisabledReason}</p> : null}
+        <div className="connected-service-feedback">{syncFeedback}</div>
+      </div>
+    );
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <h2 className="panel-title">Importar contactos</h2>
+          <span className="panel-caption">Lee Google Contacts y confirma antes de guardar cambios en la app.</span>
+        </div>
+        <div className="toolbar">
+          <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={connectGoogle} />
+          <Button disabled={state.loading} icon="users" onClick={handlePrimarySyncClick} tone="primary">
+            {state.loading ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
+          </Button>
+        </div>
+      </div>
+
+      {syncFeedback}
     </section>
+  );
+}
+
+async function loadGoogleContactStats() {
+  if (!supabase) return { contactsInScope: 0, linkedContacts: 0 };
+  const [linkedContacts, contactsInScope] = await Promise.all([
+    countRows("external_contact_ids", { is_active: true, provider: "google" }),
+    countRows("contacts", { is_active: true, networking_focus: true })
+  ]);
+  return { contactsInScope, linkedContacts };
+}
+
+async function countRows(table: string, filters: Record<string, string | boolean>) {
+  if (!supabase) return 0;
+  let query = supabase.from(table).select("id", { count: "exact", head: true });
+  Object.entries(filters).forEach(([column, value]) => {
+    query = query.eq(column, value);
+  });
+  const { count } = await query;
+  return count ?? 0;
+}
+
+function confirmImportedDataDelete(kind: string) {
+  window.alert(
+    `Pendiente: borrar ${kind} importados requiere definir si se conservan o eliminan notas, minutas y datos asociados. No se borro nada.`
   );
 }
 
@@ -313,18 +560,27 @@ function previewMessage(preview: PrepareGoogleContactSyncResult) {
   return `Revision ${mode}: ${actionables} cambios detectados y ${unchanged} contactos sin cambios en ${preview.googleRead.pagesRead} pagina(s).${warnings}`;
 }
 
+function previewLogSummary(changes: SyncPreviewChange[]) {
+  const newCount = changes.filter((change) => change.type === "new").length;
+  const modifiedCount = changes.filter((change) => change.type === "modified").length;
+  const deletedCount = changes.filter((change) => change.type === "deleted" || change.type === "deactivated").length;
+  const unchangedCount = changes.filter((change) => change.type === "unchanged").length;
+  return `${changes.length} revisados: ${newCount} nuevos, ${modifiedCount} modificaciones, ${deletedCount} eliminaciones, ${unchangedCount} sin cambios.`;
+}
+
 function applyMessage(result: ApplyContactSyncPreviewResult) {
   const cursor = result.cursorSaved ? "cursor actualizado" : "cursor sin actualizar";
-  return `Aplicacion terminada: ${result.appliedCount} aplicados, ${result.failedCount} fallidos, ${result.pendingCount} pendientes; ${cursor}.`;
+  const prefix = result.ok ? "Aplicacion terminada" : "Aplicacion parcial";
+  return `${prefix}: ${result.appliedCount} aplicados, ${result.failedCount} fallidos, ${result.pendingCount} pendientes; ${cursor}.`;
 }
 
 function actionableChangeCount(changes: SyncPreviewChange[]) {
   return changes.filter((change) => change.type !== "unchanged").length;
 }
 
-function remainingPreviewChanges(changes: SyncPreviewChange[], selectedChanges: SyncPreviewChange[]) {
-  const selectedIds = new Set(selectedChanges.map((change) => change.id));
-  return changes.filter((change) => change.type === "unchanged" || !selectedIds.has(change.id));
+function remainingPreviewChanges(changes: SyncPreviewChange[], appliedChangeIds: string[]) {
+  const appliedIds = new Set(appliedChangeIds);
+  return changes.filter((change) => change.type === "unchanged" || !appliedIds.has(change.id));
 }
 
 function hasActionableChanges(changes: SyncPreviewChange[]) {

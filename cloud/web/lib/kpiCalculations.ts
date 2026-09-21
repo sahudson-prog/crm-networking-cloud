@@ -99,7 +99,7 @@ export function buildDashboardKpis(input: {
       points: contactados
     }),
     buildTrend({
-      title: "Contactos HH realizados",
+      title: "Contactos headhunter realizados",
       description: "Empresas headhunter distintas contactadas por correo o mensaje.",
       accumulated: countMapUntil(firstDomainAt, tomorrow),
       mode: input.mode,
@@ -265,7 +265,7 @@ function contactIdsForContactMadeInteraction(
   const roleBasedParticipants = participants.filter((participant) => participantRoleLooksOutbound(participant.role));
   if (roleBasedParticipants.length) return contactIdsFromParticipants(roleBasedParticipants);
 
-  return legacyContactLabelLooksOutbound(interaction.metadata?.legacy_contact_label) ? contactIdsFromParticipants(participants) : [];
+  return [];
 }
 
 function isContactMadeInteraction(interaction: InteractionRow) {
@@ -288,19 +288,6 @@ function contactIdsFromParticipants(participants: InteractionParticipantRow[]) {
 function participantRoleLooksOutbound(value: string | null | undefined) {
   const role = (value ?? "").trim().toUpperCase();
   return role === "TO" || role === "CC" || role === "BCC" || role === "MANUAL";
-}
-
-function legacyContactLabelLooksOutbound(value: string | null | undefined) {
-  const text = (value ?? "").trim();
-  const lower = text.toLowerCase();
-  return (
-    text.toUpperCase().startsWith("TO:") ||
-    text.toUpperCase().startsWith("CC:") ||
-    text.toUpperCase().startsWith("BCC:") ||
-    lower.includes("sergiohudson@gmail.com") ||
-    lower.includes("sergio hudson") ||
-    lower.includes("usuario app")
-  );
 }
 
 function groupParticipants(participants: InteractionParticipantRow[]) {

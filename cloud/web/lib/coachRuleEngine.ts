@@ -1,5 +1,11 @@
 import { readTodoConfigs, todoConfigCanAutoApply, type TodoConfigRow } from "./coachConfig.ts";
-import { executeNetworkingStatusTodo } from "./coachActions.ts";
+import { executeCoachTodo } from "./coachActions.ts";
+import { readHeadhunterCompanyMaster } from "./headhunterCompanyActions.ts";
+import {
+  normalizeHeadhunterCompanyName,
+  resolveHeadhunterCompany,
+  type HeadhunterCompanyMasterRow
+} from "./headhunterCompanyMaster.ts";
 import { activeInteractions } from "./interactionState.ts";
 import type { ContactRow, InteractionParticipantRow, InteractionRow } from "./readModel.ts";
 import { supabase } from "./supabaseClient.ts";
@@ -9,24 +15,44 @@ type RuleId =
   | "STATUS_MEETING_DONE_FROM_MINUTE"
   | "STATUS_MEETING_DONE_FROM_PAST_EVENT"
   | "STATUS_SCHEDULED_FROM_FUTURE_EVENT"
-  | "STATUS_CONTACTED_FROM_OUTBOUND_MESSAGE";
+  | "STATUS_CONTACTED_FROM_OUTBOUND_MESSAGE"
+  | "HEADHUNTER_COMPANY_DETECTED";
 
 type RuleCandidate = {
   ruleId: RuleId;
   configType: string;
+  processorId: string;
+  todoType: string;
   contact: ContactReviewRow;
   currentStatus: string;
   suggestedStatus: string;
+  currentState: Record<string, string>;
+  suggestedState: Record<string, string>;
   evidenceIds: string[];
+  evidenceExtra?: Record<string, unknown>;
   reason: string;
   priority: number;
+  action: {
+    action: string;
+    label: string;
+    input: Record<string, unknown>;
+  };
   sourceFingerprint: string;
   dedupKey: string;
 };
 
 type ContactReviewRow = Pick<
   ContactRow,
-  "id" | "display_name" | "networking_status" | "networking_focus" | "is_active" | "updated_at"
+  | "id"
+  | "display_name"
+  | "company"
+  | "networking_status"
+  | "networking_focus"
+  | "is_headhunter"
+  | "headhunter_domains"
+  | "is_active"
+  | "updated_at"
+  | "contact_emails"
 >;
 
 type InteractionReviewRow = InteractionRow & {
@@ -57,7 +83,13 @@ export type CoachRuleReviewResult = {
   errors: string[];
 };
 
-const PROCESSOR_ID = "NETWORKING_STATUS_RULES_V0_1";
+export type CoachRuleReviewInput = {
+  contactIds?: string[];
+  source?: string;
+};
+
+const STATUS_PROCESSOR_ID = "NETWORKING_STATUS_RULES_V0_1";
+const HEADHUNTER_COMPANY_PROCESSOR_ID = "HEADHUNTER_COMPANY_RULES_V0_1";
 const MAX_ROWS = 3000;
 
 const RULE_TO_CONFIG: Record<RuleId, string> = {
@@ -65,7 +97,8 @@ const RULE_TO_CONFIG: Record<RuleId, string> = {
   STATUS_SCHEDULED_FROM_FUTURE_EVENT: "RULE_STATUS_TO_SCHEDULED",
   STATUS_MEETING_DONE_FROM_PAST_EVENT: "RULE_STATUS_TO_MEETING_DONE",
   STATUS_MEETING_DONE_FROM_MINUTE: "RULE_STATUS_TO_MEETING_DONE",
-  STATUS_THANK_YOU_FROM_POST_MEETING_MESSAGE: "RULE_STATUS_TO_THANK_YOU"
+  STATUS_THANK_YOU_FROM_POST_MEETING_MESSAGE: "RULE_STATUS_TO_THANK_YOU",
+  HEADHUNTER_COMPANY_DETECTED: "HEADHUNTER_COMPANY_DETECTED"
 };
 
 const RULE_PRIORITY: Record<RuleId, number> = {
@@ -73,7 +106,8 @@ const RULE_PRIORITY: Record<RuleId, number> = {
   STATUS_MEETING_DONE_FROM_MINUTE: 20,
   STATUS_MEETING_DONE_FROM_PAST_EVENT: 30,
   STATUS_SCHEDULED_FROM_FUTURE_EVENT: 40,
-  STATUS_CONTACTED_FROM_OUTBOUND_MESSAGE: 50
+  STATUS_CONTACTED_FROM_OUTBOUND_MESSAGE: 50,
+  HEADHUNTER_COMPANY_DETECTED: 60
 };
 
 const STATUS_RANK = new Map([
@@ -84,7 +118,7 @@ const STATUS_RANK = new Map([
   ["Agradecimiento enviado", 5]
 ]);
 
-export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleReviewResult> {
+export async function reviewNetworkingStatusSuggestions(input: CoachRuleReviewInput = {}): Promise<CoachRuleReviewResult> {
   if (!supabase) throw new Error("Supabase no esta configurado.");
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -92,24 +126,34 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
   const userId = authData.user?.id;
   if (!userId) throw new Error("No hay usuario autenticado.");
 
-  const [contacts, interactions, participants, activeTodos, configs] = await Promise.all([
-    readContactsForRuleReview(),
-    readInteractionsForRuleReview(),
-    readParticipantsForRuleReview(),
-    readActiveRuleTodos(),
-    readTodoConfigs()
+  const contactIds = normalizeContactIds(input.contactIds);
+  const [contacts, participants, activeTodos, configs, headhunterMaster] = await Promise.all([
+    readContactsForRuleReview(contactIds),
+    readParticipantsForRuleReview(contactIds),
+    readActiveRuleTodos(contactIds),
+    readTodoConfigs(),
+    readHeadhunterCompanyMaster()
   ]);
+  const scopedInteractionIds = contactIds ? unique(participants.map((participant) => participant.interaction_id)) : undefined;
+  const interactions = await readInteractionsForRuleReview(scopedInteractionIds);
 
   const now = new Date();
   const configByType = new Map(configs.map((config) => [config.todo_type, config]));
   const interactionsByContact = groupInteractionsByContact(interactions, participants);
-  const candidates = contacts
-    .map((contact) => choosePreferredCandidate(contact, interactionsByContact.get(contact.id) ?? [], now))
-    .filter((candidate): candidate is RuleCandidate => Boolean(candidate))
-    .filter((candidate) => configAllowsSuggestion(configByType.get(candidate.configType)));
+  const candidates = [
+    ...contacts
+      .map((contact) => choosePreferredCandidate(contact, interactionsByContact.get(contact.id) ?? [], now))
+      .filter((candidate): candidate is RuleCandidate => Boolean(candidate)),
+    ...contacts
+      .map((contact) => chooseHeadhunterCompanyCandidate(contact, headhunterMaster))
+      .filter((candidate): candidate is RuleCandidate => Boolean(candidate))
+  ].filter((candidate) => configAllowsSuggestion(configByType.get(candidate.configType)));
 
-  const candidateByContact = new Map(candidates.map((candidate) => [candidate.contact.id, candidate]));
+  const candidateByObjectAndType = new Map(
+    candidates.map((candidate) => [candidateKey(candidate.contact.id, candidate.todoType), candidate])
+  );
   const candidateDedupKeys = candidates.map((candidate) => candidate.dedupKey);
+  const candidateDedupSet = new Set(candidateDedupKeys);
   const existingTodosByDedup = await readTodosByDedupKeys(candidateDedupKeys);
 
   const result: CoachRuleReviewResult = {
@@ -126,8 +170,8 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
 
   for (const todo of activeTodos) {
     if (todo.object_type !== "contact" || !todo.object_id) continue;
-    const candidate = candidateByContact.get(todo.object_id);
-    if (candidate?.dedupKey === todo.dedup_key) continue;
+    const candidate = candidateByObjectAndType.get(candidateKey(todo.object_id, todo.todo_type));
+    if (todo.dedup_key && candidateDedupSet.has(todo.dedup_key)) continue;
 
     try {
       const contact = contacts.find((row) => row.id === todo.object_id);
@@ -174,7 +218,9 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
           .update({
             ...payload,
             supersedes_todo_id:
-              activeTodos.find((todo) => todo.object_id === candidate.contact.id && todo.id !== existing.id)?.id ?? null
+              activeTodos.find(
+                (todo) => todo.object_id === candidate.contact.id && todo.todo_type === candidate.todoType && todo.id !== existing.id
+              )?.id ?? null
           })
           .eq("id", existing.id)
           .eq("user_id", userId)
@@ -190,8 +236,12 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
           .insert({
             ...payload,
             supersedes_todo_id:
-              activeTodos.find((todo) => todo.object_id === candidate.contact.id && todo.dedup_key !== candidate.dedupKey)?.id ??
-              null
+              activeTodos.find(
+                (todo) =>
+                  todo.object_id === candidate.contact.id &&
+                  todo.todo_type === candidate.todoType &&
+                  todo.dedup_key !== candidate.dedupKey
+              )?.id ?? null
           })
           .select("id,todo_type,engine_type,status,object_type,object_id,current_state,suggested_state,evidence,dedup_key,source_fingerprint")
           .single();
@@ -201,7 +251,7 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
       }
       await upsertReviewState(userId, candidate, now, "reviewed");
       if (shouldAutoExecute && todoForAction) {
-        const actionResult = await executeNetworkingStatusTodo({
+        const actionResult = await executeCoachTodo({
           todo: {
             id: todoForAction.id,
             todo_type: todoForAction.todo_type,
@@ -228,7 +278,7 @@ export async function reviewNetworkingStatusSuggestions(): Promise<CoachRuleRevi
   }
 
   for (const todo of activeTodosById.values()) {
-    const candidate = todo.object_id ? candidateByContact.get(todo.object_id) : null;
+    const candidate = todo.object_id ? candidateByObjectAndType.get(candidateKey(todo.object_id, todo.todo_type)) : null;
     if (!candidate || todo.dedup_key !== candidate.dedupKey) continue;
     if (todo.source_fingerprint === candidate.sourceFingerprint) {
       await upsertReviewState(userId, candidate, now, "reviewed_without_changes");
@@ -244,6 +294,13 @@ export function evaluateNetworkingStatusCandidate(
   now = new Date()
 ) {
   return choosePreferredCandidate(contact, interactions, now);
+}
+
+export function evaluateHeadhunterCompanyCandidate(
+  contact: ContactReviewRow,
+  masterRows: HeadhunterCompanyMasterRow[]
+) {
+  return chooseHeadhunterCompanyCandidate(contact, masterRows);
 }
 
 function choosePreferredCandidate(
@@ -269,7 +326,12 @@ function choosePreferredCandidate(
     ? outboundMessages.filter((interaction) => timestamp(interaction.occurred_at) >= timestamp(latestPastMeeting.occurred_at))
     : [];
 
-  const options: Array<Omit<RuleCandidate, "configType" | "contact" | "currentStatus" | "priority" | "sourceFingerprint" | "dedupKey">> = [];
+  const options: Array<{
+    ruleId: Exclude<RuleId, "HEADHUNTER_COMPANY_DETECTED">;
+    suggestedStatus: string;
+    evidenceIds: string[];
+    reason: string;
+  }> = [];
 
   if (
     rank(currentStatus) >= rank("Cita concretada") &&
@@ -342,51 +404,133 @@ function choosePreferredCandidate(
     contact,
     currentStatus,
     configType,
+    processorId: STATUS_PROCESSOR_ID,
+    todoType: "NETWORKING_STATUS_CHANGE",
+    currentState: { Estado_CRM: currentStatus },
+    suggestedState: { Estado_CRM: selected.suggestedStatus },
+    action: {
+      action: "contact.update_networking_status",
+      label: "Cambiar estado",
+      input: {
+        contact_id: contact.id,
+        from: currentStatus,
+        to: selected.suggestedStatus
+      }
+    },
     priority: 2,
     sourceFingerprint: fingerprint,
     dedupKey
   };
 }
 
-async function readContactsForRuleReview(): Promise<ContactReviewRow[]> {
+function chooseHeadhunterCompanyCandidate(
+  contact: ContactReviewRow,
+  masterRows: HeadhunterCompanyMasterRow[]
+): RuleCandidate | null {
+  if (!contact.id || !contact.is_active || !contact.is_headhunter) return null;
+  const currentCompany = contact.company?.trim() ?? "";
+  if (currentCompany) return null;
+
+  const resolution = resolveHeadhunterCompany(contact, masterRows);
+  if (resolution.status !== "matched_domain") return null;
+
+  const suggestedCompany = resolution.suggestedCompany.trim();
+  if (!suggestedCompany) return null;
+
+  const domain = resolution.domain || "";
+  const dedupKey = `HEADHUNTER_COMPANY_DETECTED|${contact.id}|${resolution.company.id}|${domain}`;
+  const fingerprint = JSON.stringify({
+    contact: contact.updated_at,
+    rule: "HEADHUNTER_COMPANY_DETECTED",
+    currentCompany,
+    suggestedCompany,
+    companyId: resolution.company.id,
+    domain
+  });
+
+  return {
+    ruleId: "HEADHUNTER_COMPANY_DETECTED",
+    configType: RULE_TO_CONFIG.HEADHUNTER_COMPANY_DETECTED,
+    processorId: HEADHUNTER_COMPANY_PROCESSOR_ID,
+    todoType: "HEADHUNTER_COMPANY_DETECTED",
+    contact,
+    currentStatus: "",
+    suggestedStatus: "",
+    currentState: { Empresa: currentCompany },
+    suggestedState: { Empresa: suggestedCompany },
+    evidenceIds: [],
+    evidenceExtra: {
+      dominio: domain,
+      empresa: suggestedCompany,
+      empresa_headhunter_id: resolution.company.id
+    },
+    reason: `Empresa Headhunter detectada: ${suggestedCompany}`,
+    priority: 3,
+    action: {
+      action: "contact.update_company",
+      label: "Completar empresa",
+      input: {
+        contact_id: contact.id,
+        from: currentCompany,
+        to: suggestedCompany,
+        domain
+      }
+    },
+    sourceFingerprint: fingerprint,
+    dedupKey
+  };
+}
+
+async function readContactsForRuleReview(contactIds?: string[]): Promise<ContactReviewRow[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  let query = supabase
     .from("contacts")
-    .select("id,display_name,networking_status,networking_focus,is_active,updated_at")
+    .select(
+      "id,display_name,company,networking_status,networking_focus,is_headhunter,headhunter_domains,is_active,updated_at,contact_emails(email,domain)"
+    )
     .limit(MAX_ROWS);
+  if (contactIds?.length) query = query.in("id", contactIds);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as ContactReviewRow[];
 }
 
-async function readInteractionsForRuleReview(): Promise<InteractionReviewRow[]> {
+async function readInteractionsForRuleReview(interactionIds?: string[]): Promise<InteractionReviewRow[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  if (interactionIds && !interactionIds.length) return [];
+  let query = supabase
     .from("interactions")
-    .select("id,legacy_entry_id,interaction_type,direction,occurred_at,subject,user_notes_raw,metadata,updated_at")
+    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,metadata,updated_at")
     .limit(MAX_ROWS);
+  if (interactionIds?.length) query = query.in("id", interactionIds);
+  const { data, error } = await query;
   if (error) throw error;
   return activeInteractions((data ?? []) as InteractionReviewRow[]);
 }
 
-async function readParticipantsForRuleReview(): Promise<InteractionParticipantRow[]> {
+async function readParticipantsForRuleReview(contactIds?: string[]): Promise<InteractionParticipantRow[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  let query = supabase
     .from("interaction_participants")
     .select("interaction_id,contact_id,email_identity,role")
     .limit(MAX_ROWS * 3);
+  if (contactIds?.length) query = query.in("contact_id", contactIds);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as InteractionParticipantRow[];
 }
 
-async function readActiveRuleTodos(): Promise<ActiveTodoReviewRow[]> {
+async function readActiveRuleTodos(contactIds?: string[]): Promise<ActiveTodoReviewRow[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  let query = supabase
     .from("todos")
     .select("id,todo_type,engine_type,status,object_type,object_id,current_state,suggested_state,evidence,dedup_key,source_fingerprint")
     .eq("status", "active")
     .eq("engine_type", "RULE")
-    .eq("todo_type", "NETWORKING_STATUS_CHANGE")
+    .in("todo_type", ["NETWORKING_STATUS_CHANGE", "HEADHUNTER_COMPANY_DETECTED"])
     .limit(MAX_ROWS);
+  if (contactIds?.length) query = query.in("object_id", contactIds);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as ActiveTodoReviewRow[];
 }
@@ -405,32 +549,23 @@ async function readTodosByDedupKeys(dedupKeys: string[]): Promise<Map<string, Ac
 function todoPayload(userId: string, candidate: RuleCandidate) {
   return {
     user_id: userId,
-    todo_type: "NETWORKING_STATUS_CHANGE",
+    todo_type: candidate.todoType,
     engine_type: "RULE",
     status: "active",
     priority: candidate.priority,
     object_type: "contact",
     object_id: candidate.contact.id,
-    current_state: JSON.stringify({ Estado_CRM: candidate.currentStatus }),
-    suggested_state: JSON.stringify({ Estado_CRM: candidate.suggestedStatus }),
+    current_state: JSON.stringify(candidate.currentState),
+    suggested_state: JSON.stringify(candidate.suggestedState),
     summary: candidate.contact.display_name || "Contacto sin nombre",
     reason: candidate.reason,
     evidence: JSON.stringify({
       regla: candidate.ruleId,
       motivo: candidate.reason,
-      interacciones: candidate.evidenceIds
+      interacciones: candidate.evidenceIds,
+      ...(candidate.evidenceExtra ?? {})
     }),
-    actions_json: [
-      {
-        action: "contact.update_networking_status",
-        label: "Cambiar estado",
-        input: {
-          contact_id: candidate.contact.id,
-          from: candidate.currentStatus,
-          to: candidate.suggestedStatus
-        }
-      }
-    ],
+    actions_json: [candidate.action],
     dedup_key: candidate.dedupKey,
     source_fingerprint: candidate.sourceFingerprint
   };
@@ -441,7 +576,7 @@ async function upsertReviewState(userId: string, candidate: RuleCandidate, now: 
   await supabase.from("object_review_state").upsert(
     {
       user_id: userId,
-      processor_id: PROCESSOR_ID,
+      processor_id: candidate.processorId,
       processor_type: "RULE",
       object_type: "contact",
       object_id: candidate.contact.id,
@@ -478,11 +613,19 @@ function configAllowsSuggestion(config: TodoConfigRow | undefined) {
 }
 
 function shouldCloseAsAutoResolved(todo: ActiveTodoReviewRow, contact: ContactReviewRow | undefined) {
+  if (todo.todo_type === "HEADHUNTER_COMPANY_DETECTED") {
+    const suggestedCompany = parseState(todo.suggested_state).Empresa ?? "";
+    return Boolean(
+      contact &&
+        suggestedCompany &&
+        normalizeHeadhunterCompanyName(contact.company) === normalizeHeadhunterCompanyName(suggestedCompany)
+    );
+  }
   const suggestedStatus = parseState(todo.suggested_state).Estado_CRM ?? "";
   return Boolean(contact && rank(normalizeStatus(contact.networking_status)) >= rank(suggestedStatus));
 }
 
-function parseState(value: string | null | undefined): { Estado_CRM?: string } {
+function parseState(value: string | null | undefined): { Estado_CRM?: string; Empresa?: string } {
   if (!value) return {};
   try {
     const parsed = JSON.parse(value);
@@ -490,6 +633,10 @@ function parseState(value: string | null | undefined): { Estado_CRM?: string } {
   } catch {
     return {};
   }
+}
+
+function candidateKey(contactId: string, todoType: string) {
+  return `${contactId}|${todoType}`;
 }
 
 function normalizeStatus(status: string | null | undefined) {
@@ -542,4 +689,14 @@ function maxUpdatedAt(interactions: InteractionReviewRow[]) {
 
 function readError(error: unknown) {
   return error instanceof Error ? error.message : "Error al revisar reglas.";
+}
+
+function normalizeContactIds(contactIds: string[] | undefined) {
+  if (!contactIds) return undefined;
+  const uniqueIds = unique(contactIds.map((contactId) => contactId.trim()).filter(Boolean));
+  return uniqueIds.length ? uniqueIds : undefined;
+}
+
+function unique(values: string[]) {
+  return Array.from(new Set(values));
 }

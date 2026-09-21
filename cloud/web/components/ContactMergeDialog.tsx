@@ -14,6 +14,7 @@ type ContactMergeDialogProps = {
   title?: string;
   description?: string;
   note?: string;
+  minSources?: number;
   saveLabel?: string;
   saving?: boolean;
   onClose: () => void;
@@ -23,11 +24,12 @@ type ContactMergeDialogProps = {
 export function ContactMergeDialog({
   availableContacts = [],
   description = "Elige que datos conservar antes de ajustar la propuesta.",
+  minSources = 2,
   note = "Esta propuesta se aplicara recien cuando confirmes la seleccion en el preview de sincronizacion.",
   onClose,
   onSave,
   open,
-  saveLabel = "Ajustar propuesta",
+  saveLabel = "Guardar cambios",
   saving = false,
   sources,
   title = "Fusionar contactos"
@@ -68,7 +70,7 @@ export function ContactMergeDialog({
             actions={(
               <>
                 <Button icon="close" disabled={saving} onClick={onClose}>Cancelar</Button>
-                <Button icon="check" disabled={saving || dialogSources.length < 2} onClick={() => onSave(result, dialogSources)} tone="primary">{saveLabel}</Button>
+                <Button icon="check" disabled={saving || dialogSources.length < minSources} onClick={() => onSave(result, dialogSources)} tone="primary">{saveLabel}</Button>
               </>
             )}
           />
