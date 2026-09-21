@@ -69,7 +69,16 @@ declare
     'public.disconnect_current_user_google_connected_account(uuid)'::regprocedure,
     'public.validate_contact_sync_storage_v0_1()'::regprocedure
   ];
+  security_definer_functions regprocedure[];
 begin
+  security_definer_functions := array_remove(
+    array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),
+    'public.normalize_app_access_email(text)'::regprocedure
+  ) || authenticated_functions || array[
+    'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure,
+    'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure
+  ];
+
   for critical_policy in
     select * from (values
       ('Profiles are owned by auth user', 'profiles', 'ALL', 'public'),
@@ -388,30 +397,33 @@ begin
     raise exception 'Missing auth user profile trigger';
   end if;
 
-  if exists (
-    select 1
-    from pg_catalog.pg_proc procedure
-    join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
-    where namespace.nspname = 'public'
-      and procedure.prosecdef
-      and not exists (
-        select 1 from unnest(coalesce(procedure.proconfig, array[]::text[])) config
-        where config in ('search_path=', 'search_path=""')
-      )
-  ) then
-    raise exception 'A SECURITY DEFINER function does not use an empty search_path';
-  end if;
+  foreach app_function in array security_definer_functions loop
+    if not exists (
+      select 1 from pg_catalog.pg_proc procedure
+      where procedure.oid = app_function and procedure.prosecdef
+    ) then
+      raise exception 'Coffeecito function % is not SECURITY DEFINER', app_function;
+    end if;
 
-  if exists (
-    select 1
-    from pg_catalog.pg_proc procedure
-    join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
-    where namespace.nspname = 'public'
-      and procedure.prosecdef
-      and pg_get_userbyid(procedure.proowner) <> 'postgres'
-  ) then
-    raise exception 'A SECURITY DEFINER function is not owned by postgres';
-  end if;
+    if not exists (
+      select 1 from pg_catalog.pg_proc procedure
+      where procedure.oid = app_function
+        and exists (
+          select 1 from unnest(coalesce(procedure.proconfig, array[]::text[])) config
+          where config in ('search_path=', 'search_path=""')
+        )
+    ) then
+      raise exception 'Coffeecito SECURITY DEFINER function % does not use an empty search_path', app_function;
+    end if;
+
+    if not exists (
+      select 1 from pg_catalog.pg_proc procedure
+      where procedure.oid = app_function
+        and pg_catalog.pg_get_userbyid(procedure.proowner) = 'postgres'
+    ) then
+      raise exception 'Coffeecito SECURITY DEFINER function % is not owned by postgres', app_function;
+    end if;
+  end loop;
 
   if pg_has_role('anon', 'postgres', 'MEMBER')
     or pg_has_role('authenticated', 'postgres', 'MEMBER') then
