@@ -32,6 +32,22 @@ $env:COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP = 'YES'
 
 Este modo es exclusivo para una base local y desechable. Ejecutar el bootstrap contra Supabase PROD remoto requiere autorización explícita y no se habilita mediante este parámetro.
 
+## Bootstrap remoto con psql en Docker
+
+Tras autorizar expresamente el bootstrap de una base Supabase PROD vacía, se puede usar una imagen PostgreSQL que ya exista en Docker. `-DockerPsqlImage` es incompatible con `-DockerContainer`; no descarga imágenes y conserva el mismo preflight, orden y verificación que el modo nativo. La URL se lee exclusivamente de `COFFEECITO_BOOTSTRAP_DATABASE_URL`, se entrega al contenedor como variable de entorno y no se incluye en los argumentos de `docker run`. Este modo exige SSL mediante `PGSSLMODE=require` salvo que la URL establezca explícitamente otra configuración.
+
+```powershell
+$env:COFFEECITO_BOOTSTRAP_DATABASE_URL = ConvertFrom-SecureString (Read-Host 'URL de conexion PROD con contrasena' -AsSecureString) -AsPlainText
+$env:COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP = 'YES'
+try {
+  ./cloud/supabase/run_prod_bootstrap.ps1 -DockerPsqlImage 'public.ecr.aws/supabase/postgres:17.6.1.167'
+} finally {
+  Remove-Item Env:COFFEECITO_BOOTSTRAP_DATABASE_URL, Env:COFFEECITO_ALLOW_EMPTY_DB_BOOTSTRAP -ErrorAction SilentlyContinue
+}
+```
+
+La URL debe ser la cadena de conexión del Session pooler PROD ya comprobada, con usuario, contraseña y base incluidos. El preflight verifica que la base esté vacía antes de aplicar el primer SQL de Coffeecito. No ejecutar este procedimiento sobre una base inicializada.
+
 ## Fuera del bootstrap automático
 
 Después del bootstrap se configuran manualmente: primer email PROD en allowlist, primer `system_admin`, Before User Created Hook, Site URL y redirects, Google OAuth, Turnstile, SMTP y secretos. Tampoco se migran automáticamente usuarios ni datos personales.
