@@ -93,4 +93,3 @@ function serviceSummary(
 function formatAppliedCounts(summary: InteractionSyncSummary) {
   return `${summary.totals.created} nuevos, ${summary.totals.updated} modificados, ${summary.totals.skipped} omitidos`;
 }
-

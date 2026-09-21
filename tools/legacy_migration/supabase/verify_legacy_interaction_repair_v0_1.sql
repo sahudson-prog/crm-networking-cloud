@@ -67,4 +67,3 @@ select
     'horas_diferencia', horas_diferencia
   )), '[]'::jsonb) as result
 from visible_calendar_duplicate_candidates;
-

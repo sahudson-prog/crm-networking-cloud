@@ -4,7 +4,7 @@
 
 Proteger el estado persistente de Coffeecito al promover versiones completas de software. Este documento define clasificación y revisión de cambios; no congela todo el schema ni reemplaza los documentos de datos, seguridad o arquitectura.
 
-Los contratos se identificaron en código y SQL locales. Esto no certifica el estado de DEV remoto ni presupone que PROD ya esté creado. La baseline y sus controles automáticos están implementados localmente en `cloud/supabase`, pero todavía no han sido ejecutados contra una base desechable ni remota.
+Los contratos se identificaron en código y SQL locales. Esto no certifica por sí solo la paridad continua con DEV remoto. La baseline y sus controles automáticos viven en `cloud/supabase`; fueron validados sobre bases vacías desechables y aplicados en PROD, donde los verificadores estructural, de acceso, Google y reset/merge pasaron.
 
 ## Qué se promueve y qué permanece
 
@@ -97,4 +97,4 @@ Rollback de software no deshace una migration ni recupera datos. Debe seguir fun
 
 Mantener [ARCHITECTURE.md](ARCHITECTURE.md) como arquitectura lógica compartida; no crear una copia `PROD_ARCHITECTURE.md`. Proponer después `PROD_ENVIRONMENT.md` para configuración por ambiente sin valores sensibles y `RELEASE_RUNBOOK.md` para promoción, mantenimiento, backup y rollback. Inicialmente recuperación puede ser una sección del runbook; separar `DATA_RECOVERY.md` cuando haya procedimientos de restauración detallados y ensayados. Esos documentos futuros no se crean en esta tarea.
 
-Antes de automatizar, acordar revisión base de comparación, registro de migrations desplegadas y criterios de recuperación. El repo por sí solo no demuestra paridad remota. El siguiente paso es ensayar la baseline consolidada, sus semillas globales y verificadores sobre dos bases Supabase desechables vacías, sin tocar DEV remoto.
+Antes de automatizar, acordar revisión base de comparación, registro de migrations desplegadas y criterios de recuperación. El repo por sí solo no demuestra paridad continua con DEV remoto. Las futuras evoluciones deben ensayarse con fixtures sintéticas y verificadores antes de aplicarse en PROD.
