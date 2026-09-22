@@ -101,7 +101,7 @@ Confirmado operativamente:
 
 Pendiente:
 
-- confirmar redirects Supabase DEV para los retornos internos de Google Connected Account;
+- autorizar en Supabase DEV el callback PKCE `http://localhost:3000/auth/callback`;
 - confirmar la disponibilidad local de `SUPABASE_SERVICE_ROLE_KEY` y `GOOGLE_OAUTH_CLIENT_ID` para finalizar Google Connected Account.
 
 ### Turnstile DEV
@@ -145,7 +145,7 @@ La baseline inicial no debe ejecutarse nuevamente sobre este proyecto. Las evolu
 
 Pendiente:
 
-- revisar las Redirect URLs de Supabase para Google Connected Account. El código retorna a `/cuenta` y a otras rutas internas, que pueden requerir autorización adicional además de la URL raíz.
+- autorizar en Supabase PROD el callback PKCE `https://coffeecito.cl/auth/callback`.
 
 ### Google PROD
 
@@ -182,6 +182,8 @@ Mientras Google permanezca en modo Testing, el acceso está limitado por su conf
 Google login se ejecuta mediante Supabase Auth con los scopes mínimos de identidad. No depende de Turnstile ni equivale a autorizar Contacts, Gmail o Calendar.
 
 Google Connected Account solicita consentimiento separado para datos y se finaliza mediante `/api/google/connected-account/finalize`.
+
+Todos los ingresos Supabase Auth usan PKCE y regresan primero a `/auth/callback`. El callback intercambia el código mediante el SDK, limpia la URL y recién después vuelve al destino interno. Los callbacks de Google Cloud hacia Supabase permanecen en `/auth/v1/callback`; no son la misma URL que el retorno final de Supabase hacia la aplicación.
 
 Estado actual:
 

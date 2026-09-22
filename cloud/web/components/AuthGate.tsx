@@ -22,6 +22,7 @@ import {
   type CaptchaStatus
 } from "../lib/authCaptcha";
 import { clearRememberedGoogleRequestedScopes, signInWithGoogleForAuth } from "../lib/googleAuthSession";
+import { cleanLegacyImplicitAuthFragment, prepareAuthCallback } from "../lib/authCallback";
 
 declare global {
   interface Window {
@@ -67,6 +68,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    const cleanUrl = cleanLegacyImplicitAuthFragment(window.location.href);
+    if (cleanUrl) window.history.replaceState(window.history.state, "", cleanUrl);
+
     if (!supabase) {
       setSessionLoading(false);
       commitAccess(resetAppAccessForLogout());
@@ -162,7 +166,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithOtp(buildPasswordlessEmailCredentials({
         captchaToken: captchaTokenForAttempt,
         email,
-        emailRedirectTo: window.location.origin
+        emailRedirectTo: prepareAuthCallback(window.location.origin)
       }));
       setMessage(error ? "No pudimos enviar el link. Intenta nuevamente." : "Listo. Revisa tu correo para entrar.");
     } catch {

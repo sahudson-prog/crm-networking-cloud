@@ -19,9 +19,9 @@ Google login y Google Connected Account son intents distintos.
 
 Los OAuth clients, callbacks, redirects y su separación por ambiente se documentan en [ENVIRONMENTS.md](../ENVIRONMENTS.md).
 
-El login Google se inicia desde `AuthGate` usando Supabase Auth con provider `google` y scopes mínimos de identidad: `openid`, `email` y `profile`. Este login no registra ni actualiza `connected_accounts`, no solicita Contacts, Gmail ni Calendar, y no sirve por sí solo como consentimiento para leer datos Google.
+El login Google se inicia desde `AuthGate` usando Supabase Auth con provider `google` y scopes mínimos de identidad: `openid`, `email` y `profile`. Usa PKCE y vuelve a `/auth/callback`, donde el SDK intercambia el código antes de entrar a la app. Este login no registra ni actualiza `connected_accounts`, no solicita Contacts, Gmail ni Calendar, y no sirve por sí solo como consentimiento para leer datos Google.
 
-La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, redirect de regreso y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios.
+La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, PKCE, callback explícito y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios.
 Antes de iniciar OAuth de datos, la app recuerda temporalmente los scopes solicitados y un intent de conexión de datos en `sessionStorage`. Esos scopes son intención de OAuth, no evidencia de permisos concedidos.
 Al volver desde Google, si el intent, nonce y fingerprint del token son coherentes, el navegador llama `POST /api/google/connected-account/finalize` con el `provider_token` temporal y el access token Supabase de la sesión.
 La ruta server-side valida sesión Supabase, acceso efectivo de Coffeecito, Google UserInfo, tokeninfo, audience/client binding, expiración y scopes efectivos. Solo después de esa verificación persiste la conexión local.

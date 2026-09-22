@@ -13,4 +13,13 @@ export const supabaseConfigError =
     : "";
 
 export const supabase =
-  supabaseUrl && supabasePublicKey ? createClient(supabaseUrl, supabasePublicKey) : null;
+  supabaseUrl && supabasePublicKey
+    ? createClient(supabaseUrl, supabasePublicKey, {
+        auth: {
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          flowType: "pkce",
+          persistSession: true
+        }
+      })
+    : null;

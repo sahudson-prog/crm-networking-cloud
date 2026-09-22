@@ -6,6 +6,7 @@ import {
   readGoogleDataConnectionReturn
 } from "./googleAuthLoginConfig";
 import type { GoogleDataCapabilities } from "./googleConnectedAccountVerification.ts";
+import { clearAuthCallbackReturnTo, prepareAuthCallback } from "./authCallback";
 
 export {
   buildGoogleAuthLoginRequest,
@@ -67,14 +68,15 @@ export async function reconnectGoogle(scopes: string | string[], redirectTo?: st
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: buildGoogleDataConnectionRedirectTo(
+      redirectTo: prepareAuthCallback(buildGoogleDataConnectionRedirectTo(
         redirectTo ?? `${window.location.origin}${window.location.pathname}${window.location.search}`,
         nonce
-      ),
+      )),
       scopes: scopeList.join(" ")
     }
   });
   if (error) {
+    clearAuthCallbackReturnTo();
     clearPendingGoogleDataConnection();
     throw error;
   }
@@ -83,7 +85,13 @@ export async function reconnectGoogle(scopes: string | string[], redirectTo?: st
 export async function signInWithGoogleForAuth(redirectTo?: string) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   clearRememberedGoogleRequestedScopes();
-  await supabase.auth.signInWithOAuth(buildGoogleAuthLoginRequest(redirectTo));
+  const { error } = await supabase.auth.signInWithOAuth(
+    buildGoogleAuthLoginRequest(prepareAuthCallback(redirectTo ?? window.location.origin))
+  );
+  if (error) {
+    clearAuthCallbackReturnTo();
+    throw error;
+  }
 }
 
 export function clearRememberedGoogleRequestedScopes() {

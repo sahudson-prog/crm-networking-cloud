@@ -20,7 +20,7 @@ No existe un tenant formal separado. El aislamiento multiusuario actual se basa 
 
 ## Autenticación
 
-La entrada visible principal usa Supabase Auth con Google login (`signInWithOAuth`) y scopes mínimos de identidad: `openid`, `email` y `profile`. El magic link por correo (`signInWithOtp`) se conserva como alternativa técnica. Cuando CAPTCHA está habilitado, las solicitudes de magic link se protegen con Cloudflare Turnstile y el token se envía a Supabase Auth para validación nativa. `AuthGate` lee la sesión con `supabase.auth.getSession()` y escucha cambios con `onAuthStateChange()`.
+La entrada visible principal usa Supabase Auth con Google login (`signInWithOAuth`) y scopes mínimos de identidad: `openid`, `email` y `profile`. El magic link por correo (`signInWithOtp`) se conserva como alternativa técnica. Ambos usan PKCE y regresan a `/auth/callback`, donde el SDK intercambia el código, persiste la sesión y elimina el código de la URL antes de entrar a la app. Cuando CAPTCHA está habilitado, las solicitudes de magic link se protegen con Cloudflare Turnstile y el token se envía a Supabase Auth para validación nativa. `AuthGate` lee la sesión con `supabase.auth.getSession()` y escucha cambios con `onAuthStateChange()`.
 
 Turnstile protege la solicitud passwordless contra abuso automatizado, pero no reemplaza la elegibilidad de beta cerrada. La allowlist y el acceso efectivo siguen resolviéndose en Supabase/Auth Hook/RPC, sin consulta de allowlist desde el formulario.
 
