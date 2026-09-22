@@ -12,6 +12,8 @@ export const supabaseConfigError =
     ? "Faltan NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
     : "";
 
+export const supabaseProjectHost = safeHostname(supabaseUrl);
+
 export const supabase =
   supabaseUrl && supabasePublicKey
     ? createClient(supabaseUrl, supabasePublicKey, {
@@ -23,3 +25,12 @@ export const supabase =
         }
       })
     : null;
+
+function safeHostname(value: string | undefined) {
+  if (!value) return "not_configured";
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return "invalid_url";
+  }
+}

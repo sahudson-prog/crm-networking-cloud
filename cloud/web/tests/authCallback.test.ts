@@ -43,20 +43,24 @@ test("callback delega el codigo al SDK y exige una sesion materializada", async 
     }
   });
 
-  assert.equal(completed, true);
+  assert.deepEqual(completed, { completed: true, diagnostic: null });
   assert.deepEqual(calls, ["one-time-code"]);
 
-  assert.equal(await exchangeAuthCallbackCode("bad-code", {
+  assert.deepEqual(await exchangeAuthCallbackCode("bad-code", {
     async exchangeCodeForSession() {
       return { data: { session: null }, error: { message: "invalid" } };
     }
-  }), false);
+  }), {
+    completed: false,
+    diagnostic: { category: "exchange_rejected" }
+  });
 });
 
 test("callback detecta error y limpia codigo y fragmento de la URL", () => {
   assert.deepEqual(readAuthCallback("https://coffeecito.cl/auth/callback?code=one-time-code"), {
     code: "one-time-code",
-    hasError: false
+    hasError: false,
+    oauthErrorCode: undefined
   });
   assert.equal(
     cleanAuthCallbackUrl("https://coffeecito.cl/auth/callback?code=one-time-code#unexpected"),
@@ -71,7 +75,7 @@ test("callback detecta error y limpia codigo y fragmento de la URL", () => {
 test("callback sin authorization code falla cerrado, no intercambia y limpia la URL", async () => {
   let exchangeCalls = 0;
   const result = prepareAuthCallbackExchange(
-    "https://coffeecito.cl/auth/callback?error_description=redacted#access_token=redacted",
+    "https://coffeecito.cl/auth/callback?unexpected=redacted#access_token=redacted",
     {
       async exchangeCodeForSession() {
         exchangeCalls += 1;
@@ -80,7 +84,10 @@ test("callback sin authorization code falla cerrado, no intercambia y limpia la 
     }
   );
 
-  assert.equal(await result.completion, false);
+  assert.deepEqual(await result.completion, {
+    completed: false,
+    diagnostic: { category: "callback_missing_code" }
+  });
   assert.equal(exchangeCalls, 0);
   assert.equal(result.cleanedUrl, "https://coffeecito.cl/auth/callback");
 });
@@ -97,9 +104,56 @@ test("callback OAuth con error falla cerrado sin intercambiar el code", async ()
     }
   );
 
-  assert.equal(await result.completion, false);
+  assert.deepEqual(await result.completion, {
+    completed: false,
+    diagnostic: { category: "oauth_error", code: "access_denied" }
+  });
   assert.equal(exchangeCalls, 0);
   assert.equal(result.cleanedUrl, "https://coffeecito.cl/auth/callback");
+});
+
+test("diagnostico distingue verifier PKCE ausente de rechazo del exchange", async () => {
+  const missingVerifier = await exchangeAuthCallbackCode("one-time-code", {
+    async exchangeCodeForSession() {
+      return {
+        data: { session: null },
+        error: {
+          code: "pkce_code_verifier_not_found",
+          message: "not exposed",
+          name: "AuthPKCECodeVerifierMissingError",
+          status: 400
+        }
+      };
+    }
+  });
+  const rejected = await exchangeAuthCallbackCode("one-time-code", {
+    async exchangeCodeForSession() {
+      return {
+        data: { session: null },
+        error: { code: "validation_failed", message: "not exposed", name: "AuthApiError", status: 400 }
+      };
+    }
+  });
+
+  assert.deepEqual(missingVerifier, {
+    completed: false,
+    diagnostic: {
+      category: "pkce_verifier_missing",
+      code: "pkce_code_verifier_not_found",
+      name: "AuthPKCECodeVerifierMissingError",
+      status: 400
+    }
+  });
+  assert.deepEqual(rejected, {
+    completed: false,
+    diagnostic: {
+      category: "exchange_rejected",
+      code: "validation_failed",
+      name: "AuthApiError",
+      status: 400
+    }
+  });
+  assert.equal(JSON.stringify([missingVerifier, rejected]).includes("not exposed"), false);
 });
 
 test("destino interno expirado se descarta usando el TTL real", () => {
