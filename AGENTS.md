@@ -54,6 +54,7 @@ Consulta documentación adicional solo según el tipo de tarea:
 - Coach: `docs/COACH_RULES.md`.
 - Auth, RLS, roles y permisos: `docs/SECURITY_ACCESS.md`.
 - Compatibilidad de releases y estado persistente PROD: `docs/PROD_CONTRACTS.md`.
+- Ambientes, deploy y configuración externa: `docs/ENVIRONMENTS.md`.
 - Privacidad y datos personales: `docs/PRIVACY_COMPLIANCE.md`.
 - UI: `docs/UI_SYSTEM.md`.
 - Testing: `docs/TESTING.md`.

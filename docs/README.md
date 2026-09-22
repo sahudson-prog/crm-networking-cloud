@@ -15,6 +15,7 @@ Usa esta guía como mapa rápido. No es necesario leer todos los documentos para
 - `ACTIONS.md`: modelo vigente de acciones internas, ejecución, confirmación y trazabilidad.
 - `COACH_RULES.md`: reglas Coach vigentes, prelación, gatilladores y límites.
 - `SECURITY_ACCESS.md`: autenticación, RLS, roles, planes, capabilities y operaciones privilegiadas.
+- `ENVIRONMENTS.md`: ambientes, despliegue, servicios externos y configuración por ambiente.
 - `PRIVACY_COMPLIANCE.md`: privacidad, datos personales, controles del usuario, minimización y límites de cumplimiento.
 - `UI_SYSTEM.md`: sistema visual, componentes, patrones de UI y responsive.
 - `TESTING.md`: herramientas reales de validación, cobertura observada y gaps.

@@ -17,6 +17,8 @@ El uso del conector también está sujeto a autorización interna de la app.
 ## OAuth y cuenta conectada
 Google login y Google Connected Account son intents distintos.
 
+Los OAuth clients, callbacks, redirects y su separación por ambiente se documentan en [ENVIRONMENTS.md](../ENVIRONMENTS.md).
+
 El login Google se inicia desde `AuthGate` usando Supabase Auth con provider `google` y scopes mínimos de identidad: `openid`, `email` y `profile`. Este login no registra ni actualiza `connected_accounts`, no solicita Contacts, Gmail ni Calendar, y no sirve por sí solo como consentimiento para leer datos Google.
 
 La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, redirect de regreso y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios.

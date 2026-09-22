@@ -62,9 +62,7 @@ Evidencia: [migration canónica](../cloud/supabase/canonical_google_connected_ac
 
 ### Configuración de ambiente y Storage
 
-La [plantilla de ambiente](../cloud/web/.env.example) declara URL/clave pública Supabase, site key Turnstile, `SUPABASE_SERVICE_ROLE_KEY` y `GOOGLE_OAUTH_CLIENT_ID`. El cliente admite también `NEXT_PUBLIC_SUPABASE_ANON_KEY` como alternativa a la publishable key. Service role es secreto server-only; el Client ID usado por la verificación es configuración server-side, no una secret key.
-
-URL y claves deben corresponder al mismo proyecto; audiencia Google al client configurado. Preservar por ambiente Site URL/redirects de Supabase, callback autorizado de Google, proveedores habilitados, hook, CAPTCHA y entrega de magic links. Los secrets Google y Turnstile se configuran fuera del frontend. Cambios estructurales o rotaciones necesitan coordinación, no copiar valores DEV.
+Las variables, proyectos, redirects, proveedores Auth/OAuth, CAPTCHA y hosting pertenecen al ambiente. Su inventario y separación DEV/PROD viven en [ENVIRONMENTS.md](ENVIRONMENTS.md). Al promover una revisión, URL, claves, audience Google y configuración externa deben seguir correspondiendo al mismo ambiente; no se copian valores DEV hacia PROD.
 
 No se identificó uso funcional de buckets/objetos Storage en el runtime inspeccionado; aparece una previsión de cuota. No afirmar que Storage remoto esté vacío: inventariarlo antes de un cambio de infraestructura y preservar cualquier objeto/policy existente.
 
@@ -95,6 +93,6 @@ Rollback de software no deshace una migration ni recupera datos. Debe seguir fun
 
 ## Documentación y siguiente paso
 
-Mantener [ARCHITECTURE.md](ARCHITECTURE.md) como arquitectura lógica compartida; no crear una copia `PROD_ARCHITECTURE.md`. Proponer después `PROD_ENVIRONMENT.md` para configuración por ambiente sin valores sensibles y `RELEASE_RUNBOOK.md` para promoción, mantenimiento, backup y rollback. Inicialmente recuperación puede ser una sección del runbook; separar `DATA_RECOVERY.md` cuando haya procedimientos de restauración detallados y ensayados. Esos documentos futuros no se crean en esta tarea.
+Mantener [ARCHITECTURE.md](ARCHITECTURE.md) como arquitectura lógica compartida y [ENVIRONMENTS.md](ENVIRONMENTS.md) como owner doc de configuración por ambiente sin valores sensibles. Proponer después `RELEASE_RUNBOOK.md` para promoción, mantenimiento, backup y rollback. Inicialmente recuperación puede ser una sección del runbook; separar `DATA_RECOVERY.md` cuando haya procedimientos de restauración detallados y ensayados. Esos documentos futuros no se crean en esta tarea.
 
 Antes de automatizar, acordar revisión base de comparación, registro de migrations desplegadas y criterios de recuperación. El repo por sí solo no demuestra paridad continua con DEV remoto. Las futuras evoluciones deben ensayarse con fixtures sintéticas y verificadores antes de aplicarse en PROD.

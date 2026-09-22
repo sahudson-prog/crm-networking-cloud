@@ -10,6 +10,8 @@ La fuente de verdad operacional es el schema de Supabase, sus policies RLS, las 
 
 La aplicación usa Supabase Auth y Supabase/Postgres como frontera principal de identidad y datos. El frontend crea un cliente Supabase con variables públicas `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` o `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
+La separación DEV/PROD de proyectos, redirects, variables y servicios externos se documenta en [ENVIRONMENTS.md](ENVIRONMENTS.md).
+
 El runtime web normal opera con la sesión Supabase del usuario y con RLS en base de datos. La excepción vigente es una ruta Next server-side mínima para finalizar Google Connected Account; esa frontera usa service role solo del lado servidor después de validar sesión, acceso efectivo y evidencia OAuth.
 
 El usuario propietario de datos se identifica con `auth.uid()`. En la app, ese identificador corresponde a `profiles.id` y a la columna `user_id` en la mayoría de tablas de datos del usuario.

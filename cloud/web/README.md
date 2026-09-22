@@ -14,6 +14,7 @@ Runtime web activo de CRM Networking.
 2. Completar:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, solo si se habilita el fallback por email
 3. Instalar dependencias:
 
 ```powershell
@@ -34,14 +35,21 @@ También puedes usar el acceso de la raíz del proyecto:
 abrir_app_cloud.bat
 ```
 
-## Variables para despliegue
+## Variables para runtime y despliegue
 
-Configurar las mismas variables públicas en el entorno de despliegue:
+Variables públicas:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`, alternativa de compatibilidad
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, requerida para habilitar el fallback por email
 
-No subir claves secretas, connection strings, contraseñas ni exports con datos personales.
+Variables server-only de Google Connected Account:
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_OAUTH_CLIENT_ID`
+
+No subir claves secretas, connection strings, contraseñas ni exports con datos personales. La separación DEV/PROD, los servicios externos y el alcance de cada variable se documentan en [ENVIRONMENTS.md](../../docs/ENVIRONMENTS.md).
 
 ## Comandos disponibles
 
