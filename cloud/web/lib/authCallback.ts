@@ -16,26 +16,6 @@ export type AuthCodeExchangeClient = {
   }>;
 };
 
-export type AuthCallbackFailureCategory =
-  | "callback_missing_code"
-  | "exchange_exception"
-  | "exchange_rejected"
-  | "oauth_error"
-  | "pkce_verifier_missing"
-  | "session_missing"
-  | "supabase_not_configured";
-
-export type AuthCallbackDiagnostic = {
-  category: AuthCallbackFailureCategory;
-  code?: string;
-  name?: string;
-  status?: number;
-};
-
-export type AuthCallbackExchangeResult =
-  | { completed: true; diagnostic: null }
-  | { completed: false; diagnostic: AuthCallbackDiagnostic };
-
 export function buildAuthCallbackUrl(origin: string) {
   return new URL(AUTH_CALLBACK_PATH, origin).toString();
 }
@@ -80,15 +60,11 @@ export function clearAuthCallbackReturnTo() {
 
 export function readAuthCallback(url: string) {
   const parsedUrl = new URL(url);
-  const oauthErrorCode = sanitizeDiagnosticToken(
-    parsedUrl.searchParams.get("error") ?? parsedUrl.searchParams.get("error_code")
-  );
   return {
     code: parsedUrl.searchParams.get("code") ?? "",
     hasError: parsedUrl.searchParams.has("error")
       || parsedUrl.searchParams.has("error_code")
-      || parsedUrl.searchParams.has("error_description"),
-    oauthErrorCode
+      || parsedUrl.searchParams.has("error_description")
   };
 }
 
@@ -108,37 +84,21 @@ export function cleanLegacyImplicitAuthFragment(url: string) {
 }
 
 export async function exchangeAuthCallbackCode(code: string, client: AuthCodeExchangeClient) {
-  if (!code) {
-    return failure("callback_missing_code");
-  }
+  if (!code) return false;
   try {
     const { data, error } = await client.exchangeCodeForSession(code);
-    if (error) {
-      const metadata = safeErrorMetadata(error);
-      const missingVerifier = metadata.code === "pkce_code_verifier_not_found"
-        || metadata.name === "AuthPKCECodeVerifierMissingError";
-      return failure(missingVerifier ? "pkce_verifier_missing" : "exchange_rejected", metadata);
-    }
-    if (!data.session) return failure("session_missing");
-    return { completed: true, diagnostic: null } as const;
-  } catch (error) {
-    return failure("exchange_exception", safeErrorMetadata(error));
+    return !error && Boolean(data.session);
+  } catch {
+    return false;
   }
 }
 
 export function prepareAuthCallbackExchange(url: string, client: AuthCodeExchangeClient | null) {
   const callback = readAuthCallback(url);
   const cleanedUrl = cleanAuthCallbackUrl(url);
-  let completion: Promise<AuthCallbackExchangeResult>;
-  if (callback.hasError) {
-    completion = Promise.resolve(failure("oauth_error", { code: callback.oauthErrorCode }));
-  } else if (!callback.code) {
-    completion = Promise.resolve(failure("callback_missing_code"));
-  } else if (!client) {
-    completion = Promise.resolve(failure("supabase_not_configured"));
-  } else {
-    completion = exchangeAuthCallbackCode(callback.code, client);
-  }
+  const completion = !client || callback.hasError || !callback.code
+    ? Promise.resolve(false)
+    : exchangeAuthCallbackCode(callback.code, client);
   return { cleanedUrl, completion };
 }
 
@@ -159,32 +119,4 @@ export function normalizeInternalReturnTo(returnTo: string, origin: string) {
   } catch {
     return "/";
   }
-}
-
-function failure(
-  category: AuthCallbackFailureCategory,
-  metadata: Omit<AuthCallbackDiagnostic, "category"> = {}
-): AuthCallbackExchangeResult {
-  return { completed: false, diagnostic: { category, ...metadata } };
-}
-
-function safeErrorMetadata(error: unknown): Omit<AuthCallbackDiagnostic, "category"> {
-  if (!error || typeof error !== "object") return {};
-  const value = error as Record<string, unknown>;
-  const code = sanitizeDiagnosticToken(value.code);
-  const name = sanitizeDiagnosticToken(value.name);
-  const status = typeof value.status === "number" && Number.isInteger(value.status)
-    ? value.status
-    : undefined;
-  return {
-    ...(code ? { code } : {}),
-    ...(name ? { name } : {}),
-    ...(status ? { status } : {})
-  };
-}
-
-function sanitizeDiagnosticToken(value: unknown) {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(normalized) ? normalized : undefined;
 }
