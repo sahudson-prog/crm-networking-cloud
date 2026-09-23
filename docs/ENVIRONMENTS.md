@@ -98,10 +98,10 @@ Confirmado operativamente:
 - Authorized JavaScript origin: `http://localhost:3000`.
 - Google callback: `https://wwlbxrdnrojqkhdxkzdx.supabase.co/auth/v1/callback`.
 - El Client ID configurado en Supabase DEV coincide con el client DEV.
+- El callback PKCE `http://localhost:3000/auth/callback` está autorizado y Google login PKCE fue probado con sesión persistente y URL limpia.
 
 Pendiente:
 
-- autorizar en Supabase DEV el callback PKCE `http://localhost:3000/auth/callback`;
 - confirmar la disponibilidad local de `SUPABASE_SERVICE_ROLE_KEY` y `GOOGLE_OAUTH_CLIENT_ID` para finalizar Google Connected Account.
 
 ### Turnstile DEV
@@ -143,9 +143,7 @@ Confirmado operativamente:
 
 La baseline inicial no debe ejecutarse nuevamente sobre este proyecto. Las evoluciones posteriores se agregan como migrations incrementales.
 
-Pendiente:
-
-- autorizar en Supabase PROD el callback PKCE `https://coffeecito.cl/auth/callback`.
+El callback PKCE `https://coffeecito.cl/auth/callback` está autorizado en Supabase PROD y Google login fue probado end-to-end.
 
 ### Google PROD
 
@@ -175,7 +173,7 @@ Los scopes de datos son:
 - `https://www.googleapis.com/auth/gmail.readonly`;
 - `https://www.googleapis.com/auth/calendar.readonly`.
 
-Mientras Google permanezca en modo Testing, el acceso está limitado por su configuración y test users autorizados.
+Mientras Google permanezca en modo Testing, el acceso está limitado por su configuración y test users autorizados. Todo usuario beta que use Google debe estar autorizado también como Google test user, además de cumplir la allowlist de Coffeecito.
 
 ### Google login y Google Connected Account PROD
 
@@ -185,28 +183,26 @@ Google Connected Account solicita consentimiento separado para datos y se finali
 
 Todos los ingresos Supabase Auth usan PKCE y regresan primero a `/auth/callback`. El callback intercambia el código mediante el SDK, limpia la URL y recién después vuelve al destino interno. Los callbacks de Google Cloud hacia Supabase permanecen en `/auth/v1/callback`; no son la misma URL que el retorno final de Supabase hacia la aplicación.
 
-Estado actual:
+Confirmado operativamente:
 
-- `SUPABASE_SERVICE_ROLE_KEY` en Vercel Production: pendiente.
-- `GOOGLE_OAUTH_CLIENT_ID` en Vercel Production: pendiente.
-- Google Connected Account no debe considerarse operativo hasta configurar ambas variables y completar un smoke test.
+- `SUPABASE_SERVICE_ROLE_KEY` y `GOOGLE_OAUTH_CLIENT_ID` están configuradas en Vercel Production.
+- Google Connected Account fue probado end-to-end.
+- Contacts, Gmail y Calendar fueron probados con preview y aplicación de cambios.
 
 `GOOGLE_OAUTH_CLIENT_ID` debe corresponder exactamente al OAuth client PROD usado por Supabase y Google.
 
 ### Turnstile y acceso por email PROD
 
-Estado actual:
+Confirmado operativamente:
 
-- Widget Turnstile PROD: pendiente.
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: pendiente.
-- Secret Turnstile en Supabase Auth: pendiente.
-- Fallback magic link/email: no operativo.
+- Turnstile PROD está configurado y operativo.
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` está configurada en Vercel Production.
+- CAPTCHA Turnstile está configurado en Supabase Auth.
+- Magic link/email fue probado end-to-end.
 
 Turnstile protege exclusivamente `signInWithOtp`. Google login no depende de Turnstile.
 
-Cuando se habilite, la site key pública se configura en Vercel Production y el secret se configura en Supabase Auth. El secret nunca se almacena en Git ni usa prefijo `NEXT_PUBLIC_`.
-
-También debe comprobarse la entrega de emails de Supabase/SMTP y sus redirects.
+La site key pública se configura en Vercel Production y el secret se configura en Supabase Auth. El secret nunca se almacena en Git ni usa prefijo `NEXT_PUBLIC_`.
 
 ## Variables por ambiente
 

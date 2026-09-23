@@ -2,24 +2,30 @@
 
 ## Iniciativa activa
 
-Preparar la beta cerrada de Coffeecito con onboarding controlado, login Google y acceso administrativo por allowlist.
+Lanzar la beta cerrada de Coffeecito y aprender de su uso real, manteniendo una frontera clara entre experiencia de usuario y herramientas operacionales.
 
-## Fase actual
+## Estado de partida
 
-Google login con scopes mínimos.
+PROD está operativo con acceso por allowlist, Google login PKCE, magic link protegido por Turnstile, administración inicial y Google Connected Account.
 
-Fases 1 a 3 de beta cerrada quedaron completadas: foundation/enforcement SQL de allowlist, AuthGate con decisión efectiva de Supabase y administración de allowlist/diagnóstico desde Mantención.
+Contacts, Gmail y Calendar funcionan con preview y aplicación de cambios. Google OAuth PROD permanece en Testing.
 
-Invariante actual: Google login no conecta datos Google. El login autentica identidad; Google Connected Account queda para consentimiento explícito posterior.
+## Siguiente implementación
 
-## Resultado esperado
+Restringir la navegación y accesos de Sistema mediante capabilities efectivas, sin sustituir enforcement de rutas, RPC, RLS o backend.
 
-El usuario invitado puede iniciar sesión con Google usando scopes mínimos de identidad, y la app mantiene el acceso cerrado por decisión efectiva de Supabase antes de mostrar vistas privadas.
+## Siguiente desarrollo de producto
+
+Diseñar e implementar un onboarding inicial que explique Coffeecito, guíe la configuración básica y ayude a completar un primer flujo útil.
+
+Landing, branding y una primera cohorte de beta testers son parte del foco inmediato.
+
+## Trabajo paralelo
+
+Auditar privacidad, seguridad y cumplimiento aplicable antes de publicar políticas definitivas.
+
+Diseñar la separación futura del consentimiento Google: Contacts + Calendar como autorización inicial de datos y Gmail como autorización adicional opcional.
 
 ## Fuera de alcance inmediato
 
-Google Connected Account explícita, landing/branding final, dominio productivo, cambios funcionales ajenos al onboarding y pruebas con una segunda cuenta no allowlisted.
-
-## Siguiente fase prevista
-
-Google Connected Account explícita. La prueba de signup no autorizado queda pendiente para el smoke beta.
+Verificación final de Google, eventual security assessment, Microsoft, WhatsApp, automatizaciones avanzadas, monetización y planes comerciales definitivos.
