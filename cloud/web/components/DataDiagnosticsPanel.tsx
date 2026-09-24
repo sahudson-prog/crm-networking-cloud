@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { filterDiagnosticTablesByAccess } from "../lib/dataDiagnosticsAccess";
+import { hasSystemSurfaceAccess } from "../lib/systemAccess";
 import { supabase } from "../lib/supabaseClient";
+import { useSystemAccess } from "./SystemAccess";
 
 type DiagnosticTableConfig = {
   columns: string[];
@@ -330,6 +333,7 @@ const DIAGNOSTIC_TABLES: DiagnosticTableConfig[] = [
 ];
 
 export function DataDiagnosticsPanel() {
+  const systemAccess = useSystemAccess();
   const [selectedScope, setSelectedScope] = useState<DiagnosticScope>("Usuario");
   const [query, setQuery] = useState("");
   const [selectedTable, setSelectedTable] = useState("contacts");
@@ -346,14 +350,20 @@ export function DataDiagnosticsPanel() {
     rows: []
   });
 
+  const canViewDiagnostics = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "logs");
+  const availableTables = useMemo(
+    () => filterDiagnosticTablesByAccess(DIAGNOSTIC_TABLES, canViewDiagnostics),
+    [canViewDiagnostics]
+  );
+
   const scopedTables = useMemo(
-    () => DIAGNOSTIC_TABLES.filter((table) => selectedScope === "Todos" || scopeFromLabel(table.label) === selectedScope),
-    [selectedScope]
+    () => availableTables.filter((table) => selectedScope === "Todos" || scopeFromLabel(table.label) === selectedScope),
+    [availableTables, selectedScope]
   );
 
   const config = useMemo(
-    () => scopedTables.find((table) => table.table === selectedTable) ?? scopedTables[0] ?? DIAGNOSTIC_TABLES[0],
-    [scopedTables, selectedTable]
+    () => scopedTables.find((table) => table.table === selectedTable) ?? scopedTables[0] ?? availableTables[0],
+    [availableTables, scopedTables, selectedTable]
   );
 
   const visibleRows = useMemo(
@@ -363,9 +373,9 @@ export function DataDiagnosticsPanel() {
 
   useEffect(() => {
     if (!scopedTables.some((table) => table.table === selectedTable)) {
-      setSelectedTable(scopedTables[0]?.table ?? DIAGNOSTIC_TABLES[0].table);
+      setSelectedTable(scopedTables[0]?.table ?? availableTables[0].table);
     }
-  }, [scopedTables, selectedTable]);
+  }, [availableTables, scopedTables, selectedTable]);
 
   useEffect(() => {
     setColumnFilters({});

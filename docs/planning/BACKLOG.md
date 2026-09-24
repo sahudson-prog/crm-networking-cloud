@@ -24,6 +24,7 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 - Preparar Privacy Policy y Terms & Conditions coherentes con el comportamiento efectivo del producto.
 - Planificar los gaps documentados de exportación, eliminación completa de cuenta, retención, consentimiento versionado y revocación real de permisos Google.
 - Endurecer la lectura de `sync_run_logs`: impedir SELECT al usuario final, permitirlo con `admin.view_diagnostics` y conservar INSERT propio para los flujos normales. Es un `PROD CONTRACT CHANGE` que requiere migration y verifier.
+- Revisar la semántica y matriz de `admin.view_diagnostics`: `sponsor_admin` la hereda actualmente y, bajo el contrato vigente, obtiene acceso transversal a `sync_run_logs`. Resolver esta deuda sin hardcodear roles ni debilitar el enforcement por capability.
 - Revisar por separado el riesgo y contrato persistente de `admin_usage_limit_overrides_v0_1` almacenado en `user_settings` antes de cambiar su autorización o almacenamiento.
 - Revisar las demás superficies internas de diagnósticos y datos crudos como accesos operacionales privilegiados.
 

@@ -130,7 +130,7 @@ No se observó política cerrada para conservar evidencia mínima después de un
 
 ## Diagnóstico y acceso interno
 
-`sync_run_logs` permite revisar pasos recientes de sincronización y está diseñado para no ensuciar la vista Cuenta con mensajes técnicos.
+`sync_run_logs` permite revisar pasos recientes de sincronización y está diseñado para no ensuciar la vista Cuenta con mensajes técnicos. El usuario final puede generar registros propios, pero no leerlos directamente; la capability efectiva `admin.view_diagnostics` permite lectura transversal para soporte. Aunque el runtime aplica sanitización de correos, teléfonos, tokens y metadata sensible conocida antes de insertar, estos registros deben tratarse como datos operacionales potencialmente sensibles.
 
 `external_interaction_read_diagnostics` permite investigar lecturas de Calendar, mapeos, descartes y candidatos. Puede contener emails de participantes y datos técnicos de eventos.
 
