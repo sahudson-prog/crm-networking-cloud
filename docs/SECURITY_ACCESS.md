@@ -45,7 +45,9 @@ El patrón predominante de RLS es ownership por usuario:
 
 Para la beta cerrada, ese ownership debe combinarse con `current_user_has_app_access()`. Así, un usuario revocado o no autorizado no puede operar sobre datos app-owned aunque conserve una sesión Supabase válida y aunque el `user_id` coincida.
 
-Ese patrón aparece en tablas app-owned como `contacts`, `contact_emails`, `contact_phones`, `interactions`, `interaction_participants`, `external_contact_ids`, `external_contact_snapshots`, `external_interaction_sources`, `referrals`, `todos`, `todo_configs`, `sync_cursors`, `sync_run_logs`, `audit_log`, `metric_snapshots`, `usage_events`, `usage_limits`, `objectives`, `contact_objective_assignments` y `object_review_state`.
+Ese patrón aparece en tablas app-owned como `contacts`, `contact_emails`, `contact_phones`, `interactions`, `interaction_participants`, `external_contact_ids`, `external_contact_snapshots`, `external_interaction_sources`, `referrals`, `todos`, `todo_configs`, `sync_cursors`, `audit_log`, `metric_snapshots`, `usage_events`, `usage_limits`, `objectives`, `contact_objective_assignments` y `object_review_state`.
+
+`sync_run_logs` aplica un contrato más estrecho: el usuario autenticado puede insertar solo filas propias mientras conserve acceso efectivo, pero no puede leerlas por ownership. La lectura requiere la capability efectiva `admin.view_diagnostics` y habilita diagnóstico transversal sobre logs de usuarios. Los clientes no reciben `UPDATE` ni `DELETE`; el reset propio conserva el borrado mediante su RPC `SECURITY DEFINER`.
 
 Además de RLS, el código suele filtrar explícitamente por `user_id` al leer o escribir. Esto no reemplaza RLS; opera como defensa adicional y como forma de construir consultas específicas.
 
@@ -100,7 +102,7 @@ Algunas operaciones hacen check explícito de capability antes de actuar:
 - administrar maestro de empresas headhunter: `admin.manage_global_masters`;
 - reiniciar datos propios: `data.delete_account`.
 
-Otras operaciones dependen principalmente de sesión, filtros `user_id` y RLS. Esto incluye muchas lecturas y escrituras de contactos, interacciones, referidos, objetivos, sugerencias y logs.
+Otras operaciones dependen principalmente de sesión, filtros `user_id` y RLS. Esto incluye muchas lecturas y escrituras de contactos, interacciones, referidos, objetivos y sugerencias. En `sync_run_logs`, RLS separa el `INSERT` propio de la lectura administrativa por capability.
 
 Las rutas de Sistema usan `AuthGate` y un guard frontend compartido que falla cerrado antes de montar su contenido privado. Este guard controla navegación y montaje de vistas, pero no sustituye el enforcement backend. El enforcement backend depende del contrato de autorización de cada operación, que puede combinar RPC, RLS, policies y checks explícitos de capability.
 

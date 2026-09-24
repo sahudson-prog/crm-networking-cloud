@@ -9,6 +9,7 @@ import {
   type SystemCapabilityCode
 } from "../lib/systemAccess.ts";
 import type { CapabilityAccessState, CapabilityCode } from "../lib/accessControl.ts";
+import { filterDiagnosticTablesByAccess } from "../lib/dataDiagnosticsAccess.ts";
 
 test("usuario base conserva Cuenta y no ve Sistema", () => {
   const shellSource = source("../components/Shell.tsx");
@@ -101,6 +102,26 @@ test("el indice no lee cargas sin capability de diagnostico", () => {
 
   assert.ok(guardIndex >= 0);
   assert.ok(queryIndex > guardIndex);
+});
+
+test("Mantencion no consulta ni muestra logs sync sin capability de diagnostico", () => {
+  const tables = [
+    { table: "contacts" },
+    { table: "sync_run_logs" },
+    { table: "sync_cursors" }
+  ];
+
+  assert.deepEqual(
+    filterDiagnosticTablesByAccess(tables, false).map((table) => table.table),
+    ["contacts", "sync_cursors"]
+  );
+  assert.deepEqual(
+    filterDiagnosticTablesByAccess(tables, true).map((table) => table.table),
+    ["contacts", "sync_run_logs", "sync_cursors"]
+  );
+
+  const diagnosticsSource = source("../components/DataDiagnosticsPanel.tsx");
+  assert.match(diagnosticsSource, /loadTableSummaries\(scopedTables\)/);
 });
 
 test("la guia visual usa fixtures inequivocamente ficticios", () => {

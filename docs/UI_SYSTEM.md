@@ -112,7 +112,7 @@ Los controles nativos ayudan con teclado y foco, pero la cobertura de accesibili
 
 Mantención admin reutiliza paneles, botones, campos, tablas y `ProgressBar`, pero tiene patrones propios para límites, capacidades, accesos y visor de datos crudos.
 
-`DataDiagnosticsPanel` usa selector de alcance, selector de tabla, buscador, resumen por tabla, filtros por columna y ordenamiento local. Es una UI operativa densa, más cercana a soporte interno que a usuario final.
+`DataDiagnosticsPanel` usa selector de alcance, selector de tabla, buscador, resumen por tabla, filtros por columna y ordenamiento local. Es una UI operativa densa, más cercana a soporte interno que a usuario final. La tabla `sync_run_logs` solo aparece y se consulta cuando la sesión tiene `admin.view_diagnostics`, aunque Mantención se haya abierto mediante `admin.manage_access`.
 
 El índice Sistema muestra únicamente las superficies autorizadas por capabilities efectivas. Guía y Logs requieren diagnóstico; Mantención requiere administración de acceso; y el maestro HeadHunter requiere administración de maestros globales. Los estados pendientes o con error no muestran enlaces administrativos.
 
