@@ -4,13 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
+import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Icon } from "./ui/Icon";
+import { canRenderSystemSurface } from "../lib/systemAccess";
 
 export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
+  return (
+    <SystemAccessProvider>
+      <ShellContent onSignOut={onSignOut}>{children}</ShellContent>
+    </SystemAccessProvider>
+  );
+}
+
+function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
   const pathname = usePathname();
+  const systemAccess = useSystemAccess();
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
   const isObjectives = pathname.startsWith("/objetivos");
+  const showSystem = canRenderSystemSurface(systemAccess, "system");
 
   return (
     <main className="app-shell">
@@ -34,15 +46,17 @@ export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?
             </Link>
           </div>
           <div className="nav-utility">
-            <Link
-              aria-label="Sistema"
-              className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
-              href="/sistema"
-              title="Sistema"
-            >
-              <Icon name="settings" />
-              <span className="sr-only">Sistema</span>
-            </Link>
+            {showSystem ? (
+              <Link
+                aria-label="Sistema"
+                className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
+                href="/sistema"
+                title="Sistema"
+              >
+                <Icon name="settings" />
+                <span className="sr-only">Sistema</span>
+              </Link>
+            ) : null}
             <Link
               aria-label="Cuenta"
               className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}

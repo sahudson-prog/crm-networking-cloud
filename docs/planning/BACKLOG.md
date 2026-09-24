@@ -23,7 +23,9 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 - Determinar el cumplimiento aplicable en Chile mediante revisión competente, sin declarar cumplimiento anticipadamente.
 - Preparar Privacy Policy y Terms & Conditions coherentes con el comportamiento efectivo del producto.
 - Planificar los gaps documentados de exportación, eliminación completa de cuenta, retención, consentimiento versionado y revocación real de permisos Google.
-- Revisar el acceso interno a logs, diagnósticos y datos crudos como superficies operacionales privilegiadas.
+- Endurecer la lectura de `sync_run_logs`: impedir SELECT al usuario final, permitirlo con `admin.view_diagnostics` y conservar INSERT propio para los flujos normales. Es un `PROD CONTRACT CHANGE` que requiere migration y verifier.
+- Revisar por separado el riesgo y contrato persistente de `admin_usage_limit_overrides_v0_1` almacenado en `user_settings` antes de cambiar su autorización o almacenamiento.
+- Revisar las demás superficies internas de diagnósticos y datos crudos como accesos operacionales privilegiados.
 
 ## Google consent y verification
 
@@ -35,8 +37,6 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 
 ## UX / permissions
 
-- Restringir la navegación de Sistema por capabilities efectivas: hoy un usuario base puede ver Guía visual cloud, Cuenta y conexiones, Mantención admin y Logs. Antes de implementar, auditar qué capability corresponde a cada acceso y si alguno pertenece realmente a usuario final. Criterio de aceptación: un usuario sin la capability requerida no ve ni puede navegar a cada acceso; un usuario autorizado sí conserva su acceso. Seguridad: ocultar la UI no reemplaza enforcement en rutas, RPC ni RLS/backend.
-- Validar que las rutas administrativas fallen cerradas aunque un usuario intente navegarlas directamente.
 - Completar mantenedores admin para roles, planes, capacidades y parámetros operativos sin edición dura de código.
 
 ## Integraciones futuras

@@ -25,6 +25,8 @@ import { Button } from "./ui/Button";
 import { AccessAdminPanel } from "./AccessAdminPanel";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { ProgressBar } from "./ui/ProgressBar";
+import { useSystemAccess } from "./SystemAccess";
+import { hasSystemSurfaceAccess } from "../lib/systemAccess";
 
 type UsageEventRow = {
   limit_type: string;
@@ -33,6 +35,7 @@ type UsageEventRow = {
 };
 
 export function AdminMaintenancePage() {
+  const systemAccess = useSystemAccess();
   const [admin, setAdmin] = useState<AdminAccessState>({
     allowed: false,
     capabilityCode: "admin.manage_access",
@@ -81,6 +84,7 @@ export function AdminMaintenancePage() {
   const usageByLimit = useMemo(() => usageMap(events), [events]);
   const orderedDefinitions = useMemo(() => usageLimitDefinitionsByImpact(), []);
   const groupedDefinitions = useMemo(() => groupDefinitionsByProvider(orderedDefinitions), [orderedDefinitions]);
+  const canManageHeadhunters = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "headhunters");
 
   if (!admin.checked) {
     return <section className="panel">Revisando acceso...</section>;
@@ -144,7 +148,9 @@ export function AdminMaintenancePage() {
         </div>
         <div className="toolbar">
           <Link className="button secondary" href="/sistema">Volver a Sistema</Link>
-          <Link className="button secondary" href="/sistema/headhunters">Empresas headhunter</Link>
+          {canManageHeadhunters ? (
+            <Link className="button secondary" href="/sistema/headhunters">Empresas headhunter</Link>
+          ) : null}
           <Button disabled={saving} icon="check" onClick={saveChanges} tone="primary">
             {saving ? "Guardando..." : "Guardar parametros"}
           </Button>

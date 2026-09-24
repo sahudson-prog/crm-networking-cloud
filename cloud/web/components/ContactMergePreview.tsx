@@ -7,15 +7,15 @@ import { Button } from "./ui/Button";
 
 const exampleContacts: ContactMergeSource[] = [
   {
-    company: "Astara",
-    emails: ["alberto.villate.g@astara.com"],
+    company: "Empresa Demo",
+    emails: ["principal@example.invalid"],
     focus: true,
     headhunter: false,
     id: "app",
     kind: "Guardado",
-    name: "Alberto Villate",
+    name: "Contacto Demo Principal",
     networkingStatus: "Contactado",
-    phones: ["+56 9 9221 5817", "+56 2 2837 1378"],
+    phones: ["000000005", "000000006"],
     role: "Director"
   },
   {
@@ -25,19 +25,19 @@ const exampleContacts: ContactMergeSource[] = [
     headhunter: false,
     id: "google-a",
     kind: "Fuente conectada",
-    name: "Alberto V",
+    name: "Contacto Demo P.",
     networkingStatus: "Pendiente",
-    phones: ["+56 2 2837 1378"],
+    phones: ["000000006"],
     role: ""
   },
   {
-    company: "Astara Latam",
-    emails: ["avillate@astara.com"],
+    company: "Empresa Demo Regional",
+    emails: ["alternativo@example.invalid"],
     focus: false,
     headhunter: true,
     id: "referral",
     kind: "Guardado",
-    name: "Alberto Villate G.",
+    name: "Contacto Demo Alternativo",
     networkingStatus: "Agendado",
     phones: [],
     role: "Board member"

@@ -71,24 +71,24 @@ const initialCoverBoardColumns: CoverBoardColumn[] = [
     id: "pendiente",
     title: "Pendiente",
     cards: [
-      { company: "LATAM Airlines", id: "alienor", kind: "contact", name: "Alienor Tordeur" },
-      { company: "Grange", id: "francisca", kind: "contact", name: "Francisca Garib" },
-      { company: "Spencer Stuart", id: "ignacio", kind: "headhunter", name: "Ignacio Spencer" },
-      { company: "Korn Ferry", id: "korn", kind: "headhunter", name: "Korn Ferry" },
-      { company: "RedSalud", id: "fiona", kind: "contact", name: "Fiona Ruckert" },
-      { company: "Duke", id: "jorge", kind: "contact", name: "Jorge Kehdy" },
-      { company: "Virtus", id: "virtus", kind: "headhunter", name: "Virtus Partners" }
+      { company: "Empresa Aurora", id: "demo-uno", kind: "contact", name: "Contacto Demo Uno" },
+      { company: "Empresa Boreal", id: "demo-dos", kind: "contact", name: "Contacto Demo Dos" },
+      { company: "Search Demo Norte", id: "headhunter-uno", kind: "headhunter", name: "Headhunter Demo Uno" },
+      { company: "Search Demo Sur", id: "headhunter-dos", kind: "headhunter", name: "Headhunter Demo Dos" },
+      { company: "Empresa Prisma", id: "demo-tres", kind: "contact", name: "Contacto Demo Tres" },
+      { company: "Empresa Horizonte", id: "demo-cuatro", kind: "contact", name: "Contacto Demo Cuatro" },
+      { company: "Search Demo Centro", id: "headhunter-tres", kind: "headhunter", name: "Headhunter Demo Tres" }
     ]
   },
   {
     id: "contactado",
     title: "Contactado",
     cards: [
-      { company: "Simon Kucher", id: "manuel", kind: "contact", name: "Manuel Osorio" },
-      { company: "Egon Zehnder", id: "egon", kind: "headhunter", name: "Egon Zehnder" },
-      { company: "Patria", id: "ricardo", kind: "contact", name: "Ricardo Smith" },
-      { company: "Talengo", id: "adriana", kind: "headhunter", name: "Adriana Villanueva" },
-      { company: "Page Executive", id: "page", kind: "headhunter", name: "Page Executive" }
+      { company: "Empresa Delta", id: "demo-cinco", kind: "contact", name: "Contacto Demo Cinco" },
+      { company: "Search Demo Este", id: "headhunter-cuatro", kind: "headhunter", name: "Headhunter Demo Cuatro" },
+      { company: "Empresa Vector", id: "demo-seis", kind: "contact", name: "Contacto Demo Seis" },
+      { company: "Search Demo Oeste", id: "headhunter-cinco", kind: "headhunter", name: "Headhunter Demo Cinco" },
+      { company: "Search Demo Andes", id: "headhunter-seis", kind: "headhunter", name: "Headhunter Demo Seis" }
     ]
   }
 ];
@@ -97,59 +97,59 @@ const syncPreviewChanges: SyncPreviewChange[] = [
   {
     defaultSelected: true,
     fields: [
-      { after: "Ana Pereira", changed: true, label: "Nombre" },
-      { after: "C-Group", changed: true, label: "Empresa" },
-      { after: "ana@c-group.cl", changed: true, label: "Correo" },
-      { after: "+56 9 4444 2222", changed: true, label: "Telefono" }
+      { after: "Contacto Demo Nuevo", changed: true, label: "Nombre" },
+      { after: "Empresa Demo", changed: true, label: "Empresa" },
+      { after: "nuevo@example.invalid", changed: true, label: "Correo" },
+      { after: "000000001", changed: true, label: "Telefono" }
     ],
     id: "design-new-ana",
-    title: "Ana Pereira",
+    title: "Contacto Demo Nuevo",
     type: "new"
   },
   {
     defaultSelected: true,
     fields: [
-      { after: "Josefina Camus Headhunter", apply: false, before: "Josefina Camus", changed: true, label: "Nombre", operation: "replace" },
-      { after: "Seminarium", before: "", changed: true, label: "Empresa" },
-      { after: "josefina@seminarium.cl", changed: true, label: "Correo", operation: "add" },
-      { apply: false, before: "josefina.antiguo@empresa.cl", changed: true, label: "Correo", operation: "remove" }
+      { after: "Contacto Demo Editado", apply: false, before: "Contacto Demo", changed: true, label: "Nombre", operation: "replace" },
+      { after: "Empresa Demo", before: "", changed: true, label: "Empresa" },
+      { after: "editado@example.invalid", changed: true, label: "Correo", operation: "add" },
+      { apply: false, before: "anterior@example.invalid", changed: true, label: "Correo", operation: "remove" }
     ],
     id: "design-mod-josefina",
-    title: "Josefina Camus",
+    title: "Contacto Demo",
     type: "modified"
   },
   {
     defaultSelected: true,
     fields: [
-      { after: "smith@gmail.com", before: "smith@gmail.com", changed: true, label: "Correo", operation: "match" },
-      { after: "Patria", before: "", changed: true, label: "Empresa" },
-      { after: "+56 9 8888 1111", changed: true, label: "Telefono", operation: "add" }
+      { after: "duplicado@example.invalid", before: "duplicado@example.invalid", changed: true, label: "Correo", operation: "match" },
+      { after: "Empresa Demo", before: "", changed: true, label: "Empresa" },
+      { after: "000000002", changed: true, label: "Telefono", operation: "add" }
     ],
     id: "design-cons-ricardo",
     metadata: {
       mergeSources: [
         {
-          company: "Patria",
-          emails: ["smith@gmail.com"],
+          company: "Empresa Demo",
+          emails: ["duplicado@example.invalid"],
           focus: true,
           headhunter: false,
-          id: "contact-ricardo",
+          id: "contact-demo",
           kind: "Guardado",
-          name: "Ricardo Smith",
+          name: "Contacto Demo Duplicado",
           networkingStatus: "Contactado",
-          phones: ["+56 9 8888 1111"],
+          phones: ["000000002"],
           role: "Gerente"
         },
         {
           company: "",
-          emails: ["smith@gmail.com"],
+          emails: ["duplicado@example.invalid"],
           focus: false,
           headhunter: false,
-          id: "people/ricardo-a",
+          id: "people/demo-a",
           kind: "Fuente conectada",
-          name: "Ricardo Smith",
+          name: "Contacto Demo Duplicado",
           networkingStatus: "Pendiente",
-          phones: ["+56 9 8888 1111"],
+          phones: ["000000002"],
           role: ""
         },
         {
@@ -157,29 +157,29 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           emails: [],
           focus: false,
           headhunter: false,
-          id: "people/ricardo-b",
+          id: "people/demo-b",
           kind: "Fuente conectada",
-          name: "Ricardo S.",
+          name: "Contacto Demo D.",
           networkingStatus: "Pendiente",
-          phones: ["+56 9 7777 1111"],
+          phones: ["000000003"],
           role: ""
         }
       ]
     },
-    title: "Ricardo Smith",
+    title: "Contacto Demo Duplicado",
     type: "consolidation"
   },
   {
     defaultSelected: false,
     fields: [
-      { after: "Alberto V", changed: true, label: "Nombre" },
-      { after: "56228371378", changed: true, label: "Telefono" }
+      { after: "Contacto Demo A", changed: true, label: "Nombre" },
+      { after: "000000004", changed: true, label: "Telefono" }
     ],
     id: "design-dup-complex-alberto",
     metadata: {
       duplicateGroupId: "design-dup-group-alberto",
       duplicateGroupConnectedCount: 3,
-      duplicateGroupLabel: "Alberto Villate",
+      duplicateGroupLabel: "Contacto Demo Grupo",
       duplicateGroupSavedCount: 2,
       duplicateGroupTotalCount: 5,
       mergeSources: [
@@ -188,59 +188,59 @@ const syncPreviewChanges: SyncPreviewChange[] = [
           emails: [],
           focus: false,
           headhunter: false,
-          id: "people/alberto-v",
+          id: "people/demo-complex-a",
           kind: "Fuente conectada",
-          name: "Alberto V",
+          name: "Contacto Demo A",
           networkingStatus: "Pendiente",
-          phones: ["56228371378"],
+          phones: ["000000004"],
           role: ""
         }
       ]
     },
-    title: "Alberto V",
+    title: "Contacto Demo A",
     type: "duplicate_complex"
   },
   {
     defaultSelected: false,
     fields: [
-      { after: "Alberto Villate Galarce", changed: true, label: "Nombre" },
-      { after: "avillate@skberge.cl", changed: true, label: "Correo" },
-      { after: "56228371378", changed: true, label: "Telefono" }
+      { after: "Contacto Demo Completo", changed: true, label: "Nombre" },
+      { after: "completo@example.invalid", changed: true, label: "Correo" },
+      { after: "000000004", changed: true, label: "Telefono" }
     ],
     id: "design-dup-complex-alberto-g",
     metadata: {
       duplicateGroupId: "design-dup-group-alberto",
       duplicateGroupConnectedCount: 3,
-      duplicateGroupLabel: "Alberto Villate",
+      duplicateGroupLabel: "Contacto Demo Grupo",
       duplicateGroupSavedCount: 2,
       duplicateGroupTotalCount: 5,
       mergeSources: [
         {
           company: "",
-          emails: ["avillate@skberge.cl"],
+          emails: ["completo@example.invalid"],
           focus: false,
           headhunter: false,
-          id: "people/alberto-g",
+          id: "people/demo-complex-b",
           kind: "Fuente conectada",
-          name: "Alberto Villate Galarce",
+          name: "Contacto Demo Completo",
           networkingStatus: "Pendiente",
-          phones: ["56228371378"],
+          phones: ["000000004"],
           role: ""
         }
       ]
     },
-    title: "Alberto Villate Galarce",
+    title: "Contacto Demo Completo",
     type: "duplicate_complex"
   },
   {
     defaultSelected: false,
     fields: [
-      { before: "Manuel Diaz", changed: true, label: "Nombre" },
-      { before: "Outplacement", changed: true, label: "Empresa" },
-      { before: "manuel@outplacement.cl", changed: true, label: "Correo" }
+      { before: "Contacto Demo Eliminado", changed: true, label: "Nombre" },
+      { before: "Empresa Demo", changed: true, label: "Empresa" },
+      { before: "eliminado@example.invalid", changed: true, label: "Correo" }
     ],
     id: "design-deleted-manuel",
-    title: "Manuel Diaz",
+    title: "Contacto Demo Eliminado",
     type: "deleted"
   }
 ];
@@ -347,7 +347,7 @@ export function DesignSystemPreview() {
         <div className="toolbar">
           <span
             className="shared-interaction-indicator"
-            title={"Interaccion compartida con otros contactos.\nParticipantes:\nDe: Maria S. <maria@empresa.cl>\nPara: Sergio H. <sergio@correo.cl>\nCC: Jorge M. <jorge@empresa.cl>"}
+            title={"Interaccion compartida con otros contactos.\nParticipantes:\nDe: Persona Demo A <demo-a@example.invalid>\nPara: Persona Demo B <demo-b@example.invalid>\nCC: Persona Demo C <demo-c@example.invalid>"}
           >
             <Icon name="users" />
           </span>

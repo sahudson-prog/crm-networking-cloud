@@ -60,6 +60,12 @@ npm run test:logs
 Ejecuta pruebas de logs y diagnósticos de lectura de interacciones externas.
 
 ```powershell
+npm run test:system-access
+```
+
+Ejecuta pruebas de la matriz de capabilities y guards de las superficies de Sistema.
+
+```powershell
 npm run test:google-adapter
 ```
 
@@ -107,6 +113,8 @@ Para cambios en Coach, ejecutar `npm run test:rules`.
 Para cambios en KPIs, existe `npm run test:kpis`. Para métricas de objetivos existe `tests/objectiveMetrics.test.ts`, pero no se observó un script npm dedicado que lo integre al flujo estándar.
 
 Para cambios de UI, además de typecheck o build cuando corresponda, realizar revisión manual en navegador. La revisión debe verificar que la vista renderiza, que las acciones principales siguen disponibles y que los estados de carga, vacío y error no rompen el layout.
+
+Para cambios en navegación, guards o superficies administrativas de Sistema, ejecutar `npm run test:system-access`. La cobertura comprueba la matriz de capabilities, el fail-closed y la presencia de `AuthGate` y del guard antes de los componentes privados.
 
 Para cambios de SQL, RLS, permisos o funciones Supabase, revisar la migration o script afectado y usar los verificadores SQL existentes cuando apliquen. No hay evidencia de una suite SQL automatizada integrada al flujo npm.
 

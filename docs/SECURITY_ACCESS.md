@@ -80,7 +80,7 @@ La regla efectiva observada es:
 
 La RPC mínima `current_user_app_access_status()` devuelve solo `allowed` y `reason` para el usuario actual. `AuthGate` usa esa decisión efectiva sin consultar manualmente allowlist, profiles, roles, planes o capabilities. La razón puede servir para diagnóstico interno, pero no se expone como detalle técnico al usuario final.
 
-En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capability` y `requireCurrentUserCapability` detiene operaciones cuando la capacidad falta. Las capacidades tipadas en código incluyen administración, importación Google, gestión de contactos, uso/automatización de Coach, exportación y borrado/reset de datos.
+En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capability` y `requireCurrentUserCapability` detiene operaciones cuando la capacidad falta. Las capacidades tipadas en código incluyen administración, importación Google, gestión de contactos, uso/automatización de Coach, exportación y borrado/reset de datos. La navegación y las rutas de Sistema resuelven las capacidades administrativas efectivas, sin depender de nombres de roles: diagnóstico protege Guía y Logs, administración de acceso protege Mantención y administración de maestros protege HeadHunter. Cuenta permanece disponible para todo usuario con acceso efectivo a la aplicación.
 
 La administración de acceso beta se realiza mediante RPCs estrechas, no como CRUD genérico desde la UI. Las operaciones administrativas verifican `admin.manage_access` en SQL, usan `SECURITY DEFINER` con `search_path` fijo cuando necesitan consultar `auth.users`, y no exponen metadata Auth completa, tokens, identidades crudas ni datos de contraseña.
 
@@ -102,7 +102,7 @@ Algunas operaciones hacen check explícito de capability antes de actuar:
 
 Otras operaciones dependen principalmente de sesión, filtros `user_id` y RLS. Esto incluye muchas lecturas y escrituras de contactos, interacciones, referidos, objetivos, sugerencias y logs.
 
-Las rutas administrativas no tienen un middleware global observado. Sus componentes verifican capabilities al cargar datos o guardar cambios. Por eso la frontera fuerte termina siendo la combinación de RPC, RLS y policies, no solo el layout o la UI.
+Las rutas de Sistema usan `AuthGate` y un guard frontend compartido que falla cerrado antes de montar su contenido privado. Este guard controla navegación y montaje de vistas, pero no sustituye el enforcement backend. El enforcement backend depende del contrato de autorización de cada operación, que puede combinar RPC, RLS, policies y checks explícitos de capability.
 
 ## Operaciones privilegiadas
 

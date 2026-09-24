@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { hasSystemSurfaceAccess } from "../lib/systemAccess";
 import { supabase } from "../lib/supabaseClient";
+import { useSystemAccess } from "./SystemAccess";
 
 type ImportBatch = {
   id: string;
@@ -14,10 +16,15 @@ type ImportBatch = {
 };
 
 export function SystemReadiness() {
+  const systemAccess = useSystemAccess();
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [error, setError] = useState("");
+  const canViewDiagnostics = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "logs");
+  const canManageAccess = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "maintenance");
+  const canManageHeadhunters = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "headhunters");
 
   useEffect(() => {
+    if (!canViewDiagnostics) return;
     if (!supabase) {
       setError("Supabase no esta configurado.");
       return;
@@ -32,7 +39,7 @@ export function SystemReadiness() {
         if (loadError) setError(loadError.message);
         else setBatches((data ?? []) as ImportBatch[]);
       });
-  }, []);
+  }, [canViewDiagnostics]);
 
   return (
     <section className="panel">
@@ -55,33 +62,41 @@ export function SystemReadiness() {
         </div>
       </div>
       <div className="toolbar" style={{ marginTop: 14 }}>
-        <Link className="button" href="/sistema/diseno">
-          Guia visual cloud
-        </Link>
-        <Link className="button" href="/cuenta">
-          Cuenta y conexiones
-        </Link>
-        <Link className="button" href="/sistema/mantencion">
-          Mantencion admin
-        </Link>
-        <Link className="button" href="/sistema/logs">
-          Logs
-        </Link>
+        {canViewDiagnostics ? <>
+          <Link className="button" href="/sistema/diseno">
+            Guia visual cloud
+          </Link>
+          <Link className="button" href="/sistema/logs">
+            Logs
+          </Link>
+        </> : null}
+        {canManageAccess ? (
+          <Link className="button" href="/sistema/mantencion">
+            Mantencion admin
+          </Link>
+        ) : null}
+        {canManageHeadhunters ? (
+          <Link className="button" href="/sistema/headhunters">
+            Empresas headhunter
+          </Link>
+        ) : null}
       </div>
-      {error ? <p className="meta">Error leyendo cargas: {error}</p> : null}
-      <h3 className="panel-title" style={{ marginTop: 18 }}>Ultimas cargas</h3>
-      <div className="compact-list" style={{ marginTop: 10 }}>
-        {batches.length ? (
-          batches.map((batch) => (
-            <div className="compact-row" key={batch.id}>
-              <strong>{batch.status}</strong>
-              <span>{batch.source_filename || batch.source_type}</span>
-            </div>
-          ))
-        ) : (
-          <span className="empty">Aun no aparecen cargas para esta sesion.</span>
-        )}
-      </div>
+      {canViewDiagnostics ? <>
+        {error ? <p className="meta">Error leyendo cargas: {error}</p> : null}
+        <h3 className="panel-title" style={{ marginTop: 18 }}>Ultimas cargas</h3>
+        <div className="compact-list" style={{ marginTop: 10 }}>
+          {batches.length ? (
+            batches.map((batch) => (
+              <div className="compact-row" key={batch.id}>
+                <strong>{batch.status}</strong>
+                <span>{batch.source_filename || batch.source_type}</span>
+              </div>
+            ))
+          ) : (
+            <span className="empty">Aun no aparecen cargas para esta sesion.</span>
+          )}
+        </div>
+      </> : null}
     </section>
   );
 }
