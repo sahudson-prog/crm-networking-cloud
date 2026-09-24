@@ -28,7 +28,7 @@ No se observó un sistema formal de spacing, tipografía, widths o breakpoints c
 
 El shell principal vive en `components/Shell.tsx`. Usa `.app-shell` como contenedor centrado, con ancho máximo de 1220px y margen horizontal responsive.
 
-La cabecera separa navegación principal y acciones secundarias. Dashboard, Contactos y Objetivos aparecen como navegación principal con texto e icono. Sistema, Cuenta y actualización global aparecen como acciones compactas a la derecha.
+La cabecera separa navegación principal y acciones secundarias. Dashboard, Contactos y Objetivos aparecen como navegación principal con texto e icono. Cuenta y actualización global aparecen como acciones compactas a la derecha. Sistema se incorpora a esas acciones solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales.
 
 Las vistas se organizan con `Panel`, grids y toolbars. El patrón visual más estable es panel blanco con borde, header compacto, título de 16px y contenido interno ordenado por grid o listas.
 
@@ -113,6 +113,8 @@ Los controles nativos ayudan con teclado y foco, pero la cobertura de accesibili
 Mantención admin reutiliza paneles, botones, campos, tablas y `ProgressBar`, pero tiene patrones propios para límites, capacidades, accesos y visor de datos crudos.
 
 `DataDiagnosticsPanel` usa selector de alcance, selector de tabla, buscador, resumen por tabla, filtros por columna y ordenamiento local. Es una UI operativa densa, más cercana a soporte interno que a usuario final.
+
+El índice Sistema muestra únicamente las superficies autorizadas por capabilities efectivas. Guía y Logs requieren diagnóstico; Mantención requiere administración de acceso; y el maestro HeadHunter requiere administración de maestros globales. Los estados pendientes o con error no muestran enlaces administrativos.
 
 ## Contenido y lenguaje
 
