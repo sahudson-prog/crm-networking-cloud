@@ -5,6 +5,7 @@ do $$
 declare
   table_name text;
   row_count bigint;
+  discovered_tables text[];
   expected_tables text[] := array[
     'profiles', 'user_settings', 'service_connectors', 'connected_accounts',
     'contacts', 'external_contact_ids', 'external_contact_snapshots',
@@ -45,9 +46,32 @@ begin
     raise exception 'Bootstrap verification requires auth.users to be empty';
   end if;
 
+  select coalesce(array_agg(relation.relname order by relation.relname), array[]::text[])
+  into discovered_tables
+  from pg_catalog.pg_class relation
+  join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+  where namespace.nspname = 'public'
+    and relation.relkind in ('r', 'p')
+    and not exists (
+      select 1
+      from pg_catalog.pg_depend dependency
+      join pg_catalog.pg_extension extension_definition
+        on extension_definition.oid = dependency.refobjid
+      where dependency.classid = 'pg_class'::regclass
+        and dependency.objid = relation.oid
+        and dependency.refclassid = 'pg_extension'::regclass
+        and dependency.deptype = 'e'
+    );
+
   foreach table_name in array expected_tables loop
-    if to_regclass(format('public.%I', table_name)) is null then
+    if array_position(discovered_tables, table_name) is null then
       raise exception 'Missing expected table public.%', table_name;
+    end if;
+  end loop;
+
+  foreach table_name in array discovered_tables loop
+    if array_position(expected_tables, table_name) is null then
+      raise exception 'Unclassified app-owned table public.%', table_name;
     end if;
 
     if not coalesce((
