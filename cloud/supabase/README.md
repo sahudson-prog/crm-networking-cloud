@@ -9,6 +9,21 @@ Esta carpeta contiene la baseline reproducible para crear **una sola vez** el sc
 3. `seeds/` carga solo catálogos globales: acceso y maestro headhunter.
 4. `verifiers/` comprueba estructura, datos iniciales, RLS, grants, funciones y contratos de reset/merge.
 
+## Regla para nuevas tablas en `public`
+
+Toda migration incremental que cree una tabla app-owned en `public` debe cerrar el contrato de seguridad de esa tabla dentro de la misma migration. No se debe depender de grants automáticos de Supabase, de `202609090005_rls_and_grants.sql` ni de `ALTER DEFAULT PRIVILEGES` para hacer accesible una tabla creada posteriormente.
+
+Antes del `commit`, la migration debe:
+
+- habilitar RLS y crear las policies necesarias para cada operación autorizada;
+- ejecutar los `REVOKE` relevantes para `PUBLIC`, `anon`, `authenticated` y `service_role`;
+- conceder solo los `GRANT` mínimos que requiera el uso Data API real; `anon` no recibe acceso por defecto y `service_role` no recibe acceso directo a tablas cuando una RPC estrecha es suficiente;
+- revocar y conceder `EXECUTE` por separado para cualquier función expuesta, sin usar los grants de funciones como sustituto de los grants de tablas;
+- declarar explícitamente los privilegios de secuencias cuando use `serial`, `identity` u otra secuencia alcanzada mediante Data API;
+- actualizar los verifiers de estructura y acceso para clasificar la tabla y comprobar su contrato intencional.
+
+RLS y los privilegios SQL son capas independientes: las policies no conceden acceso sin los `GRANT` necesarios, y los `GRANT` no reemplazan el aislamiento de RLS.
+
 `run_prod_bootstrap.ps1` ejecuta ese orden con `psql` y `ON_ERROR_STOP=1`. Requiere que quien opera configure en su sesión:
 
 ```powershell

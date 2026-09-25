@@ -7,7 +7,9 @@ declare
   internal_function regprocedure;
   app_function regprocedure;
   client_role text;
-  expected_tables text[] := array[
+  discovered_tables text[];
+  classified_tables text[];
+  select_tables text[] := array[
     'profiles', 'user_settings', 'service_connectors', 'connected_accounts',
     'contacts', 'external_contact_ids', 'external_contact_snapshots',
     'contact_emails', 'contact_phones', 'headhunter_companies',
@@ -21,8 +23,7 @@ declare
     'app_role_capabilities', 'subscription_plans',
     'subscription_plan_capabilities', 'user_access_profiles',
     'user_role_assignments', 'user_capability_overrides', 'organizations',
-    'organization_memberships', 'user_plan_sponsorships',
-    'app_access_allowlist'
+    'organization_memberships', 'user_plan_sponsorships'
   ];
   insert_tables text[] := array[
     'user_settings', 'contacts', 'external_contact_ids',
@@ -46,6 +47,9 @@ declare
   delete_tables text[] := array[
     'contact_emails', 'contact_phones', 'objectives',
     'contact_objective_assignments'
+  ];
+  no_authenticated_table_privileges text[] := array[
+    'app_access_allowlist'
   ];
   internal_functions regprocedure[] := array[
     'public.set_updated_at()'::regprocedure,
@@ -71,6 +75,50 @@ declare
   ];
   security_definer_functions regprocedure[];
 begin
+  select coalesce(array_agg(relation.relname order by relation.relname), array[]::text[])
+  into discovered_tables
+  from pg_catalog.pg_class relation
+  join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+  where namespace.nspname = 'public'
+    and relation.relkind in ('r', 'p')
+    and not exists (
+      select 1
+      from pg_catalog.pg_depend dependency
+      join pg_catalog.pg_extension extension_definition
+        on extension_definition.oid = dependency.refobjid
+      where dependency.classid = 'pg_class'::regclass
+        and dependency.objid = relation.oid
+        and dependency.refclassid = 'pg_extension'::regclass
+        and dependency.deptype = 'e'
+    );
+
+  classified_tables := select_tables || insert_tables || update_tables || delete_tables
+    || no_authenticated_table_privileges;
+
+  foreach table_name in array discovered_tables loop
+    if array_position(classified_tables, table_name) is null then
+      raise exception 'App-owned table public.% has no authenticated privilege classification', table_name;
+    end if;
+  end loop;
+
+  for table_name in
+    select distinct contract.table_name
+    from unnest(classified_tables) as contract(table_name)
+  loop
+    if array_position(discovered_tables, table_name) is null then
+      raise exception 'Authenticated privilege matrix references missing or non-app-owned table public.%', table_name;
+    end if;
+  end loop;
+
+  foreach table_name in array no_authenticated_table_privileges loop
+    if array_position(select_tables, table_name) is not null
+      or array_position(insert_tables, table_name) is not null
+      or array_position(update_tables, table_name) is not null
+      or array_position(delete_tables, table_name) is not null then
+      raise exception 'No-privilege table public.% also appears in an authenticated privilege matrix', table_name;
+    end if;
+  end loop;
+
   security_definer_functions := array_remove(
     array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),
     'public.normalize_app_access_email(text)'::regprocedure
@@ -228,7 +276,7 @@ begin
     raise exception 'A critical admin policy uses an unexpected capability';
   end if;
 
-  foreach table_name in array expected_tables loop
+  foreach table_name in array discovered_tables loop
     if not exists (
       select 1
       from pg_catalog.pg_class relation
@@ -267,7 +315,7 @@ begin
     end if;
 
     if has_table_privilege('authenticated', format('public.%I', table_name), 'SELECT')
-      <> (table_name <> 'app_access_allowlist') then
+      <> (array_position(select_tables, table_name) is not null) then
       raise exception 'Unexpected authenticated SELECT grant on public.%', table_name;
     end if;
     if has_table_privilege('authenticated', format('public.%I', table_name), 'INSERT')
