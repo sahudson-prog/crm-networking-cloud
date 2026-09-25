@@ -1,4 +1,10 @@
 :root {
+  --brand-espresso: #3b261b;
+  --brand-coffee: #8b5a3c;
+  --brand-terracotta: #c7774c;
+  --brand-apricot: #e3b18c;
+  --brand-cream: #faf4ec;
+  --brand-warm-white: #fffdfb;
   --crm-bg: #f6f7fb;
   --crm-surface: #ffffff;
   --crm-surface-soft: var(--crm-bg);

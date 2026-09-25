@@ -14,7 +14,7 @@ La iconografía no depende de una librería externa. `components/ui/Icon.tsx` de
 
 ## Identidad de marca
 
-La marca se llama exactamente `Coffeecito`. Esta sección define el contrato visual estable para futuras piezas de producto; no describe todavía una implementación en la UI actual.
+La marca se llama exactamente `Coffeecito`. Esta sección define el contrato visual estable aplicado a las superficies de producto.
 
 ### Paleta de marca
 
@@ -48,6 +48,10 @@ La tipografía del wordmark no redefine la tipografía general vigente de la int
 ### Asset oficial
 
 El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotipo.svg`, que es su fuente de verdad y usa fondo transparente. No debe reconstruirse ni sustituirse por aproximaciones.
+
+### Landing de acceso
+
+La entrada no autenticada usa una composición centrada sobre fondo Cream, con el lockup horizontal oficial, headline y subtítulo de producto. Google es la acción principal en Espresso y el acceso por email permanece como alternativa colapsable con su verificación vigente. La composición no usa una tarjeta envolvente y mantiene una capa de fondo independiente para permitir una futura sustitución por imagen o video sin rehacer el contenido.
 
 ## Tokens y estilos base
 
