@@ -12,6 +12,43 @@ La fuente visual es Inter con fallback a fuentes del sistema.
 
 La iconografía no depende de una librería externa. `components/ui/Icon.tsx` define un set propio de iconos SVG lineales. `components/ui/ProviderIcon.tsx` contiene iconografía de proveedores presente en la UI; la existencia de un icono no implica que el conector correspondiente esté implementado.
 
+## Identidad de marca
+
+La marca se llama exactamente `Coffeecito`. Esta sección define el contrato visual estable para futuras piezas de producto; no describe todavía una implementación en la UI actual.
+
+### Paleta de marca
+
+- Espresso: `#3B261B`. Principal de marca; se usa en wordmark, trazos principales y alto énfasis.
+- Coffee: `#8B5A3C`. Marrón secundario para detalles y elementos secundarios.
+- Terracotta: `#C7774C`. Acento cálido principal.
+- Apricot: `#E3B18C`. Acento suave o secundario.
+- Cream: `#FAF4EC`. Fondo cálido principal.
+- Warm White: `#FFFDFB`. Superficies claras y blanco de marca.
+
+### Wordmark
+
+- Texto exacto: `Coffeecito`.
+- Tipografía: Lato.
+- Peso: 900 / Heavy.
+- Color: Espresso `#3B261B`.
+- Letter spacing: `-0.015em`.
+- Capitalización: `Coffeecito`.
+
+La tipografía del wordmark no redefine la tipografía general vigente de la interfaz, que continúa siendo Inter hasta una decisión de producto posterior.
+
+### Sistema de logo
+
+- La variante principal es horizontal: isotipo a la izquierda y wordmark a la derecha. Es el default para header y producto.
+- La variante secundaria es apilada: isotipo arriba y wordmark abajo. Se usa en hero, bienvenida y piezas donde la marca tenga mayor protagonismo.
+- La variante compacta usa solo el isotipo para favicon, app icon, avatar y espacios reducidos.
+- Se permite una variante micro o simplificada solo si el isotipo pierde legibilidad en tamaños muy pequeños.
+- El wordmark principal siempre usa Espresso. El isotipo usa únicamente colores de la paleta aprobada; no hay combinaciones obligatorias adicionales aprobadas todavía.
+- Las proporciones, clear space y tamaños mínimos quedan pendientes de aprobación visual. No deben inventarse antes de esa decisión.
+
+### Asset oficial
+
+El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotipo.svg`, que es su fuente de verdad. No debe reconstruirse ni sustituirse por aproximaciones.
+
 ## Tokens y estilos base
 
 `styles/tokens.css` define tokens reales para colores principales, superficies, bordes, texto, estados, radios y sombras.
