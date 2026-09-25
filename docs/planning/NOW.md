@@ -12,13 +12,15 @@ Contacts, Gmail y Calendar funcionan con preview y aplicación de cambios. Googl
 
 La navegación y las rutas de Sistema usan capabilities administrativas efectivas y fallan cerradas antes de montar superficies privadas.
 
-## Siguiente implementación
+## Estado de seguridad reciente
 
-Endurecer la lectura de `sync_run_logs`: el usuario final no debe poder leer logs, `admin.view_diagnostics` sí, y los flujos normales deben conservar el INSERT propio. Es un `PROD CONTRACT CHANGE` que requiere migration y verifier.
+El hardening de `sync_run_logs` está implementado y mergeado a `main`. La migration ya se aplicó en DEV y la lectura administrativa con `admin.view_diagnostics` fue validada allí. Queda pendiente el smoke de usuario base por un rate limit temporal de Supabase Auth. El verifier específico no puede completar en DEV mientras persista el drift preexistente de grants amplios, tratado como hallazgo separado.
+
+PROD no ha recibido esta migration. Su promoción queda pendiente para un release posterior, probablemente junto con onboarding. El drift preexistente de grants amplios en DEV se mantiene como hallazgo separado.
 
 ## Siguiente desarrollo de producto
 
-Después de ese hardening, diseñar e implementar un onboarding inicial que explique Coffeecito, guíe la configuración básica y ayude a completar un primer flujo útil.
+Diseñar e implementar un onboarding inicial que explique Coffeecito, guíe la configuración básica y ayude a completar un primer flujo útil.
 
 Landing, branding y una primera cohorte de beta testers son parte del foco inmediato.
 
