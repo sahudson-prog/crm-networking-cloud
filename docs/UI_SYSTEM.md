@@ -38,16 +38,16 @@ La tipografía del wordmark no redefine la tipografía general vigente de la int
 
 ### Sistema de logo
 
-- La variante principal es horizontal: isotipo a la izquierda y wordmark a la derecha. Es el default para header y producto.
+- La variante principal es horizontal: isotipo a la izquierda y wordmark a la derecha. Es el default para header y producto. Su referencia aprobada usa un isotipo de ancho equivalente a `2.32x` el tamaño tipográfico del wordmark: `102px` de isotipo para un wordmark de `44px`, equivalente al `+50%` evaluado frente a la composición inicial.
 - La variante secundaria es apilada: isotipo arriba y wordmark abajo. Se usa en hero, bienvenida y piezas donde la marca tenga mayor protagonismo.
 - La variante compacta usa solo el isotipo para favicon, app icon, avatar y espacios reducidos.
 - Se permite una variante micro o simplificada solo si el isotipo pierde legibilidad en tamaños muy pequeños.
 - El wordmark principal siempre usa Espresso. El isotipo usa únicamente colores de la paleta aprobada; no hay combinaciones obligatorias adicionales aprobadas todavía.
-- Las proporciones, clear space y tamaños mínimos quedan pendientes de aprobación visual. No deben inventarse antes de esa decisión.
+- El clear space, los tamaños mínimos y las proporciones de la variante apilada quedan pendientes de aprobación visual. No deben inventarse antes de esa decisión.
 
 ### Asset oficial
 
-El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotipo.svg`, que es su fuente de verdad. No debe reconstruirse ni sustituirse por aproximaciones.
+El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotipo.svg`, que es su fuente de verdad y usa fondo transparente. No debe reconstruirse ni sustituirse por aproximaciones.
 
 ## Tokens y estilos base
 
