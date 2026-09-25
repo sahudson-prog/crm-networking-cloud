@@ -247,73 +247,82 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (!session) {
     return (
-      <main className="app-shell">
-        <section className="panel auth-entry-panel">
-          <p className="panel-caption">Coffeecito</p>
-          <h1 className="brand-title">Entrar a Coffeecito</h1>
-          {supabaseConfigError ? (
-            <div className="banner" style={{ marginTop: 12 }}>
-              <strong>Falta conectar Supabase.</strong>
-              <br />
-              Crea el archivo <code>.env.local</code> con la URL del proyecto y la anon key publica.
-              Despues reinicia esta app web.
-            </div>
-          ) : null}
-          <p className="brand-subtitle" style={{ marginTop: 8 }}>
-            Acceso cerrado por invitación para gestionar tu networking profesional.
-          </p>
-          {!supabaseConfigError ? (
-            <div className="auth-entry-actions">
-              <button
-                className="button primary auth-google-button"
-                disabled={signingInWithGoogle}
-                onClick={signInWithGoogle}
-                type="button"
-              >
-                <ProviderIcon name="google" />
-                <span>{signingInWithGoogle ? "Abriendo Google..." : "Continuar con Google"}</span>
-              </button>
-              {message ? <span className="meta">{message}</span> : null}
-              <details className="auth-email-fallback">
-                <summary>Entrar con email</summary>
-                <form onSubmit={signIn} className="grid" style={{ marginTop: 12 }}>
-                  <input
-                    className="search"
-                    type="email"
-                    required
-                    placeholder="tu correo"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                  {TURNSTILE_SITE_KEY ? (
-                    <TurnstileWidget
-                      key={turnstileResetKey}
-                      onError={handleCaptchaError}
-                      onExpired={handleCaptchaExpired}
-                      onResolved={handleCaptchaResolved}
-                      siteKey={TURNSTILE_SITE_KEY}
+      <main className="auth-landing">
+        <div aria-hidden="true" className="auth-landing-background" />
+        <section aria-labelledby="auth-landing-title" className="auth-landing-content">
+          <div aria-label="Coffeecito" className="auth-brand-lockup">
+            <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
+            <span className="auth-brand-wordmark">Coffeecito</span>
+          </div>
+          <div className="auth-landing-copy">
+            <h1 id="auth-landing-title">Tu red puede abrir tu próxima oportunidad.</h1>
+            <p>
+              Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus
+              objetivos profesionales.
+            </p>
+          </div>
+          <div className="auth-entry-panel">
+            {supabaseConfigError ? (
+              <div className="banner auth-config-banner">
+                <strong>Falta conectar Supabase.</strong>
+                <br />
+                Crea el archivo <code>.env.local</code> con la URL del proyecto y la anon key publica. Despues reinicia
+                esta app web.
+              </div>
+            ) : null}
+            {!supabaseConfigError ? (
+              <div className="auth-entry-actions">
+                <button
+                  className="button primary auth-google-button"
+                  disabled={signingInWithGoogle}
+                  onClick={signInWithGoogle}
+                  type="button"
+                >
+                  <ProviderIcon name="google" />
+                  <span>{signingInWithGoogle ? "Abriendo Google..." : "Continuar con Google"}</span>
+                </button>
+                {message ? <span className="meta auth-entry-message">{message}</span> : null}
+                <details className="auth-email-fallback">
+                  <summary>Entrar con email</summary>
+                  <form onSubmit={signIn} className="grid" style={{ marginTop: 12 }}>
+                    <input
+                      className="search"
+                      type="email"
+                      required
+                      placeholder="tu correo"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
                     />
-                  ) : (
-                    <span className="auth-captcha-message">{captchaStatusMessage("not_configured")}</span>
-                  )}
-                  <button
-                    className="button secondary"
-                    disabled={!canSubmitPasswordlessEmail({
-                      captchaStatus,
-                      captchaToken,
-                      siteKey: TURNSTILE_SITE_KEY
-                    })}
-                    type="submit"
-                  >
-                    Enviar link de acceso
-                  </button>
-                  {TURNSTILE_SITE_KEY && captchaStatus !== "resolved" ? (
-                    <span className="auth-captcha-message">{captchaStatusMessage(captchaStatus)}</span>
-                  ) : null}
-                </form>
-              </details>
-            </div>
-          ) : null}
+                    {TURNSTILE_SITE_KEY ? (
+                      <TurnstileWidget
+                        key={turnstileResetKey}
+                        onError={handleCaptchaError}
+                        onExpired={handleCaptchaExpired}
+                        onResolved={handleCaptchaResolved}
+                        siteKey={TURNSTILE_SITE_KEY}
+                      />
+                    ) : (
+                      <span className="auth-captcha-message">{captchaStatusMessage("not_configured")}</span>
+                    )}
+                    <button
+                      className="button secondary"
+                      disabled={!canSubmitPasswordlessEmail({
+                        captchaStatus,
+                        captchaToken,
+                        siteKey: TURNSTILE_SITE_KEY
+                      })}
+                      type="submit"
+                    >
+                      Enviar link de acceso
+                    </button>
+                    {TURNSTILE_SITE_KEY && captchaStatus !== "resolved" ? (
+                      <span className="auth-captcha-message">{captchaStatusMessage(captchaStatus)}</span>
+                    ) : null}
+                  </form>
+                </details>
+              </div>
+            ) : null}
+          </div>
         </section>
       </main>
     );

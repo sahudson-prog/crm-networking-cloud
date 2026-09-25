@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
+import { Lato } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
+
+const lato = Lato({
+  display: "swap",
+  subsets: ["latin"],
+  variable: "--font-coffeecito-wordmark",
+  weight: "900"
+});
 
 export const metadata: Metadata = {
   title: "Coffeecito",
@@ -14,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body className={lato.variable}>{children}</body>
     </html>
   );
 }

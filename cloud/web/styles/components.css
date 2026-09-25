@@ -270,20 +270,100 @@
   margin-bottom: 16px;
 }
 
+.auth-landing {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: 48px 24px;
+}
+
+.auth-landing-background {
+  position: absolute;
+  inset: 0;
+  background: var(--brand-cream);
+}
+
+.auth-landing-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 760px);
+  justify-items: center;
+  gap: 30px;
+  text-align: center;
+}
+
+.auth-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--brand-espresso);
+}
+
+.auth-brand-lockup img {
+  display: block;
+  width: 102px;
+  height: auto;
+}
+
+.auth-brand-wordmark {
+  font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  line-height: 1;
+}
+
+.auth-landing-copy {
+  display: grid;
+  max-width: 700px;
+  gap: 14px;
+}
+
+.auth-landing-copy h1 {
+  margin: 0;
+  color: var(--brand-espresso);
+  font-size: 46px;
+  line-height: 1.08;
+}
+
+.auth-landing-copy p {
+  margin: 0 auto;
+  max-width: 660px;
+  color: var(--brand-coffee);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
 .auth-entry-panel {
-  max-width: 460px;
-  margin: 64px auto;
+  width: min(100%, 380px);
 }
 
 .auth-entry-actions {
   display: grid;
   gap: 12px;
-  margin-top: 20px;
+}
+
+.auth-config-banner {
+  margin: 0;
+  text-align: left;
 }
 
 .auth-google-button {
+  height: 44px;
   width: 100%;
   justify-content: center;
+  border-color: var(--brand-espresso);
+  background: var(--brand-espresso);
+  color: var(--brand-warm-white);
+}
+
+.auth-google-button:not(:disabled):hover {
+  border-color: var(--brand-coffee);
+  background: var(--brand-coffee);
 }
 
 .auth-google-button .provider-icon {
@@ -292,16 +372,23 @@
 }
 
 .auth-email-fallback {
-  border-top: 1px solid var(--crm-border);
+  border-top: 1px solid rgba(59, 38, 27, 0.18);
   padding-top: 12px;
+  text-align: left;
 }
 
 .auth-email-fallback summary {
   cursor: pointer;
-  color: var(--crm-muted);
+  color: var(--brand-coffee);
   font-size: 13px;
   font-weight: 700;
   list-style-position: inside;
+}
+
+.auth-entry-message {
+  color: var(--brand-coffee);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .auth-turnstile {
@@ -312,6 +399,41 @@
   color: var(--crm-muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .auth-landing {
+    align-items: start;
+    padding: 36px 20px 44px;
+  }
+
+  .auth-landing-content {
+    gap: 24px;
+  }
+
+  .auth-brand-lockup {
+    gap: 14px;
+  }
+
+  .auth-brand-lockup img {
+    width: 84px;
+  }
+
+  .auth-brand-wordmark {
+    font-size: 36px;
+  }
+
+  .auth-landing-copy {
+    gap: 12px;
+  }
+
+  .auth-landing-copy h1 {
+    font-size: 36px;
+  }
+
+  .auth-landing-copy p {
+    font-size: 16px;
+  }
 }
 
 .empty-value,
