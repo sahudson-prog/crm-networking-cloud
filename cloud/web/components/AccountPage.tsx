@@ -170,21 +170,19 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
         </div>
       </section>
 
-      <section className="account-section" aria-labelledby="account-guide-title">
-        <div className="account-section-title">
-          <h2 id="account-guide-title">Guía de uso</h2>
-          <span>Vuelve a recorrer las funciones principales cuando quieras.</span>
-        </div>
-        <div className="toolbar">
-          <Button icon="sparkles" onClick={onboarding.replay}>Cómo usar Coffeecito</Button>
-          {isOnboardingTestResetAvailable() ? (
+      {isOnboardingTestResetAvailable() ? (
+        <section className="account-section" aria-labelledby="account-development-title">
+          <div className="account-section-title">
+            <h2 id="account-development-title">Herramientas de desarrollo</h2>
+          </div>
+          <div className="toolbar">
             <Button onClick={() => void onboarding.resetForDevelopment()} tone="ghost">
               Reiniciar onboarding de prueba
             </Button>
-          ) : null}
-        </div>
-        {onboarding.error ? <p className="form-error" role="alert">{onboarding.error}</p> : null}
-      </section>
+          </div>
+          {onboarding.error ? <p className="form-error" role="alert">{onboarding.error}</p> : null}
+        </section>
+      ) : null}
 
       <GoogleImportSection account={account} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
 

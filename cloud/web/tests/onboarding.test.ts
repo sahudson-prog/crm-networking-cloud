@@ -20,8 +20,9 @@ import {
   parseProductOnboardingState,
   resolveStoredOnboardingState,
   serializeProductOnboardingState,
-  shouldShowAutomaticOnboardingIntro,
-  shouldShowOnboardingStart
+  shouldClearOnboardingSessionOnNormalRoute,
+  shouldRedirectOnboardingIntroToProduct,
+  shouldShowAutomaticOnboardingIntro
 } from "../lib/onboarding.ts";
 
 test("parser conserva payloads v1 previos, acepta dismissed y rechaza payloads inválidos", () => {
@@ -56,17 +57,16 @@ test("ausencia real del setting abre la intro una sola vez", () => {
   assert.equal(shouldShowAutomaticOnboardingIntro({ exists: true, state: invalid }), false);
 });
 
-test("Ahora no conserva not_started, registra introSeen y mantiene Empezar visible", () => {
+test("Ahora no conserva not_started y registra introSeen", () => {
   const deferred = deferOnboarding();
   assert.deepEqual(deferred, {
     version: 1,
     status: "not_started",
     introSeen: true
   });
-  assert.equal(shouldShowOnboardingStart(deferred), true);
 });
 
-test("Comenzar recorrido inicia en objectives y oculta Empezar", () => {
+test("Comenzar recorrido inicia en objectives", () => {
   const started = beginOnboarding(deferOnboarding());
   assert.deepEqual(started, {
     version: 1,
@@ -75,17 +75,15 @@ test("Comenzar recorrido inicia en objectives y oculta Empezar", () => {
     lastStep: "objectives"
   });
   assert.equal(onboardingRouteFor(started.lastStep), "/onboarding/objetivos");
-  assert.equal(shouldShowOnboardingStart(started), false);
 });
 
-test("Salir deja dismissed, conserva el último paso y no reactiva Empezar", () => {
+test("Salir deja dismissed y conserva el último paso", () => {
   const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contacts");
   assert.equal(dismissed.status, "dismissed");
   assert.equal(dismissed.lastStep, "contacts");
-  assert.equal(shouldShowOnboardingStart(dismissed), false);
 });
 
-test("completed oculta Empezar y replay no cambia dismissed ni completed", () => {
+test("replay no cambia dismissed ni completed", () => {
   const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "google");
   const completed = completeOnboarding();
 
@@ -93,7 +91,6 @@ test("completed oculta Empezar y replay no cambia dismissed ni completed", () =>
   assert.deepEqual(beginOnboardingReplay(completed).state, completed);
   assert.deepEqual(beginOnboardingReplay(completed).session, { active: true, replay: true });
   assert.equal(beginOnboardingReplay(completed).route, "/onboarding");
-  assert.equal(shouldShowOnboardingStart(completed), false);
 });
 
 test("la secuencia y Atrás/Siguiente derivan de una sola fuente de verdad", () => {
@@ -122,14 +119,26 @@ test("la URL identifica el paso y permite restaurar lastStep al refrescar", () =
   assert.equal(restored.lastStep, "google");
 });
 
-test("Empezar abre /onboarding sin iniciar el recorrido", () => {
+test("Ver tutorial abre el replay permanente desde el header", () => {
   const shellSource = source("../components/Shell.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
 
-  assert.match(shellSource, /shouldShowOnboardingStart\(onboarding\.state\)/);
-  assert.match(shellSource, /onClick=\{onboarding\.openIntro\}/);
-  assert.match(providerSource, /function openIntro\(\)[\s\S]*router\.push\(onboardingRouteFor\("intro"\)\)/);
-  assert.doesNotMatch(shellSource, /onClick=\{\(\) => void onboarding\.start\(\)\}/);
+  assert.match(shellSource, /nav-tutorial-link[\s\S]*onClick=\{onboarding\.replay\}[\s\S]*Ver tutorial/);
+  assert.match(providerSource, /function replay\(\)[\s\S]*router\.push\(transition\.route\)/);
+  assert.doesNotMatch(shellSource, /Empezar|Continuar|shouldShowOnboardingStart/);
+});
+
+test("replay iniciado en una ruta normal conserva la sesión hasta mostrar la intro", () => {
+  const completed = completeOnboarding();
+  const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contact");
+  const completedReplay = beginOnboardingReplay(completed);
+  const dismissedReplay = beginOnboardingReplay(dismissed);
+
+  assert.equal(shouldClearOnboardingSessionOnNormalRoute(completedReplay.session), false);
+  assert.equal(shouldRedirectOnboardingIntroToProduct(completedReplay.state, completedReplay.session), false);
+  assert.equal(shouldRedirectOnboardingIntroToProduct(dismissedReplay.state, dismissedReplay.session), false);
+  assert.equal(completedReplay.route, "/onboarding");
+  assert.equal(shouldClearOnboardingSessionOnNormalRoute({ active: true, replay: false }), true);
 });
 
 test("la intro es privada pero no monta Shell ni Coach", () => {
@@ -140,6 +149,8 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
 
   assert.match(routeComponent, /<AuthGate>[\s\S]*routeId === "intro"[\s\S]*<OnboardingProvider>/);
   assert.match(introSource, /onboarding-intro-shell/);
+  assert.match(introSource, /Tu red puede abrir tu próxima oportunidad\./);
+  assert.match(introSource, /Activa tus próximas conversaciones/);
   assert.doesNotMatch(introSource, /<Shell|<CoachModule|Introducción/);
 });
 
@@ -159,11 +170,22 @@ test("los pasos guiados usan AuthGate y Shell antes del contenido real", () => {
   }
 });
 
-test("Empezar no se renderiza dentro de rutas onboarding", () => {
+test("Ver tutorial no se renderiza dentro de rutas onboarding", () => {
   const shellSource = source("../components/Shell.tsx");
 
   assert.match(shellSource, /const isOnboarding = pathname\.startsWith\("\/onboarding"\)/);
-  assert.match(shellSource, /!isOnboarding && !onboarding\.loading && shouldShowOnboardingStart/);
+  assert.match(shellSource, /!isOnboarding \? \([\s\S]*Ver tutorial/);
+});
+
+test("cualquier setting existente mantiene la ruta normal, incluso in_progress", () => {
+  const providerSource = source("../components/OnboardingProvider.tsx");
+  const normalRouteStart = providerSource.indexOf("if (!routeId)");
+  const normalRouteEnd = providerSource.indexOf("if (routeId === \"intro\")", normalRouteStart);
+  const normalRouteSource = providerSource.slice(normalRouteStart, normalRouteEnd);
+
+  assert.ok(normalRouteStart >= 0 && normalRouteEnd > normalRouteStart);
+  assert.doesNotMatch(normalRouteSource, /state\.status|router\.replace/);
+  assert.match(normalRouteSource, /shouldClearOnboardingSessionOnNormalRoute\(session\)/);
 });
 
 test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido", () => {
@@ -182,6 +204,15 @@ test("Objetivos y Contactos reutilizan las vistas reales sin duplicar páginas",
   assert.match(routeSource, /<ReadOnlyContacts[\s\S]*beforeList=/);
   assert.match(objectivesSource, /onboardingCoach\?: ReactNode/);
   assert.match(contactsSource, /beforeList\?: ReactNode/);
+});
+
+test("Contactos reutiliza el editor real para crear contactos manualmente", () => {
+  const tableSource = source("../components/ContactTable.tsx");
+
+  assert.match(tableSource, /import \{ ContactEditorDialog \} from "\.\/ContactEditorDialog"/);
+  assert.match(tableSource, /Crear contacto/);
+  assert.match(tableSource, /<ContactEditorDialog[\s\S]*open=\{contactEditorOpen\}/);
+  assert.match(tableSource, /onSaved=\{\(\) => \{[\s\S]*onReload\?\.\(\)/);
 });
 
 test("Contactos decide ficha o Google usando únicamente contactos reales resueltos", () => {
@@ -216,30 +247,38 @@ test("Google reutiliza AccountPage, permanece opcional y retorna al paso onboard
   const routeSource = source("../components/OnboardingRoutePage.tsx");
   const accountSource = source("../components/AccountPage.tsx");
 
-  assert.match(routeSource, /Conectar Google es opcional/);
+  assert.match(routeSource, /Si prefieres, también puedes construir tu red manualmente/);
   assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
   assert.match(accountSource, /redirectPath="\/onboarding\/google"/);
   assert.match(accountSource, /reconnectGoogle\(googleRequiredScopes\(\), `\$\{window\.location\.origin\}\$\{redirectPath\}`\)/);
 });
 
-test("final completa y navega a Objetivos", () => {
+test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
+  const routeSource = source("../components/OnboardingRoutePage.tsx");
+
+  assert.match(routeSource, /title="Comencemos definiendo tus objetivos"/);
+  assert.match(routeSource, /title="Aquí administras tus contactos"/);
+  assert.match(routeSource, /title="Cada contacto tiene una ficha con su historia"/);
+  assert.match(routeSource, /title="Importa tus contactos desde Google o ingrésalos manualmente"/);
+  assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
+});
+
+test("final completa y navega al home real", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
 
-  assert.match(routeSource, /nextLabel="Ir a mis objetivos"/);
-  assert.match(routeSource, /Coach seguirá acompañándote\./);
-  assert.match(routeSource, /Tú decides qué sugerencias aplicar\./);
-  assert.match(providerSource, /persist\(completeOnboarding\(\)\)[\s\S]*router\.push\("\/objetivos"\)/);
+  assert.match(routeSource, /nextLabel="Fin del tutorial"/);
+  assert.match(routeSource, /Coach seguirá acompañándote con sugerencias/);
+  assert.match(providerSource, /persist\(completeOnboarding\(\)\)[\s\S]*router\.push\("\/"\)/);
 });
 
-test("Cuenta ofrece replay permanente sin alterar dismissed o completed", () => {
+test("el replay preserva dismissed y completed, y Cuenta no ofrece navegación de producto", () => {
   const accountSource = source("../components/AccountPage.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
   const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contact");
   const completed = completeOnboarding();
 
-  assert.match(accountSource, /Cómo usar Coffeecito/);
-  assert.match(accountSource, /onClick=\{onboarding\.replay\}/);
+  assert.doesNotMatch(accountSource, /Cómo usar Coffeecito|onboarding\.replay/);
   assert.match(providerSource, /function replay\(\)[\s\S]*router\.push\(transition\.route\)/);
   assert.match(providerSource, /session\.active && !session\.replay/);
   assert.match(source("../components/OnboardingRoutePage.tsx"), /onboarding\.replaying \? onboarding\.exit\(\) : onboarding\.defer\(\)/);
@@ -268,6 +307,12 @@ test("onboarding usa spacing semántico y mantiene al Coach hablando", () => {
   assert.match(css, /\.coach-floating-bot\.speaking \.coach-bot-mouth/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.coach-floating-bot\.speaking \.coach-bot-mouth[\s\S]*animation: none/);
   assert.match(coachSource, /<CoachMascot size=\{botSize\} speaking=\{mode === "onboarding"\} \/>/);
+  assert.match(css, /\.coach-onboarding-bubble[\s\S]*border-radius: 14px/);
+  assert.match(css, /\.coach-onboarding-bubble::before,[\s\S]*\.coach-onboarding-bubble::after/);
+  assert.match(css, /border-right: 13px solid var\(--crm-border\)/);
+  assert.match(css, /border-right: 11px solid var\(--crm-surface\)/);
+  assert.match(css, /border-bottom: 13px solid var\(--crm-border\)/);
+  assert.match(css, /border-bottom: 10px solid var\(--crm-surface\)/);
 });
 
 test("Contactos confina el tablero ancho sin desbordar la página onboarding", () => {
@@ -308,10 +353,12 @@ test("modo onboarding del Coach no monta acciones ni diálogos de sugerencias", 
   assert.match(onboardingSource, /coach-onboarding-bubble/);
 });
 
-test("CTA Empezar pulsa dos veces y respeta prefers-reduced-motion por CSS", () => {
+test("no quedan CTA ni animaciones dinámicas de onboarding en el header", () => {
+  const shellSource = source("../components/Shell.tsx");
   const css = source("../styles/components.css");
-  assert.match(css, /\.onboarding-start-link[\s\S]*animation: onboarding-start-pulse 900ms ease-in-out 2/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.onboarding-start-link[\s\S]*animation: none/);
+  assert.doesNotMatch(shellSource, /Empezar|Continuar|onboarding\.state|onboarding\.loading/);
+  assert.doesNotMatch(css, /onboarding-start-link|onboarding-start-pulse/);
+  assert.match(css, /\.nav-tutorial-link[\s\S]*border: 0/);
 });
 
 test("persistencia usa una clave versionada y un wrapper dedicado", () => {

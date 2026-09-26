@@ -54,18 +54,30 @@ function OnboardingIntro() {
   const onboarding = useOnboarding();
   return (
     <main className="onboarding-intro-shell">
+      <div aria-hidden="true" className="onboarding-intro-background">
+        <img src="/brand/coffeecito-isotipo.svg" alt="" />
+      </div>
       <section className="onboarding-intro" aria-labelledby="onboarding-intro-title">
+        <div aria-label="Coffeecito" className="onboarding-brand-lockup">
+          <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
+          <span>Coffeecito</span>
+        </div>
         <div className="onboarding-intro-copy">
-          <span>Bienvenido a Coffeecito</span>
           <h1 id="onboarding-intro-title">Cómo funciona Coffeecito</h1>
-          <p>Una guía breve para convertir tu red en próximos pasos concretos.</p>
+          <strong>Tu red puede abrir tu próxima oportunidad.</strong>
+          <p>
+            Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus
+            objetivos profesionales.
+          </p>
         </div>
         <div className="onboarding-flow" aria-label="Flujo principal de Coffeecito">
           <strong>Define tus objetivos</strong>
           <span aria-hidden="true">→</span>
           <strong>Organiza tu red</strong>
           <span aria-hidden="true">→</span>
-          <strong>Mantén el contacto</strong>
+          <strong>Mantén el contexto</strong>
+          <span aria-hidden="true">→</span>
+          <strong>Activa tus próximas conversaciones</strong>
         </div>
         <OnboardingError />
         <div className="onboarding-intro-actions">
@@ -88,14 +100,13 @@ function OnboardingObjectivesStep() {
   return (
     <ObjectivesPage
       onboardingCoach={(
-        <OnboardingCoach routeId="objectives" title="Partamos por lo que buscas.">
+        <OnboardingCoach routeId="objectives" title="Comencemos definiendo tus objetivos">
           <p>
-            Un objetivo es algo hacia lo que quieres avanzar profesionalmente: por ejemplo, llegar a un cargo,
-            acercarte a una empresa o explorar una nueva oportunidad.
+            Aquí defines qué quieres lograr con tu red: por ejemplo, acercarte a una empresa, explorar un cargo o
+            avanzar hacia una nueva oportunidad.
           </p>
           <p>
-            Puedes crear uno usando los controles de esta página. El objetivo será real y quedará guardado en
-            Coffeecito, pero también puedes continuar sin crear uno ahora.
+            Puedes crear objetivos reales desde esta misma página, o continuar y volver a completarlos después.
           </p>
         </OnboardingCoach>
       )}
@@ -124,17 +135,18 @@ function OnboardingContactsStep() {
           nextDisabled={!contactsResolved}
           onNext={continueFromContacts}
           routeId="contacts"
-          title="Tu red vive acá."
+          title="Aquí administras tus contactos"
         >
           <p>
-            En Contactos puedes organizar a las personas relevantes para tus objetivos y mantener contexto sobre cada
-            relación.
+            En esta sección puedes visualizar y organizar todos tus contactos. También puedes crear nuevos contactos
+            manualmente con el botón “Crear contacto”.
           </p>
           <p>
-            Coffeecito te ayuda a recordar quién es cada persona, por qué es importante y cuándo conviene retomar el
-            contacto.
+            Puedes marcar con Foco a las personas que quieres priorizar para networking, y marcar como Headhunter a
+            quienes quieras gestionar de forma distinta, incluso agrupados por empresa. También puedes actualizar
+            estados arrastrando tarjetas en el tablero, o administrar tus contactos de forma más masiva usando la tabla
+            inferior.
           </p>
-          <p>Los estados, el foco networking, los headhunters y los objetivos te ayudan a ordenar esa atención.</p>
         </OnboardingCoach>
       )}
       onContactsResolved={handleContactsResolved}
@@ -178,14 +190,14 @@ function OnboardingContactStep() {
   }, []);
 
   const coach = (
-    <OnboardingCoach nextDisabled={!profile} routeId="contact" title="Cada contacto tiene una historia.">
+    <OnboardingCoach nextDisabled={!profile} routeId="contact" title="Cada contacto tiene una ficha con su historia">
       <p>
-        La ficha te ayuda a conservar el contexto de la relación: quién es la persona, cómo se conecta con tus
-        objetivos, qué han conversado y cuál podría ser el próximo paso.
+        Desde esta ficha puedes registrar contexto sobre la relación, revisar interacciones anteriores y dejar más
+        claro cuál podría ser el próximo paso.
       </p>
       <p>
-        No necesitas registrar cada detalle. Guarda solo lo suficiente para retomar una conversación sin partir de
-        cero.
+        También puedes identificar posibles referidos, preparar tu siguiente café o iniciar desde aquí una nueva
+        conversación o una cita.
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
     </OnboardingCoach>
@@ -207,12 +219,9 @@ function OnboardingContactStep() {
 function OnboardingGoogleStep() {
   return (
     <div className="onboarding-google-step">
-      <OnboardingCoach routeId="google" title="Puedes partir manualmente o apoyarte en Google.">
-        <p>
-          Coffeecito puede ayudarte a recuperar contactos e interacciones que ya existen en Gmail y Calendar, para que
-          no tengas que reconstruir todo desde cero.
-        </p>
-        <p>Conectar Google es opcional. Puedes continuar el recorrido sin autorizarlo ni importar ahora.</p>
+      <OnboardingCoach routeId="google" title="Importa tus contactos desde Google o ingrésalos manualmente">
+        <p>Si quieres avanzar más rápido, puedes conectar Google para importar contactos e interacciones.</p>
+        <p>Si prefieres, también puedes construir tu red manualmente dentro de Coffeecito, paso a paso.</p>
       </OnboardingCoach>
       <AccountPage view="google-onboarding" />
     </div>
@@ -222,20 +231,12 @@ function OnboardingGoogleStep() {
 function OnboardingFinalStep() {
   return (
     <section className="onboarding-route">
-      <OnboardingCoach nextLabel="Ir a mis objetivos" routeId="final" title="Ya tienes lo esencial.">
-        <ul className="onboarding-summary">
-          <li>Define hacia dónde quieres avanzar.</li>
-          <li>Organiza las personas de tu red.</li>
-          <li>Mantén el contexto y vuelve a conversar en el momento adecuado.</li>
-        </ul>
-        <div className="onboarding-coach-continuation">
-          <h3>Coach seguirá acompañándote.</h3>
-          <p>
-            A medida que uses Coffeecito, puedo ayudarte a mantener tu red al día con sugerencias, como cambios de
-            estado y otros próximos pasos según la información disponible.
-          </p>
-          <p>Tú decides qué sugerencias aplicar.</p>
-        </div>
+      <OnboardingCoach nextLabel="Fin del tutorial" routeId="final" title="Ya tienes lo esencial">
+        <p>Ahora ya conoces el flujo base para avanzar con mayor intención y continuidad.</p>
+        <p>
+          Coach seguirá acompañándote con sugerencias para ayudarte a mantener tu red al día y decidir mejor tus
+          próximos pasos.
+        </p>
       </OnboardingCoach>
     </section>
   );

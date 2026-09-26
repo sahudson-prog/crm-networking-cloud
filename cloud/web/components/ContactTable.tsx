@@ -15,6 +15,7 @@ import {
   type HeadhunterCompanyResolution
 } from "../lib/headhunterCompanyMaster";
 import type { ContactListRow, ObjectiveRow } from "../lib/readModel";
+import { ContactEditorDialog } from "./ContactEditorDialog";
 import { ContactFilterControls } from "./ContactFilterControls";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
@@ -68,6 +69,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
   const [boardDropTarget, setBoardDropTarget] = useState<BoardDropTarget | null>(null);
   const [headhuntersGrouped, setHeadhuntersGrouped] = useState(false);
   const [showGroupConfirm, setShowGroupConfirm] = useState(false);
+  const [contactEditorOpen, setContactEditorOpen] = useState(false);
   const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
   const [allObjectives, setAllObjectives] = useState<ObjectiveRow[]>([]);
 
@@ -315,6 +317,9 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         <p className={`contacts-status-feedback ${feedback.includes("No pude") ? "form-error" : "form-success"}`}>
           {feedback}
         </p>
+        <Button className="contacts-create-button" icon="plus" onClick={() => setContactEditorOpen(true)}>
+          Crear contacto
+        </Button>
       </div>
 
       <ContactStatusBoard
@@ -494,6 +499,14 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         </div>
       ) : null}
       </section>
+      <ContactEditorDialog
+        open={contactEditorOpen}
+        onClose={() => setContactEditorOpen(false)}
+        onSaved={() => {
+          setContactEditorOpen(false);
+          void onReload?.();
+        }}
+      />
     </>
   );
 }

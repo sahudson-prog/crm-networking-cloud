@@ -7,7 +7,6 @@ import { ActivitySyncButton } from "./ActivitySyncButton";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Icon } from "./ui/Icon";
-import { shouldShowOnboardingStart } from "../lib/onboarding";
 import { canRenderSystemSurface } from "../lib/systemAccess";
 
 export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
@@ -53,14 +52,13 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
               <Icon name="chart" />
               Dashboard
             </Link>
-            {!isOnboarding && !onboarding.loading && shouldShowOnboardingStart(onboarding.state) ? (
-              <button className="nav-link onboarding-start-link" onClick={onboarding.openIntro} type="button">
-                <Icon name="sparkles" />
-                Empezar
-              </button>
-            ) : null}
           </div>
           <div className="nav-utility">
+            {!isOnboarding ? (
+              <button className="nav-tutorial-link" onClick={onboarding.replay} type="button">
+                Ver tutorial
+              </button>
+            ) : null}
             {showSystem ? (
               <Link
                 aria-label="Sistema"

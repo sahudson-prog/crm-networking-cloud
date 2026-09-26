@@ -16,6 +16,8 @@ import {
   onboardingRouteFor,
   onboardingRouteIdFromPathname,
   onboardingStepFromPathname,
+  shouldClearOnboardingSessionOnNormalRoute,
+  shouldRedirectOnboardingIntroToProduct,
   shouldShowAutomaticOnboardingIntro,
   type OnboardingSessionState,
   type OnboardingStep,
@@ -108,15 +110,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     if (!routeId) {
       setRouteReady(true);
-      if (state.status === "in_progress") {
-        if (!session.active || session.replay) {
-          const nextSession = { active: true, replay: false };
-          writeOnboardingSession(nextSession);
-          setSession(nextSession);
-        }
-        setRouteReady(false);
-        router.replace(onboardingRouteFor(state.lastStep ?? "objectives"));
-      } else if (session.active && !session.replay) {
+      if (shouldClearOnboardingSessionOnNormalRoute(session)) {
         clearOnboardingSession();
         setSession(INACTIVE_ONBOARDING_SESSION);
       }
@@ -124,7 +118,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
 
     if (routeId === "intro") {
-      if ((state.status === "dismissed" || state.status === "completed") && !session.replay) {
+      if (shouldRedirectOnboardingIntroToProduct(state, session)) {
         setRouteReady(false);
         router.replace("/");
         return;
@@ -249,7 +243,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!session.replay && !(await persist(completeOnboarding()))) return;
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push("/objetivos");
+    router.push("/");
   }
 
   function replay() {

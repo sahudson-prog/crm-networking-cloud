@@ -88,10 +88,6 @@ export function shouldShowAutomaticOnboardingIntro(input: {
   return !input.exists && input.state.status === "not_started" && !input.state.introSeen;
 }
 
-export function shouldShowOnboardingStart(state: ProductOnboardingState) {
-  return state.status === "not_started";
-}
-
 export function isOnboardingTestResetAvailable(environment = process.env.NODE_ENV) {
   return environment === "development";
 }
@@ -158,6 +154,17 @@ export function beginOnboardingReplay(state: ProductOnboardingState) {
     session: { active: true, replay: true } satisfies OnboardingSessionState,
     route: "/onboarding" as const
   };
+}
+
+export function shouldClearOnboardingSessionOnNormalRoute(session: OnboardingSessionState) {
+  return session.active && !session.replay;
+}
+
+export function shouldRedirectOnboardingIntroToProduct(
+  state: ProductOnboardingState,
+  session: OnboardingSessionState
+) {
+  return (state.status === "dismissed" || state.status === "completed") && !session.replay;
 }
 
 export function onboardingRouteFor(routeId: OnboardingRouteId) {
