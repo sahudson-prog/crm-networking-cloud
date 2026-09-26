@@ -15,6 +15,7 @@ type IconName =
   | "phone"
   | "chat"
   | "calendar"
+  | "chart"
   | "checkbox"
   | "circleDot"
   | "target"
@@ -48,6 +49,7 @@ const paths: Record<IconName, string> = {
   phone: "M7 4h4l1 5-2.5 1.5a11 11 0 0 0 4 4L15 12l5 1v4c0 1-1 2-2 2A15 15 0 0 1 5 6c0-1 1-2 2-2Z",
   chat: "M5 6h14v9H9l-4 3V6Z",
   calendar: "M7 4v3m10-3v3M5 8h14M6 6h12v14H6V6Z",
+  chart: "M4 20V10m6 10V4m6 16v-7m4 7H2",
   checkbox: "M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 8 3 3 5-6",
   circleDot: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-3a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",

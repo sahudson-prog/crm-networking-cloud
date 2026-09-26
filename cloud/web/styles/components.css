@@ -194,6 +194,7 @@
   padding: 0 12px;
   text-decoration: none;
   font-size: 14px;
+  font-family: inherit;
   line-height: 1;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
@@ -5928,6 +5929,268 @@ textarea::placeholder {
   background: transparent;
 }
 
+.onboarding-start-link {
+  border-color: var(--crm-positive);
+  background: var(--crm-positive);
+  color: #fff;
+  animation: onboarding-start-pulse 900ms ease-in-out 2;
+}
+
+.onboarding-start-link:hover {
+  border-color: var(--crm-positive);
+  background: var(--crm-positive);
+}
+
+@keyframes onboarding-start-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(21, 128, 61, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(21, 128, 61, 0.2);
+  }
+}
+
+.onboarding-route {
+  margin-bottom: 18px;
+}
+
+.onboarding-route-loading {
+  margin: 24px 0;
+  color: var(--crm-muted);
+  font-size: 13px;
+}
+
+.onboarding-intro-shell {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  background: var(--brand-cream);
+  padding: 28px;
+}
+
+.onboarding-intro {
+  display: grid;
+  width: min(100%, 820px);
+  gap: 28px;
+}
+
+.onboarding-intro-copy {
+  display: grid;
+  gap: 8px;
+  max-width: 650px;
+}
+
+.onboarding-intro-copy span {
+  color: var(--brand-terracotta);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.onboarding-intro-copy h1 {
+  margin: 0;
+  color: var(--brand-espresso);
+  font-size: clamp(32px, 6vw, 54px);
+  line-height: 1.05;
+}
+
+.onboarding-intro-copy p {
+  margin: 0;
+  color: var(--crm-muted);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.onboarding-intro-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.onboarding-objectives-page {
+  min-width: 0;
+  gap: var(--crm-section-gap);
+}
+
+.objectives-onboarding-coach {
+  min-width: 0;
+}
+
+.onboarding-objectives-page .objectives-editor-panel,
+.onboarding-objectives-page .objectives-editor-grid,
+.onboarding-objectives-page .objectives-editor-grid > *,
+.onboarding-objectives-page input,
+.onboarding-objectives-page select,
+.onboarding-objectives-page textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.onboarding-contacts-view,
+.onboarding-google-step {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--crm-section-gap);
+}
+
+.onboarding-contacts-view > *,
+.onboarding-contacts-view .contacts-workspace,
+.onboarding-contacts-view .contact-filter-controls {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.contact-profile-grid.onboarding-contact-profile-grid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.65fr);
+  grid-template-areas:
+    "coach coach"
+    "identity referrals"
+    "interactions referrals";
+  gap: var(--crm-section-gap);
+}
+
+.onboarding-contact-profile-grid > .contact-side-stack {
+  display: contents;
+}
+
+.onboarding-contact-profile-grid .contact-coach-panel {
+  grid-area: coach;
+}
+
+.onboarding-contact-profile-grid .contact-referrals-panel {
+  grid-area: referrals;
+}
+
+.onboarding-contact-loading {
+  max-width: 100%;
+}
+
+.onboarding-google-account .account-section-primary {
+  margin: 0;
+}
+
+.onboarding-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.onboarding-coach-continuation {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--crm-border);
+  padding-top: 14px;
+}
+
+.onboarding-coach-continuation h3 {
+  margin: 0;
+  color: var(--crm-text);
+  font-size: 15px;
+}
+
+.coach-module.mode-onboarding {
+  grid-template-columns: 88px minmax(0, 1fr);
+  min-height: 0;
+  align-items: start;
+}
+
+.coach-onboarding-bubble {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--crm-border);
+  border-radius: 14px 14px 14px 5px;
+  background: var(--crm-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+  padding: 18px;
+}
+
+.coach-onboarding-bubble::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 28px;
+  width: 19px;
+  height: 19px;
+  border-left: 1px solid var(--crm-border);
+  border-bottom: 1px solid var(--crm-border);
+  border-bottom-left-radius: 6px;
+  background: var(--crm-surface);
+  transform: rotate(45deg) skew(-14deg, -14deg);
+}
+
+.coach-onboarding-heading {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.coach-onboarding-heading span {
+  color: var(--crm-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.coach-onboarding-heading h2 {
+  margin: 0;
+  color: var(--crm-text);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.coach-onboarding-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  color: var(--crm-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.coach-onboarding-content p {
+  margin: 0;
+}
+
+.onboarding-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.onboarding-flow strong {
+  border-top: 2px solid var(--brand-terracotta);
+  padding-top: 9px;
+  color: var(--brand-espresso);
+  font-size: 14px;
+  text-align: center;
+}
+
+.onboarding-flow span {
+  color: var(--brand-coffee);
+  font-size: 20px;
+}
+
+.coach-onboarding-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--crm-border);
+  padding-top: 12px;
+}
+
+.coach-onboarding-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
 .coach-rail {
   display: grid;
   align-content: start;
@@ -6061,7 +6324,8 @@ textarea::placeholder {
 .coach-bot-panel span:nth-child(5) { color: #2563eb; }
 
 .coach-module:has(.coach-message:hover) .coach-bot-mouth,
-.coach-module:has(.coach-message[open]) .coach-bot-mouth {
+.coach-module:has(.coach-message[open]) .coach-bot-mouth,
+.coach-floating-bot.speaking .coach-bot-mouth {
   height: 7px;
   bottom: 8px;
   border-radius: 0 0 10px 10px;
@@ -6894,6 +7158,59 @@ textarea::placeholder {
 }
 
 @media (max-width: 780px) {
+  .contact-profile-grid.onboarding-contact-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "coach"
+      "identity"
+      "interactions"
+      "referrals";
+  }
+
+  .onboarding-intro-shell {
+    place-items: start stretch;
+    padding: 24px 18px;
+  }
+
+  .onboarding-intro {
+    gap: 22px;
+    margin: auto 0;
+  }
+
+  .onboarding-intro-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .onboarding-intro-actions .button {
+    width: 100%;
+  }
+
+  .onboarding-contacts-view .contacts-filter-main {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .onboarding-contacts-view .contacts-quick-search {
+    flex-basis: 100%;
+  }
+
+  .onboarding-contacts-view .contacts-filter-summary {
+    flex: 1 1 100%;
+    align-self: auto;
+    margin-left: 0;
+    padding: 2px 0 0;
+    text-align: left;
+  }
+
+  .onboarding-contacts-view .contacts-status-board {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
   .state-cover-board {
     grid-template-columns: 1fr;
   }
@@ -7022,6 +7339,14 @@ textarea::placeholder {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .onboarding-start-link {
+    animation: none;
+  }
+
+  .coach-floating-bot.speaking .coach-bot-mouth {
+    animation: none;
+  }
+
   .progress-fill {
     transition: none;
   }
@@ -7047,6 +7372,41 @@ code {
 }
 
 @media (max-width: 780px) {
+  .coach-module.mode-onboarding {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .coach-module.mode-onboarding .coach-rail {
+    justify-items: start;
+  }
+
+  .coach-onboarding-bubble::before {
+    left: 34px;
+    top: -10px;
+    border-right: 0;
+    border-top: 0;
+  }
+
+  .onboarding-flow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .onboarding-flow span {
+    transform: rotate(90deg);
+    text-align: center;
+  }
+
+  .coach-onboarding-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coach-onboarding-actions > div:last-child {
+    justify-content: flex-end;
+  }
+
   .app-shell {
     width: min(100% - 18px, 760px);
     padding-top: 14px;

@@ -17,12 +17,14 @@ import {
   reconnectGoogle
 } from "../lib/googleAuthSession";
 import { readNetworkingStartIso } from "../lib/syncDate";
+import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
 import { supabase } from "../lib/supabaseClient";
 import { ContactDuplicateReviewPanel } from "./ContactDuplicateReviewPanel";
 import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { NetworkingStartDateSetting } from "./NetworkingStartDateSetting";
+import { useOnboarding } from "./OnboardingProvider";
 import { Button } from "./ui/Button";
 import { ProviderIcon, type ProviderIconName } from "./ui/ProviderIcon";
 
@@ -41,12 +43,12 @@ type AccountState = {
   provider: ProviderIconName;
 };
 
-export function AccountPage() {
+export function AccountPage({ view = "full" }: { view?: "full" | "google-onboarding" } = {}) {
+  const onboarding = useOnboarding();
   const [account, setAccount] = useState<AccountState>(createInitialAccountState(true));
   const accountLoadGenerationRef = useRef(0);
   const googleFinalizeInFlightRef = useRef(false);
   const currentAccountEmailRef = useRef("");
-  const activeGoogle = account.googleAccount;
 
   useEffect(() => {
     let mounted = true;
@@ -118,8 +120,18 @@ export function AccountPage() {
     };
   }, []);
 
-  const googleServices = googleServiceAvailability(account);
-  const googleAuthorizationStatus = googleAuthorizationSummary(account, googleServices);
+  if (view === "google-onboarding") {
+    return (
+      <div className="account-page onboarding-google-account">
+        <GoogleImportSection
+          account={account}
+          includeOtherSources={false}
+          redirectPath="/onboarding/google"
+          setAccount={setAccount}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="account-page">
@@ -158,86 +170,23 @@ export function AccountPage() {
         </div>
       </section>
 
-      <section className="account-section account-section-primary" aria-labelledby="account-import-title">
+      <section className="account-section" aria-labelledby="account-guide-title">
         <div className="account-section-title">
-          <h2 id="account-import-title">Importación y sincronización</h2>
-          <span>Fuentes desde las que Coffeecito puede leer datos para tu networking.</span>
+          <h2 id="account-guide-title">Guía de uso</h2>
+          <span>Vuelve a recorrer las funciones principales cuando quieras.</span>
         </div>
-
-        <NetworkingStartDateSetting onSaved={() => setAccount((current) => ({ ...current, networkingStartReady: true }))} />
-
-        <div className="account-source-list">
-          <div className="account-source-row expanded">
-            <div className="account-source-main">
-              <span className={`connected-service-logo ${googleAuthorizationStatus.authorized ? "active" : ""}`}>
-                <ProviderIcon name="google" />
-              </span>
-              <div>
-                <strong>Google</strong>
-                <span>{googleAuthorizationStatus.label}</span>
-                {activeGoogle?.accountEmail ? <small>{activeGoogle.accountEmail}</small> : null}
-              </div>
-            </div>
-            <div className="connected-service-head-actions account-source-actions">
-              <Button disabled={account.googleConnectionLoading || account.googleAuthorizationVerifying} icon="link" onClick={connectGoogle} tone="secondary">
-                {googleAuthorizationActionLabel(account)}
-              </Button>
-              {activeGoogle ? (
-                <Button icon="close" onClick={() => disconnectGoogle(activeGoogle.id)} tone="ghost">
-                  Desconectar
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="connected-service-permissions" aria-label="Servicios Google disponibles">
-              <ServiceCapability label="Contactos" available={googleServices.contacts} />
-              <ServiceCapability label="Correos" available={googleServices.mail} />
-              <ServiceCapability label="Calendario" available={googleServices.calendar} />
-            </div>
-
-            <div className="connected-service-actions">
-              <GoogleContactsSyncPanel
-                compact
-                googleAccessToken={account.googleAccessToken}
-                googleCapabilityAvailable={googleServices.contacts}
-                googleConnected={account.googleConnected}
-                googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                googleDisabledReason={googleImportDisabledReason(account, googleServices.contacts, "contacts")}
-                registerRememberedScopes={false}
-              />
-              <GoogleInteractionsSyncPanel
-                compact
-                googleAccessToken={account.googleAccessToken}
-                googleCalendarAvailable={googleServices.calendar}
-                googleConnected={account.googleConnected}
-                googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                googleMailAvailable={googleServices.mail}
-                registerRememberedScopes={false}
-                calendarDisabledReason={googleImportDisabledReason(account, googleServices.calendar, "calendar")}
-                mailDisabledReason={googleImportDisabledReason(account, googleServices.mail, "mail")}
-                networkingStartReady={account.networkingStartReady}
-              />
-            </div>
-          </div>
-
-          <SourcePlaceholder provider="microsoft" title="Microsoft" detail="Importación desde Outlook y Microsoft Calendar." />
-          <SourcePlaceholder provider="apple" title="Apple" detail="Importación desde Apple Contacts y Calendar." />
-          <div className="account-source-row">
-            <div className="account-source-main">
-              <span className="connected-service-logo">
-                <ProviderIcon name="apple" />
-              </span>
-              <div>
-                <strong>vCard (.vcf)</strong>
-                <span>Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.</span>
-              </div>
-            </div>
-            <span className="account-source-status">Próximamente</span>
-          </div>
+        <div className="toolbar">
+          <Button icon="sparkles" onClick={onboarding.replay}>Cómo usar Coffeecito</Button>
+          {isOnboardingTestResetAvailable() ? (
+            <Button onClick={() => void onboarding.resetForDevelopment()} tone="ghost">
+              Reiniciar onboarding de prueba
+            </Button>
+          ) : null}
         </div>
-
-        {account.message ? <p className="meta">{account.message}</p> : null}
+        {onboarding.error ? <p className="form-error" role="alert">{onboarding.error}</p> : null}
       </section>
+
+      <GoogleImportSection account={account} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
 
       <section className="account-section" aria-labelledby="account-quality-title">
         <div className="account-section-title">
@@ -281,6 +230,114 @@ export function AccountPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function GoogleImportSection({
+  account,
+  includeOtherSources,
+  redirectPath,
+  setAccount
+}: {
+  account: AccountState;
+  includeOtherSources: boolean;
+  redirectPath: "/cuenta" | "/onboarding/google";
+  setAccount: Dispatch<SetStateAction<AccountState>>;
+}) {
+  const activeGoogle = account.googleAccount;
+  const googleServices = googleServiceAvailability(account);
+  const googleAuthorizationStatus = googleAuthorizationSummary(account, googleServices);
+
+  return (
+    <section className="account-section account-section-primary" aria-labelledby="account-import-title">
+      <div className="account-section-title">
+        <h2 id="account-import-title">Importación y sincronización</h2>
+        <span>Fuentes desde las que Coffeecito puede leer datos para tu networking.</span>
+      </div>
+
+      <NetworkingStartDateSetting onSaved={() => setAccount((current) => ({ ...current, networkingStartReady: true }))} />
+
+      <div className="account-source-list">
+        <div className="account-source-row expanded">
+          <div className="account-source-main">
+            <span className={`connected-service-logo ${googleAuthorizationStatus.authorized ? "active" : ""}`}>
+              <ProviderIcon name="google" />
+            </span>
+            <div>
+              <strong>Google</strong>
+              <span>{googleAuthorizationStatus.label}</span>
+              {activeGoogle?.accountEmail ? <small>{activeGoogle.accountEmail}</small> : null}
+            </div>
+          </div>
+          <div className="connected-service-head-actions account-source-actions">
+            <Button
+              disabled={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+              icon="link"
+              onClick={() => void connectGoogle(redirectPath)}
+              tone="secondary"
+            >
+              {googleAuthorizationActionLabel(account)}
+            </Button>
+            {activeGoogle ? (
+              <Button icon="close" onClick={() => disconnectGoogle(activeGoogle.id)} tone="ghost">
+                Desconectar
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="connected-service-permissions" aria-label="Servicios Google disponibles">
+            <ServiceCapability label="Contactos" available={googleServices.contacts} />
+            <ServiceCapability label="Correos" available={googleServices.mail} />
+            <ServiceCapability label="Calendario" available={googleServices.calendar} />
+          </div>
+
+          <div className="connected-service-actions">
+            <GoogleContactsSyncPanel
+              compact
+              googleAccessToken={account.googleAccessToken}
+              googleCapabilityAvailable={googleServices.contacts}
+              googleConnected={account.googleConnected}
+              googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+              googleDisabledReason={googleImportDisabledReason(account, googleServices.contacts, "contacts")}
+              registerRememberedScopes={false}
+            />
+            <GoogleInteractionsSyncPanel
+              compact
+              googleAccessToken={account.googleAccessToken}
+              googleCalendarAvailable={googleServices.calendar}
+              googleConnected={account.googleConnected}
+              googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+              googleMailAvailable={googleServices.mail}
+              registerRememberedScopes={false}
+              calendarDisabledReason={googleImportDisabledReason(account, googleServices.calendar, "calendar")}
+              mailDisabledReason={googleImportDisabledReason(account, googleServices.mail, "mail")}
+              networkingStartReady={account.networkingStartReady}
+            />
+          </div>
+        </div>
+
+        {includeOtherSources ? (
+          <>
+            <SourcePlaceholder provider="microsoft" title="Microsoft" detail="Importación desde Outlook y Microsoft Calendar." />
+            <SourcePlaceholder provider="apple" title="Apple" detail="Importación desde Apple Contacts y Calendar." />
+            <div className="account-source-row">
+              <div className="account-source-main">
+                <span className="connected-service-logo">
+                  <ProviderIcon name="apple" />
+                </span>
+                <div>
+                  <strong>vCard (.vcf)</strong>
+                  <span>Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.</span>
+                </div>
+              </div>
+              <span className="account-source-status">Próximamente</span>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {account.message ? <p className="meta">{account.message}</p> : null}
+    </section>
   );
 }
 
@@ -384,8 +441,8 @@ function googleServiceAvailability(account: AccountState) {
   };
 }
 
-async function connectGoogle() {
-  await reconnectGoogle(googleRequiredScopes(), `${window.location.origin}/cuenta`);
+async function connectGoogle(redirectPath: "/cuenta" | "/onboarding/google") {
+  await reconnectGoogle(googleRequiredScopes(), `${window.location.origin}${redirectPath}`);
 }
 
 async function disconnectGoogle(accountId: string) {

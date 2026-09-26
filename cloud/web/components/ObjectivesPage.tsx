@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   OBJECTIVE_PRIORITIES,
   deleteObjective,
@@ -29,7 +29,7 @@ const emptyDraft: ObjectiveEditorInput = {
   isActive: true
 };
 
-export function ObjectivesPage() {
+export function ObjectivesPage({ onboardingCoach }: { onboardingCoach?: ReactNode } = {}) {
   const [objectives, setObjectives] = useState<ObjectiveRow[]>([]);
   const [draft, setDraft] = useState<ObjectiveEditorInput>(emptyDraft);
   const [editingId, setEditingId] = useState("");
@@ -137,7 +137,8 @@ export function ObjectivesPage() {
   }
 
   return (
-    <div className="objectives-page">
+    <div className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""}`}>
+      {onboardingCoach ? <div className="objectives-onboarding-coach">{onboardingCoach}</div> : null}
       <section className="panel objectives-editor-panel">
         <div className="panel-header">
           <h2 className="panel-title">Objetivos</h2>
