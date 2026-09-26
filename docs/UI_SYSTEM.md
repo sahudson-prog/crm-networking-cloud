@@ -139,6 +139,18 @@ En Dashboard puede mostrar sugerencias agrupadas o detalladas. En ficha de conta
 
 Las burbujas usan `details/summary`, fecha visible, texto compacto, vínculos al contacto y checkbox externo. La semántica de reglas no pertenece a este documento.
 
+La misma envolvente visual del Coach admite un modo `onboarding`. Este modo conserva la mascota y la presentación frameless de la ficha, muestra una burbuja amplia con contenido guiado, progreso y navegación, y no presenta acciones, configuración, historial ni ejecución de sugerencias. En los pasos guiados ocupa el ancho completo entre la navegación y el contenido real de la página; la mascota usa el estado visual de habla mientras esa burbuja está visible.
+
+## Onboarding inicial
+
+El recorrido guiado vive exclusivamente bajo `/onboarding/*`; las rutas normales de producto no activan comportamiento especial de onboarding. La experiencia privada navega automáticamente una sola vez a la introducción `Cómo funciona Coffeecito` cuando el usuario todavía no tiene estado persistido. La introducción es una pantalla privada y editorial, independiente del `Shell` y del Coach, desde la que puede comenzar el recorrido o elegir `Ahora no`.
+
+Los estados persistidos son `not_started`, `in_progress`, `dismissed` y `completed`. `Empezar` aparece únicamente en `not_started`, abre `/onboarding` sin iniciar todavía el recorrido y usa un énfasis verde breve que respeta preferencias de movimiento reducido. Salir de un recorrido lo deja `dismissed`; replay puede recorrer la guía sin sobrescribir ese estado ni un estado `completed`.
+
+Los pasos reutilizan las vistas reales de Objetivos, Contactos, ficha de contacto y conexión/importación de Google. El Coach aparece siempre a ancho completo antes del contenido; en pantallas estrechas la mascota queda sobre la burbuja. Las separaciones entre el Coach y los bloques principales del recorrido usan el token semántico `--crm-section-gap`. Cuenta mantiene la acción permanente `Cómo usar Coffeecito` para iniciar un replay sin cambiar el estado persistido.
+
+La navegación principal se ordena como Objetivos, Contactos y Dashboard. Dashboard usa un icono de gráfico; `Empezar` aparece después de esas áreas mientras corresponde.
+
 ## Responsive y accesibilidad observable
 
 El responsive se resuelve con media queries en `components.css`, principalmente en 780px, 760px, 920px y 1120px, más un container query para Coach compacto.

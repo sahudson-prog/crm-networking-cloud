@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TodoRow } from "../lib/readModel";
 import type { InteractionRow } from "../lib/readModel";
 import { dismissCoachTodos, executeCoachTodos } from "../lib/coachActions";
@@ -21,7 +21,8 @@ import { CoachActionLogDialog } from "./CoachActionLogDialog";
 import { CoachConfigDialog } from "./CoachConfigDialog";
 import { Button } from "./ui/Button";
 
-type CoachModuleProps = {
+type CoachSuggestionsProps = {
+  mode?: "suggestions";
   todos: TodoRow[];
   total: number;
   contactId?: string;
@@ -33,11 +34,32 @@ type CoachModuleProps = {
   onExecuted?: () => void;
 };
 
-export function CoachPreview(props: CoachModuleProps) {
+type CoachOnboardingProps = {
+  mode: "onboarding";
+  botSize?: "normal" | "mini";
+  children: ReactNode;
+  exitLabel?: string;
+  nextDisabled?: boolean;
+  nextLabel?: string;
+  onBack?: () => void;
+  onExit: () => void;
+  onNext: () => void;
+  progress: string;
+  title: string;
+};
+
+type CoachModuleProps = CoachSuggestionsProps | CoachOnboardingProps;
+
+export function CoachPreview(props: CoachSuggestionsProps) {
   return <CoachModule {...props} />;
 }
 
-export function CoachModule({
+export function CoachModule(props: CoachModuleProps) {
+  if (props.mode === "onboarding") return <CoachOnboardingContent {...props} />;
+  return <CoachSuggestionsContent {...props} />;
+}
+
+function CoachSuggestionsContent({
   todos,
   total,
   contactId,
@@ -47,7 +69,7 @@ export function CoachModule({
   interactions = [],
   showIndividualSuggestions: controlledShowIndividualSuggestions,
   onExecuted
-}: CoachModuleProps) {
+}: CoachSuggestionsProps) {
   const visibleTodos = useMemo(
     () => sortTodosByDate(contactId ? todos.filter((todo) => todo.object_id === contactId) : todos),
     [contactId, todos]
@@ -179,78 +201,85 @@ export function CoachModule({
     }
   }
 
-  return (
-    <section className={`coach-module ${variant} bot-${botSize}`} data-coach-count={count}>
-      <div className="coach-rail">
-        <CoachMascot size={botSize} />
-        <div className="toolbar coach-actions" aria-label="Acciones del Coach IA">
-          <Button
-            disabled={!selectedTodos.length || isExecuting}
-            icon="check"
-            onClick={executeSelected}
-            square
-            tone="primary"
-            aria-label="Ejecutar sugerencias seleccionadas"
-          />
-          <Button
-            disabled={!selectedTodos.length || isExecuting}
-            icon="close"
-            onClick={dismissSelected}
-            square
-            aria-label="Descartar sugerencias seleccionadas"
-          />
-          <Button
-            disabled={isExecuting}
-            icon="sparkles"
-            onClick={reviewSuggestions}
-            square
-            tone="primary"
-            aria-label="Buscar sugerencias"
-          />
-          <Button icon="settings" onClick={() => setConfigOpen(true)} square aria-label="Configurar automatizaciones" />
-        </div>
-      </div>
+  const actions = (
+    <div className="toolbar coach-actions" aria-label="Acciones del Coach IA">
+      <Button
+        disabled={!selectedTodos.length || isExecuting}
+        icon="check"
+        onClick={executeSelected}
+        square
+        tone="primary"
+        aria-label="Ejecutar sugerencias seleccionadas"
+      />
+      <Button
+        disabled={!selectedTodos.length || isExecuting}
+        icon="close"
+        onClick={dismissSelected}
+        square
+        aria-label="Descartar sugerencias seleccionadas"
+      />
+      <Button
+        disabled={isExecuting}
+        icon="sparkles"
+        onClick={reviewSuggestions}
+        square
+        tone="primary"
+        aria-label="Buscar sugerencias"
+      />
+      <Button icon="settings" onClick={() => setConfigOpen(true)} square aria-label="Configurar automatizaciones" />
+    </div>
+  );
 
-      <div className="coach-chat-scroll" style={{ ["--coach-visible" as string]: maxVisible }}>
-        {visibleTodos.length ? (
-          shouldGroupSuggestions ? (
-            groupedTodos.map((group) => (
-              <CoachGroupSection
-                checked={group.todos.every((todo) => selectedIds.has(todo.id))}
-                expanded={expandedGroupIds.has(group.id)}
-                key={group.id}
-                group={group}
-                interactionsByEvidenceId={interactionsByEvidenceId}
-                onGroupToggle={() => toggleGroup(group.id)}
-                onToggle={() => toggleTodos(group.todos.map((todo) => todo.id))}
-                selectedIds={selectedIds}
-                onTodoToggle={toggleTodo}
-              />
-            ))
+  return (
+    <>
+      <CoachFrame
+        actions={actions}
+        botSize={botSize}
+        count={count}
+        feedback={feedback}
+        mode="suggestions"
+        variant={variant}
+      >
+        <div className="coach-chat-scroll" style={{ ["--coach-visible" as string]: maxVisible }}>
+          {visibleTodos.length ? (
+            shouldGroupSuggestions ? (
+              groupedTodos.map((group) => (
+                <CoachGroupSection
+                  checked={group.todos.every((todo) => selectedIds.has(todo.id))}
+                  expanded={expandedGroupIds.has(group.id)}
+                  key={group.id}
+                  group={group}
+                  interactionsByEvidenceId={interactionsByEvidenceId}
+                  onGroupToggle={() => toggleGroup(group.id)}
+                  onToggle={() => toggleTodos(group.todos.map((todo) => todo.id))}
+                  selectedIds={selectedIds}
+                  onTodoToggle={toggleTodo}
+                />
+              ))
+            ) : (
+              visibleTodos.map((todo) => (
+                <CoachMessage
+                  checked={selectedIds.has(todo.id)}
+                  key={todo.id}
+                  onToggle={() => toggleTodo(todo.id)}
+                  todo={todo}
+                  interactionsByEvidenceId={interactionsByEvidenceId}
+                />
+              ))
+            )
           ) : (
-            visibleTodos.map((todo) => (
-              <CoachMessage
-                checked={selectedIds.has(todo.id)}
-                key={todo.id}
-                onToggle={() => toggleTodo(todo.id)}
-                todo={todo}
-                interactionsByEvidenceId={interactionsByEvidenceId}
-              />
-            ))
-          )
-        ) : (
-          <details className="coach-message">
-            <summary>
-              <span className="coach-message-text">No tengo sugerencias abiertas</span>
-              <span className="coach-message-date">Hoy</span>
-            </summary>
-            <div className="coach-message-detail">
-              No tengo comentarios pendientes para este contexto.
-            </div>
-          </details>
-        )}
-      </div>
-      {feedback ? <div className="coach-feedback">{feedback}</div> : null}
+            <details className="coach-message">
+              <summary>
+                <span className="coach-message-text">No tengo sugerencias abiertas</span>
+                <span className="coach-message-date">Hoy</span>
+              </summary>
+              <div className="coach-message-detail">
+                No tengo comentarios pendientes para este contexto.
+              </div>
+            </details>
+          )}
+        </div>
+      </CoachFrame>
       <CoachConfigDialog
         open={configOpen}
         onClose={() => setConfigOpen(false)}
@@ -261,6 +290,70 @@ export function CoachModule({
         onSaved={onExecuted}
       />
       <CoachActionLogDialog open={logOpen} contactId={contactId} onClose={() => setLogOpen(false)} />
+    </>
+  );
+}
+
+function CoachOnboardingContent({
+  botSize = "normal",
+  children,
+  exitLabel = "Salir",
+  nextDisabled = false,
+  nextLabel = "Siguiente",
+  onBack,
+  onExit,
+  onNext,
+  progress,
+  title
+}: CoachOnboardingProps) {
+  return (
+    <CoachFrame botSize={botSize} mode="onboarding" variant="onboarding">
+      <article className="coach-onboarding-bubble">
+        <div className="coach-onboarding-heading">
+          <span>{progress}</span>
+          <h2>{title}</h2>
+        </div>
+        <div className="coach-onboarding-content">{children}</div>
+        <div className="coach-onboarding-actions">
+          <div>{onBack ? <Button icon="arrowLeft" onClick={onBack}>Atrás</Button> : null}</div>
+          <div>
+            <Button onClick={onExit} tone="ghost">{exitLabel}</Button>
+            <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button>
+          </div>
+        </div>
+      </article>
+    </CoachFrame>
+  );
+}
+
+function CoachFrame({
+  actions,
+  botSize,
+  children,
+  count,
+  feedback,
+  mode,
+  variant
+}: {
+  actions?: ReactNode;
+  botSize: "normal" | "mini";
+  children: ReactNode;
+  count?: number;
+  feedback?: string;
+  mode: "suggestions" | "onboarding";
+  variant: "dashboard" | "contact" | "onboarding";
+}) {
+  return (
+    <section
+      className={`coach-module ${variant} bot-${botSize} mode-${mode}`}
+      {...(count === undefined ? {} : { "data-coach-count": count })}
+    >
+      <div className="coach-rail">
+        <CoachMascot size={botSize} speaking={mode === "onboarding"} />
+        {actions}
+      </div>
+      {children}
+      {feedback ? <div className="coach-feedback">{feedback}</div> : null}
     </section>
   );
 }
@@ -304,9 +397,12 @@ function groupCoachTodos(todos: TodoRow[]): CoachTodoGroup[] {
   });
 }
 
-function CoachMascot({ size }: { size: "normal" | "mini" }) {
+function CoachMascot({ size, speaking = false }: { size: "normal" | "mini"; speaking?: boolean }) {
   return (
-    <div className={`coach-floating-bot coach-floating-bot-${size}`} aria-label="Asistente virtual del Coach IA">
+    <div
+      className={`coach-floating-bot coach-floating-bot-${size} ${speaking ? "speaking" : ""}`}
+      aria-label="Asistente virtual del Coach IA"
+    >
       <div className="coach-bot">
         <div className="coach-bot-antenna" />
         <div className="coach-bot-head">

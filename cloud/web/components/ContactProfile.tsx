@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
 import { readAllActiveContacts } from "../lib/cloudData";
 import { cleanContactCompany, cleanContactRole, joinCompact, statusClass } from "../lib/format";
@@ -25,6 +25,7 @@ import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 
 type ContactProfileProps = {
+  onboardingCoach?: ReactNode;
   profile: ContactProfileData;
   onReload: () => void;
 };
@@ -37,7 +38,7 @@ const NETWORKING_STATUSES = [
   "Agradecimiento enviado"
 ];
 
-export function ContactProfile({ profile, onReload }: ContactProfileProps) {
+export function ContactProfile({ onboardingCoach, profile, onReload }: ContactProfileProps) {
   const { contact, interactions, interactionParticipants, externalInteractionSources, referrals, todos } = profile;
   const emails = contact.contact_emails ?? [];
   const phones = contact.contact_phones ?? [];
@@ -135,12 +136,14 @@ export function ContactProfile({ profile, onReload }: ContactProfileProps) {
 
   return (
     <div className="contact-profile-page">
-      <Link className="button secondary contact-back-link" href="/contactos">
-        <Icon name="arrowLeft" />
-        <span>Contactos</span>
-      </Link>
+      {!onboardingCoach ? (
+        <Link className="button secondary contact-back-link" href="/contactos">
+          <Icon name="arrowLeft" />
+          <span>Contactos</span>
+        </Link>
+      ) : null}
 
-      <div className="contact-profile-grid">
+      <div className={`contact-profile-grid ${onboardingCoach ? "onboarding-contact-profile-grid" : ""}`}>
         <section className="panel contact-identity-panel">
           <div className="contact-identity-head">
             <div>
@@ -211,16 +214,18 @@ export function ContactProfile({ profile, onReload }: ContactProfileProps) {
 
         <aside className="contact-side-stack">
           <section className="panel contact-coach-panel">
-            <CoachModule
-              botSize="mini"
-              contactId={contact.id}
-              interactions={interactions}
-              maxVisible={4}
-              onExecuted={onReload}
-              todos={todos}
-              total={todos.length}
-              variant="contact"
-            />
+            {onboardingCoach ?? (
+              <CoachModule
+                botSize="mini"
+                contactId={contact.id}
+                interactions={interactions}
+                maxVisible={4}
+                onExecuted={onReload}
+                todos={todos}
+                total={todos.length}
+                variant="contact"
+              />
+            )}
           </section>
 
           <ContactReferrals contact={contact} onReload={onReload} referrals={referrals} />

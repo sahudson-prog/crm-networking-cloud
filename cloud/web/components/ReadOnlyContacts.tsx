@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { readContactListRows, readContactProfile } from "../lib/cloudData";
 import type { ContactListRow, ContactProfileData } from "../lib/readModel";
 import { ContactProfile } from "./ContactProfile";
@@ -20,7 +20,13 @@ async function retryOnce<T>(read: () => Promise<T>): Promise<T> {
   }
 }
 
-export function ReadOnlyContacts() {
+export function ReadOnlyContacts({
+  beforeList,
+  onContactsResolved
+}: {
+  beforeList?: ReactNode;
+  onContactsResolved?: (contacts: ContactListRow[]) => void;
+} = {}) {
   const searchParams = useSearchParams();
   const contactId = searchParams.get("contactId") ?? "";
   const [contacts, setContacts] = useState<ContactListRow[]>([]);
@@ -37,7 +43,8 @@ export function ReadOnlyContacts() {
   const loadContacts = useCallback(async () => {
     const data = await readContactListRows();
     setContacts(data);
-  }, []);
+    onContactsResolved?.(data);
+  }, [onContactsResolved]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +58,10 @@ export function ReadOnlyContacts() {
           if (!cancelled) setProfile(data);
         } else {
           const data = await retryOnce(readContactListRows);
-          if (!cancelled) setContacts(data);
+          if (!cancelled) {
+            setContacts(data);
+            onContactsResolved?.(data);
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -66,7 +76,7 @@ export function ReadOnlyContacts() {
     return () => {
       cancelled = true;
     };
-  }, [contactId]);
+  }, [contactId, onContactsResolved]);
 
   if (loading) return <section className="panel">Leyendo contactos...</section>;
   if (error) return <section className="panel">Error: {error}</section>;
@@ -75,5 +85,7 @@ export function ReadOnlyContacts() {
     return <ContactProfile profile={profile} onReload={loadProfile} />;
   }
 
-  return <ContactTable contacts={contacts} onReload={loadContacts} />;
+  const table = <ContactTable contacts={contacts} onReload={loadContacts} />;
+  if (!beforeList) return table;
+  return <div className="onboarding-contacts-view">{beforeList}{table}</div>;
 }

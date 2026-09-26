@@ -4,24 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
+import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Icon } from "./ui/Icon";
+import { shouldShowOnboardingStart } from "../lib/onboarding";
 import { canRenderSystemSurface } from "../lib/systemAccess";
 
 export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
   return (
     <SystemAccessProvider>
-      <ShellContent onSignOut={onSignOut}>{children}</ShellContent>
+      <OnboardingProvider>
+        <ShellContent onSignOut={onSignOut}>{children}</ShellContent>
+      </OnboardingProvider>
     </SystemAccessProvider>
   );
 }
 
 function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
   const pathname = usePathname();
+  const onboarding = useOnboarding();
   const systemAccess = useSystemAccess();
+  const isOnboarding = pathname.startsWith("/onboarding");
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
-  const isObjectives = pathname.startsWith("/objetivos");
+  const isObjectives = pathname === "/objetivos" || pathname === "/onboarding/objetivos";
+  const isContacts = pathname === "/contactos"
+    || pathname === "/onboarding/contactos"
+    || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
 
   return (
@@ -32,18 +41,24 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
         </div>
         <nav className="nav" aria-label="Navegacion principal">
           <div className="nav-primary">
-            <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
-              <Icon name="sparkles" />
-              Dashboard
-            </Link>
-            <Link className={`nav-link ${pathname === "/contactos" ? "active" : ""}`} href="/contactos">
-              <Icon name="users" />
-              Contactos
-            </Link>
             <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">
               <Icon name="target" />
               Objetivos
             </Link>
+            <Link className={`nav-link ${isContacts ? "active" : ""}`} href="/contactos">
+              <Icon name="users" />
+              Contactos
+            </Link>
+            <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
+              <Icon name="chart" />
+              Dashboard
+            </Link>
+            {!isOnboarding && !onboarding.loading && shouldShowOnboardingStart(onboarding.state) ? (
+              <button className="nav-link onboarding-start-link" onClick={onboarding.openIntro} type="button">
+                <Icon name="sparkles" />
+                Empezar
+              </button>
+            ) : null}
           </div>
           <div className="nav-utility">
             {showSystem ? (
