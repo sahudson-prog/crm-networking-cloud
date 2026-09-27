@@ -133,9 +133,9 @@ La lógica de matching, cursores, precedencia y persistencia no pertenece a este
 
 ## Coach
 
-`CoachPreview` y `CoachModule` presentan sugerencias como burbujas compactas junto a una mascota visual. Permiten seleccionar sugerencias, ejecutar, descartar, buscar nuevas sugerencias y abrir configuración o historial.
+`CoachPreview` y `CoachModule` presentan sugerencias como burbujas compactas junto a una mascota visual. Permiten seleccionar sugerencias, ejecutar, descartar, buscar nuevas sugerencias y abrir configuración o historial. Suggestions y onboarding comparten un único frame visual para la mascota, la burbuja, su borde y su punta responsive; cada modo aporta únicamente su contenido y controles propios.
 
-En Dashboard puede mostrar sugerencias agrupadas o detalladas. En ficha de contacto aparece en variante mini y filtra al contacto actual.
+En Dashboard aparece antes de los filtros y del contenido principal, sin un panel envolvente propio, y puede mostrar sugerencias agrupadas o detalladas. En ficha de contacto ocupa el ancho completo antes del grid principal y filtra al contacto actual.
 
 Las burbujas usan `details/summary`, fecha visible, texto compacto, vínculos al contacto y checkbox externo. La semántica de reglas no pertenece a este documento.
 

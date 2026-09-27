@@ -12,17 +12,27 @@
   margin-bottom: 18px;
 }
 
-.brand {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.shell-brand-lockup {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand-espresso);
+  text-decoration: none;
 }
 
-.brand-title {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.15;
-  font-weight: 780;
+.shell-brand-lockup img {
+  display: block;
+  width: 46px;
+  height: auto;
+}
+
+.shell-brand-lockup span {
+  font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  line-height: 1;
 }
 
 .brand-subtitle {
@@ -3426,25 +3436,6 @@ textarea::placeholder {
   background: var(--crm-bg);
 }
 
-.headhunter-editor-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 1px solid rgba(43, 103, 201, 0.22);
-  border-radius: var(--crm-radius);
-  background: rgba(43, 103, 201, 0.06);
-  color: var(--crm-text);
-  font-size: 12px;
-  line-height: 1.35;
-  padding: 8px 10px;
-}
-
-.headhunter-editor-hint.warning {
-  border-color: rgba(245, 158, 11, 0.28);
-  background: rgba(245, 158, 11, 0.08);
-}
-
 .objective-selector {
   display: grid;
   gap: 10px;
@@ -4079,7 +4070,7 @@ textarea::placeholder {
   font-size: 12px;
 }
 
-.coach-panel-caption button {
+.coach-suggestions-heading button {
   border: 0;
   background: transparent;
   color: var(--crm-accent);
@@ -4089,7 +4080,7 @@ textarea::placeholder {
   padding: 0;
 }
 
-.coach-panel-caption button:hover {
+.coach-suggestions-heading button:hover {
   text-decoration: underline;
 }
 
@@ -5146,10 +5137,6 @@ textarea::placeholder {
   gap: 14px;
 }
 
-.contact-back-link {
-  justify-self: start;
-}
-
 .contact-profile-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.65fr);
@@ -5435,31 +5422,14 @@ textarea::placeholder {
   gap: 14px;
 }
 
-.contact-coach-panel,
 .contact-referrals-panel,
 .contact-interactions-panel {
   background: var(--crm-surface);
 }
 
-.contact-coach-panel {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  container-type: inline-size;
-  min-height: 230px;
+.contact-profile-coach {
+  min-width: 0;
   overflow: hidden;
-}
-
-.contact-coach-panel .coach-module {
-  min-height: 198px;
-}
-
-.contact-coach-panel .coach-actions {
-  gap: 6px;
-}
-
-.contact-coach-panel .coach-chat-scroll {
-  max-height: 174px;
 }
 
 .contact-interactions-panel {
@@ -5920,17 +5890,41 @@ textarea::placeholder {
   --status-color: var(--crm-status-agradecimiento);
 }
 
-.coach-panel {
-  overflow: hidden;
-}
-
 .coach-module {
   position: relative;
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
   gap: 12px;
   min-height: 188px;
+  padding-top: 18px;
   background: transparent;
+}
+
+.dashboard-coach {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.coach-content {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+}
+
+.coach-suggestions-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 4px 2px;
+}
+
+.coach-suggestions-heading span {
+  color: var(--crm-muted);
+  font-size: 12px;
 }
 
 .nav-tutorial-link {
@@ -6086,27 +6080,6 @@ textarea::placeholder {
   max-width: 100%;
 }
 
-.contact-profile-grid.onboarding-contact-profile-grid {
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.65fr);
-  grid-template-areas:
-    "coach coach"
-    "identity referrals"
-    "interactions referrals";
-  gap: var(--crm-section-gap);
-}
-
-.onboarding-contact-profile-grid > .contact-side-stack {
-  display: contents;
-}
-
-.onboarding-contact-profile-grid .contact-coach-panel {
-  grid-area: coach;
-}
-
-.onboarding-contact-profile-grid .contact-referrals-panel {
-  grid-area: referrals;
-}
-
 .onboarding-contact-loading {
   max-width: 100%;
 }
@@ -6116,24 +6089,21 @@ textarea::placeholder {
 }
 
 .coach-module.mode-onboarding {
-  grid-template-columns: 88px minmax(0, 1fr);
   min-height: 0;
   align-items: start;
 }
 
-.coach-onboarding-bubble {
+.coach-bubble {
   position: relative;
-  display: grid;
-  gap: 14px;
   border: 1px solid var(--crm-border);
   border-radius: 14px;
   background: var(--crm-surface);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
-  padding: 18px;
+  overflow: visible;
 }
 
-.coach-onboarding-bubble::before,
-.coach-onboarding-bubble::after {
+.coach-bubble::before,
+.coach-bubble::after {
   content: "";
   position: absolute;
   width: 0;
@@ -6141,21 +6111,35 @@ textarea::placeholder {
   pointer-events: none;
 }
 
-.coach-onboarding-bubble::before {
+.coach-bubble::before {
   left: -13px;
-  top: 28px;
+  top: 13px;
   border-top: 10px solid transparent;
   border-right: 13px solid var(--crm-border);
   border-bottom: 10px solid transparent;
 }
 
-.coach-onboarding-bubble::after {
+.coach-bubble::after {
   left: -10px;
-  top: 30px;
+  top: 15px;
   z-index: 1;
   border-top: 8px solid transparent;
   border-right: 11px solid var(--crm-surface);
   border-bottom: 8px solid transparent;
+}
+
+.coach-onboarding-bubble {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.coach-onboarding-bubble::before {
+  top: 28px;
+}
+
+.coach-onboarding-bubble::after {
+  top: 30px;
 }
 
 .coach-onboarding-heading {
@@ -6397,15 +6381,6 @@ textarea::placeholder {
   padding: 2px 4px 2px 18px;
 }
 
-.coach-message {
-  position: relative;
-  border: 1px solid var(--crm-border);
-  border-radius: 14px 14px 14px 5px;
-  background: var(--crm-bg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
-  overflow: visible;
-}
-
 .coach-message-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 18px;
@@ -6419,21 +6394,6 @@ textarea::placeholder {
   margin-top: 11px;
   accent-color: var(--crm-primary);
   cursor: pointer;
-}
-
-.coach-message::before {
-  content: "";
-  position: absolute;
-  left: -11px;
-  top: 13px;
-  width: 19px;
-  height: 19px;
-  background: var(--crm-bg);
-  border-left: 1px solid var(--crm-border);
-  border-bottom: 1px solid var(--crm-border);
-  border-bottom-left-radius: 6px;
-  transform: rotate(45deg) skew(-14deg, -14deg);
-  z-index: 0;
 }
 
 .coach-message summary {
@@ -6489,8 +6449,12 @@ textarea::placeholder {
 
 .coach-message:hover::before,
 .coach-message[open]::before {
-  border-color: var(--crm-border-strong);
-  background: #fbfdff;
+  border-right-color: var(--crm-border-strong);
+}
+
+.coach-message:hover::after,
+.coach-message[open]::after {
+  border-right-color: #fbfdff;
 }
 
 .coach-message-detail {
@@ -6600,7 +6564,6 @@ textarea::placeholder {
 .coach-state.agradecimiento { --status-color: var(--crm-status-agradecimiento); }
 
 .coach-feedback {
-  grid-column: 2;
   color: var(--crm-muted);
   font-size: 12px;
   line-height: 1.35;
@@ -6799,7 +6762,6 @@ textarea::placeholder {
   scale: 0.86;
 }
 
-.bot-mini .coach-module,
 .coach-module.bot-mini {
   grid-template-columns: 88px minmax(0, 1fr);
 }
@@ -6811,55 +6773,6 @@ textarea::placeholder {
 .coach-count .icon {
   width: 14px;
   height: 14px;
-}
-
-@container (max-width: 370px) {
-  .contact-coach-panel .coach-module.bot-mini {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-rail {
-    display: grid;
-    grid-template-columns: 86px minmax(0, 1fr);
-    align-items: center;
-    justify-items: start;
-    gap: 8px;
-    width: 100%;
-    padding-top: 0;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-actions {
-    flex-direction: row;
-    align-self: center;
-    justify-content: flex-start;
-    width: auto;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-chat-scroll {
-    grid-column: 1 / -1;
-    width: 100%;
-    padding: 14px 4px 2px;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-feedback {
-    grid-column: 1 / -1;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-message-row:not(:first-child) .coach-message::before {
-    display: none;
-  }
-
-  .contact-coach-panel .coach-module.bot-mini .coach-message-row:first-child .coach-message::before,
-  .contact-coach-panel .coach-module.bot-mini .coach-chat-scroll > .coach-message:first-child::before {
-    left: 34px;
-    top: -10px;
-    width: 18px;
-    height: 18px;
-    border-left: 1px solid var(--crm-border);
-    border-bottom: 1px solid var(--crm-border);
-    transform: rotate(135deg) skew(-12deg, -12deg);
-  }
 }
 
 .interaction-card {
@@ -7197,10 +7110,9 @@ textarea::placeholder {
   .contact-profile-grid.onboarding-contact-profile-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "coach"
       "identity"
       "interactions"
-      "referrals";
+      "side";
   }
 
   .onboarding-intro-shell {
@@ -7404,16 +7316,38 @@ code {
 }
 
 @media (max-width: 780px) {
-  .coach-module.mode-onboarding {
+  .coach-module,
+  .coach-module.bot-mini {
     grid-template-columns: 1fr;
     gap: 6px;
+    width: 100%;
   }
 
-  .coach-module.mode-onboarding .coach-rail {
+  .coach-module .coach-rail {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
     justify-items: start;
+    width: 100%;
+    padding-top: 0;
   }
 
-  .coach-onboarding-bubble::before {
+  .coach-module .coach-actions {
+    align-self: center;
+    justify-content: flex-start;
+    width: auto;
+    flex-wrap: wrap;
+  }
+
+  .coach-module .coach-content,
+  .coach-module .coach-chat-scroll {
+    width: 100%;
+  }
+
+  .coach-module .coach-chat-scroll {
+    padding: 14px 4px 2px;
+  }
+
+  .coach-module .coach-bubble::before {
     left: 34px;
     top: -13px;
     border: 0;
@@ -7422,13 +7356,25 @@ code {
     border-left: 11px solid transparent;
   }
 
-  .coach-onboarding-bubble::after {
+  .coach-module .coach-bubble::after {
     left: 36px;
     top: -9px;
     border: 0;
     border-right: 9px solid transparent;
     border-bottom: 10px solid var(--crm-surface);
     border-left: 9px solid transparent;
+  }
+
+  .coach-module .coach-message:hover::before,
+  .coach-module .coach-message[open]::before {
+    border-right-color: transparent;
+    border-bottom-color: var(--crm-border-strong);
+  }
+
+  .coach-module .coach-message:hover::after,
+  .coach-module .coach-message[open]::after {
+    border-right-color: transparent;
+    border-bottom-color: #fbfdff;
   }
 
   .onboarding-flow {

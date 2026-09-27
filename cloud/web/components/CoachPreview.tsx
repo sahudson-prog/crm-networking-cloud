@@ -30,7 +30,6 @@ type CoachSuggestionsProps = {
   botSize?: "normal" | "mini";
   maxVisible?: number;
   interactions?: InteractionRow[];
-  showIndividualSuggestions?: boolean;
   onExecuted?: () => void;
 };
 
@@ -67,7 +66,6 @@ function CoachSuggestionsContent({
   botSize = "normal",
   maxVisible = 4,
   interactions = [],
-  showIndividualSuggestions: controlledShowIndividualSuggestions,
   onExecuted
 }: CoachSuggestionsProps) {
   const visibleTodos = useMemo(
@@ -81,9 +79,8 @@ function CoachSuggestionsContent({
   const [configOpen, setConfigOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [uncontrolledShowIndividualSuggestions, setUncontrolledShowIndividualSuggestions] = useState(Boolean(contactId));
+  const [showIndividualSuggestions, setShowIndividualSuggestions] = useState(true);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const showIndividualSuggestions = controlledShowIndividualSuggestions ?? uncontrolledShowIndividualSuggestions;
   const selectedTodos = useMemo(
     () => visibleTodos.filter((todo) => selectedIds.has(todo.id)),
     [selectedIds, visibleTodos]
@@ -97,12 +94,6 @@ function CoachSuggestionsContent({
       return new Set(Array.from(previous).filter((id) => visibleIds.has(id)));
     });
   }, [visibleTodos]);
-
-  useEffect(() => {
-    if (controlledShowIndividualSuggestions === undefined) {
-      setUncontrolledShowIndividualSuggestions(Boolean(contactId));
-    }
-  }, [contactId, controlledShowIndividualSuggestions]);
 
   useEffect(() => {
     setExpandedGroupIds((previous) => {
@@ -240,6 +231,21 @@ function CoachSuggestionsContent({
         mode="suggestions"
         variant={variant}
       >
+        {variant === "dashboard" ? (
+          <div className="coach-suggestions-heading">
+            <span>
+              {count} sugerencias activas
+              {visibleTodos.length ? (
+                <>
+                  {" · "}
+                  <button type="button" onClick={() => setShowIndividualSuggestions((value) => !value)}>
+                    {showIndividualSuggestions ? "ver agrupado" : "ver detallado"}
+                  </button>
+                </>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
         <div className="coach-chat-scroll" style={{ ["--coach-visible" as string]: maxVisible }}>
           {visibleTodos.length ? (
             shouldGroupSuggestions ? (
@@ -268,7 +274,7 @@ function CoachSuggestionsContent({
               ))
             )
           ) : (
-            <details className="coach-message">
+            <CoachBubble as="details" className="coach-message">
               <summary>
                 <span className="coach-message-text">No tengo sugerencias abiertas</span>
                 <span className="coach-message-date">Hoy</span>
@@ -276,7 +282,7 @@ function CoachSuggestionsContent({
               <div className="coach-message-detail">
                 No tengo comentarios pendientes para este contexto.
               </div>
-            </details>
+            </CoachBubble>
           )}
         </div>
       </CoachFrame>
@@ -308,7 +314,7 @@ function CoachOnboardingContent({
 }: CoachOnboardingProps) {
   return (
     <CoachFrame botSize={botSize} mode="onboarding" variant="onboarding">
-      <article className="coach-onboarding-bubble">
+      <CoachBubble as="article" className="coach-onboarding-bubble">
         <div className="coach-onboarding-heading">
           <span>{progress}</span>
           <h2>{title}</h2>
@@ -321,7 +327,7 @@ function CoachOnboardingContent({
             <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button>
           </div>
         </div>
-      </article>
+      </CoachBubble>
     </CoachFrame>
   );
 }
@@ -345,6 +351,7 @@ function CoachFrame({
 }) {
   return (
     <section
+      aria-label="Coach IA"
       className={`coach-module ${variant} bot-${botSize} mode-${mode}`}
       {...(count === undefined ? {} : { "data-coach-count": count })}
     >
@@ -352,10 +359,26 @@ function CoachFrame({
         <CoachMascot size={botSize} speaking={mode === "onboarding"} />
         {actions}
       </div>
-      {children}
-      {feedback ? <div className="coach-feedback">{feedback}</div> : null}
+      <div className="coach-content">
+        {children}
+        {feedback ? <div className="coach-feedback">{feedback}</div> : null}
+      </div>
     </section>
   );
+}
+
+function CoachBubble({
+  as,
+  children,
+  className
+}: {
+  as: "article" | "details";
+  children: ReactNode;
+  className: string;
+}) {
+  const classes = `coach-bubble ${className}`;
+  if (as === "details") return <details className={classes}>{children}</details>;
+  return <article className={classes}>{children}</article>;
 }
 
 type CoachTodoGroup = {
@@ -452,7 +475,7 @@ function CoachMessage({
 
   return (
     <div className="coach-message-row">
-      <details className="coach-message">
+      <CoachBubble as="details" className="coach-message">
         <summary>
           <span className="coach-message-text">
             {hasStatusChange ? (
@@ -482,7 +505,7 @@ function CoachMessage({
             ) : null}
           </div>
         </div>
-      </details>
+      </CoachBubble>
       <input
         aria-label={`Seleccionar sugerencia de ${contactName}`}
         checked={checked}

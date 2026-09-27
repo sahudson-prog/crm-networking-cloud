@@ -75,7 +75,6 @@ export function ReadOnlyDashboard() {
   const [contactFilters, setContactFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS);
   const [selectedHeadhunterDomains, setSelectedHeadhunterDomains] = useState<Set<string>>(new Set());
   const [reloadToken, setReloadToken] = useState(0);
-  const [showIndividualCoachSuggestions, setShowIndividualCoachSuggestions] = useState(true);
   const [state, setState] = useState<LoadState>({
     loading: true,
     error: "",
@@ -242,6 +241,15 @@ export function ReadOnlyDashboard() {
 
   return (
     <div className="grid">
+      <section className="dashboard-coach" aria-label="Coach IA">
+        <CoachPreview
+          todos={filteredTodos}
+          total={filteredTodos.length}
+          interactions={filteredInteractionsBase}
+          onExecuted={() => setReloadToken((value) => value + 1)}
+        />
+      </section>
+
       <div className="dashboard-filter-bar">
         <ContactFilterControls
           filters={contactFilters}
@@ -272,32 +280,6 @@ export function ReadOnlyDashboard() {
 
       <Panel title="Objetivos" caption="Resumen segun filtros actuales">
         <ObjectiveMetricsTable rows={objectiveMetrics} />
-      </Panel>
-
-      <Panel
-        title="Coach IA"
-        caption={
-          <span className="coach-panel-caption">
-            {filteredTodos.length} sugerencias activas
-            {filteredTodos.length ? (
-              <>
-                {" · "}
-                <button type="button" onClick={() => setShowIndividualCoachSuggestions((value) => !value)}>
-                  {showIndividualCoachSuggestions ? "ver agrupado" : "ver detallado"}
-                </button>
-              </>
-            ) : null}
-          </span>
-        }
-        className="coach-panel"
-      >
-        <CoachPreview
-          todos={filteredTodos}
-          total={filteredTodos.length}
-          interactions={filteredInteractionsBase}
-          showIndividualSuggestions={showIndividualCoachSuggestions}
-          onExecuted={() => setReloadToken((value) => value + 1)}
-        />
       </Panel>
 
       <Panel
