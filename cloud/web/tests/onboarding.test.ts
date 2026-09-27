@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 import {
   INITIAL_ONBOARDING_STATE,
+  ONBOARDING_PRODUCT_DESTINATION,
   ONBOARDING_FLOW,
   beginOnboarding,
   beginOnboardingReplay,
@@ -149,7 +150,9 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
 
   assert.match(routeComponent, /<AuthGate>[\s\S]*routeId === "intro"[\s\S]*<OnboardingProvider>/);
   assert.match(introSource, /onboarding-intro-shell/);
-  assert.match(introSource, /Tu red puede abrir tu próxima oportunidad\./);
+  assert.match(introSource, /Networking simple, estructurado y orientado a resultados\./);
+  assert.match(introSource, /onboarding-intro-background/);
+  assert.match(source("../styles/components.css"), /url\("\/brand\/coffeecito-onboarding-bg\.webp"\)/);
   assert.match(introSource, /Activa tus próximas conversaciones/);
   assert.doesNotMatch(introSource, /<Shell|<CoachModule|Introducción/);
 });
@@ -192,7 +195,7 @@ test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido"
   const shellSource = source("../components/Shell.tsx");
 
   assert.match(shellSource, /pathname === "\/objetivos" \|\| pathname === "\/onboarding\/objetivos"/);
-  assert.match(shellSource, /pathname === "\/contactos"[\s\S]*pathname === "\/onboarding\/contactos"[\s\S]*pathname === "\/onboarding\/contacto"/);
+  assert.match(shellSource, /pathname === "\/"[\s\S]*pathname === "\/contactos"[\s\S]*pathname === "\/onboarding\/contactos"[\s\S]*pathname === "\/onboarding\/contacto"/);
 });
 
 test("Objetivos y Contactos reutilizan las vistas reales sin duplicar páginas", () => {
@@ -263,13 +266,28 @@ test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
   assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
 });
 
-test("final completa y navega al home real", () => {
+test("las salidas visibles del onboarding navegan a Contactos", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
 
   assert.match(routeSource, /nextLabel="Fin del tutorial"/);
   assert.match(routeSource, /Coach seguirá acompañándote con sugerencias/);
-  assert.match(providerSource, /persist\(completeOnboarding\(\)\)[\s\S]*router\.push\("\/"\)/);
+  assert.equal(ONBOARDING_PRODUCT_DESTINATION, "/contactos");
+  assert.match(providerSource, /function defer\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+  assert.match(providerSource, /function exit\([\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+  assert.match(providerSource, /function complete\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+});
+
+test("Dashboard queda fuera de la navegación pero su ruta sigue disponible", () => {
+  const shellSource = source("../components/Shell.tsx");
+  const rootRoute = source("../app/page.tsx");
+  const dashboardRoute = source("../app/dashboard/page.tsx");
+
+  assert.doesNotMatch(shellSource, />\s*Dashboard\s*</);
+  assert.doesNotMatch(shellSource, /<Icon name="chart"/);
+  assert.match(rootRoute, /<ReadOnlyContacts \/>/);
+  assert.doesNotMatch(rootRoute, /ReadOnlyDashboard/);
+  assert.match(dashboardRoute, /<ReadOnlyDashboard \/>/);
 });
 
 test("el replay preserva dismissed y completed, y Cuenta no ofrece navegación de producto", () => {

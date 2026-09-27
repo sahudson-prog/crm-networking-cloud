@@ -255,7 +255,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <span className="auth-brand-wordmark">Coffeecito</span>
           </div>
           <div className="auth-landing-copy">
-            <h1 id="auth-landing-title">Tu red puede abrir tu próxima oportunidad.</h1>
+            <h1 id="auth-landing-title">Networking simple, estructurado y orientado a resultados.</h1>
             <p>
               Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus
               objetivos profesionales.
@@ -283,7 +283,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 </button>
                 {message ? <span className="meta auth-entry-message">{message}</span> : null}
                 <details className="auth-email-fallback">
-                  <summary>Entrar con email</summary>
+                  <summary>Continuar con email</summary>
                   <form onSubmit={signIn} className="grid" style={{ marginTop: 12 }}>
                     <input
                       className="search"

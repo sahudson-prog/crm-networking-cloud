@@ -44,7 +44,7 @@ test("AuthGate mantiene magic link y no reconstruye allowlist en frontend", () =
   const source = readFileSync(new URL("../components/AuthGate.tsx", import.meta.url), "utf8");
 
   assert.equal(source.includes("signInWithOtp"), true);
-  assert.equal(source.includes("Entrar con email"), true);
+  assert.equal(source.includes("Continuar con email"), true);
   assert.equal(source.includes("app_access_allowlist"), false);
 });
 

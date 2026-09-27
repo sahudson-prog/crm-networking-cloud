@@ -54,17 +54,15 @@ function OnboardingIntro() {
   const onboarding = useOnboarding();
   return (
     <main className="onboarding-intro-shell">
-      <div aria-hidden="true" className="onboarding-intro-background">
-        <img src="/brand/coffeecito-isotipo.svg" alt="" />
-      </div>
+      <div aria-hidden="true" className="onboarding-intro-background" />
       <section className="onboarding-intro" aria-labelledby="onboarding-intro-title">
         <div aria-label="Coffeecito" className="onboarding-brand-lockup">
           <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
           <span>Coffeecito</span>
         </div>
         <div className="onboarding-intro-copy">
-          <h1 id="onboarding-intro-title">Cómo funciona Coffeecito</h1>
-          <strong>Tu red puede abrir tu próxima oportunidad.</strong>
+          <p className="onboarding-intro-eyebrow">Cómo funciona Coffeecito</p>
+          <h1 id="onboarding-intro-title">Networking simple, estructurado y orientado a resultados.</h1>
           <p>
             Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus
             objetivos profesionales.
