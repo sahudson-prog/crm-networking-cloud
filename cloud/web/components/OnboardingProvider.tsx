@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   INITIAL_ONBOARDING_STATE,
   INACTIVE_ONBOARDING_SESSION,
+  ONBOARDING_PRODUCT_DESTINATION,
   beginOnboarding,
   beginOnboardingReplay,
   completeOnboarding,
@@ -120,7 +121,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (routeId === "intro") {
       if (shouldRedirectOnboardingIntroToProduct(state, session)) {
         setRouteReady(false);
-        router.replace("/");
+        router.replace(ONBOARDING_PRODUCT_DESTINATION);
         return;
       }
       if (state.status === "in_progress" && !session.active && !session.replay) {
@@ -215,7 +216,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!(await persist(nextState))) return;
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push("/");
+    router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   async function exit(step?: OnboardingStep) {
@@ -225,7 +226,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push("/");
+    router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   async function moveTo(step: OnboardingStep) {
@@ -243,7 +244,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!session.replay && !(await persist(completeOnboarding()))) return;
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push("/");
+    router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   function replay() {

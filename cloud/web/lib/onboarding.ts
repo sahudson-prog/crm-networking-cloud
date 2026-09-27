@@ -1,4 +1,5 @@
 export const PRODUCT_ONBOARDING_SETTING_KEY = "product_onboarding_v1";
+export const ONBOARDING_PRODUCT_DESTINATION = "/contactos";
 
 export const ONBOARDING_STEPS = [
   "objectives",

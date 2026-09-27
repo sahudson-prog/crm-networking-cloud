@@ -32,14 +32,13 @@ Los roles administrativos, perfiles beta, permisos internos o planes comerciales
 
 ## Producto vigente
 
-La experiencia normal del usuario se organiza en cuatro áreas principales:
+La experiencia normal visible del usuario se organiza actualmente en tres áreas principales:
 
-- Dashboard.
 - Contactos.
 - Objetivos.
 - Cuenta.
 
-El Dashboard concentra la gestión diaria. Contactos permite operar la base de personas. Objetivos permite declarar prioridades profesionales y vincularlas a contactos. Cuenta concentra perfil, servicios conectados, permisos e importaciones.
+Contactos permite operar la base de personas y es la página principal autenticada tanto en `/` como en `/contactos`. Objetivos permite declarar prioridades profesionales y vincularlas a contactos. Cuenta concentra perfil, servicios conectados, permisos e importaciones. El Dashboard sigue implementado en `/dashboard` y disponible por acceso directo para desarrollo y revisión, pero está temporalmente oculto de la navegación normal.
 
 La aplicación también incluye capacidades administrativas restringidas para operar la beta, mantener parámetros, revisar logs de sincronización y gestionar maestros globales necesarios para el funcionamiento del producto.
 

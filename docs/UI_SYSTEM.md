@@ -51,7 +51,7 @@ El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotip
 
 ### Landing de acceso
 
-La entrada no autenticada usa una composición centrada sobre fondo Cream, con el lockup horizontal oficial, headline y subtítulo de producto. Google es la acción principal en Espresso y el acceso por email permanece como alternativa colapsable con su verificación vigente. La composición no usa una tarjeta envolvente y mantiene una capa de fondo independiente para permitir una futura sustitución por imagen o video sin rehacer el contenido.
+La entrada no autenticada usa una composición centrada sobre una fotografía cálida de networking, con overlay Cream para legibilidad, el lockup horizontal oficial, headline y subtítulo de producto. Google es la acción principal en Espresso y el acceso por email permanece como alternativa colapsable con su verificación vigente. La composición no usa una tarjeta envolvente y mantiene el fondo en una capa independiente del contenido.
 
 ## Tokens y estilos base
 
@@ -69,7 +69,7 @@ No se observó un sistema formal de spacing, tipografía, widths o breakpoints c
 
 El shell principal vive en `components/Shell.tsx`. Usa `.app-shell` como contenedor centrado, con ancho máximo de 1220px y margen horizontal responsive.
 
-La cabecera separa navegación principal y acciones secundarias. Dashboard, Contactos y Objetivos aparecen como navegación principal con texto e icono. Cuenta y actualización global aparecen como acciones compactas a la derecha. Sistema se incorpora a esas acciones solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales.
+La cabecera separa navegación principal y acciones secundarias. Contactos y Objetivos aparecen como navegación principal con texto e icono. Contactos es la página principal autenticada en `/` y conserva su ruta explícita `/contactos`. Dashboard permanece disponible en `/dashboard` para acceso directo y revisión, pero está temporalmente oculto de la navegación visible. Cuenta y actualización global aparecen como acciones compactas a la derecha. Sistema se incorpora a esas acciones solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales.
 
 Las vistas se organizan con `Panel`, grids y toolbars. El patrón visual más estable es panel blanco con borde, header compacto, título de 16px y contenido interno ordenado por grid o listas.
 
@@ -143,13 +143,13 @@ La misma envolvente visual del Coach admite un modo `onboarding`. Este modo cons
 
 ## Onboarding inicial
 
-El recorrido guiado vive exclusivamente bajo `/onboarding/*`; las rutas normales de producto no activan comportamiento especial de onboarding. La experiencia privada navega automáticamente una sola vez a la introducción `Cómo funciona Coffeecito` cuando el usuario todavía no tiene estado persistido. La introducción es una pantalla privada y editorial, independiente del `Shell` y del Coach, desde la que puede comenzar el recorrido o elegir `Ahora no`.
+El recorrido guiado vive exclusivamente bajo `/onboarding/*`; las rutas normales de producto no activan comportamiento especial de onboarding. La experiencia privada navega automáticamente una sola vez a la introducción `Cómo funciona Coffeecito` cuando el usuario todavía no tiene estado persistido. La introducción es una pantalla privada y editorial sobre fotografía, independiente del `Shell` y del Coach, desde la que puede comenzar el recorrido o elegir `Ahora no`.
 
 Los estados persistidos son `not_started`, `in_progress`, `dismissed` y `completed`. Una ausencia real del setting abre la introducción una sola vez; cualquier setting existente deja al usuario en la ruta normal de producto. `Ver tutorial` es el acceso permanente desde el header de producto y abre un replay sin sobrescribir un estado `dismissed` o `completed`. Salir de un recorrido deja el estado regular en `dismissed`.
 
-Los pasos reutilizan las vistas reales de Objetivos, Contactos, ficha de contacto y conexión/importación de Google. Contactos ofrece creación manual mediante el mismo editor tanto en la vista normal como durante el recorrido. El Coach aparece siempre a ancho completo antes del contenido; en pantallas estrechas la mascota queda sobre la burbuja. Las separaciones entre el Coach y los bloques principales del recorrido usan el token semántico `--crm-section-gap`. El cierre completa el recorrido y vuelve al home del producto. Cuenta conserva únicamente el reinicio de prueba en development.
+Los pasos reutilizan las vistas reales de Objetivos, Contactos, ficha de contacto y conexión/importación de Google. Contactos ofrece creación manual mediante el mismo editor tanto en la vista normal como durante el recorrido. El Coach aparece siempre a ancho completo antes del contenido; en pantallas estrechas la mascota queda sobre la burbuja. Las separaciones entre el Coach y los bloques principales del recorrido usan el token semántico `--crm-section-gap`. Mientras Dashboard no se expone en la navegación, aplazar, salir o completar el recorrido vuelve a Contactos. Cuenta conserva únicamente el reinicio de prueba en development.
 
-La navegación principal se ordena como Objetivos, Contactos y Dashboard. Dashboard usa un icono de gráfico; el link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido.
+La navegación principal visible se ordena como Objetivos y Contactos. El link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido.
 
 ## Responsive y accesibilidad observable
 

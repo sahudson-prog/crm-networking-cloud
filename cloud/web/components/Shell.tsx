@@ -27,7 +27,8 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
   const isObjectives = pathname === "/objetivos" || pathname === "/onboarding/objetivos";
-  const isContacts = pathname === "/contactos"
+  const isContacts = pathname === "/"
+    || pathname === "/contactos"
     || pathname === "/onboarding/contactos"
     || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
@@ -35,66 +36,61 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link aria-label="Coffeecito" className="shell-brand-lockup" href="/">
+        <Link aria-label="Coffeecito" className="shell-brand-lockup" href="/contactos">
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
           <span>Coffeecito</span>
         </Link>
-        <nav className="nav" aria-label="Navegacion principal">
-          <div className="nav-primary">
-            <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">
-              <Icon name="target" />
-              Objetivos
-            </Link>
-            <Link className={`nav-link ${isContacts ? "active" : ""}`} href="/contactos">
-              <Icon name="users" />
-              Contactos
-            </Link>
-            <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
-              <Icon name="chart" />
-              Dashboard
-            </Link>
-          </div>
-          <div className="nav-utility">
-            {!isOnboarding ? (
-              <button className="nav-tutorial-link" onClick={onboarding.replay} type="button">
-                Ver tutorial
-              </button>
-            ) : null}
-            {showSystem ? (
-              <Link
-                aria-label="Sistema"
-                className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
-                href="/sistema"
-                title="Sistema"
-              >
-                <Icon name="settings" />
-                <span className="sr-only">Sistema</span>
-              </Link>
-            ) : null}
-            <Link
-              aria-label="Cuenta"
-              className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
-              href="/cuenta"
-              title="Cuenta"
-            >
-              <Icon name="user" />
-              <span className="sr-only">Cuenta</span>
-            </Link>
-            <ActivitySyncButton variant="focus_incremental" square />
-            {onSignOut ? (
-              <button
-                aria-label="Cerrar sesión"
-                className="nav-link nav-link-icon"
-                onClick={onSignOut}
-                title="Cerrar sesión"
-                type="button"
-              >
-                <Icon name="close" />
-                <span className="sr-only">Cerrar sesión</span>
-              </button>
-            ) : null}
-          </div>
+        <nav className="nav-primary" aria-label="Navegacion principal">
+          <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">
+            <Icon name="target" />
+            Objetivos
+          </Link>
+          <Link className={`nav-link ${isContacts ? "active" : ""}`} href="/contactos">
+            <Icon name="users" />
+            Contactos
+          </Link>
         </nav>
+        <div className="nav-utility">
+          {!isOnboarding ? (
+            <button aria-label="Ver tutorial" className="nav-tutorial-link" onClick={onboarding.replay} type="button">
+              <span className="nav-tutorial-label-full">Ver tutorial</span>
+              <span className="nav-tutorial-label-compact">Tutorial</span>
+            </button>
+          ) : null}
+          {showSystem ? (
+            <Link
+              aria-label="Sistema"
+              className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
+              href="/sistema"
+              title="Sistema"
+            >
+              <Icon name="settings" />
+              <span className="sr-only">Sistema</span>
+            </Link>
+          ) : null}
+          <Link
+            aria-label="Cuenta"
+            className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
+            href="/cuenta"
+            title="Cuenta"
+          >
+            <Icon name="user" />
+            <span className="sr-only">Cuenta</span>
+          </Link>
+          <ActivitySyncButton variant="focus_incremental" square />
+          {onSignOut ? (
+            <button
+              aria-label="Cerrar sesión"
+              className="nav-link nav-link-icon"
+              onClick={onSignOut}
+              title="Cerrar sesión"
+              type="button"
+            >
+              <Icon name="close" />
+              <span className="sr-only">Cerrar sesión</span>
+            </button>
+          ) : null}
+        </div>
       </header>
       {children}
     </main>

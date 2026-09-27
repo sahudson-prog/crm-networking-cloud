@@ -55,15 +55,37 @@ test("Dashboard conserva agrupado y detallado dentro del Coach y lo ubica antes 
   assert.match(coach, /<section[\s\S]*aria-label="Coach IA"[\s\S]*className=\{`coach-module/);
 });
 
+test("Dashboard vive en su ruta directa y permanece fuera de la navegación", () => {
+  const shell = source("../components/Shell.tsx");
+  const dashboardRoute = source("../app/dashboard/page.tsx");
+
+  assert.match(dashboardRoute, /<AuthGate>[\s\S]*<Shell>[\s\S]*<ReadOnlyDashboard \/>/);
+  assert.doesNotMatch(shell, /href="\/dashboard"|>\s*Dashboard\s*</);
+});
+
 test("Shell usa el lockup oficial de Coffeecito sin texto legacy", () => {
   const shell = source("../components/Shell.tsx");
   const css = source("../styles/components.css");
 
   assert.doesNotMatch(shell, /CRM Networking/);
-  assert.match(shell, /className="shell-brand-lockup"/);
+  assert.match(shell, /className="shell-brand-lockup" href="\/contactos"/);
+  assert.doesNotMatch(shell, /className="shell-brand-lockup" href="\/"/);
   assert.match(shell, /src="\/brand\/coffeecito-isotipo\.svg"/);
   assert.match(shell, />Coffeecito<\/span>/);
   assert.match(css, /\.shell-brand-lockup span[\s\S]*var\(--font-coffeecito-wordmark\)[\s\S]*font-weight: 900[\s\S]*letter-spacing: -0\.015em/);
+});
+
+test("Shell separa marca, navegacion primaria y utilidades para el header responsive", () => {
+  const shell = source("../components/Shell.tsx");
+  const css = source("../styles/components.css");
+
+  assert.match(shell, /<nav className="nav-primary" aria-label="Navegacion principal">/);
+  assert.match(shell, /Objetivos[\s\S]*Contactos/);
+  assert.match(shell, /className="nav-utility"[\s\S]*nav-tutorial-link[\s\S]*Ver tutorial[\s\S]*aria-label="Cuenta"[\s\S]*ActivitySyncButton[\s\S]*aria-label="Cerrar sesión"/);
+  assert.match(shell, /showSystem \? \([\s\S]*aria-label="Sistema"/);
+  assert.match(css, /\.topbar\s*\{[\s\S]*grid-template-areas: "brand primary utility"[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
+  assert.match(css, /@media \(max-width: 780px\)[\s\S]*\.topbar\s*\{[\s\S]*"brand utility"[\s\S]*"primary primary"/);
+  assert.match(css, /@media \(max-width: 330px\)\s*\{\s*\.topbar\s*\{\s*column-gap: 6px[\s\S]*\.nav-utility\s*\{\s*gap: 2px/);
 });
 
 function source(path: string) {

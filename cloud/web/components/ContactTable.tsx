@@ -731,9 +731,14 @@ function ContactStatusCard({
         </Link>
         <span className={card.subtitle ? "" : "empty-value"}>{card.subtitle || "Sin empresa · Sin cargo"}</span>
       </div>
-      <span className="contacts-status-card-tags" title={card.extraCount ? `${card.extraCount} contacto${card.extraCount === 1 ? "" : "s"} adicional${card.extraCount === 1 ? "" : "es"}` : "Hashtags pendientes"}>
-        {card.extraCount ? `+${card.extraCount}` : "#"}
-      </span>
+      {card.extraCount ? (
+        <span
+          className="contacts-status-card-tags"
+          title={`${card.extraCount} contacto${card.extraCount === 1 ? "" : "s"} adicional${card.extraCount === 1 ? "" : "es"}`}
+        >
+          +{card.extraCount}
+        </span>
+      ) : null}
     </div>
   );
 }

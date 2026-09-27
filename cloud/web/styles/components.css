@@ -5,14 +5,16 @@
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-areas: "brand primary utility";
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
 }
 
 .shell-brand-lockup {
+  grid-area: brand;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -41,15 +43,6 @@
   font-size: 13px;
 }
 
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  flex: 1 1 auto;
-}
-
 .nav-primary,
 .nav-utility {
   display: inline-flex;
@@ -59,10 +52,12 @@
 }
 
 .nav-primary {
+  grid-area: primary;
   justify-content: flex-start;
 }
 
 .nav-utility {
+  grid-area: utility;
   justify-content: flex-end;
   margin-left: auto;
 }
@@ -294,14 +289,16 @@
 .auth-landing-background {
   position: absolute;
   inset: 0;
-  background: var(--brand-cream);
+  background:
+    linear-gradient(90deg, rgba(250, 244, 236, 0.9) 0%, rgba(250, 244, 236, 0.78) 52%, rgba(250, 244, 236, 0.58) 100%),
+    url("/brand/coffeecito-landing-bg.webp") center center / cover no-repeat;
 }
 
 .auth-landing-content {
   position: relative;
   z-index: 1;
   display: grid;
-  width: min(100%, 760px);
+  width: min(100%, 840px);
   justify-items: center;
   gap: 30px;
   text-align: center;
@@ -311,12 +308,13 @@
   display: inline-flex;
   align-items: center;
   gap: 18px;
+  margin-bottom: 8px;
   color: var(--brand-espresso);
 }
 
 .auth-brand-lockup img {
   display: block;
-  width: 102px;
+  width: 87px;
   height: auto;
 }
 
@@ -330,15 +328,17 @@
 
 .auth-landing-copy {
   display: grid;
-  max-width: 700px;
-  gap: 14px;
+  width: min(100%, 800px);
+  gap: 18px;
 }
 
 .auth-landing-copy h1 {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 660px;
   color: var(--brand-espresso);
-  font-size: 46px;
+  font-size: 44px;
   line-height: 1.08;
+  letter-spacing: -0.02em;
 }
 
 .auth-landing-copy p {
@@ -355,7 +355,7 @@
 
 .auth-entry-actions {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .auth-config-banner {
@@ -364,12 +364,15 @@
 }
 
 .auth-google-button {
-  height: 44px;
+  height: 52px;
   width: 100%;
   justify-content: center;
+  border-radius: 10px;
   border-color: var(--brand-espresso);
   background: var(--brand-espresso);
   color: var(--brand-warm-white);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .auth-google-button:not(:disabled):hover {
@@ -380,20 +383,46 @@
 .auth-google-button .provider-icon {
   width: 18px;
   height: 18px;
+  filter: brightness(0) invert(1);
 }
 
 .auth-email-fallback {
-  border-top: 1px solid rgba(59, 38, 27, 0.18);
-  padding-top: 12px;
-  text-align: left;
+  width: 100%;
 }
 
 .auth-email-fallback summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 52px;
+  width: 100%;
+  border: 1px solid rgba(59, 38, 27, 0.55);
+  border-radius: 10px;
+  background: rgba(255, 253, 251, 0.92);
   cursor: pointer;
-  color: var(--brand-coffee);
-  font-size: 13px;
-  font-weight: 700;
-  list-style-position: inside;
+  color: var(--brand-espresso);
+  font-size: 15px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.auth-email-fallback summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-email-fallback summary::marker {
+  content: "";
+}
+
+.auth-email-fallback summary:hover {
+  color: var(--brand-espresso);
+  background: var(--brand-warm-white);
+}
+
+.auth-email-fallback summary:focus-visible {
+  outline: 2px solid var(--brand-terracotta);
+  outline-offset: 3px;
 }
 
 .auth-entry-message {
@@ -418,6 +447,12 @@
     padding: 36px 20px 44px;
   }
 
+  .auth-landing-background {
+    background:
+      linear-gradient(rgba(250, 244, 236, 0.86), rgba(250, 244, 236, 0.86)),
+      url("/brand/coffeecito-landing-bg.webp") 52% center / cover no-repeat;
+  }
+
   .auth-landing-content {
     gap: 24px;
   }
@@ -427,7 +462,7 @@
   }
 
   .auth-brand-lockup img {
-    width: 84px;
+    width: 71px;
   }
 
   .auth-brand-wordmark {
@@ -4751,7 +4786,7 @@ textarea::placeholder {
 
 .contacts-status-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(132px, 1fr));
+  grid-template-columns: repeat(5, minmax(184px, 1fr));
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
@@ -4759,7 +4794,7 @@ textarea::placeholder {
 
 .contacts-status-column {
   display: grid;
-  min-width: 132px;
+  min-width: 184px;
   gap: 7px;
   border: 1px solid var(--crm-border);
   border-radius: var(--crm-radius);
@@ -4812,7 +4847,8 @@ textarea::placeholder {
   align-content: start;
   gap: 6px;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: auto;
+  overscroll-behavior-y: contain;
   padding: 1px 3px 1px 1px;
 }
 
@@ -4825,7 +4861,7 @@ textarea::placeholder {
 
 .contacts-status-card {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 20px;
+  grid-template-columns: 24px minmax(0, 1fr);
   gap: 6px;
   align-items: center;
   min-height: 58px;
@@ -4840,6 +4876,10 @@ textarea::placeholder {
   cursor: grab;
   padding: 7px;
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.contacts-status-card.group {
+  grid-template-columns: 24px minmax(0, 1fr) 20px;
 }
 
 .contacts-status-card:hover {
@@ -5944,6 +5984,10 @@ textarea::placeholder {
   color: var(--crm-text);
 }
 
+.nav-tutorial-label-compact {
+  display: none;
+}
+
 .onboarding-route {
   margin-bottom: 18px;
 }
@@ -5969,17 +6013,9 @@ textarea::placeholder {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--brand-cream);
-}
-
-.onboarding-intro-background img {
-  position: absolute;
-  right: max(-80px, -5vw);
-  top: 50%;
-  width: min(54vw, 680px);
-  height: auto;
-  opacity: 0.14;
-  transform: translateY(-50%);
+  background:
+    linear-gradient(90deg, rgba(250, 244, 236, 0.96) 0%, rgba(250, 244, 236, 0.88) 42%, rgba(250, 244, 236, 0.4) 76%, rgba(250, 244, 236, 0.16) 100%),
+    url("/brand/coffeecito-onboarding-bg.webp") center center / cover no-repeat;
 }
 
 .onboarding-intro {
@@ -6018,18 +6054,20 @@ textarea::placeholder {
   max-width: 720px;
 }
 
+.onboarding-intro-eyebrow {
+  margin: 0;
+  color: var(--brand-terracotta);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .onboarding-intro-copy h1 {
   margin: 0;
   color: var(--brand-espresso);
   font-size: clamp(32px, 6vw, 54px);
   line-height: 1.05;
-}
-
-.onboarding-intro-copy strong {
-  max-width: 660px;
-  color: var(--brand-terracotta);
-  font-size: clamp(22px, 3vw, 32px);
-  line-height: 1.2;
 }
 
 .onboarding-intro-copy p {
@@ -7120,6 +7158,12 @@ textarea::placeholder {
     padding: 24px 18px;
   }
 
+  .onboarding-intro-background {
+    background:
+      linear-gradient(rgba(250, 244, 236, 0.88), rgba(250, 244, 236, 0.88)),
+      url("/brand/coffeecito-onboarding-bg.webp") 58% center / cover no-repeat;
+  }
+
   .onboarding-intro {
     gap: 22px;
     margin: auto 0;
@@ -7402,22 +7446,64 @@ code {
   }
 
   .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .nav {
-    align-items: flex-start;
+    grid-template-areas:
+      "brand utility"
+      "primary primary";
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    row-gap: 10px;
   }
 
   .nav-primary,
   .nav-utility {
+    flex-wrap: nowrap;
+  }
+
+  .nav-primary {
     width: 100%;
   }
 
   .nav-utility {
     justify-content: flex-start;
     margin-left: 0;
+    gap: 4px;
+  }
+
+  .shell-brand-lockup {
+    min-width: 0;
+  }
+
+  .shell-brand-lockup img {
+    width: 34px;
+  }
+
+  .shell-brand-lockup span {
+    font-size: 17px;
+  }
+
+  .topbar .nav-link-icon,
+  .topbar .activity-sync-control .button.square,
+  .topbar .nav-tutorial-link {
+    height: 32px;
+  }
+
+  .topbar .nav-link-icon,
+  .topbar .activity-sync-control .button.square {
+    width: 32px;
+  }
+
+  .nav-tutorial-link {
+    padding: 0 2px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .nav-tutorial-label-full {
+    display: none;
+  }
+
+  .nav-tutorial-label-compact {
+    display: inline;
   }
 
   .grid.two,
@@ -7534,5 +7620,15 @@ code {
   .modal-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 330px) {
+  .topbar {
+    column-gap: 6px;
+  }
+
+  .nav-utility {
+    gap: 2px;
   }
 }
