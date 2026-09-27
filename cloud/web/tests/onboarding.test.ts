@@ -290,7 +290,7 @@ test("Coach onboarding ocupa una sola franja superior y conserva una única masc
   const css = source("../styles/components.css");
   const coachSource = source("../components/CoachPreview.tsx");
 
-  assert.match(css, /\.contact-profile-grid\.onboarding-contact-profile-grid[\s\S]*"coach coach"/);
+  assert.match(css, /\.contact-profile-grid\.onboarding-contact-profile-grid[\s\S]*"identity"[\s\S]*"interactions"[\s\S]*"side"/);
   assert.doesNotMatch(css, /\.onboarding-objectives-page\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
   assert.equal(coachSource.match(/function CoachMascot/g)?.length, 1);
   assert.match(coachSource, /function CoachOnboardingContent\([\s\S]*botSize = "normal"/);
@@ -308,7 +308,7 @@ test("onboarding usa spacing semántico y mantiene al Coach hablando", () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.coach-floating-bot\.speaking \.coach-bot-mouth[\s\S]*animation: none/);
   assert.match(coachSource, /<CoachMascot size=\{botSize\} speaking=\{mode === "onboarding"\} \/>/);
   assert.match(css, /\.coach-onboarding-bubble[\s\S]*border-radius: 14px/);
-  assert.match(css, /\.coach-onboarding-bubble::before,[\s\S]*\.coach-onboarding-bubble::after/);
+  assert.match(css, /\.coach-bubble::before,[\s\S]*\.coach-bubble::after/);
   assert.match(css, /border-right: 13px solid var\(--crm-border\)/);
   assert.match(css, /border-right: 11px solid var\(--crm-surface\)/);
   assert.match(css, /border-bottom: 13px solid var\(--crm-border\)/);

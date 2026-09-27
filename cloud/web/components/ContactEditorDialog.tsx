@@ -13,9 +13,7 @@ import type { ContactRow } from "../lib/readModel";
 import { readHeadhunterCompanyMaster } from "../lib/headhunterCompanyActions";
 import {
   normalizeHeadhunterCompanyName,
-  resolveHeadhunterCompany,
-  type HeadhunterCompanyMasterRow,
-  type HeadhunterCompanyResolution
+  type HeadhunterCompanyMasterRow
 } from "../lib/headhunterCompanyMaster";
 import { Button } from "./ui/Button";
 import { ObjectiveSelector } from "./ObjectiveSelector";
@@ -50,7 +48,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   const [objectiveIds, setObjectiveIds] = useState<string[]>([]);
   const [objectivesTouched, setObjectivesTouched] = useState(false);
   const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
-  const [headhunterMasterError, setHeadhunterMasterError] = useState(false);
   const [companyInputFocused, setCompanyInputFocused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -77,7 +74,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   useEffect(() => {
     if (!open) return;
     let active = true;
-    setHeadhunterMasterError(false);
     readHeadhunterCompanyMaster()
       .then((rows) => {
         if (active) setHeadhunterMaster(rows);
@@ -85,7 +81,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
       .catch(() => {
         if (!active) return;
         setHeadhunterMaster([]);
-        setHeadhunterMasterError(true);
       });
     return () => {
       active = false;
@@ -96,20 +91,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   const phones = useMemo(() => phoneValues.map((phone) => phone.trim()).filter(Boolean), [phoneValues]);
   const invalidEmails = emails.filter((email) => !isValidEmail(email));
   const invalidPhones = phones.filter((phone) => !isValidPhone(phone));
-  const headhunterResolution = useMemo(() => {
-    if (!isHeadhunter || !headhunterMaster?.length) return null;
-    return resolveHeadhunterCompany(
-      {
-        company,
-        headhunter_domains: preservedHeadhunterDomains,
-        contact_emails: emails.map((email) => ({
-          email,
-          domain: email.includes("@") ? `@${email.slice(email.lastIndexOf("@") + 1)}` : null
-        }))
-      },
-      headhunterMaster
-    );
-  }, [company, emails, preservedHeadhunterDomains, headhunterMaster, isHeadhunter]);
   const companyMatches = useMemo(() => {
     if (!isHeadhunter || !headhunterMaster?.length) return [];
     const query = normalizeHeadhunterCompanyName(company);
@@ -208,16 +189,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               <input value={role} onChange={(event) => setRole(event.target.value)} placeholder="Sin cargo" />
             </label>
           </div>
-
-          {isHeadhunter ? (
-            <HeadhunterCompanyEditorHint
-              companyHasOpenMatches={showCompanyMatches}
-              companyText={company}
-              masterError={headhunterMasterError}
-              resolution={headhunterResolution}
-            />
-          ) : null}
-
           <div className="field-row">
             <ContactValueList
               label="Correos"
@@ -273,53 +244,6 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
           </Button>
         </footer>
       </section>
-    </div>
-  );
-}
-
-function HeadhunterCompanyEditorHint({
-  companyHasOpenMatches,
-  companyText,
-  masterError,
-  resolution
-}: {
-  companyHasOpenMatches: boolean;
-  companyText: string;
-  masterError: boolean;
-  resolution: HeadhunterCompanyResolution | null;
-}) {
-  if (masterError) {
-    return (
-      <div className="headhunter-editor-hint warning">
-        No pude leer el maestro de empresas headhunter.
-      </div>
-    );
-  }
-  if (!resolution) return null;
-  if (!companyText.trim()) return null;
-  if (resolution.status === "matched_company") return null;
-  if (resolution.status === "matched_domain") return null;
-  if (companyHasOpenMatches) return null;
-  if (resolution.status === "company_mismatch") {
-    const candidateText = resolution.candidates.map((candidate) => candidate.displayName).join(", ");
-    return (
-      <div className="headhunter-editor-hint warning">
-        {candidateText
-          ? `La empresa escrita no coincide con el maestro. Posible: ${candidateText}.`
-          : "La empresa escrita no coincide con el maestro headhunter."}
-      </div>
-    );
-  }
-  if (resolution.status === "ambiguous") {
-    return (
-      <div className="headhunter-editor-hint warning">
-        Hay mas de una empresa posible para esos dominios.
-      </div>
-    );
-  }
-  return (
-    <div className="headhunter-editor-hint warning">
-      Selecciona una empresa headhunter del maestro o crea una nueva en Sistema.
     </div>
   );
 }

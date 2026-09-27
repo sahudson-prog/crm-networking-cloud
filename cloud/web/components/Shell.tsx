@@ -35,9 +35,10 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand">
-          <h1 className="brand-title">CRM Networking</h1>
-        </div>
+        <Link aria-label="Coffeecito" className="shell-brand-lockup" href="/">
+          <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
+          <span>Coffeecito</span>
+        </Link>
         <nav className="nav" aria-label="Navegacion principal">
           <div className="nav-primary">
             <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">

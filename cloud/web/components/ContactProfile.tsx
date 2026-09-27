@@ -136,12 +136,19 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
 
   return (
     <div className="contact-profile-page">
-      {!onboardingCoach ? (
-        <Link className="button secondary contact-back-link" href="/contactos">
-          <Icon name="arrowLeft" />
-          <span>Contactos</span>
-        </Link>
-      ) : null}
+      <section className="contact-profile-coach" aria-label="Coach IA">
+        {onboardingCoach ?? (
+          <CoachModule
+            contactId={contact.id}
+            interactions={interactions}
+            maxVisible={4}
+            onExecuted={onReload}
+            todos={todos}
+            total={todos.length}
+            variant="contact"
+          />
+        )}
+      </section>
 
       <div className={`contact-profile-grid ${onboardingCoach ? "onboarding-contact-profile-grid" : ""}`}>
         <section className="panel contact-identity-panel">
@@ -213,21 +220,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
         </section>
 
         <aside className="contact-side-stack">
-          <section className="panel contact-coach-panel">
-            {onboardingCoach ?? (
-              <CoachModule
-                botSize="mini"
-                contactId={contact.id}
-                interactions={interactions}
-                maxVisible={4}
-                onExecuted={onReload}
-                todos={todos}
-                total={todos.length}
-                variant="contact"
-              />
-            )}
-          </section>
-
           <ContactReferrals contact={contact} onReload={onReload} referrals={referrals} />
         </aside>
 
