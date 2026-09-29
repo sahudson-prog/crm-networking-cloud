@@ -517,6 +517,7 @@ function ContactReferralCard({
   selected: boolean;
 }) {
   const linked = Boolean(referral.linkedContactId);
+  const linkedActive = linked && referral.linkedContactActive;
   return (
     <div className="contact-referral-card">
       <label className="contact-referral-check" title="Seleccionar referido">
@@ -528,7 +529,7 @@ function ContactReferralCard({
       </div>
       <div className="contact-referral-link-row">
         <div>
-          {linked ? (
+          {linkedActive ? (
             <>
               <Link href={`/contactos?contactId=${encodeURIComponent(referral.linkedContactId || "")}`}>
                 {referral.linkedContactName || "Contacto vinculado"}
@@ -537,7 +538,7 @@ function ContactReferralCard({
             </>
           ) : null}
         </div>
-        <Button onClick={onEdit} tone={linked ? "positive" : "primary"}>{linked ? "Vinculado" : "Vincular"}</Button>
+        <Button onClick={onEdit} tone={linkedActive ? "positive" : "primary"}>{linkedActive ? "Vinculado" : "Vincular"}</Button>
       </div>
     </div>
   );

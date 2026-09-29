@@ -24,7 +24,7 @@ export function ReferralActions({ rows }: { rows: DashboardReferralRow[] }) {
           <div className="contact-referral-link-row dashboard-referral-linked">
             <div>
               <span className="dashboard-referral-label">Contacto vinculado</span>
-              {row.linkedContactId ? (
+              {row.linkedContactId && row.linkedContactActive ? (
                 <>
                   <Link href={`/contactos?contactId=${encodeURIComponent(row.linkedContactId)}`}>
                     {row.linkedContactName || "Contacto vinculado"}

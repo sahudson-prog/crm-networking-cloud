@@ -16,12 +16,23 @@ export function buildDashboardKpis(input: {
 }): KpiTrend[] {
   const today = startOfDay(input.today ?? new Date());
   const periods = buildKpiPeriods(input.mode, today, input.networkingStartDate ?? null, 12);
-  const participantsByInteraction = groupParticipants(input.participants);
-  const contactsById = new Map(input.contacts.map((contact) => [contact.id, contact]));
+  const activeContacts = input.contacts.filter((contact) => contact.is_active);
+  const activeContactIds = new Set(activeContacts.map((contact) => contact.id));
+  const linkedContactIdsByInteraction = groupParticipants(input.participants);
+  const operationalInteractions = input.interactions.filter((interaction) => {
+    const linkedContactIds = (linkedContactIdsByInteraction.get(interaction.id) ?? [])
+      .map((participant) => participant.contact_id)
+      .filter((contactId): contactId is string => Boolean(contactId));
+    return !linkedContactIds.length || linkedContactIds.some((contactId) => activeContactIds.has(contactId));
+  });
+  const participantsByInteraction = groupParticipants(
+    input.participants.filter((participant) => !participant.contact_id || activeContactIds.has(participant.contact_id))
+  );
+  const contactsById = new Map(activeContacts.map((contact) => [contact.id, contact]));
   const firstContactAt = new Map<string, number>();
   const firstDomainAt = new Map<string, number>();
 
-  for (const interaction of input.interactions) {
+  for (const interaction of operationalInteractions) {
     const occurredAt = dateValue(interaction.occurred_at);
     const contactIds = contactIdsForContactMadeInteraction(interaction, participantsByInteraction);
     if (!occurredAt || !contactIds.length) continue;
@@ -42,14 +53,14 @@ export function buildDashboardKpis(input: {
 
   const cafes = periods.map((period) => ({
     label: period.label,
-    total: input.interactions.filter((interaction) => inPeriod(interaction.occurred_at, period) && isCoffeeInteraction(interaction)).length
+    total: operationalInteractions.filter((interaction) => inPeriod(interaction.occurred_at, period) && isCoffeeInteraction(interaction)).length
   }));
 
   const contactados = periods.map((period) => {
     const contactsInPeriod = new Set<string>();
     const firstInPeriod = new Set<string>();
 
-    for (const interaction of input.interactions) {
+    for (const interaction of operationalInteractions) {
       if (!inPeriod(interaction.occurred_at, period)) continue;
       for (const contactId of contactIdsForContactMadeInteraction(interaction, participantsByInteraction)) {
         contactsInPeriod.add(contactId);
@@ -65,7 +76,7 @@ export function buildDashboardKpis(input: {
     const domainsInPeriod = new Set<string>();
     const firstDomainsInPeriod = new Set<string>();
 
-    for (const interaction of input.interactions) {
+    for (const interaction of operationalInteractions) {
       if (!inPeriod(interaction.occurred_at, period)) continue;
       for (const contactId of contactIdsForContactMadeInteraction(interaction, participantsByInteraction)) {
         const contact = contactsById.get(contactId);
@@ -87,7 +98,7 @@ export function buildDashboardKpis(input: {
     buildTrend({
       title: "Total cafes",
       description: "Citas + llamadas.",
-      accumulated: input.interactions.filter((interaction) => isCoffeeInteraction(interaction) && dateValue(interaction.occurred_at) < dateValueFromDate(tomorrow)).length,
+      accumulated: operationalInteractions.filter((interaction) => isCoffeeInteraction(interaction) && dateValue(interaction.occurred_at) < dateValueFromDate(tomorrow)).length,
       mode: input.mode,
       points: cafes
     }),

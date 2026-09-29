@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { DragEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { NETWORKING_STATUSES, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
+import { deactivateContacts, NETWORKING_STATUSES, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
 import { DEFAULT_CONTACT_FILTERS, filterContacts, headhunterDomainsForContact, objectiveOptionsForContacts, type ContactFilters } from "../lib/contactFilters";
 import { triggerCoachRuleReviewForContacts } from "../lib/coachRuleTriggers";
 import { cleanContactCompany, cleanContactRole, joinCompact, statusClass } from "../lib/format";
@@ -15,6 +15,8 @@ import {
   type HeadhunterCompanyResolution
 } from "../lib/headhunterCompanyMaster";
 import type { ContactListRow, ObjectiveRow } from "../lib/readModel";
+import { ContactDeactivationButton } from "./ContactDeactivationButton";
+import { ContactDeactivationConfirmDialog } from "./ContactDeactivationConfirmDialog";
 import { ContactEditorDialog } from "./ContactEditorDialog";
 import { ContactFilterControls } from "./ContactFilterControls";
 import { StatusBadge } from "./StatusBadge";
@@ -69,6 +71,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
   const [boardDropTarget, setBoardDropTarget] = useState<BoardDropTarget | null>(null);
   const [headhuntersGrouped, setHeadhuntersGrouped] = useState(false);
   const [showGroupConfirm, setShowGroupConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contactEditorOpen, setContactEditorOpen] = useState(false);
   const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
   const [allObjectives, setAllObjectives] = useState<ObjectiveRow[]>([]);
@@ -210,6 +213,23 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
       await onReload?.();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "No pude guardar los objetivos.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function applyBulkDelete() {
+    if (!selectedCount) return;
+    setApplying(true);
+    setFeedback("");
+    try {
+      const result = await deactivateContacts(Array.from(selectedIds), "contacts_bulk");
+      setFeedback(`${result.count} contacto${result.count === 1 ? " eliminado" : "s eliminados"}.`);
+      clearSelection();
+      setShowDeleteConfirm(false);
+      await onReload?.();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "No pude eliminar los contactos.");
     } finally {
       setApplying(false);
     }
@@ -422,6 +442,13 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
               primary
             />
           </BulkToolGroup>
+          <BulkToolGroup label="Eliminar">
+            <ContactDeactivationButton
+              disabled={!selectedCount || applying}
+              label="Eliminar contactos seleccionados"
+              onClick={() => setShowDeleteConfirm(true)}
+            />
+          </BulkToolGroup>
         </div>
       </div>
 
@@ -497,6 +524,14 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
             </footer>
           </section>
         </div>
+      ) : null}
+      {showDeleteConfirm ? (
+        <ContactDeactivationConfirmDialog
+          busy={applying}
+          contactCount={selectedCount}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={applyBulkDelete}
+        />
       ) : null}
       </section>
       <ContactEditorDialog

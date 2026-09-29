@@ -55,6 +55,8 @@ Campos estructurales principales:
 - `is_active`: ciclo de vida del contacto.
 - `sync_status`: estado técnico de sincronización cuando aplica.
 
+En el contrato de producto vigente, eliminar un contacto significa cambiar `is_active` a `false`. La ficha deja de participar en lecturas operativas, pero sus medios de contacto, asignaciones, participantes de interacciones, referidos e historial se preservan. Esta desactivación no funciona como tombstone de proveedor y no modifica `external_contact_ids`.
+
 Los estados de networking persistidos son:
 
 - `Pendiente`

@@ -46,6 +46,7 @@ export type CoachActionLogRow = {
   status: CoachHistoryStatus;
   actorType: CoachHistoryActor;
   contactId: string | null;
+  contactActive: boolean;
   contactName: string;
   currentStatus: string;
   suggestedStatus: string;
@@ -104,14 +105,19 @@ export async function readCoachActionLog(input: { limit?: number; contactId?: st
 }
 
 async function readContactNames(contactIds: string[], userId: string) {
-  if (!supabase || !contactIds.length) return new Map<string, string>();
+  if (!supabase || !contactIds.length) return new Map<string, { active: boolean; name: string }>();
   const { data, error } = await supabase
     .from("contacts")
-    .select("id,display_name")
+    .select("id,display_name,is_active")
     .eq("user_id", userId)
     .in("id", contactIds);
   if (error) throw error;
-  return new Map(((data ?? []) as Array<{ id: string; display_name: string }>).map((row) => [row.id, row.display_name]));
+  return new Map(
+    ((data ?? []) as Array<{ id: string; display_name: string; is_active: boolean }>).map((row) => [
+      row.id,
+      { active: row.is_active, name: row.display_name }
+    ])
+  );
 }
 
 async function readInteractionsByEvidenceIds(evidenceIds: string[], userId: string) {
@@ -152,7 +158,7 @@ async function readActorsByTodoId(todoIds: string[], userId: string) {
 
 function mapTodo(
   row: RawTodoHistory,
-  contactsById: Map<string, string>,
+  contactsById: Map<string, { active: boolean; name: string }>,
   interactionsByEvidenceId: Map<string, InteractionRow>,
   actorsByTodoId: Map<string, CoachHistoryActor>
 ): CoachActionLogRow {
@@ -160,7 +166,8 @@ function mapTodo(
   const suggested = parseCoachState(row.suggested_state);
   const evidence = parseCoachEvidence(row.evidence);
   const fallbackName = row.summary || "Contacto";
-  const contactName = row.object_id ? contactsById.get(row.object_id) ?? fallbackName : fallbackName;
+  const contact = row.object_id ? contactsById.get(row.object_id) : null;
+  const contactName = contact?.name ?? fallbackName;
   const interaction = evidence.interacciones?.map((id) => interactionsByEvidenceId.get(id)).find(Boolean);
   const evidenceDetail = buildEvidenceDetail(evidence.motivo, interaction);
 
@@ -171,6 +178,7 @@ function mapTodo(
     status: row.status,
     actorType: actorsByTodoId.get(row.id) ?? fallbackActor(row.status),
     contactId: row.object_id,
+    contactActive: Boolean(contact?.active),
     contactName,
     currentStatus: textValue(current.Estado_CRM || current.networking_status),
     suggestedStatus: textValue(suggested.Estado_CRM || suggested.networking_status),

@@ -215,12 +215,21 @@ export async function readActiveTodos(input: { limit?: number; contactId?: strin
 
   if (error) throw error;
   const todos = (data ?? []) as TodoRow[];
-  const contactIds = Array.from(new Set(todos.map((todo) => todo.object_id).filter((id): id is string => Boolean(id))));
+  const contactIds = Array.from(
+    new Set(
+      todos
+        .filter((todo) => todo.object_type === "contact")
+        .map((todo) => todo.object_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
   const contactsById = contactIds.length ? await readContactsByIds(contactIds) : new Map<string, ContactRow>();
-  return todos.map((todo) => {
-    const contactName = todo.object_id ? contactsById.get(todo.object_id)?.display_name?.trim() : "";
-    return contactName ? { ...todo, summary: contactName } : todo;
-  });
+  return todos
+    .filter((todo) => todo.object_type !== "contact" || (todo.object_id && contactsById.get(todo.object_id)?.is_active))
+    .map((todo) => {
+      const contactName = todo.object_id ? contactsById.get(todo.object_id)?.display_name?.trim() : "";
+      return contactName ? { ...todo, summary: contactName } : todo;
+    });
 }
 
 export async function readAllActiveContacts(): Promise<ContactRow[]> {
@@ -288,6 +297,7 @@ export async function readContactById(contactId: string): Promise<ContactRow | n
       "id,display_name,company,role,networking_status,networking_focus,is_headhunter,headhunter_domains,is_active,updated_at,contact_emails(email,domain),contact_phones(phone)"
     )
     .eq("id", contactId)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (error) throw error;
@@ -362,6 +372,7 @@ export async function readContactReferrals(contactId: string): Promise<ContactRe
       notes: row.notes || "",
       status: row.status || "active",
       linkedContactId: row.linked_contact_id,
+      linkedContactActive: Boolean(linked?.is_active),
       linkedContactName: linked?.display_name || "",
       linkedContactStatus: linked?.networking_status || ""
     };
@@ -369,14 +380,14 @@ export async function readContactReferrals(contactId: string): Promise<ContactRe
 }
 
 export async function readContactProfile(contactId: string): Promise<ContactProfileData | null> {
-  const [contact, interactions, referrals, todos] = await Promise.all([
-    readContactById(contactId),
+  const contact = await readContactById(contactId);
+  if (!contact) return null;
+
+  const [interactions, referrals, todos] = await Promise.all([
     readContactInteractions(contactId),
     readContactReferrals(contactId),
     readActiveTodos({ contactId, limit: 24 })
   ]);
-
-  if (!contact) return null;
   const interactionIds = interactions.map((interaction) => interaction.id);
   const [interactionParticipants, externalInteractionSources] = await Promise.all([
     readInteractionParticipantsForInteractions(interactionIds),
@@ -535,6 +546,7 @@ export async function readReferralActions(limit = 8): Promise<ReferralActionRow[
     notes: string;
     status: string;
   }>)
+    .filter((row) => contactsById.has(row.referred_by_contact_id))
     .filter((row) => interactionContactIds.has(row.referred_by_contact_id) || !row.linked_contact_id)
     .slice(0, limit)
     .map((row) => {
@@ -578,28 +590,31 @@ export async function readDashboardReferrals(limit = 80): Promise<DashboardRefer
   );
   const contactsById = contactIds.length ? await readContactsByIds(contactIds) : new Map<string, ContactRow>();
 
-  return referrals.map((row) => {
-    const referrer = contactsById.get(row.referred_by_contact_id);
-    const linked = row.linked_contact_id ? contactsById.get(row.linked_contact_id) : null;
-    return {
-      id: row.id,
-      referredByContactId: row.referred_by_contact_id,
-      referredName: row.referred_name || "Referido sin nombre",
-      referredCompany: row.referred_company || "",
-      referredRole: row.referred_role || "",
-      referredEmail: row.referred_email || "",
-      referredPhone: row.referred_phone || "",
-      notes: row.notes || "",
-      status: row.status || "active",
-      linkedContactId: row.linked_contact_id,
-      linkedContactName: linked?.display_name || "",
-      linkedContactStatus: linked?.networking_status || "",
-      linkedContactCompany: linked?.company || "",
-      linkedContactRole: linked?.role || "",
-      referrerName: referrer?.display_name || "Contacto sin nombre",
-      referrerStatus: referrer?.networking_status || "Pendiente"
-    };
-  });
+  return referrals
+    .filter((row) => contactsById.get(row.referred_by_contact_id)?.is_active)
+    .map((row) => {
+      const referrer = contactsById.get(row.referred_by_contact_id);
+      const linked = row.linked_contact_id ? contactsById.get(row.linked_contact_id) : null;
+      return {
+        id: row.id,
+        referredByContactId: row.referred_by_contact_id,
+        referredName: row.referred_name || "Referido sin nombre",
+        referredCompany: row.referred_company || "",
+        referredRole: row.referred_role || "",
+        referredEmail: row.referred_email || "",
+        referredPhone: row.referred_phone || "",
+        notes: row.notes || "",
+        status: row.status || "active",
+        linkedContactId: row.linked_contact_id,
+        linkedContactActive: Boolean(linked?.is_active),
+        linkedContactName: linked?.display_name || "",
+        linkedContactStatus: linked?.networking_status || "",
+        linkedContactCompany: linked?.company || "",
+        linkedContactRole: linked?.role || "",
+        referrerName: referrer?.display_name || "Contacto sin nombre",
+        referrerStatus: referrer?.networking_status || "Pendiente"
+      };
+    });
 }
 
 function timestamp(value: string | null | undefined) {

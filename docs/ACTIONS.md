@@ -49,9 +49,11 @@ Las tablas relacionadas son:
 
 ### Mutaciones de negocio
 
-Incluyen crear y editar contactos, interacciones manuales, referidos, objetivos y asignaciones de objetivos.
+Incluyen crear, editar y desactivar contactos, además de interacciones manuales, referidos, objetivos y asignaciones de objetivos.
 
 Contactos, interacciones y referidos tienen una trazabilidad más completa: suelen crear `action_invocations`, escribir `audit_log` y marcar la invocación como ejecutada o fallida.
+
+`deactivateContacts` implementa la acción confirmada `contact.deactivate` para una ficha o una selección. Cambia únicamente `contacts.is_active` a `false`, cierra como `auto_resolved` los ToDos activos asociados a esas fichas y conserva las relaciones históricas. Usa las mutaciones cliente y el aislamiento RLS existentes; no es una RPC transaccional ni altera identidades externas.
 
 Objetivos y asignaciones existen como acciones reales en `objectiveActions.ts`, pero no tienen todavía la misma cobertura de `action_invocations` y `audit_log`.
 

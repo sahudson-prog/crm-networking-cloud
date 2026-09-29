@@ -2074,6 +2074,35 @@ textarea::placeholder {
   gap: 8px;
 }
 
+.contact-deactivation-dialog {
+  width: min(520px, calc(100vw - 28px));
+  grid-template-rows: auto auto auto;
+}
+
+.button.contact-deactivation-button {
+  background: var(--crm-surface);
+  border-color: var(--crm-border-strong);
+  color: var(--crm-text);
+}
+
+.button.contact-deactivation-button .icon,
+.button.contact-deactivation-confirm-action .icon {
+  color: var(--crm-danger);
+}
+
+.button.contact-deactivation-button:not(:disabled):hover,
+.button.contact-deactivation-confirm-action:not(:disabled):hover {
+  background: var(--crm-field-soft);
+  border-color: var(--crm-primary);
+  color: var(--crm-text);
+}
+
+.button.contact-deactivation-confirm-action {
+  background: var(--crm-surface);
+  border-color: var(--crm-border-strong);
+  color: var(--crm-text);
+}
+
 .coach-config-actions {
   justify-content: space-between;
 }

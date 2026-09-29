@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ContactDeactivationButton } from "./ContactDeactivationButton";
 import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
@@ -318,7 +319,7 @@ export function DesignSystemPreview() {
           <Button icon="plus" square aria-label="Agregar" />
           <Button icon="settings" square aria-label="Configurar" />
           <Button icon="sparkles" tone="primary" square aria-label="Coach IA" />
-          <Button icon="trash" tone="danger" square aria-label="Desactivar" />
+          <ContactDeactivationButton label="Desactivar" onClick={() => undefined} />
         </div>
       </section>
 

@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   contactToEditorInput,
+  deactivateContacts,
   isValidEmail,
   isValidPhone,
   normalizeEmail,
@@ -16,6 +18,8 @@ import {
   type HeadhunterCompanyMasterRow
 } from "../lib/headhunterCompanyMaster";
 import { Button } from "./ui/Button";
+import { ContactDeactivationButton } from "./ContactDeactivationButton";
+import { ContactDeactivationConfirmDialog } from "./ContactDeactivationConfirmDialog";
 import { ObjectiveSelector } from "./ObjectiveSelector";
 import { ProviderButton, type ProviderIconName } from "./ui/ProviderIcon";
 
@@ -36,6 +40,7 @@ const NETWORKING_STATUSES = [
 ];
 
 export function ContactEditorDialog({ contact, initialValues, open, onClose, onSaved }: ContactEditorDialogProps) {
+  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
@@ -50,6 +55,9 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
   const [companyInputFocused, setCompanyInputFocused] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -68,6 +76,8 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
     setObjectiveIds(source?.objectiveIds ?? []);
     setObjectivesTouched(false);
     setMessage("");
+    setDeleteConfirmOpen(false);
+    setDeleteError("");
     setCompanyInputFocused(false);
   }, [contact, initialValues, open]);
 
@@ -100,7 +110,7 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
       .slice(0, 8);
   }, [company, headhunterMaster, isHeadhunter]);
   const showCompanyMatches = companyInputFocused && companyMatches.length > 0;
-  const canSave = Boolean(displayName.trim()) && !invalidEmails.length && !invalidPhones.length && !saving;
+  const canSave = Boolean(displayName.trim()) && !invalidEmails.length && !invalidPhones.length && !saving && !deleting;
 
   if (!open) return null;
 
@@ -129,6 +139,22 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
       setMessage(readableContactError(error));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deactivate() {
+    if (!contact) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deactivateContacts([contact.id], "contact_profile");
+      setDeleteConfirmOpen(false);
+      onClose();
+      router.replace("/contactos");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "No pude eliminar el contacto.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -238,12 +264,29 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
         {message ? <div className="modal-message danger-text">{message}</div> : null}
 
         <footer className="modal-actions">
-          <Button onClick={onClose}>Cancelar</Button>
+          {contact ? (
+            <ContactDeactivationButton
+              disabled={saving || deleting}
+              label="Eliminar contacto"
+              onClick={() => setDeleteConfirmOpen(true)}
+            />
+          ) : null}
+          <Button disabled={saving || deleting} onClick={onClose}>Cancelar</Button>
           <Button disabled={!canSave} onClick={save} tone="primary">
             {saving ? "Guardando..." : "Guardar cambios"}
           </Button>
         </footer>
       </section>
+      {deleteConfirmOpen && contact ? (
+        <ContactDeactivationConfirmDialog
+          busy={deleting}
+          contactCount={1}
+          contactName={contact.display_name}
+          error={deleteError}
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={deactivate}
+        />
+      ) : null}
     </div>
   );
 }
