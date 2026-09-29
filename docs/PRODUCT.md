@@ -60,12 +60,15 @@ El usuario puede:
 - ordenar la tabla por columnas visibles;
 - seleccionar contactos;
 - aplicar acciones masivas;
+- eliminar uno o varios contactos de la red activa;
 - abrir la ficha individual de un contacto;
 - revisar contactos en un tablero por estado;
 - mover contactos entre estados;
 - agrupar contactos headhunter por empresa cuando corresponde.
 
 Las acciones masivas permiten cambiar marcas o estados sobre los contactos seleccionados. También permiten asociar objetivos a varios contactos al mismo tiempo.
+
+Eliminar un contacto lo desactiva y lo retira de las superficies operativas; no borra físicamente su ficha, interacciones, referidos ni historial. La acción está disponible desde la ficha y como acción masiva, siempre con confirmación. Una importación posterior puede volver a proponer o incorporar esa persona mediante su preview normal.
 
 El tablero de contactos permite trabajar visualmente el avance de networking. Al mover una tarjeta entre estados, el cambio representa una actualización real del estado del contacto. Cuando se agrupan headhunters, la tarjeta representa a la empresa o grupo asociado y el movimiento aplica al conjunto correspondiente.
 

@@ -36,6 +36,12 @@ export type ContactFlagsInput = {
   reviewCoach?: boolean;
 };
 
+export type DeactivateContactsResult = {
+  contactIds: string[];
+  count: number;
+  closedTodoCount: number;
+};
+
 export async function updateContactNetworkingStatus(
   contactId: string,
   nextStatus: string,
@@ -229,6 +235,127 @@ export async function updateContactFlags(contactId: string, flags: ContactFlagsI
   }
 
   return { updated: true };
+}
+
+export async function deactivateContacts(
+  contactIds: string[],
+  source: "contact_profile" | "contacts_bulk"
+): Promise<DeactivateContactsResult> {
+  if (!supabase) throw new Error("Supabase no esta configurado.");
+
+  const requestedIds = uniqueClean(contactIds);
+  if (!requestedIds.length) throw new Error("Selecciona al menos un contacto.");
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) throw new Error("No hay usuario autenticado.");
+
+  const { data: contacts, error: contactsError } = await supabase
+    .from("contacts")
+    .select("id,display_name,is_active")
+    .eq("user_id", userId)
+    .in("id", requestedIds);
+  if (contactsError) throw contactsError;
+  if ((contacts ?? []).length !== requestedIds.length) {
+    throw new Error("No pude validar todos los contactos seleccionados.");
+  }
+
+  const activeContacts = (contacts ?? []).filter((contact) => contact.is_active);
+  const activeIds = activeContacts.map((contact) => contact.id);
+  if (!activeIds.length) return { contactIds: [], count: 0, closedTodoCount: 0 };
+
+  const now = new Date().toISOString();
+  const { data: invocation, error: invocationError } = await supabase
+    .from("action_invocations")
+    .insert({
+      user_id: userId,
+      action_name: "contact.deactivate",
+      actor_type: "user",
+      status: "confirmed",
+      object_type: "contact",
+      object_id: activeIds.length === 1 ? activeIds[0] : null,
+      input_json: { contact_ids: activeIds, source },
+      requires_confirmation: true,
+      confirmed_at: now
+    })
+    .select("id")
+    .single();
+  if (invocationError) throw invocationError;
+
+  try {
+    const { data: updatedContacts, error: updateError } = await supabase
+      .from("contacts")
+      .update({ is_active: false })
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .in("id", activeIds)
+      .select("id");
+    if (updateError) throw updateError;
+
+    const updatedIds = (updatedContacts ?? []).map((contact) => contact.id);
+    if (updatedIds.length !== activeIds.length) {
+      throw new Error("No pude desactivar todos los contactos seleccionados.");
+    }
+
+    const { data: closedTodos, error: todosError } = await supabase
+      .from("todos")
+      .update({
+        status: "auto_resolved",
+        resolved_at: now,
+        reason: "El contacto fue retirado de la red activa."
+      })
+      .eq("user_id", userId)
+      .eq("object_type", "contact")
+      .eq("status", "active")
+      .in("object_id", updatedIds)
+      .select("id");
+    if (todosError) throw todosError;
+
+    const { error: auditError } = await supabase.from("audit_log").insert(
+      activeContacts.map((contact) => ({
+        user_id: userId,
+        actor: "user",
+        action: "contact.deactivate",
+        object_type: "contact",
+        object_id: contact.id,
+        before_json: { display_name: contact.display_name, is_active: true },
+        after_json: { display_name: contact.display_name, is_active: false }
+      }))
+    );
+    if (auditError) throw auditError;
+
+    const { error: invocationDoneError } = await supabase
+      .from("action_invocations")
+      .update({
+        status: "executed",
+        output_json: {
+          contact_ids: updatedIds,
+          count: updatedIds.length,
+          closed_todo_count: closedTodos?.length ?? 0
+        },
+        executed_at: now
+      })
+      .eq("id", invocation.id)
+      .eq("user_id", userId);
+    if (invocationDoneError) throw invocationDoneError;
+
+    return {
+      contactIds: updatedIds,
+      count: updatedIds.length,
+      closedTodoCount: closedTodos?.length ?? 0
+    };
+  } catch (error) {
+    await supabase
+      .from("action_invocations")
+      .update({
+        status: "failed",
+        error_message: error instanceof Error ? error.message : "Error al eliminar contactos."
+      })
+      .eq("id", invocation.id)
+      .eq("user_id", userId);
+    throw error;
+  }
 }
 
 export async function saveContactFromEditor(input: ContactEditorInput) {

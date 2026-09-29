@@ -64,6 +64,7 @@ export type ContactReferralRow = {
   notes: string;
   status: string;
   linkedContactId: string | null;
+  linkedContactActive: boolean;
   linkedContactName: string;
   linkedContactStatus: string;
 };

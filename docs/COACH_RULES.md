@@ -163,6 +163,8 @@ Cuando una sugerencia activa ya no corresponde, el revisor la cierra como:
 
 Cuando una sugerencia con el mismo `dedup_key` ya fue marcada como `done` o `dismissed`, el revisor no la vuelve a abrir.
 
+Los contactos inactivos no participan en sugerencias activas. Al retirar un contacto de la red activa, la acción de aplicación cierra como `auto_resolved` sus ToDos activos; el historial permanece visible, pero deja de ofrecer navegación operativa hacia esa ficha.
+
 La tabla `object_review_state` registra el resultado de revisiones por objeto y procesador. En el código actual sirve como registro de revisión; no se observa que sea usada para saltarse evaluaciones futuras.
 
 ## Gatilladores confirmados

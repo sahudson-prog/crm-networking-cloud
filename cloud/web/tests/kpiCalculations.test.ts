@@ -189,3 +189,49 @@ test("periodos respetan inicio de networking y maximo de 12 puntos", () => {
   assert.equal(contactos.points[0]?.label, "ago 25");
   assert.equal(contactos.points.at(-1)?.label, "jul 26");
 });
+
+test("una interaccion exclusiva de un contacto inactivo no aporta a KPIs", () => {
+  const inactive = contact({ id: "inactive", is_active: false });
+  const coffee = interaction({
+    id: "inactive-coffee",
+    interaction_type: "calendar",
+    occurred_at: "2026-04-10T10:00:00+00:00"
+  });
+
+  const trends = buildDashboardKpis({
+    contacts: [inactive],
+    interactions: [coffee],
+    participants: [participant(coffee.id, inactive.id)],
+    mode: "monthly",
+    networkingStartDate: new Date(2026, 3, 1),
+    today: new Date(2026, 3, 30)
+  });
+
+  assert.equal(pointByLabel(trendByTitle(trends, "Total cafes"), "abr 26").total, 0);
+  assert.equal(pointByLabel(trendByTitle(trends, "Contactos realizados"), "abr 26").total, 0);
+});
+
+test("una interaccion compartida permanece por el contacto activo", () => {
+  const inactive = contact({ id: "inactive", is_active: false });
+  const active = contact({ id: "active" });
+  const shared = interaction({
+    id: "shared-email",
+    direction: "outbound",
+    occurred_at: "2026-04-10T10:00:00+00:00"
+  });
+
+  const trends = buildDashboardKpis({
+    contacts: [inactive, active],
+    interactions: [shared],
+    participants: [participant(shared.id, inactive.id), participant(shared.id, active.id)],
+    mode: "monthly",
+    networkingStartDate: new Date(2026, 3, 1),
+    today: new Date(2026, 3, 30)
+  });
+
+  assert.deepEqual(pointByLabel(trendByTitle(trends, "Contactos realizados"), "abr 26"), {
+    label: "abr 26",
+    total: 1,
+    firstTime: 1
+  });
+});

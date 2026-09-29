@@ -132,7 +132,7 @@ function CoachActionLogItem({ row }: { row: CoachActionLogRow }) {
           <strong>Evidencia:</strong> {row.evidenceDetail || detail || "sin evidencia registrada"}
         </p>
         <div className="coach-log-actions">
-          {row.contactId ? (
+          {row.contactId && row.contactActive ? (
             <a className="coach-contact-link" href={`/contactos?contactId=${encodeURIComponent(row.contactId)}`}>
               Ir a {shortContactName(row.contactName)}
             </a>
