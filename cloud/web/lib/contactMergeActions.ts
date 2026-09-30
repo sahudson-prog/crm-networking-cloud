@@ -21,6 +21,14 @@ export type ContactDeepMergeResult = {
   reviewStatesMoved: number;
 };
 
+export type ContactMergeErrorDiagnostic = {
+  code: string;
+  details: string;
+  hint: string;
+  message: string;
+  name: string;
+};
+
 export async function mergeContactsDeep(input: ContactDeepMergeInput) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   const normalized = normalizeContactDeepMergeInput(input);
@@ -31,8 +39,26 @@ export async function mergeContactsDeep(input: ContactDeepMergeInput) {
     p_source_contact_ids: normalized.sourceContactIds,
     p_target_contact_id: normalized.targetContactId
   });
-  if (error) throw error;
+  if (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Coffeecito contact merge RPC failed", contactMergeErrorDiagnostic(error));
+    }
+    throw error;
+  }
   return normalizeContactDeepMergeResult(data);
+}
+
+export function contactMergeErrorDiagnostic(error: unknown): ContactMergeErrorDiagnostic {
+  const value = error && typeof error === "object" && !Array.isArray(error)
+    ? error as Record<string, unknown>
+    : {};
+  return {
+    code: safeDiagnosticText(value.code),
+    details: safeDiagnosticText(value.details),
+    hint: safeDiagnosticText(value.hint),
+    message: safeDiagnosticText(value.message ?? (error instanceof Error ? error.message : "")),
+    name: safeDiagnosticText(value.name ?? (error instanceof Error ? error.name : ""))
+  };
 }
 
 export function normalizeContactDeepMergeInput(input: ContactDeepMergeInput): ContactDeepMergeInput {
@@ -84,4 +110,13 @@ function uniqueClean(values: string[]) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function safeDiagnosticText(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value
+    .slice(0, 800)
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, "[uuid]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+    .replace(/\+?[0-9][0-9\s().-]{6,}[0-9]/g, "[phone]");
 }

@@ -1988,7 +1988,14 @@ textarea::placeholder {
 .duplicate-review-dialog-body {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 3px;
+}
+
+.duplicate-review-backdrop,
+.contact-merge-backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .modal-backdrop {
@@ -2096,7 +2103,12 @@ textarea::placeholder {
 .contact-merge-dialog-body {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 3px;
+}
+
+.contact-merge-error {
+  margin: 0 0 10px;
 }
 
 .interaction-editor-body {

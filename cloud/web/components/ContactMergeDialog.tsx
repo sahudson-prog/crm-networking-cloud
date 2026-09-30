@@ -6,6 +6,7 @@ import { contactRowToMergeSource, defaultContactMergeResult } from "../lib/conta
 import type { ContactRow } from "../lib/readModel";
 import { ContactMergeWorkspace } from "./ContactMergeWorkspace";
 import { Button } from "./ui/Button";
+import { useBodyScrollLock } from "./useBodyScrollLock";
 
 type ContactMergeDialogProps = {
   open: boolean;
@@ -13,6 +14,7 @@ type ContactMergeDialogProps = {
   availableContacts?: ContactRow[];
   title?: string;
   description?: string;
+  errorMessage?: string;
   note?: string;
   minSources?: number;
   saveLabel?: string;
@@ -24,6 +26,7 @@ type ContactMergeDialogProps = {
 export function ContactMergeDialog({
   availableContacts = [],
   description = "Elige que datos conservar antes de ajustar la propuesta.",
+  errorMessage = "",
   minSources = 2,
   note = "Esta propuesta se aplicara recien cuando confirmes la seleccion en el preview de sincronizacion.",
   onClose,
@@ -37,6 +40,8 @@ export function ContactMergeDialog({
   const [dialogSources, setDialogSources] = useState<ContactMergeSource[]>(sources);
   const [result, setResult] = useState<ContactMergeResult>(() => defaultContactMergeResult(sources));
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     setDialogSources(sources);
@@ -46,7 +51,7 @@ export function ContactMergeDialog({
   if (!open) return null;
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop contact-merge-backdrop" role="presentation">
       <section className="modal-card contact-merge-dialog" role="dialog" aria-modal="true" aria-labelledby="contact-merge-title">
         <header className="modal-head">
           <div>
@@ -57,6 +62,7 @@ export function ContactMergeDialog({
         </header>
 
         <div className="contact-merge-dialog-body">
+          {errorMessage ? <p className="form-error contact-merge-error" role="alert">{errorMessage}</p> : null}
           <ContactMergeWorkspace
             availableContacts={availableContacts}
             onAddContact={(contactId) => {

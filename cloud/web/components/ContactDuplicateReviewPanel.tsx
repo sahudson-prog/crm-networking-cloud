@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ContactMergeResult } from "../lib/contactMerge";
 import { mergeContactsDeep } from "../lib/contactMergeActions";
+import { startContactDuplicateMerge } from "../lib/contactDuplicateMergeFlow";
 import { findContactDuplicateGroups, type ContactDuplicateGroup } from "../lib/contactDuplicateReview";
 import { readAllActiveContacts } from "../lib/cloudData";
 import type { ContactRow } from "../lib/readModel";
 import { ContactMergeDialog } from "./ContactMergeDialog";
 import { Button } from "./ui/Button";
 import { Panel } from "./ui/Panel";
+import { useBodyScrollLock } from "./useBodyScrollLock";
 
 export function ContactDuplicateReviewPanel() {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -19,6 +21,10 @@ export function ContactDuplicateReviewPanel() {
   const [selectedGroup, setSelectedGroup] = useState<ContactDuplicateGroup | null>(null);
   const [manualMergeOpen, setManualMergeOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [mergeError, setMergeError] = useState("");
+  const mergeInFlightRef = useRef<Promise<void> | null>(null);
+
+  useBodyScrollLock(reviewOpen);
 
   useEffect(() => {
     void refresh();
@@ -41,26 +47,23 @@ export function ContactDuplicateReviewPanel() {
   }
 
   async function mergeSelectedGroup(result: ContactMergeResult, mergeSources = selectedGroup?.mergeSources ?? []) {
-    const [target, ...sources] = mergeSources;
-    if (!target || !sources.length) {
-      setMessage("Elige 2 o 3 contactos para fusionar.");
-      return;
-    }
-    setMerging(true);
-    setMessage("");
     try {
-      await mergeContactsDeep({
+      const merge = startContactDuplicateMerge(
         result,
-        source: "duplicate_review",
-        sourceContactIds: sources.map((source) => source.id),
-        targetContactId: target.id
-      });
+        mergeSources,
+        { merge: mergeContactsDeep, refresh },
+        mergeInFlightRef
+      );
+      if (!merge.started) return;
+      setMerging(true);
+      setMergeError("");
+      setMessage("");
+      await merge.operation;
       setSelectedGroup(null);
       setManualMergeOpen(false);
-      setMessage("Contactos fusionados. Actualice la lista de duplicados.");
-      await refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No pude fusionar estos contactos.");
+      setMessage("Contactos fusionados correctamente.");
+    } catch {
+      setMergeError("No pudimos fusionar estos contactos. Revisa la selección e inténtalo nuevamente.");
     } finally {
       setMerging(false);
     }
@@ -74,7 +77,14 @@ export function ContactDuplicateReviewPanel() {
           <span>Los grupos de hasta 3 contactos se pueden fusionar aqui con el editor global.</span>
         </div>
         <div className="toolbar">
-          <Button icon="users" disabled={loading || merging} onClick={() => setManualMergeOpen(true)}>
+          <Button
+            icon="users"
+            disabled={loading || merging}
+            onClick={() => {
+              setMergeError("");
+              setManualMergeOpen(true);
+            }}
+          >
             Fusionar manualmente
           </Button>
           <Button icon="sync" disabled={loading || merging} onClick={refresh}>
@@ -120,7 +130,14 @@ export function ContactDuplicateReviewPanel() {
                 </div>
               </div>
               {canMerge ? (
-                <Button icon="edit" disabled={merging} onClick={() => setSelectedGroup(group)}>
+                <Button
+                  icon="edit"
+                  disabled={merging}
+                  onClick={() => {
+                    setMergeError("");
+                    setSelectedGroup(group);
+                  }}
+                >
                   Fusionar
                 </Button>
               ) : (
@@ -155,7 +172,7 @@ export function ContactDuplicateReviewPanel() {
       {message && !reviewOpen ? <div className="duplicate-review-message">{message}</div> : null}
 
       {reviewOpen ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div className="modal-backdrop duplicate-review-backdrop" role="dialog" aria-modal="true">
           <section className="modal-card duplicate-review-dialog">
             <div className="modal-head">
               <div>
@@ -172,8 +189,11 @@ export function ContactDuplicateReviewPanel() {
       <ContactMergeDialog
         availableContacts={contacts}
         description="Elige el contacto resultante. Esta accion fusiona contactos ya guardados en la app."
+        errorMessage={mergeError}
         note="Al fusionar, las interacciones, referidos, ToDos e IDs externos quedaran asociados al contacto resultante."
         onClose={() => {
+          if (merging) return;
+          setMergeError("");
           setSelectedGroup(null);
           setManualMergeOpen(false);
         }}
