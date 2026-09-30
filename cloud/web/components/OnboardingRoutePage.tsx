@@ -132,11 +132,15 @@ function OnboardingContactsStep() {
           title="Aquí organizas y priorizas tu red"
         >
           <p>
-            Por defecto verás tus contactos marcados como Foco. Cambia el filtro a “Todos” para revisar tu red y marcar
-            con Foco a las personas que quieras priorizar.
+            Por defecto, esta vista muestra sólo los contactos que quieres priorizar para hacer networking. En
+            Coffeecito, esos contactos se marcan como Foco.
           </p>
           <p>
-            Prueba arrastrando una tarjeta para actualizar su estado. También puedes crear contactos o gestionar varios
+            Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que
+            quieras priorizar.
+          </p>
+          <p>
+            También puedes arrastrar una tarjeta para actualizar su estado, crear nuevos contactos o gestionar varios
             desde la tabla inferior.
           </p>
         </OnboardingCoach>

@@ -327,8 +327,9 @@ test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
 
   assert.match(routeSource, /title="Comencemos definiendo tus objetivos"/);
   assert.match(routeSource, /title="Aquí organizas y priorizas tu red"/);
-  assert.match(routeSource, /Por defecto verás tus contactos marcados como Foco\. Cambia el filtro a “Todos” para revisar tu red y marcar\s+con Foco a las personas que quieras priorizar\./);
-  assert.match(routeSource, /Prueba arrastrando una tarjeta para actualizar su estado\. También puedes crear contactos o gestionar varios\s+desde la tabla inferior\./);
+  assert.match(routeSource, /Por defecto, esta vista muestra sólo los contactos que quieres priorizar para hacer networking\. En\s+Coffeecito, esos contactos se marcan como Foco\./);
+  assert.match(routeSource, /Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que\s+quieras priorizar\./);
+  assert.match(routeSource, /También puedes arrastrar una tarjeta para actualizar su estado, crear nuevos contactos o gestionar varios\s+desde la tabla inferior\./);
   assert.match(routeSource, /title="Cada contacto tiene una ficha con su historia"/);
   assert.match(routeSource, /title="Importa tus contactos de forma masiva"/);
   assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
