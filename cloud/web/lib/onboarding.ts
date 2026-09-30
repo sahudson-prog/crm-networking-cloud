@@ -3,18 +3,18 @@ export const ONBOARDING_PRODUCT_DESTINATION = "/contactos";
 
 export const ONBOARDING_STEPS = [
   "objectives",
+  "google",
   "contacts",
   "contact",
-  "google",
   "final"
 ] as const;
 
 export const ONBOARDING_FLOW = [
   { id: "intro", path: "/onboarding" },
   { id: "objectives", path: "/onboarding/objetivos" },
+  { id: "google", path: "/onboarding/google" },
   { id: "contacts", path: "/onboarding/contactos" },
   { id: "contact", path: "/onboarding/contacto" },
-  { id: "google", path: "/onboarding/google" },
   { id: "final", path: "/onboarding/final" }
 ] as const;
 

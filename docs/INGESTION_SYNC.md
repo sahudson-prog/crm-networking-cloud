@@ -212,9 +212,13 @@ Los detalles de autenticación, tokens, permisos y reconexión del proveedor imp
 
 `import_batches` existe como estructura persistente para registrar lotes de importación.
 
-No se observó un flujo funcional completo vigente de importación por archivo comparable al conector actual.
+La importación vCard (`.vcf`) es un flujo one-shot local: el browser valida y parsea el archivo, muestra un preview seleccionable y crea mediante el contrato normal de contactos solo los registros confirmados. El archivo original no se persiste y el flujo no usa `import_batches`.
 
-Por lo tanto, este documento no declara CSV, Excel, vCard u otros archivos como imports implementados. Cuando exista ese flujo, deberá documentar lectura, validación, preview, aplicación, idempotencia y auditoría.
+vCard admite nombre, correos, teléfonos, empresa y cargo cuando esas propiedades tienen equivalente en el modelo. Otras propiedades se ignoran. No actualiza, elimina, fusiona ni sincroniza contactos.
+
+El preview puede advertir posibles duplicados al coincidir correo o teléfono normalizado con contactos activos ya guardados. La advertencia no bloquea la creación, no compara ni consolida registros dentro del propio archivo y no reemplaza la herramienta independiente de deduplicación.
+
+CSV, Excel y otros formatos de archivo no se declaran implementados.
 
 ## Provider-agnostic vs Google
 
@@ -272,6 +276,6 @@ No se observó manejo explícito para contactos con múltiples identidades exter
 
 Parte de la orquestación de sync sigue próxima a algunos entry points.
 
-La semántica de imports por archivo no está cerrada aunque exista `import_batches`.
+La semántica común de imports por archivo no está cerrada aunque vCard tenga un flujo one-shot específico y exista `import_batches`.
 
 La eliminación en origen para interacciones no tiene una política universal observada comparable a contactos.

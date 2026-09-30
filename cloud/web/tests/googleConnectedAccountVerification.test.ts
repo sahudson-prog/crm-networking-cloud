@@ -271,12 +271,12 @@ test("AccountPage finaliza retorno OAuth y refresca estado sin reload manual", (
   assert.equal(source.includes("router.refresh"), false);
 });
 
-test("Cuenta separa acceso a Coffeecito de importacion Google", () => {
+test("Cuenta concentra integraciones en importacion y elimina el resumen de acceso", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /Acceso a Coffeecito/);
+  assert.doesNotMatch(source, /Acceso a Coffeecito/);
+  assert.doesNotMatch(source, /Email por link/);
   assert.match(source, /Importación y sincronización/);
-  assert.match(source, /Email por link/);
   assert.match(source, /Microsoft/);
   assert.match(source, /Apple/);
   assert.match(source, /Próximamente/);
@@ -360,12 +360,25 @@ test("revalidacion aplica un permiso Google invalido al terminar", () => {
   assert.match(source, /googlePermissionActive: Boolean\(activeGoogle && googleConnection\?\.permissionActive\)/);
 });
 
-test("vCard queda como entrada UI sin Connected Account", () => {
+test("vCard queda como import one-shot sin Connected Account", () => {
+  const accountSource = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
+  const vcardSource = readFileSync(new URL("../components/VCardImportPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(accountSource, /VCardImportPanel/);
+  assert.match(vcardSource, /Importar contactos desde archivo vCard/);
+  assert.match(vcardSource, /Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios/);
+  assert.match(vcardSource, /Importar selección/);
+  assert.doesNotMatch(vcardSource, /Próximamente/);
+  assert.equal(vcardSource.includes("readCurrentGoogleConnectionState"), false);
+});
+
+test("Cuenta presenta vCard antes de Google y conserva proveedores futuros", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /vCard \(\.vcf\)/);
-  assert.match(source, /Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios/);
-  assert.equal(/vCard[\s\S]{0,240}readCurrentGoogleConnectionState/.test(source), false);
+  assert.ok(source.indexOf("<VCardImportPanel />") < source.indexOf("<strong>Google</strong>"));
+  assert.ok(source.indexOf('title="Microsoft"') > source.indexOf("<strong>Google</strong>"));
+  assert.ok(source.indexOf('title="Apple"') > source.indexOf('title="Microsoft"'));
+  assert.match(source, /account-source-status">Próximamente/);
 });
 
 test("AccountPage protege contra lecturas stale y logout durante finalize", () => {

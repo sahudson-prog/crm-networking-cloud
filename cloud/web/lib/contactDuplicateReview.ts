@@ -16,6 +16,22 @@ export type ContactDuplicateGroup = {
   mergeSources: ContactMergeSource[];
 };
 
+export type ContactIdentityCandidate = {
+  emails: string[];
+  phones: string[];
+};
+
+export function hasExistingContactDuplicateSignal(
+  candidate: ContactIdentityCandidate,
+  contacts: ContactRow[]
+) {
+  const candidateKeys = new Set(duplicateKeysForValues(candidate).map((item) => item.key));
+  if (!candidateKeys.size) return false;
+  return contacts
+    .filter((contact) => contact.is_active)
+    .some((contact) => duplicateKeysForContact(contact).some((item) => candidateKeys.has(item.key)));
+}
+
 export function findContactDuplicateGroups(contacts: ContactRow[]): ContactDuplicateGroup[] {
   const activeContacts = contacts.filter((contact) => contact.is_active);
   const contactById = new Map(activeContacts.map((contact) => [contact.id, contact]));
@@ -54,13 +70,20 @@ export function findContactDuplicateGroups(contacts: ContactRow[]): ContactDupli
 }
 
 function duplicateKeysForContact(contact: ContactRow): ContactDuplicateKey[] {
+  return duplicateKeysForValues({
+    emails: (contact.contact_emails ?? []).map((item) => item.email),
+    phones: (contact.contact_phones ?? []).map((item) => item.phone)
+  });
+}
+
+function duplicateKeysForValues(values: ContactIdentityCandidate): ContactDuplicateKey[] {
   const keys: ContactDuplicateKey[] = [];
-  for (const item of contact.contact_emails ?? []) {
-    const email = normalizeEmail(item.email);
+  for (const value of values.emails) {
+    const email = normalizeEmail(value);
     if (email) keys.push({ key: `email:${email}`, label: "Correo", value: email });
   }
-  for (const item of contact.contact_phones ?? []) {
-    const phone = item.phone?.trim();
+  for (const value of values.phones) {
+    const phone = value?.trim();
     if (!phone) continue;
     for (const identity of phoneIdentitiesFor(phone)) {
       keys.push({ key: `phone:${identity}`, label: "Telefono", value: phone });

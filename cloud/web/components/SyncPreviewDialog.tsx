@@ -13,6 +13,8 @@ type SyncPreviewDialogProps = {
   title?: string;
   description?: string;
   changes: SyncPreviewChange[];
+  applyLabel?: string;
+  applyingLabel?: string;
   feedbackMessage?: string;
   feedbackTone?: "error" | "info";
   applying?: boolean;
@@ -20,7 +22,15 @@ type SyncPreviewDialogProps = {
   onClose: () => void;
   onApply: (selectedChanges: SyncPreviewChange[]) => void;
   onOpenSavedDuplicateMerge?: (sources: ContactMergeSource[]) => void;
+  tabs?: readonly SyncPreviewTabDefinition[];
   tabKeys?: readonly SyncPreviewTabKey[];
+};
+
+export type SyncPreviewTabDefinition = {
+  key: string;
+  label: string;
+  description?: string;
+  matches: (change: SyncPreviewChange) => boolean;
 };
 
 type SyncPreviewTabKey = "new" | "modified" | "consolidation" | "duplicate_complex" | "deleted" | "skipped";
@@ -50,7 +60,9 @@ const PREVIEW_TABS: Array<{ key: SyncPreviewTabKey; label: string; types: SyncPr
 ];
 
 export function SyncPreviewDialog({
+  applyLabel = "Aplicar seleccion",
   applying = false,
+  applyingLabel = "Aplicando...",
   changes,
   description = "Revisa los cambios detectados. Los cambios que no selecciones quedan pendientes para la proxima sincronizacion.",
   feedbackMessage = "",
@@ -60,18 +72,25 @@ export function SyncPreviewDialog({
   onOpenSavedDuplicateMerge,
   open,
   progress,
+  tabs: customTabs,
   tabKeys,
   title = "Cambios detectados"
 }: SyncPreviewDialogProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<SyncPreviewTabKey>("new");
+  const [activeTab, setActiveTab] = useState("new");
   const [mergeDialogChange, setMergeDialogChange] = useState<SyncPreviewChange | null>(null);
   const [mergeDecisions, setMergeDecisions] = useState<Record<string, ContactMergeResult>>({});
   const wasOpenRef = useRef(false);
   const tabsConfig = useMemo(() => {
+    if (customTabs?.length) return [...customTabs];
     const allowed = new Set(tabKeys ?? PREVIEW_TABS.map((tab) => tab.key));
-    return PREVIEW_TABS.filter((tab) => allowed.has(tab.key));
-  }, [tabKeys]);
+    return PREVIEW_TABS
+      .filter((tab) => allowed.has(tab.key))
+      .map((tab) => ({
+        ...tab,
+        matches: (change: SyncPreviewChange) => tab.types.includes(change.type)
+      }));
+  }, [customTabs, tabKeys]);
 
   useEffect(() => {
     if (!open) {
@@ -97,7 +116,7 @@ export function SyncPreviewDialog({
   const tabs = useMemo(
     () => tabsConfig.map((tab) => ({
       ...tab,
-      changes: sortChangesByTitle(changes.filter((change) => tab.types.includes(change.type)))
+      changes: sortChangesByTitle(changes.filter(tab.matches))
     })),
     [changes, tabsConfig]
   );
@@ -266,7 +285,7 @@ export function SyncPreviewDialog({
           <div className="modal-actions">
             <Button disabled={applying} onClick={handleClose}>Cancelar</Button>
             <Button disabled={!selectedChanges.length || applying} onClick={() => onApply(selectedChanges)} tone="primary">
-              {applying ? "Aplicando..." : "Aplicar seleccion"}
+              {applying ? applyingLabel : applyLabel}
             </Button>
           </div>
         </footer>
@@ -499,9 +518,9 @@ function cleanSortTitle(value: string) {
 
 function firstTabWithChanges(
   changes: SyncPreviewChange[],
-  tabs: Array<{ key: SyncPreviewTabKey; types: SyncPreviewChangeType[] }>
-): SyncPreviewTabKey {
-  return tabs.find((tab) => changes.some((change) => tab.types.includes(change.type)))?.key || tabs[0]?.key || "new";
+  tabs: Array<{ key: string; matches: (change: SyncPreviewChange) => boolean }>
+) {
+  return tabs.find((tab) => changes.some(tab.matches))?.key || tabs[0]?.key || "new";
 }
 
 function emptyTabMessage(label: string) {

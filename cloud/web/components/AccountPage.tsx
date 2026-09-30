@@ -25,6 +25,7 @@ import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { NetworkingStartDateSetting } from "./NetworkingStartDateSetting";
 import { useOnboarding } from "./OnboardingProvider";
+import { VCardImportPanel } from "./VCardImportPanel";
 import { Button } from "./ui/Button";
 import { ProviderIcon, type ProviderIconName } from "./ui/ProviderIcon";
 
@@ -40,7 +41,6 @@ type AccountState = {
   message: string;
   networkingStartReady: boolean;
   resettingData: boolean;
-  provider: ProviderIconName;
 };
 
 export function AccountPage({ view = "full" }: { view?: "full" | "google-onboarding" } = {}) {
@@ -126,6 +126,7 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
         <GoogleImportSection
           account={account}
           includeOtherSources={false}
+          includeVCard
           redirectPath="/onboarding/google"
           setAccount={setAccount}
         />
@@ -155,18 +156,6 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
           <Button icon="settings" onClick={() => window.alert("Pendiente: cambio de plan.")}>
             Cambiar plan
           </Button>
-        </div>
-      </section>
-
-      <section className="account-section" aria-labelledby="account-access-title">
-        <div className="account-section-title">
-          <h2 id="account-access-title">Acceso a Coffeecito</h2>
-        </div>
-        <div className="account-provider-list">
-          <ProviderAccessRow provider="google" label="Google" status={account.provider === "google" ? "En uso" : "Disponible"} />
-          <ProviderAccessRow provider="mail" label="Email por link" status={account.provider === "google" ? "Disponible" : "En uso"} />
-          <ProviderAccessRow provider="microsoft" label="Microsoft" status="Próximamente" muted />
-          <ProviderAccessRow provider="apple" label="Apple" status="Próximamente" muted />
         </div>
       </section>
 
@@ -234,11 +223,13 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
 function GoogleImportSection({
   account,
   includeOtherSources,
+  includeVCard = false,
   redirectPath,
   setAccount
 }: {
   account: AccountState;
   includeOtherSources: boolean;
+  includeVCard?: boolean;
   redirectPath: "/cuenta" | "/onboarding/google";
   setAccount: Dispatch<SetStateAction<AccountState>>;
 }) {
@@ -256,6 +247,8 @@ function GoogleImportSection({
       <NetworkingStartDateSetting onSaved={() => setAccount((current) => ({ ...current, networkingStartReady: true }))} />
 
       <div className="account-source-list">
+        {includeOtherSources || includeVCard ? <VCardImportPanel /> : null}
+
         <div className="account-source-row expanded">
           <div className="account-source-main">
             <span className={`connected-service-logo ${googleAuthorizationStatus.authorized ? "active" : ""}`}>
@@ -318,46 +311,12 @@ function GoogleImportSection({
           <>
             <SourcePlaceholder provider="microsoft" title="Microsoft" detail="Importación desde Outlook y Microsoft Calendar." />
             <SourcePlaceholder provider="apple" title="Apple" detail="Importación desde Apple Contacts y Calendar." />
-            <div className="account-source-row">
-              <div className="account-source-main">
-                <span className="connected-service-logo">
-                  <ProviderIcon name="apple" />
-                </span>
-                <div>
-                  <strong>vCard (.vcf)</strong>
-                  <span>Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.</span>
-                </div>
-              </div>
-              <span className="account-source-status">Próximamente</span>
-            </div>
           </>
         ) : null}
       </div>
 
       {account.message ? <p className="meta">{account.message}</p> : null}
     </section>
-  );
-}
-
-function ProviderAccessRow({
-  provider,
-  label,
-  muted = false,
-  status
-}: {
-  provider: ProviderIconName | "mail";
-  label: string;
-  muted?: boolean;
-  status: string;
-}) {
-  return (
-    <div className={`account-provider-row ${muted ? "muted" : ""}`}>
-      <span className="account-provider-name">
-        {provider === "mail" ? null : <ProviderIcon name={provider} />}
-        <strong>{label}</strong>
-      </span>
-      <span>{status}</span>
-    </div>
   );
 }
 
@@ -384,11 +343,6 @@ function SourcePlaceholder({ detail, provider, title }: { detail: string; provid
       <span className="account-source-status">Próximamente</span>
     </div>
   );
-}
-
-function providerIconName(provider: unknown): ProviderIconName {
-  if (provider === "apple" || provider === "microsoft") return provider;
-  return "google";
 }
 
 function googleAuthorizationSummary(account: AccountState, services: ReturnType<typeof googleServiceAvailability>) {
@@ -452,9 +406,6 @@ async function disconnectGoogle(accountId: string) {
 
 async function loadAccountState(options: { registerRememberedScopes: boolean }): Promise<AccountState> {
   const { data } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
-  const provider = providerIconName(
-    data.session?.user.app_metadata?.provider ?? data.session?.user.identities?.[0]?.provider
-  );
   const email = data.session?.user.email ?? "";
   let message = "";
 
@@ -485,8 +436,7 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
     googlePermissionActive: Boolean(activeGoogle && googleConnection?.permissionActive),
     message,
     networkingStartReady,
-    resettingData: false,
-    provider
+    resettingData: false
   };
 }
 
@@ -502,8 +452,7 @@ function createInitialAccountState(googleConnectionLoading: boolean): AccountSta
     googlePermissionActive: false,
     message: "",
     networkingStartReady: false,
-    resettingData: false,
-    provider: "google"
+    resettingData: false
   };
 }
 

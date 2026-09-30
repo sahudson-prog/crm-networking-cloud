@@ -16,15 +16,17 @@ test("tarjetas normales no muestran el marcador decorativo y los grupos conserva
   assert.match(cardSource, /card\.isHeadhunterGroup \? "group"/);
 });
 
-test("el tablero mantiene cinco columnas, DnD y scroll nativo separado por eje", () => {
+test("el tablero mantiene cinco columnas, DnD y encadenamiento vertical nativo", () => {
   assert.match(tableSource, /NETWORKING_STATUSES\.map/);
   assert.match(tableSource, /onDragStart=\{\(event\)/);
   assert.match(tableSource, /onDragOver=\{\(event\)/);
   assert.match(tableSource, /onDrop=\{\(event\)/);
   assert.match(stylesSource, /\.contacts-status-board\s*\{[\s\S]*grid-template-columns: repeat\(5, minmax\(184px, 1fr\)\)[\s\S]*overflow-x: auto/);
   assert.match(stylesSource, /\.contacts-status-column\s*\{[\s\S]*min-width: 184px/);
-  assert.match(statusScrollStyles, /max-height: 335px[\s\S]*min-height: 335px[\s\S]*overflow-y: auto[\s\S]*overscroll-behavior-x: auto[\s\S]*overscroll-behavior-y: contain/);
+  assert.match(statusScrollStyles, /max-height: 335px[\s\S]*min-height: 335px[\s\S]*overflow-y: auto[\s\S]*overscroll-behavior-y: auto/);
   assert.doesNotMatch(statusScrollStyles, /overscroll-behavior:\s*contain/);
+  assert.doesNotMatch(statusScrollStyles, /overscroll-behavior-y:\s*contain/);
+  assert.doesNotMatch(tableSource, /onWheel|onTouch(?:Start|Move|End)/);
 });
 
 test("solo las tarjetas agrupadas reservan una tercera columna", () => {

@@ -14,6 +14,7 @@ import { AuthGate } from "./AuthGate";
 import { CoachModule } from "./CoachPreview";
 import { ContactProfile } from "./ContactProfile";
 import { ObjectivesPage } from "./ObjectivesPage";
+import { OnboardingIntroSlides } from "./OnboardingIntroSlides";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { ReadOnlyContacts } from "./ReadOnlyContacts";
 import { Shell } from "./Shell";
@@ -56,37 +57,32 @@ function OnboardingIntro() {
     <main className="onboarding-intro-shell">
       <div aria-hidden="true" className="onboarding-intro-background" />
       <section className="onboarding-intro" aria-labelledby="onboarding-intro-title">
-        <div aria-label="Coffeecito" className="onboarding-brand-lockup">
-          <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <span>Coffeecito</span>
-        </div>
-        <div className="onboarding-intro-copy">
-          <p className="onboarding-intro-eyebrow">Cómo funciona Coffeecito</p>
-          <h1 id="onboarding-intro-title">Networking simple, estructurado y orientado a resultados.</h1>
-          <p>
-            Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus
-            objetivos profesionales.
-          </p>
-        </div>
-        <div className="onboarding-flow" aria-label="Flujo principal de Coffeecito">
-          <strong>Define tus objetivos</strong>
-          <span aria-hidden="true">→</span>
-          <strong>Organiza tu red</strong>
-          <span aria-hidden="true">→</span>
-          <strong>Mantén el contexto</strong>
-          <span aria-hidden="true">→</span>
-          <strong>Activa tus próximas conversaciones</strong>
+        <div className="onboarding-intro-layout">
+          <div className="onboarding-intro-editorial">
+            <div aria-label="Coffeecito" className="onboarding-brand-lockup">
+              <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
+              <span>Coffeecito</span>
+            </div>
+            <div className="onboarding-intro-copy">
+              <h1 id="onboarding-intro-title">Simplifica y ordena tu networking.</h1>
+              <p>
+                Organiza tu red, mantén visibles tus relaciones y pendientes, y enfócate en las conversaciones que importan
+              </p>
+            </div>
+          </div>
+          <OnboardingIntroSlides />
         </div>
         <OnboardingError />
         <div className="onboarding-intro-actions">
           <Button
+            className="onboarding-intro-defer"
             onClick={() => void (onboarding.replaying ? onboarding.exit() : onboarding.defer())}
             tone="ghost"
           >
             Ahora no
           </Button>
-          <Button icon="arrowRight" onClick={() => void onboarding.start()} tone="primary">
-            Comenzar recorrido
+          <Button className="onboarding-intro-start" icon="arrowRight" onClick={() => void onboarding.start()} tone="primary">
+            Empecemos
           </Button>
         </div>
       </section>
@@ -123,7 +119,7 @@ function OnboardingContactsStep() {
   }, []);
 
   function continueFromContacts() {
-    void onboarding.moveTo(firstContactId ? "contact" : "google");
+    void onboarding.moveTo(firstContactId ? "contact" : "final");
   }
 
   return (
@@ -133,17 +129,15 @@ function OnboardingContactsStep() {
           nextDisabled={!contactsResolved}
           onNext={continueFromContacts}
           routeId="contacts"
-          title="Aquí administras tus contactos"
+          title="Aquí organizas y priorizas tu red"
         >
           <p>
-            En esta sección puedes visualizar y organizar todos tus contactos. También puedes crear nuevos contactos
-            manualmente con el botón “Crear contacto”.
+            Por defecto verás tus contactos marcados como Foco. Cambia el filtro a “Todos” para revisar tu red y marcar
+            con Foco a las personas que quieras priorizar.
           </p>
           <p>
-            Puedes marcar con Foco a las personas que quieres priorizar para networking, y marcar como Headhunter a
-            quienes quieras gestionar de forma distinta, incluso agrupados por empresa. También puedes actualizar
-            estados arrastrando tarjetas en el tablero, o administrar tus contactos de forma más masiva usando la tabla
-            inferior.
+            Prueba arrastrando una tarjeta para actualizar su estado. También puedes crear contactos o gestionar varios
+            desde la tabla inferior.
           </p>
         </OnboardingCoach>
       )}
@@ -171,12 +165,15 @@ function OnboardingContactStep() {
         if (!active) return;
         const firstContact = contacts[0];
         if (!firstContact) {
-          void onboarding.moveTo("google");
+          void onboarding.moveTo("final");
           return;
         }
         setContactId(firstContact.id);
         const nextProfile = await readContactProfile(firstContact.id);
-        if (active) setProfile(nextProfile);
+        if (active) {
+          if (nextProfile) setProfile(nextProfile);
+          else void onboarding.moveTo("final");
+        }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "No pudimos leer el contacto.");
       }
@@ -217,8 +214,8 @@ function OnboardingContactStep() {
 function OnboardingGoogleStep() {
   return (
     <div className="onboarding-google-step">
-      <OnboardingCoach routeId="google" title="Importa tus contactos desde Google o ingrésalos manualmente">
-        <p>Si quieres avanzar más rápido, puedes conectar Google para importar contactos e interacciones.</p>
+      <OnboardingCoach routeId="google" title="Importa tus contactos de forma masiva">
+        <p>Si quieres avanzar más rápido, puedes importar contactos desde un archivo vCard o desde tu cuenta de Google.</p>
         <p>Si prefieres, también puedes construir tu red manualmente dentro de Coffeecito, paso a paso.</p>
       </OnboardingCoach>
       <AccountPage view="google-onboarding" />
@@ -227,9 +224,20 @@ function OnboardingGoogleStep() {
 }
 
 function OnboardingFinalStep() {
+  const onboarding = useOnboarding();
+
+  async function goBack() {
+    try {
+      const contacts = await readContactListRows();
+      void onboarding.moveTo(contacts.length ? "contact" : "contacts");
+    } catch {
+      void onboarding.moveTo("contacts");
+    }
+  }
+
   return (
     <section className="onboarding-route">
-      <OnboardingCoach nextLabel="Fin del tutorial" routeId="final" title="Ya tienes lo esencial">
+      <OnboardingCoach nextLabel="Fin del tutorial" onBack={goBack} routeId="final" title="Ya tienes lo esencial">
         <p>Ahora ya conoces el flujo base para avanzar con mayor intención y continuidad.</p>
         <p>
           Coach seguirá acompañándote con sugerencias para ayudarte a mantener tu red al día y decidir mejor tus
@@ -244,6 +252,7 @@ function OnboardingCoach({
   children,
   nextDisabled = false,
   nextLabel,
+  onBack,
   onNext,
   routeId,
   title
@@ -251,6 +260,7 @@ function OnboardingCoach({
   children: ReactNode;
   nextDisabled?: boolean;
   nextLabel?: string;
+  onBack?: () => void;
   onNext?: () => void;
   routeId: OnboardingStep;
   title: string;
@@ -260,6 +270,10 @@ function OnboardingCoach({
   const stepIndex = ONBOARDING_FLOW.findIndex((entry) => entry.id === routeId);
 
   function goBack() {
+    if (onBack) {
+      onBack();
+      return;
+    }
     if (!navigation.back || navigation.back === "intro") {
       onboarding.openIntro();
       return;

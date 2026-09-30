@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
 import type { ReactNode } from "react";
+import "swiper/css";
+import "swiper/css/pagination";
 import "./globals.css";
 
 const lato = Lato({
