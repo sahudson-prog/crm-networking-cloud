@@ -331,6 +331,9 @@ test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
   assert.match(routeSource, /Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que\s+quieras priorizar\./);
   assert.match(routeSource, /También puedes arrastrar una tarjeta para actualizar su estado, crear nuevos contactos o gestionar varios\s+desde la tabla inferior\./);
   assert.match(routeSource, /title="Cada contacto tiene una ficha con su historia"/);
+  assert.match(routeSource, /Aquí puedes editar la información del contacto y mantener todo el contexto de la relación en un solo lugar\./);
+  assert.match(routeSource, /Registra interacciones —mensajes, citas, correos o llamadas— y edítalas para incorporar minutas y notas\./);
+  assert.match(routeSource, /También puedes registrar personas referidas durante esas interacciones\. Si una se vuelve relevante, puedes\s+convertirla en contacto y comenzar a darle seguimiento en Coffeecito\./);
   assert.match(routeSource, /title="Importa tus contactos de forma masiva"/);
   assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
 });

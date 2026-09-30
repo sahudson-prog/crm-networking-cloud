@@ -191,12 +191,14 @@ function OnboardingContactStep() {
   const coach = (
     <OnboardingCoach nextDisabled={!profile} routeId="contact" title="Cada contacto tiene una ficha con su historia">
       <p>
-        Desde esta ficha puedes registrar contexto sobre la relación, revisar interacciones anteriores y dejar más
-        claro cuál podría ser el próximo paso.
+        Aquí puedes editar la información del contacto y mantener todo el contexto de la relación en un solo lugar.
       </p>
       <p>
-        También puedes identificar posibles referidos, preparar tu siguiente café o iniciar desde aquí una nueva
-        conversación o una cita.
+        Registra interacciones —mensajes, citas, correos o llamadas— y edítalas para incorporar minutas y notas.
+      </p>
+      <p>
+        También puedes registrar personas referidas durante esas interacciones. Si una se vuelve relevante, puedes
+        convertirla en contacto y comenzar a darle seguimiento en Coffeecito.
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
     </OnboardingCoach>
