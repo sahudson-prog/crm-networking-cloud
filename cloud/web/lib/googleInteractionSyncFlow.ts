@@ -26,8 +26,6 @@ import type { ContactRow } from "./readModel.ts";
 import { supabase } from "./supabaseClient.ts";
 
 const GOOGLE_PROVIDER = "google";
-const MAX_FOCUSED_CONTACTS_FOR_ACTIVITY_SYNC = 50;
-const MAX_SCOPED_EMAILS_FOR_GMAIL_QUERY = 30;
 
 export type SyncGoogleInteractionsInput = {
   accessToken: string;
@@ -199,7 +197,7 @@ export async function syncGoogleInteractions(
 
   if (input.includeCalendar !== false) {
     try {
-      const skipCalendar = shouldSkipFocusedCalendar(input, scopedContacts, scopedCalendarQueries);
+      const skipCalendar = shouldSkipFocusedCalendar(input, scopedContacts);
       if (skipCalendar) {
         warnings.push(skipCalendar);
       } else {
@@ -763,7 +761,7 @@ function contactIndexByEmail(contacts: ContactRow[]): GoogleContactIndex {
 
 function gmailQueryForScopedContacts(contacts: ContactRow[]) {
   const emails = uniqueContactEmails(contacts);
-  if (!emails.length || emails.length > MAX_SCOPED_EMAILS_FOR_GMAIL_QUERY) return null;
+  if (!emails.length) return null;
   return `(${emails.map((email) => `(from:${email} OR to:${email} OR cc:${email} OR bcc:${email})`).join(" OR ")})`;
 }
 
@@ -771,7 +769,7 @@ function calendarQueriesForScopedContacts(input: SyncGoogleInteractionsInput, co
   if (input.calendarQuery) return [];
   if (!input.focusedOnly && !(input.contactIds?.length ?? 0)) return [];
   const emails = uniqueContactEmails(contacts);
-  if (!emails.length || emails.length > MAX_SCOPED_EMAILS_FOR_GMAIL_QUERY) return [];
+  if (!emails.length) return [];
   return emails;
 }
 
@@ -779,23 +777,17 @@ function shouldSkipFocusedMail(input: SyncGoogleInteractionsInput, contacts: Con
   if (!input.focusedOnly) return "";
   if (!contacts.length) return "No hay contactos en foco para revisar Gmail.";
   if (!scopedEmailQuery) {
-    return `Gmail no se reviso porque hay demasiados correos en contactos foco. Deja hasta ${MAX_SCOPED_EMAILS_FOR_GMAIL_QUERY} correos foco para esta revision beta.`;
+    return "Gmail no se reviso porque los contactos seleccionados no tienen correos.";
   }
   return "";
 }
 
-function shouldSkipFocusedCalendar(input: SyncGoogleInteractionsInput, contacts: ContactRow[], calendarQueries: string[]) {
+function shouldSkipFocusedCalendar(input: SyncGoogleInteractionsInput, contacts: ContactRow[]) {
   const isScopedReview = Boolean(input.focusedOnly || (input.contactIds?.length ?? 0));
   if (!isScopedReview || input.calendarQuery) return "";
   if (!contacts.length) return "No hay contactos en foco para revisar Calendar.";
-  if (contacts.length > MAX_FOCUSED_CONTACTS_FOR_ACTIVITY_SYNC) {
-    return `Calendar no se reviso porque hay demasiados contactos en foco. Deja hasta ${MAX_FOCUSED_CONTACTS_FOR_ACTIVITY_SYNC} contactos foco para esta revision beta.`;
-  }
   const emails = uniqueContactEmails(contacts);
   if (!emails.length) return "Calendar no se reviso porque los contactos seleccionados no tienen correos.";
-  if (!calendarQueries.length) {
-    return `Calendar no se reviso porque hay demasiados correos en contactos foco. Deja hasta ${MAX_SCOPED_EMAILS_FOR_GMAIL_QUERY} correos foco para esta revision beta.`;
-  }
   return "";
 }
 

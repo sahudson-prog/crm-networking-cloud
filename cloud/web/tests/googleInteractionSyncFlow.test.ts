@@ -336,9 +336,11 @@ test("syncGoogleInteractions con focusedOnly solo vincula contactos en foco", as
   assert.equal(mailBatches[0].items[0].participants?.[0]?.contactId, "contact-maria");
 });
 
-test("syncGoogleInteractions evita lectura amplia si hay demasiados contactos en foco", async () => {
+test("syncGoogleInteractions revisa Gmail y Calendar con mas de 50 contactos y 30 correos en foco", async () => {
   let mailReads = 0;
   let calendarReads = 0;
+  let receivedMailQuery = "";
+  const receivedCalendarQueries: string[] = [];
   const manyFocusedContacts = Array.from({ length: 60 }, (_, index): ContactRow => ({
     id: `contact-${index}`,
     display_name: `Contacto ${index}`,
@@ -361,8 +363,9 @@ test("syncGoogleInteractions evita lectura amplia si hay demasiados contactos en
   }, {
     readAppContacts: async () => manyFocusedContacts,
     readCursor: async () => null,
-    readMail: async () => {
+    readMail: async ({ query }) => {
       mailReads += 1;
+      receivedMailQuery = query ?? "";
       return {
         messages: [],
         mode: "full",
@@ -372,8 +375,9 @@ test("syncGoogleInteractions evita lectura amplia si hay demasiados contactos en
         warnings: []
       };
     },
-    readCalendar: async () => {
+    readCalendar: async ({ query }) => {
       calendarReads += 1;
+      receivedCalendarQueries.push(query ?? "");
       return {
         events: [],
         mode: "full",
@@ -388,13 +392,19 @@ test("syncGoogleInteractions evita lectura amplia si hay demasiados contactos en
     markCursorExpired: async () => {}
   });
 
-  assert.equal(mailReads, 0);
-  assert.equal(calendarReads, 0);
-  assert.match(result.warnings.join(" "), /demasiados/);
+  assert.equal(mailReads, 1);
+  assert.equal(calendarReads, 60);
+  assert.match(receivedMailQuery, /from:contacto0@empresa\.cl/);
+  assert.match(receivedMailQuery, /from:contacto59@empresa\.cl/);
+  assert.equal(new Set(receivedCalendarQueries).size, 60);
+  assert.ok(receivedCalendarQueries.includes("contacto0@empresa.cl"));
+  assert.ok(receivedCalendarQueries.includes("contacto59@empresa.cl"));
+  assert.doesNotMatch(result.warnings.join(" "), /demasiados|revision beta/i);
 });
 
-test("syncGoogleInteractions evita lectura amplia Calendar si hay demasiados correos en foco", async () => {
+test("syncGoogleInteractions consulta Calendar con todos los correos unicos del scope", async () => {
   let calendarReads = 0;
+  const receivedCalendarQueries: string[] = [];
   const contactWithManyEmails: ContactRow[] = [{
     id: "contact-many-emails",
     display_name: "Contacto con muchos correos",
@@ -430,9 +440,16 @@ test("syncGoogleInteractions evita lectura amplia Calendar si hay demasiados cor
       resultSizeEstimate: 0,
       warnings: []
     }),
-    readCalendar: async () => {
+    readCalendar: async ({ query }) => {
       calendarReads += 1;
-      throw new Error("No debe hacer lectura amplia de Calendar.");
+      receivedCalendarQueries.push(query ?? "");
+      return {
+        events: [],
+        mode: "full",
+        nextSyncToken: null,
+        pagesRead: 0,
+        warnings: []
+      };
     },
     syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
     syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
@@ -440,8 +457,60 @@ test("syncGoogleInteractions evita lectura amplia Calendar si hay demasiados cor
     markCursorExpired: async () => {}
   });
 
-  assert.equal(calendarReads, 0);
-  assert.match(result.warnings.join(" "), /demasiados correos/);
+  assert.equal(calendarReads, 31);
+  assert.equal(new Set(receivedCalendarQueries).size, 31);
+  assert.ok(receivedCalendarQueries.includes("correo0@empresa.cl"));
+  assert.ok(receivedCalendarQueries.includes("correo30@empresa.cl"));
+  assert.doesNotMatch(result.warnings.join(" "), /demasiados|revision beta/i);
+});
+
+test("syncGoogleInteractions conserva el skip focal sin contactos o sin correos", async () => {
+  const contactWithoutEmail: ContactRow = {
+    id: "contact-without-email",
+    display_name: "Contacto sin correo",
+    company: "",
+    role: "",
+    networking_status: "Pendiente",
+    networking_focus: true,
+    is_headhunter: false,
+    is_active: true,
+    updated_at: "2026-08-01T00:00:00Z",
+    contact_emails: [],
+    contact_phones: []
+  };
+
+  for (const testCase of [
+    { contacts: [] as ContactRow[], warning: /No hay contactos en foco/ },
+    { contacts: [contactWithoutEmail], warning: /no tienen correos/ }
+  ]) {
+    let mailReads = 0;
+    let calendarReads = 0;
+    const result = await syncGoogleInteractions({
+      accessToken: "token",
+      dryRun: true,
+      focusedOnly: true,
+      userEmail: "sergio@crm.cl"
+    }, {
+      readAppContacts: async () => testCase.contacts,
+      readCursor: async () => null,
+      readMail: async () => {
+        mailReads += 1;
+        throw new Error("No debe leer Gmail sin scope de correos.");
+      },
+      readCalendar: async () => {
+        calendarReads += 1;
+        throw new Error("No debe leer Calendar sin scope de correos.");
+      },
+      syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
+      syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+      writeCursor: async () => {},
+      markCursorExpired: async () => {}
+    });
+
+    assert.equal(mailReads, 0);
+    assert.equal(calendarReads, 0);
+    assert.match(result.warnings.join(" "), testCase.warning);
+  }
 });
 
 test("syncGoogleInteractions permite revisar solo Calendar y busca por correos en foco", async () => {
