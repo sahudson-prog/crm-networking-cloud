@@ -107,10 +107,12 @@ Para preview, precedencia de datos y aplicación de cambios, ver `docs/INGESTION
 Gmail usa Gmail API.
 Lectura histórica:
 - lista mensajes del usuario `me`;
-- usa una búsqueda Gmail;
+- usa una o más búsquedas Gmail;
 - lee cada mensaje seleccionado en formato `full`;
 - puede usar fecha mínima mediante `after:<timestamp>`;
-- puede acotar por emails de contactos cuando el flujo está en scope de foco o contacto específico.
+- puede acotar por emails de contactos cuando el flujo está en scope de foco o contacto específico;
+- en lectura histórica scoped, divide los emails únicos en búsquedas de hasta 20 direcciones y deduplica por `messageId` antes de leer el detalle entre búsquedas;
+- el máximo de correos se aplica tanto al total consolidado como al total de lecturas de detalle de la revisión. El presupuesto de páginas se comparte de forma conservadora, reservando al menos la primera página necesaria para cada búsqueda scoped.
 Lectura incremental:
 - usa Gmail History API;
 - parte desde `historyId` guardado;
@@ -223,7 +225,7 @@ Cuando Gmail y Calendar se ejecutan juntos, el flujo puede continuar con el serv
 Límites internos actuales usados por la app:
 - Contacts: máximo 20 páginas por revisión.
 - Gmail: máximo 250 correos por revisión.
-- Gmail: máximo 3 páginas por revisión.
+- Gmail: presupuesto base máximo de 3 páginas por revisión. En lectura histórica scoped se reserva al menos una primera página por batch, por lo que scopes de más de 60 emails pueden superar ese total únicamente para cubrir cada batch una vez.
 - Calendar: máximo 2500 eventos por revisión.
 - Calendar: máximo 2 páginas por revisión.
 Estos son límites internos de operación de CRM Networking. No son cuotas teóricas de Google.

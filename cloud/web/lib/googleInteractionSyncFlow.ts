@@ -1,4 +1,6 @@
 import {
+  GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES,
+  GOOGLE_GMAIL_DEFAULT_MAX_PAGES,
   GoogleInteractionClientError,
   readGoogleCalendarEvents,
   readGoogleGmailMessages,
@@ -26,6 +28,7 @@ import type { ContactRow } from "./readModel.ts";
 import { supabase } from "./supabaseClient.ts";
 
 const GOOGLE_PROVIDER = "google";
+const GMAIL_SCOPED_EMAILS_PER_BATCH = 20;
 
 export type SyncGoogleInteractionsInput = {
   accessToken: string;
@@ -73,6 +76,7 @@ type SyncGoogleInteractionsDependencies = {
   writeCursor: (input: { cursorLabel?: string; resourceType: "mail" | "calendar"; cursorValue: string | null; metadata?: Record<string, unknown> }) => Promise<void>;
   readMail: (input: {
     accessToken: string;
+    excludeMessageIds?: readonly string[];
     historyId?: string | null;
     maxMessages?: number;
     maxPages?: number;
@@ -133,7 +137,11 @@ export async function syncGoogleInteractions(
   ]);
   const scopedContacts = filterContactsForSync(contacts, input);
   const contactsByEmail = contactIndexByEmail(scopedContacts);
-  const scopedEmailQuery = input.gmailQuery ?? gmailQueryForScopedContacts(scopedContacts);
+  const hasExplicitGmailQuery = input.gmailQuery !== undefined && input.gmailQuery !== null;
+  const explicitGmailQuery = input.gmailQuery?.trim() ?? "";
+  const scopedEmailQueries = hasExplicitGmailQuery
+    ? (explicitGmailQuery ? [explicitGmailQuery] : [])
+    : gmailQueriesForScopedContacts(scopedContacts);
   const scopedCalendarQueries = calendarQueriesForScopedContacts(input, scopedContacts);
   const warnings: string[] = [];
   const errors: Array<{ code: string; message: string }> = [];
@@ -144,7 +152,7 @@ export async function syncGoogleInteractions(
 
   if (input.includeMail !== false) {
     try {
-      const skipMail = shouldSkipFocusedMail(input, scopedContacts, scopedEmailQuery);
+      const skipMail = shouldSkipFocusedMail(input, scopedContacts, scopedEmailQueries);
       if (skipMail) {
         warnings.push(skipMail);
       } else {
@@ -154,7 +162,7 @@ export async function syncGoogleInteractions(
         historyId: mailCursor,
         maxMessages: input.maxMailMessages,
         maxPages: input.maxPages,
-        query: scopedEmailQuery,
+        queries: scopedEmailQueries,
         since: input.gmailSince
         });
         const mailItems = filterExternalInteractionsFromDate(
@@ -479,32 +487,101 @@ async function readMailWithExpiredCursorRetry(
     historyId?: string | null;
     maxMessages?: number;
     maxPages?: number;
-    query?: string | null;
+    queries: string[];
     since?: string | null;
   }
 ) {
   const historyId = numericCursor(input.historyId);
   try {
-    return await deps.readMail({
-      accessToken: input.accessToken,
-      historyId,
-      maxMessages: input.maxMessages,
-      maxPages: input.maxPages,
-      query: historyId ? null : input.query,
-      since: historyId ? null : input.since
-    });
+    if (historyId) {
+      return await deps.readMail({
+        accessToken: input.accessToken,
+        historyId,
+        maxMessages: input.maxMessages,
+        maxPages: input.maxPages,
+        query: null,
+        since: null
+      });
+    }
+    return readMailForQueries(deps, input);
   } catch (error) {
     if (!(error instanceof GoogleInteractionClientError) || error.code !== "GOOGLE_INTERACTIONS_EXPIRED_SYNC_TOKEN") throw error;
     await deps.markCursorExpired({ cursorLabel: input.cursorLabel, resourceType: "mail" });
+    return readMailForQueries(deps, input);
+  }
+}
+
+async function readMailForQueries(
+  deps: SyncGoogleInteractionsDependencies,
+  input: {
+    accessToken: string;
+    maxMessages?: number;
+    maxPages?: number;
+    queries: string[];
+    since?: string | null;
+  }
+): Promise<GoogleGmailReadResult> {
+  if (input.queries.length <= 1) {
     return deps.readMail({
       accessToken: input.accessToken,
       historyId: null,
       maxMessages: input.maxMessages,
       maxPages: input.maxPages,
-      query: input.query,
+      query: input.queries[0] ?? null,
       since: input.since
     });
   }
+
+  const maxMessages = input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES;
+  const configuredPageBudget = input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES;
+  const totalPageBudget = Math.max(configuredPageBudget, input.queries.length);
+  const messagesById = new Map<string, GoogleGmailReadResult["messages"][number]>();
+  const warnings = new Set<string>();
+  const cursors: string[] = [];
+  let pagesRead = 0;
+  let pageBudgetAssigned = 0;
+  let resultSizeEstimate = 0;
+  let hasResultSizeEstimate = false;
+
+  for (const [index, query] of input.queries.entries()) {
+    if (messagesById.size >= maxMessages) break;
+    const remainingBatches = input.queries.length - index;
+    const remainingPageBudget = totalPageBudget - pageBudgetAssigned;
+    const batchPageBudget = Math.max(1, remainingPageBudget - (remainingBatches - 1));
+    pageBudgetAssigned += batchPageBudget;
+    const result = await deps.readMail({
+      accessToken: input.accessToken,
+      excludeMessageIds: Array.from(messagesById.keys()),
+      historyId: null,
+      maxMessages: maxMessages - messagesById.size,
+      maxPages: batchPageBudget,
+      query,
+      since: input.since
+    });
+
+    pagesRead += result.pagesRead;
+    if (result.nextCursor) cursors.push(result.nextCursor);
+    for (const warning of result.warnings) warnings.add(warning);
+    if (result.resultSizeEstimate !== null) {
+      resultSizeEstimate += result.resultSizeEstimate;
+      hasResultSizeEstimate = true;
+    }
+    for (const message of result.messages) {
+      const messageId = message.id?.trim();
+      if (!messageId || messagesById.has(messageId)) continue;
+      messagesById.set(messageId, message);
+      if (messagesById.size >= maxMessages) break;
+    }
+  }
+
+  return {
+    messages: Array.from(messagesById.values()),
+    mode: "full",
+    nextCursor: latestNumericCursor(cursors),
+    pagesRead,
+    resultSizeEstimate: hasResultSizeEstimate ? resultSizeEstimate : null,
+    warnings: Array.from(warnings)
+  };
 }
 
 function defaultDependencies(overrides: Partial<SyncGoogleInteractionsDependencies>): SyncGoogleInteractionsDependencies {
@@ -759,10 +836,14 @@ function contactIndexByEmail(contacts: ContactRow[]): GoogleContactIndex {
   return Object.fromEntries(entries);
 }
 
-function gmailQueryForScopedContacts(contacts: ContactRow[]) {
+function gmailQueriesForScopedContacts(contacts: ContactRow[]) {
   const emails = uniqueContactEmails(contacts);
-  if (!emails.length) return null;
-  return `(${emails.map((email) => `(from:${email} OR to:${email} OR cc:${email} OR bcc:${email})`).join(" OR ")})`;
+  const queries: string[] = [];
+  for (let index = 0; index < emails.length; index += GMAIL_SCOPED_EMAILS_PER_BATCH) {
+    const batch = emails.slice(index, index + GMAIL_SCOPED_EMAILS_PER_BATCH);
+    queries.push(`(${batch.map((email) => `(from:${email} OR to:${email} OR cc:${email} OR bcc:${email})`).join(" OR ")})`);
+  }
+  return queries;
 }
 
 function calendarQueriesForScopedContacts(input: SyncGoogleInteractionsInput, contacts: ContactRow[]) {
@@ -773,10 +854,13 @@ function calendarQueriesForScopedContacts(input: SyncGoogleInteractionsInput, co
   return emails;
 }
 
-function shouldSkipFocusedMail(input: SyncGoogleInteractionsInput, contacts: ContactRow[], scopedEmailQuery: string | null) {
+function shouldSkipFocusedMail(input: SyncGoogleInteractionsInput, contacts: ContactRow[], scopedEmailQueries: string[]) {
+  if (input.gmailQuery !== undefined && input.gmailQuery !== null && !scopedEmailQueries.length) {
+    return "Gmail no se reviso porque la busqueda indicada esta vacia.";
+  }
   if (!input.focusedOnly) return "";
   if (!contacts.length) return "No hay contactos en foco para revisar Gmail.";
-  if (!scopedEmailQuery) {
+  if (!scopedEmailQueries.length) {
     return "Gmail no se reviso porque los contactos seleccionados no tienen correos.";
   }
   return "";
@@ -860,4 +944,16 @@ function effectiveSyncErrors(
 function numericCursor(value?: string | null) {
   const clean = value?.trim() ?? "";
   return /^\d+$/.test(clean) ? clean : null;
+}
+
+function latestNumericCursor(values: string[]) {
+  return values
+    .map((value) => numericCursor(value))
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => {
+      const leftValue = BigInt(left);
+      const rightValue = BigInt(right);
+      if (leftValue === rightValue) return 0;
+      return leftValue > rightValue ? -1 : 1;
+    })[0] ?? "";
 }

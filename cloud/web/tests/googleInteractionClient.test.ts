@@ -38,6 +38,36 @@ test("Google Gmail client lista ids y lee mensajes full con limite", async () =>
   assert.match(urls[1], /format=full/);
 });
 
+test("Google Gmail client excluye ids ya descargados antes de leer detalles", async () => {
+  const detailRequests: string[] = [];
+  const fetchImpl = async (url: URL | RequestInfo) => {
+    const requestedUrl = new URL(String(url));
+    if (requestedUrl.pathname.endsWith("/messages")) {
+      const query = requestedUrl.searchParams.get("q");
+      return jsonResponse({
+        messages: query === "batch-1"
+          ? [{ id: "shared" }, { id: "first" }]
+          : [{ id: "shared" }, { id: "second" }]
+      });
+    }
+    const messageId = requestedUrl.pathname.split("/").pop() ?? "";
+    detailRequests.push(messageId);
+    return jsonResponse({ historyId: "200", id: messageId, payload: { headers: [] } });
+  };
+
+  const first = await readGoogleGmailMessages({ accessToken: "token", fetchImpl, query: "batch-1" });
+  const second = await readGoogleGmailMessages({
+    accessToken: "token",
+    excludeMessageIds: first.messages.map((message) => message.id ?? ""),
+    fetchImpl,
+    query: "batch-2"
+  });
+
+  assert.deepEqual(first.messages.map((message) => message.id), ["shared", "first"]);
+  assert.deepEqual(second.messages.map((message) => message.id), ["second"]);
+  assert.deepEqual(detailRequests, ["shared", "first", "second"]);
+});
+
 test("Google Gmail client usa historyId para incremental", async () => {
   const urls: string[] = [];
   const result = await readGoogleGmailMessages({

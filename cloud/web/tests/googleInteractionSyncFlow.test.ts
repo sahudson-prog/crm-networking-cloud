@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { GoogleInteractionClientError } from "../lib/googleInteractionClient.ts";
+import { GoogleInteractionClientError, readGoogleGmailMessages } from "../lib/googleInteractionClient.ts";
 import { externalInteractionSourceIdsForPreview, syncGoogleInteractions } from "../lib/googleInteractionSyncFlow.ts";
 import type { CalendarReadDiagnosticInput } from "../lib/externalInteractionReadDiagnostics.ts";
 import type { ExternalInteractionBatchInput, SyncRunResult } from "../lib/syncOrchestrator.ts";
@@ -52,6 +52,8 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
   const calendarBatches: ExternalInteractionBatchInput[] = [];
   const writtenCursors: Array<{ resourceType: string; cursorValue: string | null }> = [];
   let receivedHistoryId: string | null | undefined = "";
+  let receivedMailQuery: string | null | undefined = "unexpected";
+  let mailReads = 0;
 
   const result = await syncGoogleInteractions({
     accessToken: "token",
@@ -61,8 +63,10 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
   }, {
     readAppContacts: async () => contacts,
     readCursor: async ({ resourceType }) => resourceType === "mail" ? "100" : "calendar-prev",
-    readMail: async ({ historyId }) => {
+    readMail: async ({ historyId, query }) => {
+      mailReads += 1;
       receivedHistoryId = historyId;
+      receivedMailQuery = query;
       return {
         messages: [{
           id: "mail-1",
@@ -117,7 +121,9 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
   assert.equal(result.ok, true);
   assert.equal(result.googleRead.mailMessages, 1);
   assert.equal(result.googleRead.calendarEvents, 1);
+  assert.equal(mailReads, 1);
   assert.equal(receivedHistoryId, "100");
+  assert.equal(receivedMailQuery, null);
   assert.equal(mailBatches[0].mode, "incremental");
   assert.equal(mailBatches[0].items[0].externalId, "GMAIL_mail-1");
   assert.equal(mailBatches[0].items[0].participants?.[0]?.contactId, "contact-maria");
@@ -339,7 +345,9 @@ test("syncGoogleInteractions con focusedOnly solo vincula contactos en foco", as
 test("syncGoogleInteractions revisa Gmail y Calendar con mas de 50 contactos y 30 correos en foco", async () => {
   let mailReads = 0;
   let calendarReads = 0;
-  let receivedMailQuery = "";
+  const receivedMailQueries: string[] = [];
+  const receivedMailPageBudgets: Array<number | undefined> = [];
+  const receivedMailSince: Array<string | null | undefined> = [];
   const receivedCalendarQueries: string[] = [];
   const manyFocusedContacts = Array.from({ length: 60 }, (_, index): ContactRow => ({
     id: `contact-${index}`,
@@ -359,13 +367,17 @@ test("syncGoogleInteractions revisa Gmail y Calendar con mas de 50 contactos y 3
     accessToken: "token",
     dryRun: true,
     focusedOnly: true,
+    gmailSince: "2026-01-01T00:00:00.000Z",
+    maxPages: 3,
     userEmail: "sergio@crm.cl"
   }, {
     readAppContacts: async () => manyFocusedContacts,
     readCursor: async () => null,
-    readMail: async ({ query }) => {
+    readMail: async ({ maxPages, query, since }) => {
       mailReads += 1;
-      receivedMailQuery = query ?? "";
+      receivedMailQueries.push(query ?? "");
+      receivedMailPageBudgets.push(maxPages);
+      receivedMailSince.push(since);
       return {
         messages: [],
         mode: "full",
@@ -392,14 +404,216 @@ test("syncGoogleInteractions revisa Gmail y Calendar con mas de 50 contactos y 3
     markCursorExpired: async () => {}
   });
 
-  assert.equal(mailReads, 1);
+  assert.equal(mailReads, 3);
   assert.equal(calendarReads, 60);
-  assert.match(receivedMailQuery, /from:contacto0@empresa\.cl/);
-  assert.match(receivedMailQuery, /from:contacto59@empresa\.cl/);
+  assert.deepEqual(receivedMailQueries.map((query) => (query.match(/from:/g) ?? []).length), [20, 20, 20]);
+  assert.match(receivedMailQueries[0], /from:contacto0@empresa\.cl/);
+  assert.match(receivedMailQueries[2], /from:contacto59@empresa\.cl/);
+  assert.deepEqual(receivedMailPageBudgets, [1, 1, 1]);
+  assert.deepEqual(receivedMailSince, Array(3).fill("2026-01-01T00:00:00.000Z"));
   assert.equal(new Set(receivedCalendarQueries).size, 60);
   assert.ok(receivedCalendarQueries.includes("contacto0@empresa.cl"));
   assert.ok(receivedCalendarQueries.includes("contacto59@empresa.cl"));
   assert.doesNotMatch(result.warnings.join(" "), /demasiados|revision beta/i);
+});
+
+test("syncGoogleInteractions deduplica Gmail entre batches y respeta el limite total de mensajes", async () => {
+  const focusedContacts = Array.from({ length: 41 }, (_, index): ContactRow => ({
+    id: `contact-${index}`,
+    display_name: `Contacto ${index}`,
+    company: "",
+    role: "",
+    networking_status: "Pendiente",
+    networking_focus: true,
+    is_headhunter: false,
+    is_active: true,
+    updated_at: "2026-08-01T00:00:00Z",
+    contact_emails: [{ email: `contacto${index}@empresa.cl`, domain: "empresa.cl" }],
+    contact_phones: []
+  }));
+  const receivedMessageBudgets: Array<number | undefined> = [];
+  const receivedExcludedIds: string[][] = [];
+  const mailBatches: ExternalInteractionBatchInput[] = [];
+  let readIndex = 0;
+
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    dryRun: true,
+    focusedOnly: true,
+    includeCalendar: false,
+    maxMailMessages: 4,
+    maxPages: 3,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => focusedContacts,
+    readCursor: async () => null,
+    readMail: async ({ excludeMessageIds, maxMessages }) => {
+      receivedMessageBudgets.push(maxMessages);
+      receivedExcludedIds.push(Array.from(excludeMessageIds ?? []));
+      const uniqueRecipient = ["contacto1@empresa.cl", "contacto21@empresa.cl", "contacto40@empresa.cl"][readIndex];
+      readIndex += 1;
+      const messages = [
+        gmailFromUser("shared", "contacto0@empresa.cl"),
+        gmailFromUser(`unique-${readIndex}`, uniqueRecipient)
+      ].filter((message) => !(excludeMessageIds ?? []).includes(message.id ?? ""));
+      return {
+        messages: messages.slice(0, maxMessages),
+        mode: "full",
+        nextCursor: String(100 + readIndex),
+        pagesRead: 1,
+        resultSizeEstimate: 2,
+        warnings: []
+      };
+    },
+    readCalendar: async () => {
+      throw new Error("Calendar no participa en esta prueba.");
+    },
+    syncMail: async (input) => {
+      const batch = { ...input, resourceType: "mail" as const };
+      mailBatches.push(batch);
+      return syncResult(batch, "mail");
+    },
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {},
+    markCursorExpired: async () => {}
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(readIndex, 3);
+  assert.deepEqual(receivedMessageBudgets, [4, 2, 1]);
+  assert.deepEqual(receivedExcludedIds, [
+    [],
+    ["shared", "unique-1"],
+    ["shared", "unique-1", "unique-2"]
+  ]);
+  assert.equal(mailBatches[0].items.length, 4);
+  assert.deepEqual(mailBatches[0].items.map((item) => item.externalId), [
+    "GMAIL_shared",
+    "GMAIL_unique-1",
+    "GMAIL_unique-2",
+    "GMAIL_unique-3"
+  ]);
+});
+
+test("syncGoogleInteractions limita a 250 las lecturas de detalle Gmail entre batches", async () => {
+  const focusedContacts = Array.from({ length: 60 }, (_, index): ContactRow => ({
+    id: `contact-${index}`,
+    display_name: `Contacto ${index}`,
+    company: "",
+    role: "",
+    networking_status: "Pendiente",
+    networking_focus: true,
+    is_headhunter: false,
+    is_active: true,
+    updated_at: "2026-08-01T00:00:00Z",
+    contact_emails: [{ email: `contacto${index}@empresa.cl`, domain: "empresa.cl" }],
+    contact_phones: []
+  }));
+  let listRequests = 0;
+  let detailRequests = 0;
+  const mailBatches: ExternalInteractionBatchInput[] = [];
+
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    dryRun: true,
+    focusedOnly: true,
+    includeCalendar: false,
+    maxMailMessages: 250,
+    maxPages: 3,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => focusedContacts,
+    readCursor: async () => null,
+    readMail: async (input) => readGoogleGmailMessages({
+      ...input,
+      fetchImpl: async (url) => {
+        const requestedUrl = new URL(String(url));
+        if (requestedUrl.pathname.endsWith("/messages")) {
+          listRequests += 1;
+          if (listRequests === 1) {
+            return jsonResponse({ messages: Array.from({ length: 200 }, (_, index) => ({ id: `mail-${index}` })) });
+          }
+          if (listRequests === 2) {
+            return jsonResponse({
+              messages: [
+                ...Array.from({ length: 50 }, (_, index) => ({ id: `mail-${150 + index}` })),
+                ...Array.from({ length: 50 }, (_, index) => ({ id: `mail-${200 + index}` }))
+              ]
+            });
+          }
+          throw new Error("No debe listar un batch adicional despues de alcanzar 250 mensajes.");
+        }
+        detailRequests += 1;
+        const messageId = requestedUrl.pathname.split("/").pop() ?? "";
+        return jsonResponse(gmailFromUser(messageId, "contacto0@empresa.cl"));
+      }
+    }),
+    readCalendar: async () => {
+      throw new Error("Calendar no participa en esta prueba.");
+    },
+    syncMail: async (input) => {
+      const batch = { ...input, resourceType: "mail" as const };
+      mailBatches.push(batch);
+      return syncResult(batch, "mail");
+    },
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {},
+    markCursorExpired: async () => {}
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.equal(listRequests, 2);
+  assert.equal(detailRequests, 250);
+  assert.equal(mailBatches[0].items.length, 250);
+});
+
+test("syncGoogleInteractions no aplica batching scoped al camino incremental de Gmail", async () => {
+  const focusedContacts = Array.from({ length: 60 }, (_, index): ContactRow => ({
+    id: `contact-${index}`,
+    display_name: `Contacto ${index}`,
+    company: "",
+    role: "",
+    networking_status: "Pendiente",
+    networking_focus: true,
+    is_headhunter: false,
+    is_active: true,
+    updated_at: "2026-08-01T00:00:00Z",
+    contact_emails: [{ email: `contacto${index}@empresa.cl`, domain: "empresa.cl" }],
+    contact_phones: []
+  }));
+  const mailInputs: Array<{ historyId?: string | null; query?: string | null; since?: string | null }> = [];
+
+  await syncGoogleInteractions({
+    accessToken: "token",
+    focusedOnly: true,
+    gmailSince: "2026-01-01T00:00:00.000Z",
+    includeCalendar: false,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => focusedContacts,
+    readCursor: async () => "100",
+    readMail: async ({ historyId, query, since }) => {
+      mailInputs.push({ historyId, query, since });
+      return {
+        messages: [],
+        mode: "incremental",
+        nextCursor: "101",
+        pagesRead: 1,
+        resultSizeEstimate: 0,
+        warnings: []
+      };
+    },
+    readCalendar: async () => {
+      throw new Error("Calendar no participa en esta prueba.");
+    },
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {},
+    markCursorExpired: async () => {}
+  });
+
+  assert.deepEqual(mailInputs, [{ historyId: "100", query: null, since: null }]);
 });
 
 test("syncGoogleInteractions consulta Calendar con todos los correos unicos del scope", async () => {
@@ -462,6 +676,35 @@ test("syncGoogleInteractions consulta Calendar con todos los correos unicos del 
   assert.ok(receivedCalendarQueries.includes("correo0@empresa.cl"));
   assert.ok(receivedCalendarQueries.includes("correo30@empresa.cl"));
   assert.doesNotMatch(result.warnings.join(" "), /demasiados|revision beta/i);
+});
+
+test("syncGoogleInteractions omite Gmail si la query explicita esta vacia", async () => {
+  for (const gmailQuery of ["", "   \t"]) {
+    let mailReads = 0;
+    const result = await syncGoogleInteractions({
+      accessToken: "token",
+      gmailQuery,
+      includeCalendar: false,
+      userEmail: "sergio@crm.cl"
+    }, {
+      readAppContacts: async () => contacts,
+      readCursor: async () => null,
+      readMail: async () => {
+        mailReads += 1;
+        throw new Error("No debe hacer una lectura amplia de Gmail con una query vacia.");
+      },
+      readCalendar: async () => {
+        throw new Error("Calendar no participa en esta prueba.");
+      },
+      syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
+      syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+      writeCursor: async () => {},
+      markCursorExpired: async () => {}
+    });
+
+    assert.equal(mailReads, 0);
+    assert.match(result.warnings.join(" "), /busqueda indicada esta vacia/);
+  }
 });
 
 test("syncGoogleInteractions conserva el skip focal sin contactos o sin correos", async () => {
@@ -1086,4 +1329,11 @@ function gmailFromUser(id: string, to: string, subject = `Mail ${id}`, body = "H
       mimeType: "text/plain"
     }
   };
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json" },
+    status
+  });
 }

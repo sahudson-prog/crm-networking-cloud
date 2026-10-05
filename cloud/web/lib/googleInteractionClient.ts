@@ -11,7 +11,8 @@ const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messa
 const GMAIL_HISTORY_URL = "https://gmail.googleapis.com/gmail/v1/users/me/history";
 const GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 const CALENDAR_EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-const DEFAULT_MAX_MESSAGES = 25;
+export const GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES = 25;
+export const GOOGLE_GMAIL_DEFAULT_MAX_PAGES = 2;
 const DEFAULT_MAX_EVENTS = 25;
 const DEFAULT_MAX_PAGES = 2;
 const GMAIL_MAX_RESULTS_PER_PAGE = 500;
@@ -21,6 +22,7 @@ type FetchLike = typeof fetch;
 
 export type GoogleGmailReadInput = {
   accessToken: string;
+  excludeMessageIds?: readonly string[];
   fetchImpl?: FetchLike;
   historyId?: string | null;
   maxMessages?: number;
@@ -84,8 +86,9 @@ export async function readGoogleGmailMessages(input: GoogleGmailReadInput): Prom
 async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
   const accessToken = clean(input.accessToken);
   const fetchImpl = input.fetchImpl ?? fetch;
-  const maxMessages = clamp(input.maxMessages ?? DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
-  const maxPages = clamp(input.maxPages ?? DEFAULT_MAX_PAGES, 1, 10);
+  const maxMessages = clamp(input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
+  const maxPages = clamp(input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES, 1, 10);
+  const downloadedMessageIds = new Set((input.excludeMessageIds ?? []).map(clean).filter(Boolean));
   const messages: GoogleGmailMessage[] = [];
   const warnings: string[] = [];
   let pageToken = "";
@@ -108,7 +111,8 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
     resultSizeEstimate = typeof payload.resultSizeEstimate === "number" ? payload.resultSizeEstimate : resultSizeEstimate;
     for (const item of payload.messages ?? []) {
       const messageId = clean(item.id);
-      if (!messageId) continue;
+      if (!messageId || downloadedMessageIds.has(messageId)) continue;
+      downloadedMessageIds.add(messageId);
       messages.push(await readSingleGmailMessage(fetchImpl, accessToken, messageId));
       if (messages.length >= maxMessages) break;
     }
@@ -134,8 +138,8 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
 async function readGoogleGmailHistoryMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
   const accessToken = clean(input.accessToken);
   const fetchImpl = input.fetchImpl ?? fetch;
-  const maxMessages = clamp(input.maxMessages ?? DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
-  const maxPages = clamp(input.maxPages ?? DEFAULT_MAX_PAGES, 1, 10);
+  const maxMessages = clamp(input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
+  const maxPages = clamp(input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES, 1, 10);
   const messageIds = new Set<string>();
   const messages: GoogleGmailMessage[] = [];
   const warnings: string[] = [];
@@ -250,7 +254,7 @@ async function readSingleGmailMessage(fetchImpl: FetchLike, accessToken: string,
   if (!isRecord(body)) {
     throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio un mensaje inesperado.", response.status);
   }
-  return body as GoogleGmailMessage;
+  return { ...(body as GoogleGmailMessage), id: messageId };
 }
 
 async function readGmailProfileHistoryId(fetchImpl: FetchLike, accessToken: string) {
