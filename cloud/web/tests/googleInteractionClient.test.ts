@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   GoogleInteractionClientError,
+  createGoogleGmailRequestGovernor,
   readGoogleCalendarEvents,
   readGoogleGmailMessages
 } from "../lib/googleInteractionClient.ts";
@@ -131,6 +132,82 @@ test("Google Gmail client identifica permisos invalidos", async () => {
       return true;
     }
   );
+});
+
+test("Google Gmail client clasifica rate limit sin convertirlo en auth required", async () => {
+  for (const reason of ["rateLimitExceeded", "userRateLimitExceeded"]) {
+    const waits: number[] = [];
+    let requests = 0;
+    const requestGovernor = createGoogleGmailRequestGovernor({
+      sleep: async (milliseconds) => {
+        waits.push(milliseconds);
+      }
+    });
+
+    await assert.rejects(
+      readGoogleGmailMessages({
+        accessToken: "token",
+        fetchImpl: async () => {
+          requests += 1;
+          return jsonResponse({
+            error: {
+              errors: [{ domain: "usageLimits", reason }],
+              message: "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute per user'."
+            }
+          }, 403);
+        },
+        requestGovernor
+      }),
+      (error) => {
+        assert.ok(error instanceof GoogleInteractionClientError);
+        assert.equal(error.code, "GOOGLE_INTERACTIONS_RATE_LIMITED");
+        assert.match(error.message, /Quota exceeded/);
+        return true;
+      }
+    );
+
+    assert.equal(requests, 4, reason);
+    assert.deepEqual(waits, [1_000, 2_000, 4_000], reason);
+  }
+});
+
+test("Google Gmail client limita 250 detalles a 3000 unidades por ventana movil", async () => {
+  let currentTime = 0;
+  const requestLog: Array<{ at: number; units: number }> = [];
+  const requestGovernor = createGoogleGmailRequestGovernor({
+    now: () => currentTime,
+    sleep: async (milliseconds) => {
+      currentTime += milliseconds;
+    }
+  });
+
+  const result = await readGoogleGmailMessages({
+    accessToken: "token",
+    fetchImpl: async (url) => {
+      const requestedUrl = new URL(String(url));
+      if (requestedUrl.pathname.endsWith("/messages")) {
+        requestLog.push({ at: currentTime, units: 5 });
+        return jsonResponse({
+          messages: Array.from({ length: 250 }, (_, index) => ({ id: `mail-${index}` }))
+        });
+      }
+      requestLog.push({ at: currentTime, units: 20 });
+      const messageId = requestedUrl.pathname.split("/").pop() ?? "";
+      return jsonResponse({ historyId: "300", id: messageId, payload: { headers: [] } });
+    },
+    maxMessages: 250,
+    requestGovernor
+  });
+
+  assert.equal(result.messages.length, 250);
+  assert.equal(requestLog.filter((request) => request.units === 20).length, 250);
+  assert.ok(currentTime >= 60_000);
+  for (const request of requestLog) {
+    const unitsInWindow = requestLog
+      .filter((candidate) => candidate.at > request.at - 60_000 && candidate.at <= request.at)
+      .reduce((total, candidate) => total + candidate.units, 0);
+    assert.ok(unitsInWindow <= 3_000, `ventana en ${request.at}ms uso ${unitsInWindow} unidades`);
+  }
 });
 
 test("Google Gmail client identifica historyId vencido", async () => {

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { GoogleInteractionClientError, readGoogleGmailMessages } from "../lib/googleInteractionClient.ts";
+import {
+  GoogleInteractionClientError,
+  createGoogleGmailRequestGovernor,
+  readGoogleGmailMessages
+} from "../lib/googleInteractionClient.ts";
 import { externalInteractionSourceIdsForPreview, syncGoogleInteractions } from "../lib/googleInteractionSyncFlow.ts";
 import type { CalendarReadDiagnosticInput } from "../lib/externalInteractionReadDiagnostics.ts";
 import type { ExternalInteractionBatchInput, SyncRunResult } from "../lib/syncOrchestrator.ts";
@@ -182,6 +186,40 @@ test("syncGoogleInteractions falla cerrado si Gmail devuelve permiso invalido au
   }]);
   assert.equal(result.warnings.includes("Gmail necesita permiso de lectura."), false);
   assert.equal(calendarBatches[0].items.length, 1);
+});
+
+test("syncGoogleInteractions devuelve rate limit Gmail como error temporal explicito", async () => {
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    dryRun: true,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readCursor: async () => null,
+    readMail: async () => {
+      throw new GoogleInteractionClientError(
+        "GOOGLE_INTERACTIONS_RATE_LIMITED",
+        "Gmail alcanzo temporalmente su limite de consultas.",
+        403
+      );
+    },
+    readCalendar: async () => {
+      throw new Error("Calendar no participa en esta prueba.");
+    },
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    writeCursor: async () => {},
+    markCursorExpired: async () => {}
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.mail, null);
+  assert.deepEqual(result.errors, [{
+    code: "GOOGLE_INTERACTIONS_RATE_LIMITED",
+    message: "Gmail alcanzo temporalmente su limite de consultas."
+  }]);
 });
 
 test("syncGoogleInteractions no guarda cursores en dry-run", async () => {
@@ -511,6 +549,7 @@ test("syncGoogleInteractions limita a 250 las lecturas de detalle Gmail entre ba
   }));
   let listRequests = 0;
   let detailRequests = 0;
+  let currentTime = 0;
   const mailBatches: ExternalInteractionBatchInput[] = [];
 
   const result = await syncGoogleInteractions({
@@ -522,6 +561,12 @@ test("syncGoogleInteractions limita a 250 las lecturas de detalle Gmail entre ba
     maxPages: 3,
     userEmail: "sergio@crm.cl"
   }, {
+    createMailRequestGovernor: () => createGoogleGmailRequestGovernor({
+      now: () => currentTime,
+      sleep: async (milliseconds) => {
+        currentTime += milliseconds;
+      }
+    }),
     readAppContacts: async () => focusedContacts,
     readCursor: async () => null,
     readMail: async (input) => readGoogleGmailMessages({
@@ -565,6 +610,7 @@ test("syncGoogleInteractions limita a 250 las lecturas de detalle Gmail entre ba
   assert.deepEqual(result.errors, []);
   assert.equal(listRequests, 2);
   assert.equal(detailRequests, 250);
+  assert.ok(currentTime >= 60_000);
   assert.equal(mailBatches[0].items.length, 250);
 });
 

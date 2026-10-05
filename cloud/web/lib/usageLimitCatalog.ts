@@ -24,6 +24,8 @@ export type UsageLimitDefinition = {
   title: string;
 };
 
+export const GMAIL_QUOTA_UNITS_PER_MINUTE_USER = 3000;
+
 export const USAGE_LIMIT_DEFINITIONS: UsageLimitDefinition[] = [
   {
     appDefault: 100,
@@ -83,7 +85,7 @@ export const USAGE_LIMIT_DEFINITIONS: UsageLimitDefinition[] = [
     title: "Calendar diario"
   },
   {
-    appDefault: 3000,
+    appDefault: GMAIL_QUOTA_UNITS_PER_MINUTE_USER,
     appUnit: "unidades/min",
     description: "Seguro interno para llamadas Gmail, incluyendo busqueda y lectura de mensajes.",
     id: "gmail_quota_units_per_minute_user",

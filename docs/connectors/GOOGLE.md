@@ -212,11 +212,12 @@ Branches especiales observados:
 - Contacts con razón `EXPIRED_SYNC_TOKEN`: cursor vencido; activa fallback a lectura completa.
 - Contacts 400 usando sync token: cursor incompatible; activa fallback a lectura completa.
 - Contacts 400 `invalid argument` sin cursor guardado: reintento full read sin pedir cursor incremental.
-- Gmail 401 o 403: la implementación los trata como autorización o permiso Google no utilizable.
+- Gmail 401 o 403 sin señal de cuota: la implementación los trata como autorización o permiso Google no utilizable.
+- Gmail 403 con razón `rateLimitExceeded` o `userRateLimitExceeded`, y HTTP 429: aplica reintentos con backoff exponencial truncado y, si persiste, devuelve un error temporal explícito sin invalidar la autorización Google.
 - Gmail 404 o 410: history vencido; activa fallback a lectura completa.
 - Calendar 401 o 403: la implementación los trata como autorización o permiso Google no utilizable.
 - Calendar 410: sync token vencido; activa fallback a lectura completa.
-No hay branch especial observado para 429; se propaga como error HTTP genérico.
+El mensaje útil devuelto por Google para límites temporales se conserva sin convertir el error en una solicitud de reconexión.
 No hay branch especial observado para API deshabilitada; si llega como 401/403 cae en autorización o permiso no utilizable, y si llega con otro status cae como error HTTP genérico.
 No hay branch especial observado para scope faltante más allá del tratamiento 401/403.
 Cuando Gmail y Calendar se ejecutan juntos, el flujo puede continuar con el servicio autorizado cuando el otro no está disponible por error de permiso. Si ningún servicio solicitado logra ejecutarse, el error de permiso permanece como error efectivo.
@@ -226,6 +227,7 @@ Límites internos actuales usados por la app:
 - Contacts: máximo 20 páginas por revisión.
 - Gmail: máximo 250 correos por revisión.
 - Gmail: presupuesto base máximo de 3 páginas por revisión. En lectura histórica scoped se reserva al menos una primera página por batch, por lo que scopes de más de 60 emails pueden superar ese total únicamente para cubrir cada batch una vez.
+- Gmail: presupuesto interno de 3000 unidades por ventana móvil de 60 segundos y corrida. Cada `messages.list` reserva 5 unidades, cada `messages.get` 20, `getProfile` 1 y `history.list` 2. Si la siguiente llamada excedería el presupuesto, la corrida espera hasta la siguiente capacidad disponible sin ampliar el máximo total de correos.
 - Calendar: máximo 2500 eventos por revisión.
 - Calendar: máximo 2 páginas por revisión.
 Estos son límites internos de operación de CRM Networking. No son cuotas teóricas de Google.

@@ -424,7 +424,7 @@ test("consumidores Google exigen capability efectiva antes de usar token", () =>
   }
 });
 
-test("handlers productivos de 401/403 Google invalidan autorizacion activa", () => {
+test("handlers productivos de errores auth Google invalidan autorizacion activa", () => {
   const files = [
     "../components/ActivitySyncButton.tsx",
     "../components/ContactDataSyncButton.tsx",
@@ -438,7 +438,7 @@ test("handlers productivos de 401/403 Google invalidan autorizacion activa", () 
   }
 });
 
-test("401 y 403 se clasifican como auth failure sin revocar connected_accounts", () => {
+test("401 y 403 no-quota se clasifican como auth failure sin revocar connected_accounts", () => {
   const contactsClient = readFileSync(new URL("../lib/googleContactsClient.ts", import.meta.url), "utf8");
   const interactionsClient = readFileSync(new URL("../lib/googleInteractionClient.ts", import.meta.url), "utf8");
 
@@ -446,6 +446,18 @@ test("401 y 403 se clasifican como auth failure sin revocar connected_accounts",
   assert.match(interactionsClient, /status === 401 \|\| status === 403[\s\S]*GOOGLE_INTERACTIONS_AUTH_REQUIRED/);
   assert.equal(contactsClient.includes("disconnect_current_user_google_connected_account"), false);
   assert.equal(interactionsClient.includes("disconnect_current_user_google_connected_account"), false);
+});
+
+test("rate limit Gmail no usa el codigo que activa invalidacion de autorizacion", () => {
+  const interactionsClient = readFileSync(new URL("../lib/googleInteractionClient.ts", import.meta.url), "utf8");
+  const activityButton = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+  const interactionsPanel = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(interactionsClient, /GOOGLE_INTERACTIONS_RATE_LIMITED/);
+  assert.match(activityButton, /error\.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED"/);
+  assert.match(interactionsPanel, /error\.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED"/);
+  assert.equal(activityButton.includes('error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"'), false);
+  assert.equal(interactionsPanel.includes('error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"'), false);
 });
 
 test("errores no-auth de Google no invalidan autorizacion automaticamente", () => {

@@ -1,4 +1,5 @@
 import type { GoogleCalendarEvent, GoogleGmailMessage } from "./googleInteractionAdapter.ts";
+import { GMAIL_QUOTA_UNITS_PER_MINUTE_USER } from "./usageLimitCatalog.ts";
 
 export const GOOGLE_GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 export const GOOGLE_CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
@@ -17,8 +18,28 @@ const DEFAULT_MAX_EVENTS = 25;
 const DEFAULT_MAX_PAGES = 2;
 const GMAIL_MAX_RESULTS_PER_PAGE = 500;
 const CALENDAR_MAX_RESULTS_PER_PAGE = 2500;
+const GMAIL_QUOTA_WINDOW_MS = 60_000;
+const GMAIL_RATE_LIMIT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
+const GMAIL_QUOTA_COST = {
+  getProfile: 1,
+  historyList: 2,
+  messageGet: 20,
+  messageList: 5
+} as const;
 
 type FetchLike = typeof fetch;
+type SleepLike = (milliseconds: number) => Promise<void>;
+
+export type GoogleGmailRequestGovernor = {
+  reserve: (units: number) => Promise<void>;
+  wait: SleepLike;
+};
+
+type GoogleGmailRequestGovernorOptions = {
+  now?: () => number;
+  sleep?: SleepLike;
+  unitsPerMinute?: number;
+};
 
 export type GoogleGmailReadInput = {
   accessToken: string;
@@ -28,6 +49,7 @@ export type GoogleGmailReadInput = {
   maxMessages?: number;
   maxPages?: number;
   query?: string | null;
+  requestGovernor?: GoogleGmailRequestGovernor;
   since?: string | null;
 };
 
@@ -64,7 +86,8 @@ export class GoogleInteractionClientError extends Error {
     | "GOOGLE_INTERACTIONS_AUTH_REQUIRED"
     | "GOOGLE_INTERACTIONS_EXPIRED_SYNC_TOKEN"
     | "GOOGLE_INTERACTIONS_HTTP_ERROR"
-    | "GOOGLE_INTERACTIONS_INVALID_RESPONSE";
+    | "GOOGLE_INTERACTIONS_INVALID_RESPONSE"
+    | "GOOGLE_INTERACTIONS_RATE_LIMITED";
   status?: number;
 
   constructor(code: GoogleInteractionClientError["code"], message: string, status?: number) {
@@ -75,17 +98,59 @@ export class GoogleInteractionClientError extends Error {
   }
 }
 
+export function createGoogleGmailRequestGovernor(
+  options: GoogleGmailRequestGovernorOptions = {}
+): GoogleGmailRequestGovernor {
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? defaultSleep;
+  const unitsPerMinute = options.unitsPerMinute ?? GMAIL_QUOTA_UNITS_PER_MINUTE_USER;
+  const reservations: Array<{ at: number; units: number }> = [];
+
+  return {
+    async reserve(units) {
+      const requestedUnits = Math.max(0, Math.floor(units));
+      if (!requestedUnits) return;
+      if (requestedUnits > unitsPerMinute) {
+        throw new Error("Una llamada Gmail supera el presupuesto interno por minuto.");
+      }
+
+      while (true) {
+        const currentTime = now();
+        while (reservations.length && reservations[0].at <= currentTime - GMAIL_QUOTA_WINDOW_MS) {
+          reservations.shift();
+        }
+        const usedUnits = reservations.reduce((total, reservation) => total + reservation.units, 0);
+        if (usedUnits + requestedUnits <= unitsPerMinute) {
+          reservations.push({ at: currentTime, units: requestedUnits });
+          return;
+        }
+
+        const unitsToRelease = usedUnits + requestedUnits - unitsPerMinute;
+        let releasedUnits = 0;
+        let waitUntil = currentTime + GMAIL_QUOTA_WINDOW_MS;
+        for (const reservation of reservations) {
+          releasedUnits += reservation.units;
+          waitUntil = reservation.at + GMAIL_QUOTA_WINDOW_MS;
+          if (releasedUnits >= unitsToRelease) break;
+        }
+        await sleep(Math.max(1, waitUntil - currentTime));
+      }
+    },
+    wait: sleep
+  };
+}
+
 export async function readGoogleGmailMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
   const accessToken = clean(input.accessToken);
   if (!accessToken) throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_HTTP_ERROR", "Falta token de acceso Google.");
+  const requestGovernor = input.requestGovernor ?? createGoogleGmailRequestGovernor();
+  const governedInput = { ...input, requestGovernor };
 
-  if (clean(input.historyId)) return readGoogleGmailHistoryMessages(input);
-  return readGoogleGmailFullMessages(input);
+  if (clean(input.historyId)) return readGoogleGmailHistoryMessages(governedInput);
+  return readGoogleGmailFullMessages(governedInput);
 }
 
 async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
-  const accessToken = clean(input.accessToken);
-  const fetchImpl = input.fetchImpl ?? fetch;
   const maxMessages = clamp(input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
   const maxPages = clamp(input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES, 1, 10);
   const downloadedMessageIds = new Set((input.excludeMessageIds ?? []).map(clean).filter(Boolean));
@@ -97,15 +162,16 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
 
   while (messages.length < maxMessages) {
     pagesRead += 1;
-    const response = await fetchImpl(gmailListUrl({ maxResults: Math.min(maxMessages - messages.length, GMAIL_MAX_RESULTS_PER_PAGE), pageToken, query: input.query, since: input.since }), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const body = await parseJson(response);
-    if (!response.ok) throw googleInteractionError(response.status, body, "Gmail");
+    const body = await fetchGmailJson(input, gmailListUrl({
+      maxResults: Math.min(maxMessages - messages.length, GMAIL_MAX_RESULTS_PER_PAGE),
+      pageToken,
+      query: input.query,
+      since: input.since
+    }), GMAIL_QUOTA_COST.messageList);
 
     const payload = body as GmailListResponse;
     if (!Array.isArray(payload.messages ?? [])) {
-      throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio una respuesta inesperada.", response.status);
+      throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio una respuesta inesperada.");
     }
 
     resultSizeEstimate = typeof payload.resultSizeEstimate === "number" ? payload.resultSizeEstimate : resultSizeEstimate;
@@ -113,7 +179,7 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
       const messageId = clean(item.id);
       if (!messageId || downloadedMessageIds.has(messageId)) continue;
       downloadedMessageIds.add(messageId);
-      messages.push(await readSingleGmailMessage(fetchImpl, accessToken, messageId));
+      messages.push(await readSingleGmailMessage(input, messageId));
       if (messages.length >= maxMessages) break;
     }
 
@@ -128,7 +194,7 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
   return {
     messages,
     mode: "full",
-    nextCursor: latestMessageHistoryId(messages) || await readGmailProfileHistoryId(fetchImpl, accessToken),
+    nextCursor: latestMessageHistoryId(messages) || await readGmailProfileHistoryId(input),
     pagesRead,
     resultSizeEstimate,
     warnings
@@ -136,8 +202,6 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
 }
 
 async function readGoogleGmailHistoryMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
-  const accessToken = clean(input.accessToken);
-  const fetchImpl = input.fetchImpl ?? fetch;
   const maxMessages = clamp(input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
   const maxPages = clamp(input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES, 1, 10);
   const messageIds = new Set<string>();
@@ -149,15 +213,11 @@ async function readGoogleGmailHistoryMessages(input: GoogleGmailReadInput): Prom
 
   while (messageIds.size < maxMessages) {
     pagesRead += 1;
-    const response = await fetchImpl(gmailHistoryUrl({
+    const body = await fetchGmailJson(input, gmailHistoryUrl({
       maxResults: Math.min(maxMessages - messageIds.size, GMAIL_MAX_RESULTS_PER_PAGE),
       pageToken,
       startHistoryId: clean(input.historyId)
-    }), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const body = await parseJson(response);
-    if (!response.ok) throw googleInteractionError(response.status, body, "Gmail");
+    }), GMAIL_QUOTA_COST.historyList);
 
     const payload = body as GmailHistoryResponse;
     for (const historyItem of payload.history ?? []) {
@@ -178,7 +238,7 @@ async function readGoogleGmailHistoryMessages(input: GoogleGmailReadInput): Prom
   }
 
   for (const messageId of messageIds) {
-    messages.push(await readSingleGmailMessage(fetchImpl, accessToken, messageId));
+    messages.push(await readSingleGmailMessage(input, messageId));
   }
 
   return {
@@ -243,28 +303,39 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
   };
 }
 
-async function readSingleGmailMessage(fetchImpl: FetchLike, accessToken: string, messageId: string) {
+async function readSingleGmailMessage(input: GoogleGmailReadInput, messageId: string) {
   const url = new URL(`${GMAIL_MESSAGES_URL}/${encodeURIComponent(messageId)}`);
   url.searchParams.set("format", "full");
-  const response = await fetchImpl(url.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const body = await parseJson(response);
-  if (!response.ok) throw googleInteractionError(response.status, body, "Gmail");
+  const body = await fetchGmailJson(input, url.toString(), GMAIL_QUOTA_COST.messageGet);
   if (!isRecord(body)) {
-    throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio un mensaje inesperado.", response.status);
+    throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio un mensaje inesperado.");
   }
   return { ...(body as GoogleGmailMessage), id: messageId };
 }
 
-async function readGmailProfileHistoryId(fetchImpl: FetchLike, accessToken: string) {
-  const response = await fetchImpl(GMAIL_PROFILE_URL, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const body = await parseJson(response);
-  if (!response.ok) throw googleInteractionError(response.status, body, "Gmail");
+async function readGmailProfileHistoryId(input: GoogleGmailReadInput) {
+  const body = await fetchGmailJson(input, GMAIL_PROFILE_URL, GMAIL_QUOTA_COST.getProfile);
   if (isRecord(body) && typeof body.historyId === "string" && body.historyId.trim()) return body.historyId.trim();
-  throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail no devolvio historyId en el perfil.", response.status);
+  throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail no devolvio historyId en el perfil.");
+}
+
+async function fetchGmailJson(input: GoogleGmailReadInput, url: string, quotaCost: number) {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const requestGovernor = input.requestGovernor ?? createGoogleGmailRequestGovernor();
+
+  for (let attempt = 0; ; attempt += 1) {
+    await requestGovernor.reserve(quotaCost);
+    const response = await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${clean(input.accessToken)}` }
+    });
+    const body = await parseJson(response);
+    if (response.ok) return body;
+
+    const error = googleInteractionError(response.status, body, "Gmail");
+    const retryDelay = GMAIL_RATE_LIMIT_RETRY_DELAYS_MS[attempt];
+    if (error.code !== "GOOGLE_INTERACTIONS_RATE_LIMITED" || retryDelay === undefined) throw error;
+    await requestGovernor.wait(retryDelay);
+  }
 }
 
 function gmailListUrl(input: { maxResults: number; pageToken?: string | null; query?: string | null; since?: string | null }) {
@@ -341,6 +412,13 @@ function googleInteractionError(status: number, body: unknown, service: string) 
       status
     );
   }
+  if (service === "Gmail" && isGmailRateLimitError(status, body)) {
+    return new GoogleInteractionClientError(
+      "GOOGLE_INTERACTIONS_RATE_LIMITED",
+      googleErrorMessage(body) || "Gmail alcanzo temporalmente su limite de uso. Intenta nuevamente mas tarde.",
+      status
+    );
+  }
   if (status === 401 || status === 403) {
     return new GoogleInteractionClientError(
       "GOOGLE_INTERACTIONS_AUTH_REQUIRED",
@@ -355,11 +433,34 @@ function googleInteractionError(status: number, body: unknown, service: string) 
   );
 }
 
+function isGmailRateLimitError(status: number, body: unknown) {
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  return googleErrorReasons(body).some((reason) => {
+    const normalized = reason.replace(/[^a-z]/gi, "").toLowerCase();
+    return normalized === "ratelimitexceeded" || normalized === "userratelimitexceeded";
+  });
+}
+
+function googleErrorReasons(body: unknown) {
+  if (!isRecord(body) || !isRecord(body.error)) return [];
+  const error = body.error;
+  const candidates = [
+    ...(Array.isArray(error.errors) ? error.errors : []),
+    ...(Array.isArray(error.details) ? error.details : [])
+  ];
+  return candidates.flatMap((item) => isRecord(item) && typeof item.reason === "string" ? [item.reason] : []);
+}
+
 function googleErrorMessage(body: unknown) {
   if (!isRecord(body)) return "";
   const error = body.error;
   if (isRecord(error) && typeof error.message === "string") return error.message;
   return "";
+}
+
+function defaultSleep(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function clamp(value: number, min: number, max: number) {

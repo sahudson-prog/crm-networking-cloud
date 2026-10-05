@@ -2,10 +2,12 @@ import {
   GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES,
   GOOGLE_GMAIL_DEFAULT_MAX_PAGES,
   GoogleInteractionClientError,
+  createGoogleGmailRequestGovernor,
   readGoogleCalendarEvents,
   readGoogleGmailMessages,
   type GoogleCalendarReadResult,
-  type GoogleGmailReadResult
+  type GoogleGmailReadResult,
+  type GoogleGmailRequestGovernor
 } from "./googleInteractionClient.ts";
 import {
   saveCalendarReadDiagnostics,
@@ -70,6 +72,7 @@ export type SyncGoogleInteractionsResult = {
 };
 
 type SyncGoogleInteractionsDependencies = {
+  createMailRequestGovernor: () => GoogleGmailRequestGovernor;
   readAppContacts: () => Promise<ContactRow[]>;
   readCursor: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<string | null>;
   markCursorExpired: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<void>;
@@ -81,6 +84,7 @@ type SyncGoogleInteractionsDependencies = {
     maxMessages?: number;
     maxPages?: number;
     query?: string | null;
+    requestGovernor?: GoogleGmailRequestGovernor;
     since?: string | null;
   }) => Promise<GoogleGmailReadResult>;
   readCalendar: (input: {
@@ -492,6 +496,7 @@ async function readMailWithExpiredCursorRetry(
   }
 ) {
   const historyId = numericCursor(input.historyId);
+  const requestGovernor = deps.createMailRequestGovernor();
   try {
     if (historyId) {
       return await deps.readMail({
@@ -500,14 +505,15 @@ async function readMailWithExpiredCursorRetry(
         maxMessages: input.maxMessages,
         maxPages: input.maxPages,
         query: null,
+        requestGovernor,
         since: null
       });
     }
-    return readMailForQueries(deps, input);
+    return readMailForQueries(deps, { ...input, requestGovernor });
   } catch (error) {
     if (!(error instanceof GoogleInteractionClientError) || error.code !== "GOOGLE_INTERACTIONS_EXPIRED_SYNC_TOKEN") throw error;
     await deps.markCursorExpired({ cursorLabel: input.cursorLabel, resourceType: "mail" });
-    return readMailForQueries(deps, input);
+    return readMailForQueries(deps, { ...input, requestGovernor });
   }
 }
 
@@ -518,6 +524,7 @@ async function readMailForQueries(
     maxMessages?: number;
     maxPages?: number;
     queries: string[];
+    requestGovernor: GoogleGmailRequestGovernor;
     since?: string | null;
   }
 ): Promise<GoogleGmailReadResult> {
@@ -528,6 +535,7 @@ async function readMailForQueries(
       maxMessages: input.maxMessages,
       maxPages: input.maxPages,
       query: input.queries[0] ?? null,
+      requestGovernor: input.requestGovernor,
       since: input.since
     });
   }
@@ -556,6 +564,7 @@ async function readMailForQueries(
       maxMessages: maxMessages - messagesById.size,
       maxPages: batchPageBudget,
       query,
+      requestGovernor: input.requestGovernor,
       since: input.since
     });
 
@@ -586,6 +595,7 @@ async function readMailForQueries(
 
 function defaultDependencies(overrides: Partial<SyncGoogleInteractionsDependencies>): SyncGoogleInteractionsDependencies {
   return {
+    createMailRequestGovernor: createGoogleGmailRequestGovernor,
     markCursorExpired: async (input) => {
       await markSyncCursorExpired({
         cursorLabel: input.cursorLabel,
