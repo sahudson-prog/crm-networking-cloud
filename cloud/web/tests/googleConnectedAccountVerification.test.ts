@@ -338,9 +338,45 @@ test("botones de importacion compactos reciben razones visibles para disabled", 
   assert.match(contactsSource, /connected-service-reason/);
   assert.match(interactionsSource, /connected-service-action-reason/);
   assert.match(contactsSource, /Boolean\(compactDisabledReason\) \|\| state\.loading/);
-  assert.match(interactionsSource, /Boolean\(mailActionDisabledReason\) \|\| state\.loading \|\| state\.applying/);
+  assert.match(interactionsSource, /Boolean\(mailActionDisabledReason\) \|\| !state\.selectedGmailLabelId \|\| state\.loading \|\| state\.applying/);
   assert.match(interactionsSource, /toolbar connected-service-action-controls[\s\S]*connected-service-action-reason[\s\S]*mailActionDisabledReason/);
   assert.match(interactionsSource, /toolbar connected-service-action-controls[\s\S]*connected-service-action-reason[\s\S]*calendarActionDisabledReason/);
+});
+
+test("bootstrap Gmail de Cuenta exige una etiqueta USER antes de Review", () => {
+  const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(interactionsSource, /listGoogleGmailUserLabels/);
+  assert.match(interactionsSource, /selectedGmailLabelId/);
+  assert.match(interactionsSource, /!state\.selectedGmailLabelId/);
+  assert.match(interactionsSource, /Selecciona una etiqueta Gmail antes de revisar correos/);
+});
+
+test("labels Gmail se recargan con el token actualizado despues de renovar autorizacion", () => {
+  const accountSource = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
+  const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(accountSource, /googleAccessToken=\{account\.googleAccessToken\}/);
+  assert.match(interactionsSource, /listGoogleGmailUserLabels\(\{ accessToken \}\)/);
+  assert.match(interactionsSource, /\[effectiveAccessToken, gmailLabelsReloadKey, googleMailAvailable\]/);
+  assert.match(interactionsSource, /if \(!active\) return/);
+});
+
+test("selector Gmail distingue loading, empty y error reintentable", () => {
+  const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(interactionsSource, /Cargando etiquetas\.\.\./);
+  assert.match(interactionsSource, /No hay etiquetas personales en esta cuenta de Gmail/);
+  assert.match(interactionsSource, /No pude cargar las etiquetas de Gmail/);
+  assert.match(interactionsSource, /setGmailLabelsReloadKey/);
+  assert.match(interactionsSource, />\s*Reintentar\s*</);
+});
+
+test("Importar Gmail queda habilitable solo despues de seleccionar una etiqueta", () => {
+  const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(interactionsSource, /disabled=\{Boolean\(mailActionDisabledReason\) \|\| !state\.selectedGmailLabelId \|\| state\.loading \|\| state\.applying\}/);
+  assert.match(interactionsSource, /selectedGmailLabelId: event\.target\.value/);
 });
 
 test("Contactos no se bloquea por fecha de inicio pero correos y calendario si", () => {
@@ -424,6 +460,68 @@ test("consumidores Google exigen capability efectiva antes de usar token", () =>
   }
 });
 
+test("ActivitySyncButton ejecuta servicios independientes conservando snapshots Gmail", () => {
+  const source = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /globalFocusedMailSync: variant === "focus_incremental"/);
+  assert.match(source, /await runGlobalSync\(/);
+  assert.match(source, /executeActivitySyncServices\(\{/);
+  assert.match(source, /runService: \(service\) => runActivityService\(input, scope, service\)/);
+  assert.match(source, /includeCalendar: service === "calendar"/);
+  assert.match(source, /includeMail: service === "mail"/);
+  assert.match(source, /const reviewed = await runSync\(\{ \.\.\.serviceInput, dryRun: true \}\)/);
+  assert.match(source, /const applied = await runSync\(\{[\s\S]*dryRun: false,[\s\S]*gmailFocusedSnapshot: scope === "global" \? reviewed\.result\.gmailFocusedSnapshot/);
+  assert.match(source, /gmailFocusedSnapshot: input\.dryRun \? null : input\.gmailFocusedSnapshot/);
+  assert.match(source, /await runContactSync\(/);
+  assert.match(source, /gmailContactSnapshot: scope === "contact" \? reviewed\.result\.gmailContactSnapshot/);
+  assert.match(source, /contactRecentMailSync: variant === "single_contact"/);
+  assert.match(source, /gmailContactSnapshot: input\.dryRun \? null : input\.gmailContactSnapshot/);
+  assert.match(source, /calendarRollingSnapshot: reviewed\.result\.calendarRollingSnapshot/);
+  assert.match(source, /calendarRollingSnapshot: input\.dryRun \? null : input\.calendarRollingSnapshot/);
+  assert.match(source, /gmailSince: null/);
+  assert.match(source, /calendarRollingWindowSync: input\.includeCalendar \? \(variant === "focus_incremental" \? "global" : "contact"\)/);
+  assert.match(source, /const calendarWindow = input\.includeCalendar \? calendarRollingWindowIso\(\) : null/);
+  assert.doesNotMatch(source, /readNetworkingStartIso/);
+  assert.match(source, /input\.includeCalendar[\s\S]*syncLimits\.calendarPages \|\| ACTIVITY_SYNC_MAX_CALENDAR_PAGES[\s\S]*syncLimits\.mailPages \|\| ACTIVITY_SYNC_MAX_MAIL_PAGES/);
+  assert.doesNotMatch(source, /SyncPreviewDialog/);
+  assert.match(source, /scope === "global" && allActivitySyncServicesSucceeded\(outcomes\)/);
+  assert.match(source, /recordGlobalActivitySyncSuccess/);
+  assert.match(source, /freshnessAfterActivitySync\(current\.serviceFreshness, outcomes\)/);
+  assert.match(source, /reauthorizationRequired: true/);
+  assert.match(source, /state\.reauthorizationRequired \? "Reautorizar" : "Configurar"/);
+  assert.match(source, /finally \{[\s\S]*applying: false,[\s\S]*loading: false,[\s\S]*message: ""/);
+});
+
+test("ActivitySyncButton conserva preflight conjunto antes de separar servicios", () => {
+  const source = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /if \(currentSelection\.connectionRequired \|\| !googleConnection\.connected \|\| !googleConnection\.accessToken\)/);
+  assert.match(source, /openSyncSettings\(\)/);
+  assert.match(source, /executeActivitySyncServices\(\{/);
+});
+
+test("preferencias de interacción gobiernan Cuenta y ActivitySyncButton sin afectar Bootstrap", () => {
+  const accountSource = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
+  const activitySource = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+  const bootstrapSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+  const shellSource = readFileSync(new URL("../components/Shell.tsx", import.meta.url), "utf8");
+
+  assert.match(shellSource, /InteractionSyncPreferencesProvider/);
+  assert.match(accountSource, /label="Google Gmail"/);
+  assert.match(accountSource, /description="Mantener correos recientes y futuros actualizados"/);
+  assert.match(accountSource, /label="Google Calendar"/);
+  assert.match(accountSource, /description="Mantener citas recientes y futuras actualizadas"/);
+  assert.match(accountSource, /interactionSyncToggleAction/);
+  assert.match(accountSource, /rememberPendingInteractionSyncService/);
+  assert.match(accountSource, /capabilityAvailable[\s\S]*setServiceEnabled\(pendingService, true\)/);
+  assert.match(accountSource, /oauthReturn\.status !== "completed"[\s\S]*clearPendingInteractionSyncService/);
+  assert.match(activitySource, /resolveActivitySyncSelection/);
+  assert.match(activitySource, /!selection\.canSync/);
+  assert.match(activitySource, /openSyncSettings/);
+  assert.match(activitySource, /readGlobalActivityServiceFreshness/);
+  assert.doesNotMatch(bootstrapSource, /useInteractionSyncPreferences/);
+});
+
 test("handlers productivos de errores auth Google invalidan autorizacion activa", () => {
   const files = [
     "../components/ActivitySyncButton.tsx",
@@ -456,7 +554,8 @@ test("rate limit Gmail no usa el codigo que activa invalidacion de autorizacion"
   assert.match(interactionsClient, /GOOGLE_INTERACTIONS_RATE_LIMITED/);
   assert.match(activityButton, /error\.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED"/);
   assert.match(interactionsPanel, /error\.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED"/);
-  assert.equal(activityButton.includes('error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"'), false);
+  assert.match(activityButton, /error\.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"[\s\S]*alcanzó temporalmente su límite de uso/);
+  assert.doesNotMatch(activityButton, /error\.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"[\s\S]{0,180}invalidateActiveGoogleDataAuthorization/);
   assert.equal(interactionsPanel.includes('error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED"'), false);
 });
 

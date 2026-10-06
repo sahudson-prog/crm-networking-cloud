@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import {
   GoogleInteractionClientError,
   createGoogleGmailRequestGovernor,
+  listGoogleGmailUserLabels,
   readGoogleCalendarEvents,
-  readGoogleGmailMessages
+  readGoogleGmailMessages,
+  readGoogleGmailProfileHistoryId
 } from "../lib/googleInteractionClient.ts";
 
 test("Google Gmail client lista ids y lee mensajes full con limite", async () => {
@@ -37,6 +39,115 @@ test("Google Gmail client lista ids y lee mensajes full con limite", async () =>
   assert.equal(new URL(urls[0]).searchParams.get("maxResults"), "2");
   assert.match(new URL(urls[0]).searchParams.get("q") ?? "", /after:\d+/);
   assert.match(urls[1], /format=full/);
+});
+
+test("Google Gmail client lista solo etiquetas user con el casing real de la API", async () => {
+  const urls: string[] = [];
+  const reservedUnits: number[] = [];
+  let authorization = "";
+  const labels = await listGoogleGmailUserLabels({
+    accessToken: "renewed-token",
+    fetchImpl: async (url, init) => {
+      urls.push(String(url));
+      authorization = new Headers(init?.headers).get("authorization") ?? "";
+      return jsonResponse({
+        labels: [
+          { id: "INBOX", name: "INBOX", type: "system" },
+          { id: "Label_1", name: "Networking", type: "user" }
+        ]
+      });
+    },
+    requestGovernor: {
+      reserve: async (units) => {
+        reservedUnits.push(units);
+      },
+      wait: async () => {}
+    }
+  });
+
+  assert.deepEqual(labels, [{ id: "Label_1", name: "Networking", type: "user" }]);
+  assert.equal(new URL(urls[0]).pathname, "/gmail/v1/users/me/labels");
+  assert.equal(authorization, "Bearer renewed-token");
+  assert.deepEqual(reservedUnits, [1]);
+});
+
+test("Google Gmail client distingue respuesta valida sin etiquetas user", async () => {
+  const labels = await listGoogleGmailUserLabels({
+    accessToken: "token",
+    fetchImpl: async () => jsonResponse({
+      labels: [{ id: "INBOX", name: "INBOX", type: "system" }]
+    })
+  });
+
+  assert.deepEqual(labels, []);
+});
+
+test("Google Gmail client propaga error de labels en vez de devolver lista vacia", async () => {
+  await assert.rejects(
+    listGoogleGmailUserLabels({
+      accessToken: "token",
+      fetchImpl: async () => jsonResponse({ error: { message: "Invalid Credentials" } }, 401)
+    }),
+    (error) => {
+      assert.ok(error instanceof GoogleInteractionClientError);
+      assert.equal(error.code, "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
+      return true;
+    }
+  );
+});
+
+test("Google Gmail client envia labelId y fecha de inicio en messages.list", async () => {
+  const urls: string[] = [];
+  await readGoogleGmailMessages({
+    accessToken: "token",
+    labelIds: ["Label_1"],
+    since: "2026-08-01T10:00:00Z",
+    fetchImpl: async (url) => {
+      urls.push(String(url));
+      if (String(url).includes("/profile")) return jsonResponse({ historyId: "300" });
+      return jsonResponse({ messages: [], resultSizeEstimate: 0 });
+    }
+  });
+
+  const params = new URL(urls[0]).searchParams;
+  assert.deepEqual(params.getAll("labelIds"), ["Label_1"]);
+  assert.match(params.get("q") ?? "", /after:\d+/);
+});
+
+test("Google Gmail client marca truncacion por paginas y mensajes", async () => {
+  const byPages = await readGoogleGmailMessages({
+    accessToken: "token",
+    maxMessages: 10,
+    maxPages: 1,
+    fetchImpl: async (url) => {
+      const path = new URL(String(url)).pathname;
+      if (!path.endsWith("/messages")) return jsonResponse({ historyId: "301", id: "mail-1", payload: { headers: [] } });
+      return jsonResponse({ messages: [{ id: "mail-1" }], nextPageToken: "next" });
+    }
+  });
+  const byMessages = await readGoogleGmailMessages({
+    accessToken: "token",
+    maxMessages: 1,
+    maxPages: 3,
+    fetchImpl: async (url) => {
+      const path = new URL(String(url)).pathname;
+      if (!path.endsWith("/messages")) return jsonResponse({ historyId: "302", id: "mail-2", payload: { headers: [] } });
+      return jsonResponse({ messages: [{ id: "mail-2" }], nextPageToken: "next" });
+    }
+  });
+
+  assert.equal(byPages.complete, false);
+  assert.deepEqual(byPages.truncatedBy, ["max_pages"]);
+  assert.equal(byMessages.complete, false);
+  assert.deepEqual(byMessages.truncatedBy, ["max_messages"]);
+});
+
+test("Google Gmail client expone historyId de perfil para baseline", async () => {
+  const historyId = await readGoogleGmailProfileHistoryId({
+    accessToken: "token",
+    fetchImpl: async () => jsonResponse({ historyId: "450" })
+  });
+  assert.equal(historyId, "450");
 });
 
 test("Google Gmail client excluye ids ya descargados antes de leer detalles", async () => {
@@ -99,6 +210,41 @@ test("Google Gmail client usa historyId para incremental", async () => {
   assert.equal(new URL(urls[0]).pathname, "/gmail/v1/users/me/history");
   assert.equal(new URL(urls[0]).searchParams.get("startHistoryId"), "100");
   assert.equal(new URL(urls[0]).searchParams.getAll("historyTypes")[0], "messageAdded");
+});
+
+test("Google Gmail client pagina history completo y usa el historyId de la ultima pagina", async () => {
+  const historyUrls: URL[] = [];
+  const result = await readGoogleGmailMessages({
+    accessToken: "token",
+    historyId: "100",
+    maxMessages: 10,
+    maxPages: 3,
+    fetchImpl: async (url) => {
+      const parsed = new URL(String(url));
+      if (parsed.pathname.includes("/messages/")) {
+        const id = parsed.pathname.split("/").at(-1)!;
+        return jsonResponse({ historyId: id === "msg-1" ? "110" : "120", id, payload: { headers: [] } });
+      }
+      historyUrls.push(parsed);
+      if (!parsed.searchParams.get("pageToken")) {
+        return jsonResponse({
+          history: [{ messagesAdded: [{ message: { id: "msg-1" } }] }],
+          historyId: "110",
+          nextPageToken: "page-2"
+        });
+      }
+      return jsonResponse({
+        history: [{ messagesAdded: [{ message: { id: "msg-2" } }] }],
+        historyId: "120"
+      });
+    }
+  });
+
+  assert.equal(result.complete, true);
+  assert.equal(result.pagesRead, 2);
+  assert.equal(result.nextCursor, "120");
+  assert.deepEqual(result.messages.map((message) => message.id), ["msg-1", "msg-2"]);
+  assert.equal(historyUrls[1]?.searchParams.get("pageToken"), "page-2");
 });
 
 test("Google Gmail client usa profile historyId si la carga base no trae mensajes", async () => {
@@ -266,6 +412,42 @@ test("Google Calendar client incluye invitaciones ocultas en lectura historica",
   assert.equal(params.get("singleEvents"), "true");
   assert.equal(params.get("timeMin"), "2026-08-01T00:00:00.000Z");
   assert.equal(params.get("timeMax"), "2026-11-13T00:00:00.000Z");
+});
+
+test("Google Calendar client marca incompleta una lectura truncada por paginas", async () => {
+  const result = await readGoogleCalendarEvents({
+    accessToken: "token",
+    maxPages: 1,
+    fetchImpl: async () => jsonResponse({
+      items: [{ id: "event-1", summary: "Cafe" }],
+      nextPageToken: "next-page"
+    })
+  });
+
+  assert.equal(result.complete, false);
+  assert.deepEqual(result.truncatedBy, ["max_pages"]);
+  assert.match(result.warnings.join(" "), /limite de paginas/);
+});
+
+test("Google Calendar client aborta una request que no responde", async () => {
+  await assert.rejects(
+    readGoogleCalendarEvents({
+      accessToken: "token",
+      requestTimeoutMs: 5,
+      fetchImpl: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        const abort = () => reject(new DOMException("Aborted", "AbortError"));
+        if (signal?.aborted) abort();
+        else signal?.addEventListener("abort", abort, { once: true });
+      })
+    }),
+    (error) => {
+      assert.ok(error instanceof GoogleInteractionClientError);
+      assert.equal(error.code, "GOOGLE_INTERACTIONS_HTTP_ERROR");
+      assert.match(error.message, /no respondio a tiempo/);
+      return true;
+    }
+  );
 });
 
 test("Google Calendar client identifica cursor vencido", async () => {

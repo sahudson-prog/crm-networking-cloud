@@ -10,6 +10,7 @@ export const GOOGLE_INTERACTIONS_READONLY_SCOPES = [
 
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_HISTORY_URL = "https://gmail.googleapis.com/gmail/v1/users/me/history";
+const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
 const GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 const CALENDAR_EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 export const GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES = 25;
@@ -18,11 +19,13 @@ const DEFAULT_MAX_EVENTS = 25;
 const DEFAULT_MAX_PAGES = 2;
 const GMAIL_MAX_RESULTS_PER_PAGE = 500;
 const CALENDAR_MAX_RESULTS_PER_PAGE = 2500;
+const GOOGLE_CALENDAR_REQUEST_TIMEOUT_MS = 30_000;
 const GMAIL_QUOTA_WINDOW_MS = 60_000;
 const GMAIL_RATE_LIMIT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
 const GMAIL_QUOTA_COST = {
   getProfile: 1,
   historyList: 2,
+  labelsList: 1,
   messageGet: 20,
   messageList: 5
 } as const;
@@ -46,6 +49,7 @@ export type GoogleGmailReadInput = {
   excludeMessageIds?: readonly string[];
   fetchImpl?: FetchLike;
   historyId?: string | null;
+  labelIds?: readonly string[];
   maxMessages?: number;
   maxPages?: number;
   query?: string | null;
@@ -54,12 +58,26 @@ export type GoogleGmailReadInput = {
 };
 
 export type GoogleGmailReadResult = {
+  complete: boolean;
   messages: GoogleGmailMessage[];
   mode: "full" | "incremental";
   nextCursor: string;
   pagesRead: number;
   resultSizeEstimate: number | null;
+  truncatedBy: Array<"max_messages" | "max_pages">;
   warnings: string[];
+};
+
+export type GoogleGmailLabel = {
+  id: string;
+  name: string;
+  type: string;
+};
+
+export type GoogleGmailLabelsInput = {
+  accessToken: string;
+  fetchImpl?: FetchLike;
+  requestGovernor?: GoogleGmailRequestGovernor;
 };
 
 export type GoogleCalendarReadInput = {
@@ -71,13 +89,16 @@ export type GoogleCalendarReadInput = {
   syncToken?: string | null;
   timeMin?: string | null;
   timeMax?: string | null;
+  requestTimeoutMs?: number;
 };
 
 export type GoogleCalendarReadResult = {
+  complete?: boolean;
   events: GoogleCalendarEvent[];
   mode: "full" | "incremental";
   nextSyncToken: string | null;
   pagesRead: number;
+  truncatedBy?: Array<"max_events" | "max_pages">;
   warnings: string[];
 };
 
@@ -150,6 +171,40 @@ export async function readGoogleGmailMessages(input: GoogleGmailReadInput): Prom
   return readGoogleGmailFullMessages(governedInput);
 }
 
+export async function listGoogleGmailLabels(input: GoogleGmailLabelsInput): Promise<GoogleGmailLabel[]> {
+  const accessToken = clean(input.accessToken);
+  if (!accessToken) throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_HTTP_ERROR", "Falta token de acceso Google.");
+  const body = await fetchGmailJson({
+    accessToken,
+    fetchImpl: input.fetchImpl,
+    requestGovernor: input.requestGovernor ?? createGoogleGmailRequestGovernor()
+  }, GMAIL_LABELS_URL, GMAIL_QUOTA_COST.labelsList);
+  if (!isRecord(body) || !Array.isArray(body.labels)) {
+    throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_INVALID_RESPONSE", "Gmail devolvio etiquetas inesperadas.");
+  }
+  return body.labels.flatMap((value) => {
+    if (!isRecord(value)) return [];
+    const id = clean(typeof value.id === "string" ? value.id : "");
+    const name = clean(typeof value.name === "string" ? value.name : "");
+    const type = clean(typeof value.type === "string" ? value.type : "").toLowerCase();
+    return id && name && type ? [{ id, name, type }] : [];
+  });
+}
+
+export async function listGoogleGmailUserLabels(input: GoogleGmailLabelsInput) {
+  return (await listGoogleGmailLabels(input)).filter((label) => label.type === "user");
+}
+
+export async function readGoogleGmailProfileHistoryId(input: GoogleGmailLabelsInput) {
+  const accessToken = clean(input.accessToken);
+  if (!accessToken) throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_HTTP_ERROR", "Falta token de acceso Google.");
+  return readGmailProfileHistoryId({
+    accessToken,
+    fetchImpl: input.fetchImpl,
+    requestGovernor: input.requestGovernor ?? createGoogleGmailRequestGovernor()
+  });
+}
+
 async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise<GoogleGmailReadResult> {
   const maxMessages = clamp(input.maxMessages ?? GOOGLE_GMAIL_DEFAULT_MAX_MESSAGES, 1, GMAIL_MAX_RESULTS_PER_PAGE);
   const maxPages = clamp(input.maxPages ?? GOOGLE_GMAIL_DEFAULT_MAX_PAGES, 1, 10);
@@ -163,6 +218,7 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
   while (messages.length < maxMessages) {
     pagesRead += 1;
     const body = await fetchGmailJson(input, gmailListUrl({
+      labelIds: input.labelIds,
       maxResults: Math.min(maxMessages - messages.length, GMAIL_MAX_RESULTS_PER_PAGE),
       pageToken,
       query: input.query,
@@ -191,12 +247,22 @@ async function readGoogleGmailFullMessages(input: GoogleGmailReadInput): Promise
     }
   }
 
+  const truncatedBy = gmailTruncationReasons({
+    itemLimitReached: messages.length >= maxMessages,
+    pageLimitReached: pagesRead >= maxPages,
+    pageToken
+  });
+  if (truncatedBy.includes("max_messages")) {
+    warnings.push("Se alcanzo el limite de mensajes para esta lectura de Gmail.");
+  }
   return {
+    complete: truncatedBy.length === 0,
     messages,
     mode: "full",
     nextCursor: latestMessageHistoryId(messages) || await readGmailProfileHistoryId(input),
     pagesRead,
     resultSizeEstimate,
+    truncatedBy,
     warnings
   };
 }
@@ -241,12 +307,22 @@ async function readGoogleGmailHistoryMessages(input: GoogleGmailReadInput): Prom
     messages.push(await readSingleGmailMessage(input, messageId));
   }
 
+  const truncatedBy = gmailTruncationReasons({
+    itemLimitReached: messageIds.size >= maxMessages,
+    pageLimitReached: pagesRead >= maxPages,
+    pageToken
+  });
+  if (truncatedBy.includes("max_messages")) {
+    warnings.push("Se alcanzo el limite de mensajes para esta lectura incremental de Gmail.");
+  }
   return {
+    complete: truncatedBy.length === 0,
     messages,
     mode: "incremental",
     nextCursor,
     pagesRead,
     resultSizeEstimate: null,
+    truncatedBy,
     warnings
   };
 }
@@ -266,16 +342,19 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
 
   while (events.length < maxEvents) {
     pagesRead += 1;
-    const response = await fetchImpl(calendarEventsUrl({
-      maxResults: Math.min(maxEvents - events.length, CALENDAR_MAX_RESULTS_PER_PAGE),
-      pageToken,
-      query: input.query,
-      syncToken: input.syncToken,
-      timeMin: input.timeMin,
-      timeMax: input.timeMax
-    }), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const response = await fetchGoogleCalendarWithTimeout(
+      fetchImpl,
+      calendarEventsUrl({
+        maxResults: Math.min(maxEvents - events.length, CALENDAR_MAX_RESULTS_PER_PAGE),
+        pageToken,
+        query: input.query,
+        syncToken: input.syncToken,
+        timeMin: input.timeMin,
+        timeMax: input.timeMax
+      }),
+      accessToken,
+      input.requestTimeoutMs
+    );
     const body = await parseJson(response);
     if (!response.ok) throw googleInteractionError(response.status, body, "Google Calendar");
 
@@ -294,13 +373,53 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
     }
   }
 
+  const truncatedBy: Array<"max_events" | "max_pages"> = [];
+  if (pageToken && events.length >= maxEvents) truncatedBy.push("max_events");
+  if (pageToken && pagesRead >= maxPages) truncatedBy.push("max_pages");
+  if (truncatedBy.includes("max_events")) {
+    warnings.push("Se alcanzo el limite de eventos para esta lectura de Calendar.");
+  }
+
   return {
+    complete: truncatedBy.length === 0,
     events,
     mode: input.syncToken ? "incremental" : "full",
     nextSyncToken,
     pagesRead,
+    truncatedBy,
     warnings
   };
+}
+
+async function fetchGoogleCalendarWithTimeout(
+  fetchImpl: FetchLike,
+  url: string,
+  accessToken: string,
+  requestTimeoutMs?: number
+) {
+  const controller = new AbortController();
+  const timeoutMs = clamp(
+    requestTimeoutMs ?? GOOGLE_CALENDAR_REQUEST_TIMEOUT_MS,
+    1,
+    GOOGLE_CALENDAR_REQUEST_TIMEOUT_MS
+  );
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new GoogleInteractionClientError(
+        "GOOGLE_INTERACTIONS_HTTP_ERROR",
+        "Google Calendar no respondio a tiempo. Intenta nuevamente."
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function readSingleGmailMessage(input: GoogleGmailReadInput, messageId: string) {
@@ -338,9 +457,13 @@ async function fetchGmailJson(input: GoogleGmailReadInput, url: string, quotaCos
   }
 }
 
-function gmailListUrl(input: { maxResults: number; pageToken?: string | null; query?: string | null; since?: string | null }) {
+function gmailListUrl(input: { labelIds?: readonly string[]; maxResults: number; pageToken?: string | null; query?: string | null; since?: string | null }) {
   const url = new URL(GMAIL_MESSAGES_URL);
   url.searchParams.set("maxResults", String(input.maxResults));
+  for (const labelId of input.labelIds ?? []) {
+    const cleanLabelId = clean(labelId);
+    if (cleanLabelId) url.searchParams.append("labelIds", cleanLabelId);
+  }
   const query = gmailQuery(input.query, input.since);
   if (query) url.searchParams.set("q", query);
   if (input.pageToken) url.searchParams.set("pageToken", input.pageToken);
@@ -369,6 +492,14 @@ function gmailAfterDate(value?: string | null) {
   const date = new Date(cleanValue);
   if (Number.isNaN(date.getTime())) return "";
   return String(Math.floor(date.getTime() / 1000));
+}
+
+function gmailTruncationReasons(input: { itemLimitReached: boolean; pageLimitReached: boolean; pageToken: string }) {
+  const reasons: Array<"max_messages" | "max_pages"> = [];
+  if (!input.pageToken) return reasons;
+  if (input.itemLimitReached) reasons.push("max_messages");
+  if (input.pageLimitReached) reasons.push("max_pages");
+  return reasons;
 }
 
 function calendarEventsUrl(input: { maxResults: number; pageToken?: string | null; query?: string | null; syncToken?: string | null; timeMin?: string | null; timeMax?: string | null }) {

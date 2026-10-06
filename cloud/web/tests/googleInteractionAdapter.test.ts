@@ -94,6 +94,50 @@ test("Gmail entrante desde contacto incluye remitente y otros contactos conocido
   );
 });
 
+test("Gmail bootstrap conserva participantes sin contacto por email normalizado", () => {
+  const result = mapGmailMessageToExternalInteraction({
+    userEmail: "sergio@crm.cl",
+    contactsByEmail: {},
+    includeUnresolvedParticipants: true,
+    message: {
+      id: "bootstrap-unlinked",
+      payload: {
+        headers: [
+          { name: "From", value: "Sergio <sergio@crm.cl>" },
+          { name: "To", value: "Persona <PERSONA@EMPRESA.CL>" }
+        ]
+      }
+    }
+  });
+
+  assert.ok(result);
+  assert.deepEqual(result.participants, [{ contactId: null, email: "persona@empresa.cl", role: "TO" }]);
+});
+
+test("Gmail bootstrap conserva vinculo de contacto existente y no agrega al usuario", () => {
+  const result = mapGmailMessageToExternalInteraction({
+    userEmail: "sergio@crm.cl",
+    contactsByEmail,
+    includeUnresolvedParticipants: true,
+    message: {
+      id: "bootstrap-linked",
+      payload: {
+        headers: [
+          { name: "From", value: "Maria <maria@empresa.cl>" },
+          { name: "To", value: "Sergio <sergio@crm.cl>" },
+          { name: "Cc", value: "Otra <otra@empresa.cl>" }
+        ]
+      }
+    }
+  });
+
+  assert.ok(result);
+  assert.deepEqual(result.participants, [
+    { contactId: "contact-maria", email: "maria@empresa.cl", role: "FROM" },
+    { contactId: null, email: "otra@empresa.cl", role: "CC" }
+  ]);
+});
+
 test("Calendar mapea evento con participantes y link oficial", () => {
   const result = mapCalendarEventToExternalInteraction({
     userEmail: "sergio@crm.cl",

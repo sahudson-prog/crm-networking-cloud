@@ -6,7 +6,17 @@ import {
   createGoogleGmailRequestGovernor,
   readGoogleGmailMessages
 } from "../lib/googleInteractionClient.ts";
-import { externalInteractionSourceIdsForPreview, syncGoogleInteractions } from "../lib/googleInteractionSyncFlow.ts";
+import {
+  applyGoogleGmailContactBackfill,
+  applyGoogleGmailHistoricalBootstrap,
+  applyGoogleGmailFocusedSync,
+  externalInteractionSourceIdsForPreview,
+  requireHistoricalBootstrapLabelId,
+  reviewGoogleGmailContactBackfill,
+  reviewGoogleGmailHistoricalBootstrap,
+  reviewGoogleGmailFocusedSync,
+  syncGoogleInteractions
+} from "../lib/googleInteractionSyncFlow.ts";
 import type { CalendarReadDiagnosticInput } from "../lib/externalInteractionReadDiagnostics.ts";
 import type { ExternalInteractionBatchInput, SyncRunResult } from "../lib/syncOrchestrator.ts";
 import type { ContactRow } from "../lib/readModel.ts";
@@ -49,6 +59,199 @@ test("normaliza ids externos para buscar fuentes existentes en preview", () => {
     ]),
     ["calendar_eventabc", "gmail_messagexyz"]
   );
+});
+
+test("bootstrap Gmail exige etiqueta antes de revisar", () => {
+  assert.throws(
+    () => requireHistoricalBootstrapLabelId("  "),
+    /Selecciona una etiqueta Gmail/
+  );
+  assert.equal(requireHistoricalBootstrapLabelId(" Label_1 "), "Label_1");
+});
+
+test("bootstrap Gmail captura baseline antes del scan y conserva mensajes sin contacto", async () => {
+  const order: string[] = [];
+  let receivedLabelIds: readonly string[] | undefined;
+  let receivedSince: string | null | undefined;
+  const reviewed = await reviewGoogleGmailHistoricalBootstrap({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    label: { id: "Label_networking", name: "Networking" },
+    maxMailMessages: 25,
+    maxPages: 2,
+    since: "2026-08-01T00:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readMailProfileHistoryId: async () => {
+      order.push("profile");
+      return "500";
+    },
+    readMail: async ({ labelIds, since }) => {
+      order.push("messages");
+      receivedLabelIds = labelIds;
+      receivedSince = since;
+      return {
+        complete: true,
+        messages: [
+          gmailFromUser("mail-unlinked", "NUEVA@EMPRESA.CL"),
+          gmailFromUser("mail-linked", "maria@empresa.cl")
+        ],
+        mode: "full",
+        nextCursor: "550",
+        pagesRead: 1,
+        resultSizeEstimate: 2,
+        truncatedBy: [],
+        warnings: []
+      };
+    },
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-review"),
+    writeCursor: async () => {
+      throw new Error("Review no debe escribir cursor.");
+    }
+  });
+
+  assert.deepEqual(order, ["profile", "messages"]);
+  assert.deepEqual(receivedLabelIds, ["Label_networking"]);
+  assert.equal(receivedSince, "2026-08-01T00:00:00.000Z");
+  assert.equal(reviewed.snapshot.baselineHistoryId, "500");
+  assert.equal(reviewed.snapshot.complete, true);
+  assert.equal(reviewed.snapshot.items.length, 2);
+  assert.deepEqual(reviewed.snapshot.items[0].participants, [
+    { contactId: null, email: "nueva@empresa.cl", role: "TO" }
+  ]);
+  assert.deepEqual(reviewed.snapshot.items[1].participants, [
+    { contactId: "contact-maria", email: "maria@empresa.cl", role: "TO" }
+  ]);
+});
+
+test("apply Gmail usa el snapshot, aplica solo seleccionados y guarda cursor global", async () => {
+  const reviewed = await bootstrapReviewFixture();
+  const appliedIds: string[] = [];
+  const cursorWrites: Array<{ cursorLabel?: string; cursorValue: string | null }> = [];
+  const result = await applyGoogleGmailHistoricalBootstrap({
+    connectedAccountId: "account-1",
+    externalIds: ["GMAIL_mail-linked"],
+    snapshot: reviewed.snapshot
+  }, {
+    readMail: async () => {
+      throw new Error("Apply no debe volver a leer mensajes Gmail.");
+    },
+    readMailProfileHistoryId: async () => {
+      throw new Error("Apply no debe volver a leer el perfil Gmail.");
+    },
+    syncMail: async (input) => {
+      appliedIds.push(...input.items.map((item) => item.externalId));
+      return syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-apply");
+    },
+    writeCursor: async (input) => {
+      cursorWrites.push(input);
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(appliedIds, ["GMAIL_mail-linked"]);
+  assert.deepEqual(cursorWrites, [{
+    connectedAccountId: "account-1",
+    cursorLabel: "",
+    cursorValue: "500",
+    metadata: {
+      bootstrap_label_id: "Label_networking",
+      mode: "historical_bootstrap",
+      pages_read: 1,
+      selected_items: 1
+    },
+    resourceType: "mail"
+  }]);
+});
+
+test("apply Gmail rechaza IDs fuera del snapshot sin aplicar ni avanzar cursor", async () => {
+  const reviewed = await bootstrapReviewFixture();
+  let syncCalls = 0;
+  let cursorWrites = 0;
+  await assert.rejects(
+    applyGoogleGmailHistoricalBootstrap({
+      externalIds: ["GMAIL_missing"],
+      snapshot: reviewed.snapshot
+    }, {
+      syncMail: async (input) => {
+        syncCalls += 1;
+        return syncResult({ ...input, resourceType: "mail" as const }, "unexpected");
+      },
+      writeCursor: async () => {
+        cursorWrites += 1;
+      }
+    }),
+    /no pertenecen al snapshot/
+  );
+  assert.equal(syncCalls, 0);
+  assert.equal(cursorWrites, 0);
+});
+
+test("bootstrap Gmail no avanza cursor si la lectura esta truncada o Apply falla", async () => {
+  const truncated = await bootstrapReviewFixture(false);
+  const complete = await bootstrapReviewFixture(true);
+  let cursorWrites = 0;
+  const apply = (snapshot: typeof complete.snapshot, fail: boolean) => applyGoogleGmailHistoricalBootstrap({
+    externalIds: ["GMAIL_mail-linked"],
+    snapshot
+  }, {
+    syncMail: async (input) => {
+      const result = syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-apply");
+      if (fail) {
+        result.ok = false;
+        result.counts.failed = 1;
+        result.counts.created = 0;
+        result.errors.push({ code: "SYNC_ITEM_FAILED", externalId: "GMAIL_mail-linked", message: "Fallo controlado." });
+      }
+      return result;
+    },
+    writeCursor: async () => {
+      cursorWrites += 1;
+    }
+  });
+
+  const truncatedResult = await apply(truncated.snapshot, false);
+  const failedResult = await apply(complete.snapshot, true);
+  assert.equal(truncatedResult.ok, true);
+  assert.equal(failedResult.ok, false);
+  assert.equal(cursorWrites, 0);
+});
+
+test("bootstrap Gmail no avanza cursor si Apply lanza un error", async () => {
+  const reviewed = await bootstrapReviewFixture();
+  let cursorWrites = 0;
+  await assert.rejects(
+    applyGoogleGmailHistoricalBootstrap({
+      externalIds: ["GMAIL_mail-linked"],
+      snapshot: reviewed.snapshot
+    }, {
+      syncMail: async () => {
+        throw new Error("Persistencia no disponible.");
+      },
+      writeCursor: async () => {
+        cursorWrites += 1;
+      }
+    }),
+    /Persistencia no disponible/
+  );
+  assert.equal(cursorWrites, 0);
+});
+
+test("bootstrap Gmail permite deseleccionar items y completar los seleccionados", async () => {
+  const reviewed = await bootstrapReviewFixture();
+  let cursorWrites = 0;
+  const result = await applyGoogleGmailHistoricalBootstrap({
+    externalIds: [],
+    snapshot: reviewed.snapshot
+  }, {
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-selected"),
+    writeCursor: async () => {
+      cursorWrites += 1;
+    }
+  });
+  assert.equal(result.mail?.counts.scanned, 0);
+  assert.equal(cursorWrites, 1);
 });
 
 test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda cursores", async () => {
@@ -136,6 +339,49 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
     { resourceType: "mail", cursorValue: "104" },
     { resourceType: "calendar", cursorValue: "calendar-next" }
   ]);
+});
+
+test("sync global registra exito Calendar aunque Google no entregue nextSyncToken", async () => {
+  const writtenCursors: Array<{
+    connectedAccountId?: string | null;
+    cursorValue: string | null;
+    resourceType: string;
+  }> = [];
+
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    dryRun: false,
+    globalFocusedMailSync: true,
+    includeCalendar: true,
+    includeMail: false,
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readCursor: async () => null,
+    readCalendar: async () => ({
+      events: [],
+      mode: "full",
+      nextSyncToken: null,
+      pagesRead: 1,
+      warnings: []
+    }),
+    syncCalendar: async (input) => syncResult({ ...input, resourceType: "calendar" as const }, "calendar"),
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "mail"),
+    writeCursor: async (input) => {
+      writtenCursors.push(input);
+    },
+    markCursorExpired: async () => {}
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(writtenCursors, [{
+    connectedAccountId: "account-1",
+    cursorLabel: "",
+    cursorValue: null,
+    metadata: { mode: "full", pages_read: 1, token_available: false },
+    resourceType: "calendar"
+  }]);
 });
 
 test("syncGoogleInteractions falla cerrado si Gmail devuelve permiso invalido aunque Calendar lea datos", async () => {
@@ -1328,6 +1574,1119 @@ test("syncGoogleInteractions guarda diagnostico Calendar con eventos leidos aunq
     "CALENDAR_event-unmapped"
   ]);
 });
+
+test("Gmail de ficha usa todos los emails Foco, exactamente 14 dias y Apply reutiliza el snapshot sin cursores", async () => {
+  const focusedContact: ContactRow = {
+    ...contacts[0],
+    contact_emails: [
+      { email: "maria@empresa.cl", domain: "empresa.cl" },
+      { email: "maria.alias@empresa.cl", domain: "empresa.cl" }
+    ]
+  };
+  const mailReads: Array<{
+    historyId?: string | null;
+    labelIds?: readonly string[];
+    query?: string | null;
+    since?: string | null;
+  }> = [];
+  let cursorReads = 0;
+  let cursorWrites = 0;
+  let profileReads = 0;
+  const dependencies = contactBackfillDependencies({
+    readAppContacts: async () => [focusedContact],
+    readCursor: async () => {
+      cursorReads += 1;
+      return "cursor-que-no-debe-usarse";
+    },
+    readMail: async (input: {
+      historyId?: string | null;
+      labelIds?: readonly string[];
+      query?: string | null;
+      since?: string | null;
+    }) => {
+      mailReads.push(input);
+      return gmailRead({
+        messages: [
+          gmailFromUser("mail-reciente", "maria.alias@empresa.cl", "Reciente", "Hola", "Thu, 1 Oct 2026 08:00:00 -0400"),
+          gmailFromUser("mail-antiguo", "maria@empresa.cl", "Antiguo", "Hola", "Tue, 1 Sep 2026 08:00:00 -0400"),
+          gmailFromUser("mail-futuro", "maria@empresa.cl", "Futuro", "Hola", "Tue, 6 Oct 2026 08:00:00 -0400")
+        ]
+      });
+    },
+    readMailProfileHistoryId: async () => {
+      profileReads += 1;
+      return "history-que-no-debe-usarse";
+    },
+    writeCursor: async () => {
+      cursorWrites += 1;
+    }
+  });
+
+  const reviewed = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactIds: [focusedContact.id],
+    contactRecentMailSync: true,
+    contactRecentNow: "2026-10-05T12:00:00.000Z",
+    cursorLabel: `contact:${focusedContact.id}`,
+    dryRun: true,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, dependencies);
+
+  assert.equal(reviewed.ok, true);
+  assert.equal(mailReads.length, 1);
+  assert.equal(mailReads[0]?.historyId, null);
+  assert.equal(mailReads[0]?.labelIds, undefined);
+  assert.equal(mailReads[0]?.since, "2026-09-21T12:00:00.000Z");
+  assert.match(mailReads[0]?.query ?? "", /maria@empresa\.cl/);
+  assert.match(mailReads[0]?.query ?? "", /maria\.alias@empresa\.cl/);
+  assert.deepEqual(reviewed.gmailContactSnapshot?.items.map((item) => item.externalId), ["GMAIL_mail-reciente"]);
+  assert.equal(reviewed.gmailContactSnapshot?.until, "2026-10-05T12:00:00.000Z");
+  assert.equal(reviewed.googleRead.mailMessages, 3);
+
+  const applied = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactIds: [focusedContact.id],
+    contactRecentMailSync: true,
+    cursorLabel: `contact:${focusedContact.id}`,
+    dryRun: false,
+    externalIds: ["GMAIL_mail-reciente"],
+    gmailContactSnapshot: reviewed.gmailContactSnapshot,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, dependencies);
+
+  assert.equal(applied.ok, true);
+  assert.equal(applied.mail?.counts.created, 1);
+  assert.equal(mailReads.length, 1);
+  assert.equal(profileReads, 0);
+  assert.equal(cursorReads, 0);
+  assert.equal(cursorWrites, 0);
+});
+
+test("Gmail de ficha omite contactos fuera de Foco sin error tecnico", async () => {
+  let mailReads = 0;
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactIds: ["contact-fuera-foco"],
+    contactRecentMailSync: true,
+    contactRecentNow: "2026-10-05T12:00:00.000Z",
+    dryRun: true,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readMail: async () => {
+      mailReads += 1;
+      return gmailRead();
+    }
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.mail?.counts.scanned, 0);
+  assert.equal(result.gmailContactSnapshot?.complete, true);
+  assert.match(result.warnings.join(" "), /no esta marcado como Foco/);
+  assert.equal(mailReads, 0);
+});
+
+test("Apply Gmail de ficha rechaza un snapshot truncado", async () => {
+  let applyCalls = 0;
+  const reviewed = await reviewGoogleGmailContactBackfill({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactId: "contact-maria",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readMail: async () => gmailRead({ complete: false, truncatedBy: ["max_pages"] })
+  }), contacts);
+
+  assert.equal(reviewed.snapshot.complete, false);
+  await assert.rejects(
+    applyGoogleGmailContactBackfill({
+      connectedAccountId: "account-1",
+      contactId: "contact-maria",
+      externalIds: [],
+      snapshot: reviewed.snapshot
+    }, contactBackfillDependencies({
+      syncMail: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+        applyCalls += 1;
+        return syncResult({ ...input, resourceType: "mail" }, "unexpected-apply");
+      }
+    })),
+    /quedo incompleta/
+  );
+  assert.equal(applyCalls, 0);
+});
+
+test("Gmail de ficha conserva idempotencia al repetir review y apply", async () => {
+  let persisted = false;
+  const dependencies = contactBackfillDependencies({
+    readExternalSourcesForPreview: async ({ items }: { items: Array<{
+      externalId: string;
+      occurredAt?: string | null;
+      sourceDetail?: string | null;
+      subject?: string | null;
+    }> }) => persisted ? items.map((item) => ({
+      external_id: item.externalId.toLowerCase(),
+      last_seen_at: item.occurredAt,
+      source_detail: item.sourceDetail,
+      source_subject: item.subject,
+      interactions: {
+        id: "interaction-existente",
+        occurred_at: item.occurredAt,
+        source_detail: item.sourceDetail,
+        subject: item.subject
+      }
+    })) : [],
+    readMail: async () => gmailRead({
+      messages: [gmailFromUser("mail-repetido", "maria@empresa.cl", "Repetido", "Hola", "Thu, 1 Oct 2026 08:00:00 -0400")]
+    }),
+    syncMail: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+      const result = syncResult({ ...input, resourceType: "mail" }, "contact-backfill");
+      if (!input.dryRun && input.items.length) {
+        result.counts.created = persisted ? 0 : input.items.length;
+        result.counts.skipped = persisted ? input.items.length : 0;
+        persisted = true;
+      }
+      return result;
+    }
+  });
+
+  const firstReview = await reviewGoogleGmailContactBackfill({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactId: "contact-maria",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, dependencies, contacts);
+  const firstIds = firstReview.snapshot.preview
+    .filter((change) => change.type === "new" || change.type === "modified")
+    .map((change) => String(change.metadata?.externalId ?? ""));
+  const firstApply = await applyGoogleGmailContactBackfill({
+    connectedAccountId: "account-1",
+    contactId: "contact-maria",
+    externalIds: firstIds,
+    snapshot: firstReview.snapshot
+  }, dependencies);
+
+  const secondReview = await reviewGoogleGmailContactBackfill({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactId: "contact-maria",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, dependencies, contacts);
+  const secondIds = secondReview.snapshot.preview
+    .filter((change) => change.type === "new" || change.type === "modified")
+    .map((change) => String(change.metadata?.externalId ?? ""));
+  const secondApply = await applyGoogleGmailContactBackfill({
+    connectedAccountId: "account-1",
+    contactId: "contact-maria",
+    externalIds: secondIds,
+    snapshot: secondReview.snapshot
+  }, dependencies);
+
+  assert.equal(firstApply.mail?.counts.created, 1);
+  assert.deepEqual(secondReview.snapshot.preview.map((change) => change.type), ["unchanged"]);
+  assert.deepEqual(secondIds, []);
+  assert.equal(secondApply.mail?.counts.created, 0);
+});
+
+test("Calendar de ficha conserva cursor contact:id y syncToken", async () => {
+  const cursorReads: Array<{ cursorLabel?: string; resourceType: "mail" | "calendar" }> = [];
+  const cursorWrites: Array<{ cursorLabel?: string; cursorValue: string | null; resourceType: "mail" | "calendar" }> = [];
+  let receivedSyncToken: string | null | undefined;
+
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    contactIds: ["contact-maria"],
+    contactRecentMailSync: true,
+    cursorLabel: "contact:contact-maria",
+    dryRun: false,
+    includeCalendar: true,
+    includeMail: false,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readCursor: async (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => {
+      cursorReads.push(input);
+      return input.resourceType === "calendar" ? "calendar-contact-token" : "mail-token-no-esperado";
+    },
+    readCalendar: async ({ syncToken }: { syncToken?: string | null }) => {
+      receivedSyncToken = syncToken;
+      return {
+        events: [],
+        mode: "incremental",
+        nextSyncToken: "calendar-contact-next",
+        pagesRead: 1,
+        warnings: []
+      };
+    },
+    syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => (
+      syncResult({ ...input, resourceType: "calendar" }, "calendar-contact")
+    ),
+    writeCursor: async (input: { cursorLabel?: string; cursorValue: string | null; resourceType: "mail" | "calendar" }) => {
+      cursorWrites.push(input);
+    }
+  }));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(cursorReads, [{ cursorLabel: "contact:contact-maria", resourceType: "calendar" }]);
+  assert.equal(receivedSyncToken, "calendar-contact-token");
+  assert.deepEqual(cursorWrites, [{
+    connectedAccountId: "account-1",
+    cursorLabel: "contact:contact-maria",
+    cursorValue: "calendar-contact-next",
+    metadata: {
+      mode: "incremental",
+      pages_read: 1,
+      token_available: true
+    },
+    resourceType: "calendar"
+  }]);
+});
+
+test("Calendar periodico global usa ventana movil Foco, deduplica y actualiza freshness idempotentemente", async () => {
+  const scopedContacts: ContactRow[] = [
+    {
+      ...contacts[0],
+      contact_emails: [
+        { email: "maria@empresa.cl", domain: "empresa.cl" },
+        { email: "maria.secundario@empresa.cl", domain: "empresa.cl" }
+      ]
+    },
+    contacts[1],
+    { ...contacts[0], id: "contact-inactivo", is_active: false, contact_emails: [{ email: "inactivo@empresa.cl", domain: "empresa.cl" }] }
+  ];
+  const reads: Array<{ query?: string | null; syncToken?: string | null; timeMin?: string | null; timeMax?: string | null }> = [];
+  const writes: Array<{ connectedAccountId?: string | null; cursorLabel?: string; cursorValue: string | null; metadata?: Record<string, unknown> }> = [];
+  let cursorReads = 0;
+  const persisted = new Set<string>();
+  const createdPerRun: number[] = [];
+  const dependencies = contactBackfillDependencies({
+    readAppContacts: async () => scopedContacts,
+    readCursor: async () => {
+      cursorReads += 1;
+      return "legacy-token-no-esperado";
+    },
+    readCalendar: async (input: { query?: string | null; syncToken?: string | null; timeMin?: string | null; timeMax?: string | null }) => {
+      reads.push(input);
+      return {
+        complete: true,
+        events: [{
+          id: "event-rolling-shared",
+          summary: "Cafe Maria",
+          start: { dateTime: "2026-10-07T14:00:00.000Z" }
+        }],
+        mode: "full" as const,
+        nextSyncToken: "token-que-no-debe-usarse",
+        pagesRead: 1,
+        truncatedBy: [],
+        warnings: []
+      };
+    },
+    syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+      let created = 0;
+      for (const item of input.items) {
+        if (!persisted.has(item.externalId)) {
+          persisted.add(item.externalId);
+          created += 1;
+        }
+      }
+      const result = syncResult({ ...input, resourceType: "calendar" }, "calendar-rolling-global");
+      result.counts.created = created;
+      result.counts.skipped = input.items.length - created;
+      createdPerRun.push(created);
+      return result;
+    },
+    writeCursor: async (input: { connectedAccountId?: string | null; cursorLabel?: string; cursorValue: string | null; metadata?: Record<string, unknown> }) => {
+      writes.push(input);
+    }
+  });
+  const run = () => syncGoogleInteractions({
+    accessToken: "token",
+    calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+    calendarRollingWindowSync: "global",
+    calendarTimeMin: "2026-09-22T15:30:00.000Z",
+    connectedAccountId: "account-1",
+    dryRun: false,
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    maxCalendarEvents: 2500,
+    maxPages: 2,
+    saveCursors: true,
+    userEmail: "sergio@crm.cl"
+  }, dependencies);
+
+  const first = await run();
+  const second = await run();
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.deepEqual(createdPerRun, [1, 0]);
+  assert.equal(first.calendar?.counts.created, 1);
+  assert.equal(second.calendar?.counts.created, 0);
+  assert.equal(cursorReads, 0);
+  assert.deepEqual(new Set(reads.map((read) => read.query)), new Set(["maria@empresa.cl", "maria.secundario@empresa.cl"]));
+  assert.equal(reads.every((read) => read.syncToken === null), true);
+  assert.equal(reads.every((read) => read.timeMin === "2026-09-22T15:30:00.000Z"), true);
+  assert.equal(reads.every((read) => read.timeMax === "2027-01-06T15:30:00.000Z"), true);
+  assert.equal(writes.length, 2);
+  assert.equal(writes.every((write) => write.cursorLabel === "" && write.cursorValue === null), true);
+  assert.equal(writes.every((write) => write.connectedAccountId === "account-1"), true);
+  assert.equal(writes.every((write) => write.metadata?.mode === "rolling_window"), true);
+});
+
+test("Calendar rolling aplica el snapshot revisado sin repetir lecturas Google", async () => {
+  let calendarReads = 0;
+  let cursorWrites = 0;
+  const dryRuns: boolean[] = [];
+  const dependencies = contactBackfillDependencies({
+    readCalendar: async () => {
+      calendarReads += 1;
+      return {
+        complete: true,
+        events: [{
+          id: "event-snapshot",
+          summary: "Cafe Maria",
+          start: { dateTime: "2026-10-07T14:00:00.000Z" }
+        }],
+        mode: "full" as const,
+        nextSyncToken: null,
+        pagesRead: 1,
+        truncatedBy: [],
+        warnings: []
+      };
+    },
+    syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+      dryRuns.push(Boolean(input.dryRun));
+      return syncResult({ ...input, resourceType: "calendar" }, "calendar-snapshot");
+    },
+    writeCursor: async () => {
+      cursorWrites += 1;
+    }
+  });
+  const baseInput = {
+    accessToken: "token",
+    calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+    calendarRollingWindowSync: "global" as const,
+    calendarTimeMin: "2026-09-22T15:30:00.000Z",
+    connectedAccountId: "account-1",
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    saveCursors: true,
+    userEmail: "sergio@crm.cl"
+  };
+
+  const reviewed = await syncGoogleInteractions({ ...baseInput, dryRun: true }, dependencies);
+  assert.equal(reviewed.ok, true);
+  assert.equal(reviewed.calendarRollingSnapshot?.complete, true);
+  assert.equal(calendarReads, 1);
+
+  const applied = await syncGoogleInteractions({
+    ...baseInput,
+    calendarRollingSnapshot: reviewed.calendarRollingSnapshot,
+    dryRun: false,
+    externalIds: reviewed.calendarRollingSnapshot?.items.map((item) => item.externalId) ?? []
+  }, dependencies);
+
+  assert.equal(applied.ok, true);
+  assert.equal(calendarReads, 1);
+  assert.deepEqual(dryRuns, [true, false]);
+  assert.equal(cursorWrites, 1);
+});
+
+test("Calendar periodico global falla cerrado ante truncacion o error y conserva freshness", async () => {
+  for (const failure of ["truncated", "runtime"] as const) {
+    let syncCalls = 0;
+    let writes = 0;
+    const result = await syncGoogleInteractions({
+      accessToken: "token",
+      calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+      calendarRollingWindowSync: "global",
+      calendarTimeMin: "2026-09-22T15:30:00.000Z",
+      connectedAccountId: "account-1",
+      dryRun: false,
+      focusedOnly: true,
+      includeCalendar: true,
+      includeMail: false,
+      saveCursors: true,
+      userEmail: "sergio@crm.cl"
+    }, contactBackfillDependencies({
+      readCalendar: async () => {
+        if (failure === "runtime") throw new Error("Calendar temporalmente no disponible");
+        return {
+          complete: false,
+          events: [{ id: "event-partial", start: { dateTime: "2026-10-07T14:00:00.000Z" } }],
+          mode: "full" as const,
+          nextSyncToken: null,
+          pagesRead: 2,
+          truncatedBy: ["max_pages" as const],
+          warnings: ["Lectura parcial"]
+        };
+      },
+      syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+        syncCalls += 1;
+        return syncResult({ ...input, resourceType: "calendar" }, "calendar-partial");
+      },
+      writeCursor: async () => {
+        writes += 1;
+      }
+    }));
+
+    assert.equal(result.ok, false, failure);
+    assert.equal(syncCalls, 0, failure);
+    assert.equal(writes, 0, failure);
+  }
+});
+
+test("Calendar periodico global sin Foco es no-op exitoso sin API y actualiza freshness", async () => {
+  let calendarReads = 0;
+  const writes: Array<{ cursorLabel?: string; cursorValue: string | null }> = [];
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+    calendarRollingWindowSync: "global",
+    calendarTimeMin: "2026-09-22T15:30:00.000Z",
+    connectedAccountId: "account-1",
+    dryRun: false,
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    saveCursors: true,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readAppContacts: async () => contacts.map((contact) => ({ ...contact, networking_focus: false })),
+    readCalendar: async () => {
+      calendarReads += 1;
+      throw new Error("No debe consultar Calendar sin Foco.");
+    },
+    writeCursor: async (input: { cursorLabel?: string; cursorValue: string | null }) => {
+      writes.push(input);
+    }
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(calendarReads, 0);
+  assert.deepEqual(writes, [{
+    connectedAccountId: "account-1",
+    cursorLabel: "",
+    cursorValue: null,
+    metadata: {
+      mode: "rolling_window",
+      pages_read: 0,
+      time_max: "2027-01-06T15:30:00.000Z",
+      time_min: "2026-09-22T15:30:00.000Z",
+      token_available: false
+    },
+    resourceType: "calendar"
+  }]);
+});
+
+test("Calendar periodico global sin emails es no-op exitoso y actualiza freshness", async () => {
+  let calendarReads = 0;
+  let writes = 0;
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+    calendarRollingWindowSync: "global",
+    calendarTimeMin: "2026-09-22T15:30:00.000Z",
+    connectedAccountId: "account-1",
+    dryRun: false,
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    saveCursors: true,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readAppContacts: async () => [{ ...contacts[0], contact_emails: [] }],
+    readCalendar: async () => {
+      calendarReads += 1;
+      throw new Error("No debe consultar Calendar sin emails.");
+    },
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(calendarReads, 0);
+  assert.equal(writes, 1);
+});
+
+test("Calendar periodico de ficha exige Foco y no lee ni escribe cursores", async () => {
+  let cursorReads = 0;
+  let cursorWrites = 0;
+  let calendarReads = 0;
+  const persisted = new Set<string>();
+  const createdPerRun: number[] = [];
+  const run = (contactId: string) => syncGoogleInteractions({
+    accessToken: "token",
+    calendarFutureTimeMax: "2027-01-06T15:30:00.000Z",
+    calendarRollingWindowSync: "contact",
+    calendarTimeMin: "2026-09-22T15:30:00.000Z",
+    contactIds: [contactId],
+    cursorLabel: `contact:${contactId}`,
+    dryRun: false,
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    saveCursors: false,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readCursor: async () => {
+      cursorReads += 1;
+      return "legacy-contact-token";
+    },
+    readCalendar: async ({ query, syncToken, timeMin, timeMax }: { query?: string | null; syncToken?: string | null; timeMin?: string | null; timeMax?: string | null }) => {
+      calendarReads += 1;
+      assert.equal(query, "maria@empresa.cl");
+      assert.equal(syncToken, null);
+      assert.equal(timeMin, "2026-09-22T15:30:00.000Z");
+      assert.equal(timeMax, "2027-01-06T15:30:00.000Z");
+      return {
+        complete: true,
+        events: [{
+          id: "event-contact-rolling",
+          summary: "Cafe Maria",
+          start: { dateTime: "2026-10-07T14:00:00.000Z" }
+        }],
+        mode: "full" as const,
+        nextSyncToken: null,
+        pagesRead: 1,
+        truncatedBy: [],
+        warnings: []
+      };
+    },
+    syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => {
+      let created = 0;
+      for (const item of input.items) {
+        if (!persisted.has(item.externalId)) {
+          persisted.add(item.externalId);
+          created += 1;
+        }
+      }
+      const result = syncResult({ ...input, resourceType: "calendar" }, "calendar-contact-rolling");
+      result.counts.created = created;
+      result.counts.skipped = input.items.length - created;
+      createdPerRun.push(created);
+      return result;
+    },
+    writeCursor: async () => {
+      cursorWrites += 1;
+    }
+  }));
+
+  const focused = await run("contact-maria");
+  const focusedAgain = await run("contact-maria");
+  const notFocused = await run("contact-fuera-foco");
+
+  assert.equal(focused.ok, true);
+  assert.equal(focusedAgain.ok, true);
+  assert.equal(notFocused.ok, true);
+  assert.deepEqual(createdPerRun, [1, 0]);
+  assert.equal(calendarReads, 2);
+  assert.equal(cursorReads, 0);
+  assert.equal(cursorWrites, 0);
+});
+
+test("Gmail global usa history cursor valido, filtra Foco y Apply no vuelve a leer Google", async () => {
+  const mailReads: Array<{ historyId?: string | null; query?: string | null; since?: string | null }> = [];
+  let profileReads = 0;
+  const writes: Array<{ connectedAccountId?: string | null; cursorValue: string | null }> = [];
+  const dependencies = focusedSyncDependencies({
+    readMail: async (input: { historyId?: string | null; query?: string | null; since?: string | null }) => {
+      mailReads.push(input);
+      return gmailRead({
+        messages: [
+          gmailFromUser("mail-focus", "maria@empresa.cl"),
+          gmailFromUser("mail-non-focus", "fuera@empresa.cl")
+        ],
+        mode: "incremental",
+        nextCursor: "205"
+      });
+    },
+    readMailProfileHistoryId: async () => {
+      profileReads += 1;
+      return "profile-should-not-run";
+    },
+    writeCursor: async (input: { connectedAccountId?: string | null; cursorValue: string | null }) => {
+      writes.push(input);
+    }
+  });
+
+  const reviewed = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    dryRun: true,
+    globalFocusedMailSync: true,
+    includeCalendar: false,
+    includeMail: true,
+    maxMailMessages: 25,
+    maxPages: 3,
+    userEmail: "sergio@crm.cl"
+  }, dependencies);
+
+  assert.equal(mailReads.length, 1);
+  assert.equal(mailReads[0]?.historyId, "100");
+  assert.equal(mailReads[0]?.query, null);
+  assert.equal(mailReads[0]?.since, null);
+  assert.equal(profileReads, 0);
+  assert.equal(reviewed.gmailFocusedSnapshot?.mode, "incremental");
+  assert.equal(reviewed.gmailFocusedSnapshot?.candidateHistoryId, "205");
+  assert.deepEqual(reviewed.gmailFocusedSnapshot?.items.map((item) => item.externalId), ["GMAIL_mail-focus"]);
+
+  const applied = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    dryRun: false,
+    externalIds: ["GMAIL_mail-focus"],
+    globalFocusedMailSync: true,
+    gmailFocusedSnapshot: reviewed.gmailFocusedSnapshot,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, dependencies);
+
+  assert.equal(applied.ok, true);
+  assert.equal(mailReads.length, 1);
+  assert.equal(profileReads, 0);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]?.connectedAccountId, "account-1");
+  assert.equal(writes[0]?.cursorValue, "205");
+});
+
+test("Gmail global no avanza cursor si history queda truncado o falla", async () => {
+  let writes = 0;
+  const truncated = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readMail: async () => gmailRead({ complete: false, nextCursor: "205", truncatedBy: ["max_pages"] }),
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: truncated.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(writes, 0);
+
+  const failed = await syncGoogleInteractions({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    dryRun: true,
+    globalFocusedMailSync: true,
+    includeCalendar: false,
+    includeMail: true,
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readMail: async () => {
+      throw new Error("history failed");
+    },
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(failed.ok, false);
+  assert.equal(failed.gmailFocusedSnapshot, null);
+  assert.equal(writes, 0);
+});
+
+test("Gmail global recovery captura baseline antes, usa Foco y exactamente 14 dias", async () => {
+  type RecoveryReadInput = {
+    historyId?: string | null;
+    labelIds?: readonly string[];
+    query?: string | null;
+    since?: string | null;
+  };
+  const order: string[] = [];
+  let recoveryInput: RecoveryReadInput | null = null;
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readCursorRecord: async () => null,
+    readMailProfileHistoryId: async () => {
+      order.push("baseline");
+      return "300";
+    },
+    readMail: async (input: RecoveryReadInput) => {
+      order.push("recovery");
+      recoveryInput = input;
+      return gmailRead({ messages: [gmailFromUser("mail-focus", "maria@empresa.cl")], nextCursor: "310" });
+    }
+  }));
+
+  assert.deepEqual(order, ["baseline", "recovery"]);
+  assert.equal(reviewed.snapshot.mode, "recovery");
+  assert.equal(reviewed.snapshot.candidateHistoryId, "300");
+  assert.equal(reviewed.snapshot.recoverySince, "2026-09-21T12:00:00.000Z");
+  const capturedRecoveryInput = recoveryInput as RecoveryReadInput | null;
+  assert.equal(capturedRecoveryInput?.historyId, null);
+  assert.equal(capturedRecoveryInput?.labelIds, undefined);
+  assert.equal(capturedRecoveryInput?.since, "2026-09-21T12:00:00.000Z");
+  assert.match(capturedRecoveryInput?.query ?? "", /maria@empresa\.cl/);
+  assert.doesNotMatch(capturedRecoveryInput?.query ?? "", /fuera@empresa\.cl/);
+});
+
+test("Gmail global usa recovery ante cursor vencido o de otra cuenta", async () => {
+  let expiredMarked = 0;
+  let profileReads = 0;
+  const expired = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    markCursorExpired: async () => {
+      expiredMarked += 1;
+    },
+    readMail: async ({ historyId }: { historyId?: string | null }) => {
+      if (historyId) throw new GoogleInteractionClientError("GOOGLE_INTERACTIONS_EXPIRED_SYNC_TOKEN", "expired", 404);
+      return gmailRead();
+    },
+    readMailProfileHistoryId: async () => {
+      profileReads += 1;
+      return "300";
+    }
+  }));
+  assert.equal(expired.snapshot.mode, "recovery");
+  assert.equal(expiredMarked, 1);
+  assert.equal(profileReads, 1);
+
+  let historyReads = 0;
+  const mismatch = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-2",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readCursorRecord: async () => focusedCursor("100", "account-1"),
+    readMail: async ({ historyId }: { historyId?: string | null }) => {
+      if (historyId) historyReads += 1;
+      return gmailRead();
+    },
+    readMailProfileHistoryId: async () => "400"
+  }));
+  assert.equal(mismatch.snapshot.mode, "recovery");
+  assert.equal(mismatch.snapshot.candidateHistoryId, "400");
+  assert.equal(historyReads, 0);
+});
+
+test("Gmail global recovery sin Foco es no-op y puede inicializar cursor", async () => {
+  let mailReads = 0;
+  const writes: string[] = [];
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readAppContacts: async () => contacts.map((contact) => ({ ...contact, networking_focus: false })),
+    readMail: async () => {
+      mailReads += 1;
+      return gmailRead();
+    },
+    readMailProfileHistoryId: async () => "500"
+  }));
+  assert.equal(reviewed.snapshot.complete, true);
+  assert.equal(reviewed.snapshot.items.length, 0);
+  assert.equal(mailReads, 0);
+
+  await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: reviewed.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async ({ cursorValue }: { cursorValue: string | null }) => {
+      writes.push(cursorValue ?? "");
+    }
+  }));
+  assert.deepEqual(writes, ["500"]);
+});
+
+test("Gmail global no avanza cursor si falla persistencia Foco o quedan elegibles sin aplicar", async () => {
+  let writes = 0;
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies());
+  const externalId = reviewed.snapshot.items[0]?.externalId ?? "";
+
+  const failed = await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [externalId],
+    snapshot: reviewed.snapshot
+  }, focusedSyncDependencies({
+    syncMail: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => ({
+      ...syncResult({ ...input, resourceType: "mail" }, "failed"),
+      counts: { ...syncResult({ ...input, resourceType: "mail" }, "failed").counts, failed: 1 },
+      errors: [{ code: "persist_failed", message: "persist failed" }],
+      ok: false
+    }),
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(failed.ok, false);
+  assert.equal(writes, 0);
+
+  const omitted = await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: reviewed.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.match(omitted.warnings.join(" "), /quedaron correos Foco elegibles/);
+  assert.equal(writes, 0);
+});
+
+test("Gmail global recovery truncado o fallido no guarda baseline", async () => {
+  let writes = 0;
+  const truncated = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readCursorRecord: async () => null,
+    readMail: async () => gmailRead({ complete: false, nextCursor: "ignored", truncatedBy: ["max_messages"] }),
+    readMailProfileHistoryId: async () => "600"
+  }));
+  await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: truncated.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(writes, 0);
+
+  await assert.rejects(
+    reviewGoogleGmailFocusedSync({
+      accessToken: "token",
+      connectedAccountId: "account-1",
+      now: "2026-10-05T12:00:00.000Z",
+      userEmail: "sergio@crm.cl"
+    }, focusedSyncDependencies({
+      readCursorRecord: async () => null,
+      readMail: async () => {
+        throw new Error("recovery failed");
+      },
+      readMailProfileHistoryId: async () => "600",
+      writeCursor: async () => {
+        writes += 1;
+      }
+    })),
+    /recovery failed/
+  );
+  assert.equal(writes, 0);
+});
+
+test("Gmail global recovery no considera completa una lectura que deja batches sin consultar", async () => {
+  const focusedContacts = Array.from({ length: 21 }, (_, index) => ({
+    ...contacts[0]!,
+    contact_emails: [{ email: `foco-${index}@empresa.cl` }],
+    id: `focus-${index}`,
+    networking_focus: true
+  }));
+  let reads = 0;
+  let writes = 0;
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    maxMailMessages: 1,
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readAppContacts: async () => focusedContacts,
+    readCursorRecord: async () => null,
+    readMail: async () => {
+      reads += 1;
+      return gmailRead({
+        messages: [gmailFromUser(`mail-${reads}`, `foco-${reads - 1}@empresa.cl`, undefined, undefined, "Sun, 4 Oct 2026 08:00:00 -0400")]
+      });
+    },
+    readMailProfileHistoryId: async () => "700"
+  }));
+
+  assert.equal(reads, 1);
+  assert.equal(reviewed.snapshot.complete, false);
+  assert.deepEqual(reviewed.snapshot.truncatedBy, ["max_messages"]);
+
+  await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [reviewed.snapshot.items[0]!.externalId],
+    snapshot: reviewed.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(writes, 0);
+});
+
+test("Gmail global rechaza IDs fuera del snapshot y absorbe fuentes ya conocidas", async () => {
+  let writes = 0;
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readExternalSourcesForPreview: async () => [{
+      external_id: "GMAIL_mail-focus",
+      source_subject: "Mail mail-focus",
+      source_detail: "Hola",
+      last_seen_at: "2026-08-04T12:00:00.000Z",
+      interactions: {
+        id: "interaction-existing",
+        occurred_at: "2026-08-04T12:00:00.000Z",
+        subject: "Mail mail-focus",
+        source_detail: "Hola"
+      }
+    }]
+  }));
+  assert.deepEqual(reviewed.snapshot.preview.map((change) => change.type), ["unchanged"]);
+  await applyGoogleGmailFocusedSync({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: reviewed.snapshot
+  }, focusedSyncDependencies({
+    writeCursor: async () => {
+      writes += 1;
+    }
+  }));
+  assert.equal(writes, 1);
+
+  await assert.rejects(
+    applyGoogleGmailFocusedSync({
+      connectedAccountId: "account-1",
+      externalIds: ["GMAIL_not-reviewed"],
+      snapshot: reviewed.snapshot
+    }, focusedSyncDependencies()),
+    /no pertenecen al snapshot/
+  );
+});
+
+function focusedSyncDependencies(overrides: Record<string, unknown> = {}) {
+  return {
+    markCursorExpired: async () => {},
+    readAppContacts: async () => contacts,
+    readCursorRecord: async () => focusedCursor(),
+    readExternalSourcesForPreview: async () => [],
+    readMail: async () => gmailRead({ messages: [gmailFromUser("mail-focus", "maria@empresa.cl")], mode: "incremental", nextCursor: "205" }),
+    readMailProfileHistoryId: async () => "300",
+    syncMail: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => syncResult({ ...input, resourceType: "mail" }, "focused-sync"),
+    writeCursor: async () => {},
+    ...overrides
+  };
+}
+
+function contactBackfillDependencies(overrides: Record<string, unknown> = {}) {
+  return {
+    markCursorExpired: async () => {},
+    readAppContacts: async () => contacts,
+    readCursor: async () => null,
+    readExternalSourcesForPreview: async () => [],
+    readMail: async () => gmailRead({
+      messages: [gmailFromUser("mail-contact", "maria@empresa.cl", "Contacto", "Hola", "Thu, 1 Oct 2026 08:00:00 -0400")]
+    }),
+    readMailProfileHistoryId: async () => "history-no-esperado",
+    syncCalendar: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => (
+      syncResult({ ...input, resourceType: "calendar" }, "calendar-contact")
+    ),
+    syncMail: async (input: Omit<ExternalInteractionBatchInput, "resourceType">) => (
+      syncResult({ ...input, resourceType: "mail" }, "contact-backfill")
+    ),
+    writeCursor: async () => {},
+    ...overrides
+  };
+}
+
+function focusedCursor(cursorValue = "100", connectedAccountId = "account-1") {
+  return {
+    connected_account_id: connectedAccountId,
+    cursor_label: "",
+    cursor_value: cursorValue,
+    last_synced_at: "2026-10-05T10:00:00.000Z",
+    metadata: {},
+    provider: "google" as const,
+    resource_type: "mail" as const,
+    status: "ok" as const
+  };
+}
+
+function gmailRead(input: {
+  complete?: boolean;
+  messages?: ReturnType<typeof gmailFromUser>[];
+  mode?: "full" | "incremental";
+  nextCursor?: string;
+  truncatedBy?: Array<"max_messages" | "max_pages">;
+} = {}) {
+  return {
+    complete: input.complete ?? true,
+    messages: input.messages ?? [],
+    mode: input.mode ?? "full" as const,
+    nextCursor: input.nextCursor ?? "300",
+    pagesRead: 1,
+    resultSizeEstimate: input.messages?.length ?? 0,
+    truncatedBy: input.truncatedBy ?? [],
+    warnings: []
+  };
+}
+
+async function bootstrapReviewFixture(complete = true) {
+  return reviewGoogleGmailHistoricalBootstrap({
+    accessToken: "token",
+    label: { id: "Label_networking", name: "Networking" },
+    maxMailMessages: 25,
+    maxPages: 2,
+    since: "2026-08-01T00:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, {
+    readAppContacts: async () => contacts,
+    readMailProfileHistoryId: async () => "500",
+    readMail: async () => ({
+      complete,
+      messages: [
+        gmailFromUser("mail-linked", "maria@empresa.cl"),
+        gmailFromUser("mail-unlinked", "nueva@empresa.cl")
+      ],
+      mode: "full",
+      nextCursor: "550",
+      pagesRead: 1,
+      resultSizeEstimate: 2,
+      truncatedBy: complete ? [] : ["max_messages"],
+      warnings: complete ? [] : ["Se alcanzo el limite de mensajes para esta lectura de Gmail."]
+    }),
+    syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-review")
+  });
+}
 
 function syncResult(input: ExternalInteractionBatchInput, interactionId: string): SyncRunResult {
   return {

@@ -2,8 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  GLOBAL_ACTIVITY_SYNC_CURSOR_LABEL,
   markSyncCursorExpired,
+  readGlobalActivityServiceFreshness,
+  readGlobalActivitySyncSuccess,
   readSyncCursor,
+  recordGlobalActivitySyncSuccess,
   upsertSyncCursor,
   type SyncCursorRecord
 } from "../lib/syncCursorStore.ts";
@@ -71,6 +75,70 @@ test("syncCursorStore marca cursor vencido sin conservar cursor_value", async ()
   assert.equal(saved.cursor_value, null);
   assert.equal(saved.cursor_label, "");
   assert.equal(typeof saved.metadata.expired_at, "string");
+});
+
+test("syncCursorStore persiste y recupera el exito agregado sin inventar cursor", async () => {
+  const client = fakeClient();
+
+  await recordGlobalActivitySyncSuccess({
+    connectedAccountId: "account-1",
+    services: ["mail", "calendar", "mail"],
+    syncedAt: "2026-10-05T22:20:00Z"
+  }, client);
+  const success = await readGlobalActivitySyncSuccess(client);
+
+  assert.deepEqual(client.upserts[0].row, {
+    connected_account_id: "account-1",
+    cursor_label: GLOBAL_ACTIVITY_SYNC_CURSOR_LABEL,
+    cursor_value: null,
+    last_synced_at: "2026-10-05T22:20:00Z",
+    metadata: { services: ["calendar", "mail"] },
+    provider: "google",
+    resource_type: "messages",
+    status: "ok",
+    user_id: "user-1"
+  });
+  assert.deepEqual(success, {
+    connectedAccountId: "account-1",
+    services: ["calendar", "mail"],
+    syncedAt: "2026-10-05T22:20:00Z"
+  });
+});
+
+test("syncCursorStore obtiene freshness global por servicio y cuenta conectada", async () => {
+  const client = fakeClient({
+    "user-1|google|mail|": {
+      connected_account_id: "account-1",
+      cursor_label: "",
+      cursor_value: "mail-history",
+      last_synced_at: "2026-10-05T22:25:00Z",
+      metadata: {},
+      provider: "google",
+      resource_type: "mail",
+      status: "ok",
+      user_id: "user-1"
+    },
+    "user-1|google|calendar|": {
+      connected_account_id: "account-1",
+      cursor_label: "",
+      cursor_value: "calendar-token",
+      last_synced_at: "2026-10-05T22:13:00Z",
+      metadata: {},
+      provider: "google",
+      resource_type: "calendar",
+      status: "ok",
+      user_id: "user-1"
+    }
+  });
+
+  assert.deepEqual(await readGlobalActivityServiceFreshness("account-1", client), {
+    calendar: "2026-10-05T22:13:00Z",
+    mail: "2026-10-05T22:25:00Z"
+  });
+  assert.deepEqual(await readGlobalActivityServiceFreshness("account-2", client), {
+    calendar: null,
+    mail: null
+  });
 });
 
 function fakeClient(initialRows: Record<string, SyncCursorRecord> = {}) {

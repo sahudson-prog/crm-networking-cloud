@@ -19,11 +19,20 @@ import {
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
+import {
+  clearPendingInteractionSyncService,
+  interactionSyncToggleAction,
+  readPendingInteractionSyncService,
+  rememberPendingInteractionSyncService,
+  type InteractionSyncService
+} from "../lib/interactionSyncPreferences";
 import { supabase } from "../lib/supabaseClient";
 import { ContactDuplicateReviewPanel } from "./ContactDuplicateReviewPanel";
 import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
+import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
 import { NetworkingStartDateSetting } from "./NetworkingStartDateSetting";
+import { useShellActions } from "./Shell";
 import { useOnboarding } from "./OnboardingProvider";
 import { VCardImportPanel } from "./VCardImportPanel";
 import { Button } from "./ui/Button";
@@ -45,6 +54,7 @@ type AccountState = {
 
 export function AccountPage({ view = "full" }: { view?: "full" | "google-onboarding" } = {}) {
   const onboarding = useOnboarding();
+  const { onSignOut } = useShellActions();
   const [account, setAccount] = useState<AccountState>(createInitialAccountState(true));
   const accountLoadGenerationRef = useRef(0);
   const googleFinalizeInFlightRef = useRef(false);
@@ -87,6 +97,7 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
       .catch((error) => {
         if (!mounted || generation !== accountLoadGenerationRef.current) return;
         googleFinalizeInFlightRef.current = false;
+        if (verifyingAuthorization) clearPendingInteractionSyncService();
         setAccount((current) => ({
           ...current,
           googleAuthorizationVerifying: false,
@@ -216,6 +227,20 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
           </div>
         </div>
       </section>
+
+      {onSignOut ? (
+        <section className="account-section" aria-labelledby="account-session-title">
+          <div className="account-section-title">
+            <h2 id="account-session-title">Sesión</h2>
+            <span>Finaliza la sesión actual de Coffeecito en este dispositivo.</span>
+          </div>
+          <div className="toolbar">
+            <Button icon="close" onClick={onSignOut} tone="ghost">
+              Cerrar sesión
+            </Button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -236,6 +261,76 @@ function GoogleImportSection({
   const activeGoogle = account.googleAccount;
   const googleServices = googleServiceAvailability(account);
   const googleAuthorizationStatus = googleAuthorizationSummary(account, googleServices);
+  const syncPreferences = useInteractionSyncPreferences();
+
+  useEffect(() => {
+    if (!includeOtherSources || syncPreferences.loading || !account.googleConnectionKnown) return;
+    const pendingService = readPendingInteractionSyncService();
+    if (!pendingService) return;
+    const oauthReturn = readGoogleDataConnectionReturn(window.location.href);
+    if (oauthReturn.status !== "completed") {
+      clearPendingInteractionSyncService();
+      return;
+    }
+    if (account.googleConnectionLoading || account.googleAuthorizationVerifying) return;
+    const capabilityAvailable = pendingService === "gmail" ? googleServices.mail : googleServices.calendar;
+    if (!capabilityAvailable) {
+      clearPendingInteractionSyncService();
+      setAccount((current) => ({
+        ...current,
+        message: "Google no confirmó el permiso necesario. La sincronización permanece desactivada."
+      }));
+      return;
+    }
+    let active = true;
+    void syncPreferences.setServiceEnabled(pendingService, true)
+      .then(() => {
+        clearPendingInteractionSyncService();
+        if (!active) return;
+        setAccount((current) => ({ ...current, message: "Preferencia de sincronización activada." }));
+      })
+      .catch(() => {
+        clearPendingInteractionSyncService();
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    account.googleAuthorizationVerifying,
+    account.googleConnectionKnown,
+    account.googleConnectionLoading,
+    googleServices.calendar,
+    googleServices.mail,
+    includeOtherSources,
+    setAccount,
+    syncPreferences.loading,
+    syncPreferences.setServiceEnabled
+  ]);
+
+  async function changeSyncPreference(service: InteractionSyncService, enabled: boolean) {
+    const capabilityAvailable = service === "gmail" ? googleServices.mail : googleServices.calendar;
+    const action = interactionSyncToggleAction({ capabilityAvailable, enabled });
+    if (action === "disable" || action === "enable") {
+      try {
+        await syncPreferences.setServiceEnabled(service, enabled);
+      } catch {
+        // The provider restores the previous value and exposes the persistence error.
+      }
+      return;
+    }
+
+    rememberPendingInteractionSyncService(service);
+    setAccount((current) => ({ ...current, message: "Abriendo autorización de Google..." }));
+    try {
+      await connectGoogle("/cuenta");
+    } catch (error) {
+      clearPendingInteractionSyncService();
+      setAccount((current) => ({
+        ...current,
+        message: error instanceof Error ? error.message : "No pude abrir la autorización de Google."
+      }));
+    }
+  }
 
   return (
     <section className="account-section account-section-primary" aria-labelledby="account-import-title">
@@ -282,6 +377,26 @@ function GoogleImportSection({
             <ServiceCapability label="Calendario" available={googleServices.calendar} />
           </div>
 
+          {includeOtherSources ? (
+            <div className="account-sync-preferences" id="interaction-sync-preferences">
+              <InteractionSyncPreferenceToggle
+                checked={syncPreferences.preferences.gmailEnabled}
+                description="Mantener correos recientes y futuros actualizados"
+                disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying}
+                label="Google Gmail"
+                onChange={(enabled) => void changeSyncPreference("gmail", enabled)}
+              />
+              <InteractionSyncPreferenceToggle
+                checked={syncPreferences.preferences.calendarEnabled}
+                description="Mantener citas recientes y futuras actualizadas"
+                disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying}
+                label="Google Calendar"
+                onChange={(enabled) => void changeSyncPreference("calendar", enabled)}
+              />
+              {syncPreferences.error ? <p className="form-error" role="alert">{syncPreferences.error}</p> : null}
+            </div>
+          ) : null}
+
           <div className="connected-service-actions">
             <GoogleContactsSyncPanel
               compact
@@ -317,6 +432,36 @@ function GoogleImportSection({
 
       {account.message ? <p className="meta">{account.message}</p> : null}
     </section>
+  );
+}
+
+function InteractionSyncPreferenceToggle({
+  checked,
+  description,
+  disabled,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  description: string;
+  disabled: boolean;
+  label: string;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <label className="account-sync-preference">
+      <span>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <input
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        role="switch"
+        type="checkbox"
+      />
+    </label>
   );
 }
 

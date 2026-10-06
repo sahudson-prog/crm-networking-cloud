@@ -5,6 +5,7 @@ import {
   createGoogleGmailRequestGovernor,
   readGoogleCalendarEvents,
   readGoogleGmailMessages,
+  readGoogleGmailProfileHistoryId,
   type GoogleCalendarReadResult,
   type GoogleGmailReadResult,
   type GoogleGmailRequestGovernor
@@ -18,7 +19,7 @@ import {
   mapGmailMessageToExternalInteraction,
   type GoogleContactIndex
 } from "./googleInteractionAdapter.ts";
-import { readSyncCursor, markSyncCursorExpired, upsertSyncCursor } from "./syncCursorStore.ts";
+import { readSyncCursor, markSyncCursorExpired, upsertSyncCursor, type SyncCursorRecord } from "./syncCursorStore.ts";
 import {
   syncCalendarInteractions,
   syncMailInteractions,
@@ -31,6 +32,8 @@ import { supabase } from "./supabaseClient.ts";
 
 const GOOGLE_PROVIDER = "google";
 const GMAIL_SCOPED_EMAILS_PER_BATCH = 20;
+const GMAIL_FOCUSED_RECOVERY_DAYS = 14;
+const GMAIL_CONTACT_BACKFILL_DAYS = 14;
 
 export type SyncGoogleInteractionsInput = {
   accessToken: string;
@@ -50,9 +53,16 @@ export type SyncGoogleInteractionsInput = {
   calendarQuery?: string | null;
   calendarFutureTimeMax?: string | null;
   calendarFutureTimeMin?: string | null;
+  calendarRollingWindowSync?: "global" | "contact";
+  calendarRollingSnapshot?: GoogleCalendarRollingSnapshot | null;
   calendarTimeMin?: string | null;
   gmailSince?: string | null;
   gmailQuery?: string | null;
+  globalFocusedMailSync?: boolean;
+  gmailFocusedSnapshot?: GoogleGmailFocusedSyncSnapshot | null;
+  contactRecentMailSync?: boolean;
+  contactRecentNow?: string;
+  gmailContactSnapshot?: GoogleGmailContactBackfillSnapshot | null;
   saveCursors?: boolean;
   saveReadDiagnostics?: boolean;
 };
@@ -69,24 +79,148 @@ export type SyncGoogleInteractionsResult = {
   };
   warnings: string[];
   errors: Array<{ code: string; message: string }>;
+  calendarRollingSnapshot: GoogleCalendarRollingSnapshot | null;
+  gmailFocusedSnapshot: GoogleGmailFocusedSyncSnapshot | null;
+  gmailContactSnapshot: GoogleGmailContactBackfillSnapshot | null;
+};
+
+export type GoogleCalendarRollingSnapshot = {
+  complete: boolean;
+  connectedAccountId: string | null;
+  eventsRead: number;
+  items: ExternalInteractionInput[];
+  pagesRead: number;
+  preview: SyncPreviewChange[];
+  scope: "global" | "contact";
+  timeMax: string;
+  timeMin: string;
+  warnings: string[];
+};
+
+export type GoogleGmailContactBackfillSnapshot = {
+  complete: boolean;
+  connectedAccountId: string | null;
+  contactId: string;
+  items: ExternalInteractionInput[];
+  messagesRead: number;
+  pagesRead: number;
+  preview: SyncPreviewChange[];
+  resultSizeEstimate: number | null;
+  since: string;
+  truncatedBy: Array<"max_messages" | "max_pages">;
+  until: string;
+  warnings: string[];
+};
+
+export type ReviewGoogleGmailContactBackfillInput = {
+  accessToken: string;
+  connectedAccountId?: string | null;
+  contactId: string;
+  maxMailMessages?: number;
+  maxPages?: number;
+  now?: string;
+  userEmail: string;
+};
+
+export type ApplyGoogleGmailContactBackfillInput = {
+  connectedAccountId?: string | null;
+  contactId: string;
+  externalIds: string[];
+  snapshot: GoogleGmailContactBackfillSnapshot;
+};
+
+export type GoogleGmailFocusedSyncSnapshot = {
+  candidateHistoryId: string;
+  complete: boolean;
+  connectedAccountId: string | null;
+  cursorBefore: string | null;
+  items: ExternalInteractionInput[];
+  messagesRead: number;
+  mode: "incremental" | "recovery";
+  pagesRead: number;
+  preview: SyncPreviewChange[];
+  recoverySince: string | null;
+  resultSizeEstimate: number | null;
+  truncatedBy: Array<"max_messages" | "max_pages">;
+  warnings: string[];
+};
+
+export type ReviewGoogleGmailFocusedSyncInput = {
+  accessToken: string;
+  connectedAccountId?: string | null;
+  maxMailMessages?: number;
+  maxPages?: number;
+  now?: string;
+  userEmail: string;
+};
+
+export type ApplyGoogleGmailFocusedSyncInput = {
+  connectedAccountId?: string | null;
+  externalIds: string[];
+  snapshot: GoogleGmailFocusedSyncSnapshot;
+};
+
+export type GoogleGmailHistoricalBootstrapSnapshot = {
+  baselineHistoryId: string;
+  complete: boolean;
+  items: ExternalInteractionInput[];
+  label: {
+    id: string;
+    name: string;
+  };
+  pagesRead: number;
+  preview: SyncPreviewChange[];
+  resultSizeEstimate: number | null;
+  truncatedBy: Array<"max_messages" | "max_pages">;
+  warnings: string[];
+};
+
+export type ReviewGoogleGmailHistoricalBootstrapInput = {
+  accessToken: string;
+  connectedAccountId?: string | null;
+  label: {
+    id: string;
+    name: string;
+  };
+  maxMailMessages?: number;
+  maxPages?: number;
+  since?: string | null;
+  userEmail: string;
+};
+
+export type ApplyGoogleGmailHistoricalBootstrapInput = {
+  connectedAccountId?: string | null;
+  externalIds: string[];
+  snapshot: GoogleGmailHistoricalBootstrapSnapshot;
+};
+
+type GoogleGmailReadDependencyResult = Omit<GoogleGmailReadResult, "complete" | "truncatedBy"> & {
+  complete?: boolean;
+  truncatedBy?: GoogleGmailReadResult["truncatedBy"];
 };
 
 type SyncGoogleInteractionsDependencies = {
   createMailRequestGovernor: () => GoogleGmailRequestGovernor;
   readAppContacts: () => Promise<ContactRow[]>;
   readCursor: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<string | null>;
+  readCursorRecord: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<SyncCursorRecord | null>;
   markCursorExpired: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<void>;
-  writeCursor: (input: { cursorLabel?: string; resourceType: "mail" | "calendar"; cursorValue: string | null; metadata?: Record<string, unknown> }) => Promise<void>;
+  writeCursor: (input: { connectedAccountId?: string | null; cursorLabel?: string; resourceType: "mail" | "calendar"; cursorValue: string | null; metadata?: Record<string, unknown> }) => Promise<void>;
   readMail: (input: {
     accessToken: string;
     excludeMessageIds?: readonly string[];
     historyId?: string | null;
+    labelIds?: readonly string[];
     maxMessages?: number;
     maxPages?: number;
     query?: string | null;
     requestGovernor?: GoogleGmailRequestGovernor;
     since?: string | null;
-  }) => Promise<GoogleGmailReadResult>;
+  }) => Promise<GoogleGmailReadDependencyResult>;
+  readMailProfileHistoryId: (input: {
+    accessToken: string;
+    requestGovernor?: GoogleGmailRequestGovernor;
+  }) => Promise<string>;
   readCalendar: (input: {
     accessToken: string;
     maxEvents?: number;
@@ -136,8 +270,12 @@ export async function syncGoogleInteractions(
   const shouldUseCursors = input.forceFullSync ? false : input.saveCursors !== false;
   const [contacts, mailCursor, calendarCursor] = await Promise.all([
     deps.readAppContacts(),
-    input.includeMail === false || !shouldUseCursors ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "mail" }),
-    input.includeCalendar === false || !shouldUseCursors ? Promise.resolve(null) : deps.readCursor({ cursorLabel, resourceType: "calendar" })
+    input.includeMail === false || !shouldUseCursors || input.globalFocusedMailSync || input.contactRecentMailSync
+      ? Promise.resolve(null)
+      : deps.readCursor({ cursorLabel, resourceType: "mail" }),
+    input.includeCalendar === false || !shouldUseCursors || input.calendarRollingWindowSync
+      ? Promise.resolve(null)
+      : deps.readCursor({ cursorLabel, resourceType: "calendar" })
   ]);
   const scopedContacts = filterContactsForSync(contacts, input);
   const contactsByEmail = contactIndexByEmail(scopedContacts);
@@ -151,55 +289,100 @@ export async function syncGoogleInteractions(
   const errors: Array<{ code: string; message: string }> = [];
   let mail: SyncRunResult | null = null;
   let calendar: SyncRunResult | null = null;
-  let mailRead: GoogleGmailReadResult | null = null;
+  let mailRead: GoogleGmailReadDependencyResult | null = null;
   let calendarRead: ScopedCalendarReadResult | null = null;
+  let calendarRollingSnapshot: GoogleCalendarRollingSnapshot | null = null;
+  let gmailFocusedSnapshot: GoogleGmailFocusedSyncSnapshot | null = null;
+  let gmailContactSnapshot: GoogleGmailContactBackfillSnapshot | null = null;
 
   if (input.includeMail !== false) {
     try {
-      const skipMail = shouldSkipFocusedMail(input, scopedContacts, scopedEmailQueries);
-      if (skipMail) {
-        warnings.push(skipMail);
+      if (input.globalFocusedMailSync) {
+        const focusedResult = input.dryRun
+          ? await reviewGoogleGmailFocusedSync({
+              accessToken: input.accessToken,
+              connectedAccountId: input.connectedAccountId,
+              maxMailMessages: input.maxMailMessages,
+              maxPages: input.maxPages,
+              userEmail: input.userEmail
+            }, deps, contacts)
+          : await applyGoogleGmailFocusedSync({
+              connectedAccountId: input.connectedAccountId,
+              externalIds: globalMailExternalIds(input.externalIds ?? []),
+              snapshot: requireFocusedSnapshot(input.gmailFocusedSnapshot)
+            }, deps).then((result) => ({ result, snapshot: input.gmailFocusedSnapshot! }));
+        mail = focusedResult.result.mail;
+        gmailFocusedSnapshot = focusedResult.snapshot;
+        warnings.push(...focusedResult.result.warnings);
+        errors.push(...focusedResult.result.errors);
+      } else if (input.contactRecentMailSync) {
+        const contactId = requireSingleContactId(input.contactIds);
+        const contactResult = input.dryRun
+          ? await reviewGoogleGmailContactBackfill({
+              accessToken: input.accessToken,
+              connectedAccountId: input.connectedAccountId,
+              contactId,
+              maxMailMessages: input.maxMailMessages,
+              maxPages: input.maxPages,
+              now: input.contactRecentNow,
+              userEmail: input.userEmail
+            }, deps, contacts)
+          : await applyGoogleGmailContactBackfill({
+              connectedAccountId: input.connectedAccountId,
+              contactId,
+              externalIds: contactMailExternalIds(input.externalIds ?? []),
+              snapshot: requireContactSnapshot(input.gmailContactSnapshot)
+            }, deps).then((result) => ({ result, snapshot: input.gmailContactSnapshot! }));
+        mail = contactResult.result.mail;
+        gmailContactSnapshot = contactResult.snapshot;
+        warnings.push(...contactResult.result.warnings);
+        errors.push(...contactResult.result.errors);
       } else {
-        mailRead = await readMailWithExpiredCursorRetry(deps, {
-        accessToken: input.accessToken,
-        cursorLabel,
-        historyId: mailCursor,
-        maxMessages: input.maxMailMessages,
-        maxPages: input.maxPages,
-        queries: scopedEmailQueries,
-        since: input.gmailSince
-        });
-        const mailItems = filterExternalInteractionsFromDate(
-          mailRead.messages
-            .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
-            .filter((item): item is ExternalInteractionInput => Boolean(item)),
-          input.gmailSince
-        );
-        const mailPreview = await buildInteractionSyncPreview(deps, {
-          items: mailItems,
-          provider: GOOGLE_PROVIDER,
-          sourceService: "gmail"
-        });
-        mail = await deps.syncMail({
-          connectedAccountId: input.connectedAccountId,
-          cursorAfter: mailRead.nextCursor,
-          cursorBefore: mailCursor,
-          dryRun: input.dryRun,
-          items: mailItems,
-          mode: mailRead.mode === "incremental" ? "incremental" : "historical",
-          provider: GOOGLE_PROVIDER,
-          scope: { externalIds: input.externalIds, limit: input.maxMailMessages ?? null, reason: "google_gmail_sync" },
-          source: "google_gmail_sync_flow"
-        });
-        mail.preview = mailPreview;
-        warnings.push(...mailRead.warnings, ...mail.warnings);
-        if (mail.ok && !input.dryRun && shouldUseCursors) {
-          await deps.writeCursor({
+        const skipMail = shouldSkipFocusedMail(input, scopedContacts, scopedEmailQueries);
+        if (skipMail) {
+          warnings.push(skipMail);
+        } else {
+          mailRead = await readMailWithExpiredCursorRetry(deps, {
+            accessToken: input.accessToken,
             cursorLabel,
-            cursorValue: mailRead.nextCursor,
-            metadata: { mode: mailRead.mode, pages_read: mailRead.pagesRead, result_size_estimate: mailRead.resultSizeEstimate },
-            resourceType: "mail"
+            historyId: mailCursor,
+            maxMessages: input.maxMailMessages,
+            maxPages: input.maxPages,
+            queries: scopedEmailQueries,
+            since: input.gmailSince
           });
+          const mailItems = filterExternalInteractionsFromDate(
+            mailRead.messages
+              .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
+              .filter((item): item is ExternalInteractionInput => Boolean(item)),
+            input.gmailSince
+          );
+          const mailPreview = await buildInteractionSyncPreview(deps, {
+            items: mailItems,
+            provider: GOOGLE_PROVIDER,
+            sourceService: "gmail"
+          });
+          mail = await deps.syncMail({
+            connectedAccountId: input.connectedAccountId,
+            cursorAfter: mailRead.nextCursor,
+            cursorBefore: mailCursor,
+            dryRun: input.dryRun,
+            items: mailItems,
+            mode: mailRead.mode === "incremental" ? "incremental" : "historical",
+            provider: GOOGLE_PROVIDER,
+            scope: { externalIds: input.externalIds, limit: input.maxMailMessages ?? null, reason: "google_gmail_sync" },
+            source: "google_gmail_sync_flow"
+          });
+          mail.preview = mailPreview;
+          warnings.push(...mailRead.warnings, ...mail.warnings);
+          if (mail.ok && !input.dryRun && shouldUseCursors) {
+            await deps.writeCursor({
+              cursorLabel,
+              cursorValue: mailRead.nextCursor,
+              metadata: { mode: mailRead.mode, pages_read: mailRead.pagesRead, result_size_estimate: mailRead.resultSizeEstimate },
+              resourceType: "mail"
+            });
+          }
         }
       }
     } catch (error) {
@@ -212,74 +395,111 @@ export async function syncGoogleInteractions(
       const skipCalendar = shouldSkipFocusedCalendar(input, scopedContacts);
       if (skipCalendar) {
         warnings.push(skipCalendar);
-      } else {
-        calendarRead = await readCalendarWithExpiredCursorRetry(deps, {
-        accessToken: input.accessToken,
-        calendarQueries: scopedCalendarQueries,
-        calendarFutureTimeMax: input.calendarFutureTimeMax,
-        calendarFutureTimeMin: input.calendarFutureTimeMin,
-        calendarTimeMin: input.calendarTimeMin,
-        calendarQuery: input.calendarQuery,
-        cursorLabel,
-        maxCalendarEvents: input.maxCalendarEvents,
-        maxPages: input.maxPages,
-        syncToken: calendarCursor
-        });
-        const mappedCalendarItems = calendarRead.events
-            .map((event) => mapCalendarEventToExternalInteraction({
-              contactsByEmail,
-              event,
-              matchedContactEmails: calendarRead?.matchedContactEmailsByEventKey?.[calendarEventKey(event)] ?? [],
-              userEmail: input.userEmail
-            }))
-            .filter((item): item is ExternalInteractionInput => Boolean(item));
-        const calendarItems = filterExternalInteractionsFromDate(
-          mappedCalendarItems,
-          input.calendarTimeMin
-        );
-        if (input.saveReadDiagnostics) {
-          await deps.saveCalendarReadDiagnostics({
-            calendarTimeMin: input.calendarTimeMin,
-            events: calendarRead.events,
-            mappedItems: mappedCalendarItems,
-            matchedContactEmailsByEventKey: calendarRead.matchedContactEmailsByEventKey,
-            provider: GOOGLE_PROVIDER,
-            readContext: {
-              cursor_label: cursorLabel,
-              dry_run: Boolean(input.dryRun),
-              focused_only: Boolean(input.focusedOnly),
-              mode: calendarRead.mode,
-              pages_read: calendarRead.pagesRead
-            },
-            sourceService: "calendar",
-            syncedItems: calendarItems
-          });
+        if (input.calendarRollingWindowSync === "global" && !input.dryRun && shouldUseCursors) {
+          await writeRollingCalendarFreshness(deps, input, 0);
         }
-        const calendarPreview = await buildInteractionSyncPreview(deps, {
-          items: calendarItems,
-          provider: GOOGLE_PROVIDER,
-          sourceService: "calendar"
-        });
-        calendar = await deps.syncCalendar({
-          connectedAccountId: input.connectedAccountId,
-          cursorAfter: calendarRead.nextSyncToken,
-          cursorBefore: calendarCursor,
-          dryRun: input.dryRun,
-          items: calendarItems,
-          mode: calendarCursor ? "incremental" : "historical",
-          provider: GOOGLE_PROVIDER,
-          scope: { externalIds: input.externalIds, limit: input.maxCalendarEvents ?? null, reason: "google_calendar_sync" },
-          source: "google_calendar_sync_flow"
-        });
-        calendar.preview = calendarPreview;
-        warnings.push(...calendarRead.warnings, ...calendar.warnings);
-        if (calendar.ok && calendarRead.nextSyncToken && !input.dryRun && shouldUseCursors) {
-          await deps.writeCursor({
-            cursorLabel,
-            cursorValue: calendarRead.nextSyncToken,
-            metadata: { pages_read: calendarRead.pagesRead },
-            resourceType: "calendar"
+      } else {
+        const reviewedRollingSnapshot = input.calendarRollingWindowSync && !input.dryRun && input.calendarRollingSnapshot
+          ? requireCalendarRollingSnapshot(input.calendarRollingSnapshot, input)
+          : null;
+        const calendarReadInput = {
+          accessToken: input.accessToken,
+          calendarQueries: scopedCalendarQueries,
+          calendarFutureTimeMax: input.calendarFutureTimeMax,
+          calendarFutureTimeMin: input.calendarFutureTimeMin,
+          calendarTimeMin: input.calendarTimeMin,
+          calendarQuery: input.calendarQuery,
+          cursorLabel,
+          maxCalendarEvents: input.maxCalendarEvents,
+          maxPages: input.maxPages,
+          rollingWindow: Boolean(input.calendarRollingWindowSync),
+          syncToken: input.calendarRollingWindowSync ? null : calendarCursor
+        };
+        calendarRead = reviewedRollingSnapshot
+          ? calendarReadFromRollingSnapshot(reviewedRollingSnapshot)
+          : input.calendarRollingWindowSync
+            ? await readCalendarForScope(deps, calendarReadInput)
+            : await readCalendarWithExpiredCursorRetry(deps, calendarReadInput);
+        warnings.push(...calendarRead.warnings);
+        if (input.calendarRollingWindowSync && calendarRead.complete === false) {
+          errors.push({
+            code: "GOOGLE_CALENDAR_READ_INCOMPLETE",
+            message: "Calendar no pudo completar la ventana de actualización. Intenta nuevamente."
           });
+        } else {
+          const mappedCalendarItems = reviewedRollingSnapshot
+            ? reviewedRollingSnapshot.items
+            : calendarRead.events
+                .map((event) => mapCalendarEventToExternalInteraction({
+                  contactsByEmail,
+                  event,
+                  matchedContactEmails: calendarRead?.matchedContactEmailsByEventKey?.[calendarEventKey(event)] ?? [],
+                  userEmail: input.userEmail
+                }))
+                .filter((item): item is ExternalInteractionInput => Boolean(item));
+          const calendarItems = reviewedRollingSnapshot
+            ? reviewedRollingSnapshot.items
+            : filterExternalInteractionsFromDate(mappedCalendarItems, input.calendarTimeMin);
+          if (input.saveReadDiagnostics && !reviewedRollingSnapshot) {
+            await deps.saveCalendarReadDiagnostics({
+              calendarTimeMin: input.calendarTimeMin,
+              events: calendarRead.events,
+              mappedItems: mappedCalendarItems,
+              matchedContactEmailsByEventKey: calendarRead.matchedContactEmailsByEventKey,
+              provider: GOOGLE_PROVIDER,
+              readContext: {
+                cursor_label: cursorLabel,
+                dry_run: Boolean(input.dryRun),
+                focused_only: Boolean(input.focusedOnly),
+                mode: calendarRead.mode,
+                pages_read: calendarRead.pagesRead
+              },
+              sourceService: "calendar",
+              syncedItems: calendarItems
+            });
+          }
+          const calendarPreview = reviewedRollingSnapshot?.preview ?? await buildInteractionSyncPreview(deps, {
+              items: calendarItems,
+              provider: GOOGLE_PROVIDER,
+              sourceService: "calendar"
+            });
+          if (input.calendarRollingWindowSync && input.dryRun) {
+            calendarRollingSnapshot = createCalendarRollingSnapshot(input, calendarItems, calendarPreview, calendarRead);
+          } else if (reviewedRollingSnapshot) {
+            calendarRollingSnapshot = reviewedRollingSnapshot;
+          }
+          calendar = await deps.syncCalendar({
+            connectedAccountId: input.connectedAccountId,
+            cursorAfter: input.calendarRollingWindowSync ? null : calendarRead.nextSyncToken,
+            cursorBefore: input.calendarRollingWindowSync ? null : calendarCursor,
+            dryRun: input.dryRun,
+            items: calendarItems,
+            mode: input.calendarRollingWindowSync === "contact"
+              ? "single_contact"
+              : (input.calendarRollingWindowSync || calendarCursor ? "incremental" : "historical"),
+            provider: GOOGLE_PROVIDER,
+            scope: { externalIds: input.externalIds, limit: input.maxCalendarEvents ?? null, reason: "google_calendar_sync" },
+            source: "google_calendar_sync_flow"
+          });
+          calendar.preview = calendarPreview;
+          warnings.push(...calendar.warnings);
+          if (calendar.ok && !input.dryRun && shouldUseCursors) {
+            if (input.calendarRollingWindowSync === "global") {
+              await writeRollingCalendarFreshness(deps, input, calendarRead.pagesRead);
+            } else if (!input.calendarRollingWindowSync && (calendarRead.nextSyncToken || input.globalFocusedMailSync)) {
+              await deps.writeCursor({
+                connectedAccountId: input.connectedAccountId,
+                cursorLabel,
+                cursorValue: calendarRead.nextSyncToken ?? calendarCursor,
+                metadata: {
+                  mode: calendarRead.mode,
+                  pages_read: calendarRead.pagesRead,
+                  token_available: Boolean(calendarRead.nextSyncToken ?? calendarCursor)
+                },
+                resourceType: "calendar"
+              });
+            }
+          }
         }
       }
     } catch (error) {
@@ -299,16 +519,594 @@ export async function syncGoogleInteractions(
 
   return {
     calendar,
+    calendarRollingSnapshot,
     errors: effectiveErrors,
+    gmailContactSnapshot,
+    gmailFocusedSnapshot,
     googleRead: {
-      calendarEvents: calendarRead?.events.length ?? 0,
-      calendarPages: calendarRead?.pagesRead ?? 0,
-      mailMessages: mailRead?.messages.length ?? 0,
-      mailPages: mailRead?.pagesRead ?? 0
+      calendarEvents: calendarRollingSnapshot?.eventsRead ?? calendarRead?.events.length ?? 0,
+      calendarPages: calendarRollingSnapshot?.pagesRead ?? calendarRead?.pagesRead ?? 0,
+      mailMessages: gmailContactSnapshot?.messagesRead ?? gmailFocusedSnapshot?.messagesRead ?? mailRead?.messages.length ?? 0,
+      mailPages: gmailContactSnapshot?.pagesRead ?? gmailFocusedSnapshot?.pagesRead ?? mailRead?.pagesRead ?? 0
     },
     mail,
     ok: effectiveErrors.length === 0 && (mail?.ok ?? true) && (calendar?.ok ?? true),
     warnings: effectiveWarnings
+  };
+}
+
+export async function reviewGoogleGmailHistoricalBootstrap(
+  input: ReviewGoogleGmailHistoricalBootstrapInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
+): Promise<{ result: SyncGoogleInteractionsResult; snapshot: GoogleGmailHistoricalBootstrapSnapshot }> {
+  const deps = defaultDependencies(dependencies);
+  const labelId = requireHistoricalBootstrapLabelId(input.label.id);
+  const labelName = input.label.name.trim() || "Etiqueta Gmail";
+  const requestGovernor = deps.createMailRequestGovernor();
+  const baselineHistoryId = await deps.readMailProfileHistoryId({
+    accessToken: input.accessToken,
+    requestGovernor
+  });
+  const contacts = await deps.readAppContacts();
+  const contactsByEmail = contactIndexByEmail(contacts.filter((contact) => contact.is_active));
+  const mailRead = await deps.readMail({
+    accessToken: input.accessToken,
+    historyId: null,
+    labelIds: [labelId],
+    maxMessages: input.maxMailMessages,
+    maxPages: input.maxPages,
+    query: null,
+    requestGovernor,
+    since: input.since
+  });
+  const items = filterExternalInteractionsFromDate(
+    mailRead.messages
+      .map((message) => mapGmailMessageToExternalInteraction({
+        contactsByEmail,
+        includeUnresolvedParticipants: true,
+        message,
+        userEmail: input.userEmail
+      }))
+      .filter((item): item is ExternalInteractionInput => Boolean(item)),
+    input.since
+  );
+  const preview = await buildInteractionSyncPreview(deps, {
+    items,
+    provider: GOOGLE_PROVIDER,
+    sourceService: "gmail"
+  });
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: baselineHistoryId,
+    cursorBefore: null,
+    dryRun: true,
+    items,
+    mode: "historical",
+    provider: GOOGLE_PROVIDER,
+    scope: { limit: input.maxMailMessages ?? null, reason: "google_gmail_historical_bootstrap" },
+    source: "google_gmail_historical_bootstrap"
+  });
+  mail.preview = preview;
+  const snapshotWarnings = [...mailRead.warnings];
+  if (!mailRead.complete) {
+    snapshotWarnings.push("La lectura alcanzo un limite y no recorrio completamente la etiqueta seleccionada.");
+  }
+  const snapshot: GoogleGmailHistoricalBootstrapSnapshot = {
+    baselineHistoryId,
+    complete: mailRead.complete === true,
+    items,
+    label: { id: labelId, name: labelName },
+    pagesRead: mailRead.pagesRead,
+    preview,
+    resultSizeEstimate: mailRead.resultSizeEstimate,
+    truncatedBy: [...(mailRead.truncatedBy ?? [])],
+    warnings: snapshotWarnings
+  };
+  return {
+    result: googleMailOnlyResult(mail, mailRead, [...snapshotWarnings, ...mail.warnings]),
+    snapshot
+  };
+}
+
+export async function applyGoogleGmailHistoricalBootstrap(
+  input: ApplyGoogleGmailHistoricalBootstrapInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
+): Promise<SyncGoogleInteractionsResult> {
+  const deps = defaultDependencies(dependencies);
+  const selectedIds = Array.from(new Set(input.externalIds.map((id) => id.trim()).filter(Boolean)));
+  const itemsByExternalId = new Map(input.snapshot.items.map((item) => [item.externalId.toLowerCase(), item]));
+  const missingIds = selectedIds.filter((id) => !itemsByExternalId.has(id.toLowerCase()));
+  if (missingIds.length) {
+    throw new Error("La seleccion contiene correos que no pertenecen al snapshot revisado.");
+  }
+  const selectedItems = selectedIds.map((id) => itemsByExternalId.get(id.toLowerCase())!);
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: input.snapshot.baselineHistoryId,
+    cursorBefore: null,
+    dryRun: false,
+    items: selectedItems,
+    mode: "historical",
+    provider: GOOGLE_PROVIDER,
+    scope: { externalIds: selectedIds, limit: selectedItems.length, reason: "google_gmail_historical_bootstrap" },
+    source: "google_gmail_historical_bootstrap"
+  });
+  const applyComplete = mail.ok
+    && mail.counts.failed === 0
+    && mail.counts.scanned === selectedItems.length;
+  if (input.snapshot.complete && applyComplete) {
+    await deps.writeCursor({
+      connectedAccountId: input.connectedAccountId,
+      cursorLabel: "",
+      cursorValue: input.snapshot.baselineHistoryId,
+      metadata: {
+        bootstrap_label_id: input.snapshot.label.id,
+        mode: "historical_bootstrap",
+        pages_read: input.snapshot.pagesRead,
+        selected_items: selectedItems.length
+      },
+      resourceType: "mail"
+    });
+  }
+  const warnings = [...input.snapshot.warnings, ...mail.warnings];
+  if (!input.snapshot.complete) warnings.push("El cursor global no se actualizo porque la lectura historica fue incompleta.");
+  if (!applyComplete) warnings.push("El cursor global no se actualizo porque no se aplicaron todos los correos seleccionados.");
+  return googleMailOnlyResult(mail, {
+    complete: input.snapshot.complete,
+    messages: [],
+    mode: "full",
+    nextCursor: input.snapshot.baselineHistoryId,
+    pagesRead: input.snapshot.pagesRead,
+    resultSizeEstimate: input.snapshot.resultSizeEstimate,
+    truncatedBy: input.snapshot.truncatedBy,
+    warnings: input.snapshot.warnings
+  }, warnings);
+}
+
+export async function reviewGoogleGmailFocusedSync(
+  input: ReviewGoogleGmailFocusedSyncInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {},
+  appContacts?: ContactRow[]
+): Promise<{ result: SyncGoogleInteractionsResult; snapshot: GoogleGmailFocusedSyncSnapshot }> {
+  const deps = defaultDependencies(dependencies);
+  const [cursorRecord, contacts] = await Promise.all([
+    deps.readCursorRecord({ cursorLabel: "", resourceType: "mail" }),
+    appContacts ? Promise.resolve(appContacts) : deps.readAppContacts()
+  ]);
+  const focusedContacts = contacts.filter((contact) => contact.is_active && contact.networking_focus);
+  const contactsByEmail = contactIndexByEmail(focusedContacts);
+  const requestGovernor = deps.createMailRequestGovernor();
+  const cursorBefore = validGlobalMailCursor(cursorRecord, input.connectedAccountId);
+  let mode: GoogleGmailFocusedSyncSnapshot["mode"] = cursorBefore ? "incremental" : "recovery";
+  let recoverySince: string | null = null;
+  let candidateHistoryId = "";
+  let mailRead: GoogleGmailReadDependencyResult;
+
+  if (!uniqueContactEmails(focusedContacts).length) {
+    mode = "recovery";
+    candidateHistoryId = await deps.readMailProfileHistoryId({ accessToken: input.accessToken, requestGovernor });
+    recoverySince = focusedRecoverySince(input.now);
+    mailRead = emptyFocusedRecoveryRead(candidateHistoryId);
+  } else if (cursorBefore) {
+    try {
+      mailRead = await deps.readMail({
+        accessToken: input.accessToken,
+        historyId: cursorBefore,
+        maxMessages: input.maxMailMessages,
+        maxPages: input.maxPages,
+        query: null,
+        requestGovernor,
+        since: null
+      });
+      candidateHistoryId = numericCursor(mailRead.nextCursor) ?? "";
+    } catch (error) {
+      if (!(error instanceof GoogleInteractionClientError) || error.code !== "GOOGLE_INTERACTIONS_EXPIRED_SYNC_TOKEN") throw error;
+      await deps.markCursorExpired({ cursorLabel: "", resourceType: "mail" });
+      mode = "recovery";
+      ({ candidateHistoryId, mailRead, recoverySince } = await readFocusedMailRecovery(deps, input, focusedContacts, requestGovernor));
+    }
+  } else {
+    ({ candidateHistoryId, mailRead, recoverySince } = await readFocusedMailRecovery(deps, input, focusedContacts, requestGovernor));
+  }
+
+  const items = filterExternalInteractionsFromDate(
+    mailRead.messages
+      .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
+      .filter((item): item is ExternalInteractionInput => Boolean(item)),
+    recoverySince
+  );
+  const preview = await buildInteractionSyncPreview(deps, {
+    items,
+    provider: GOOGLE_PROVIDER,
+    sourceService: "gmail"
+  });
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: candidateHistoryId,
+    cursorBefore,
+    dryRun: true,
+    items,
+    mode: mode === "incremental" ? "incremental" : "historical",
+    provider: GOOGLE_PROVIDER,
+    scope: { limit: input.maxMailMessages ?? null, reason: mode === "incremental" ? "google_gmail_global_incremental" : "google_gmail_global_recovery" },
+    source: mode === "incremental" ? "google_gmail_global_incremental" : "google_gmail_global_recovery"
+  });
+  mail.preview = preview;
+  const warnings = [...mailRead.warnings, ...mail.warnings];
+  const complete = mailRead.complete === true && mail.ok && Boolean(candidateHistoryId);
+  if (!mailRead.complete) warnings.push("El cursor global no avanzara porque la lectura Gmail quedo incompleta.");
+  if (!candidateHistoryId) warnings.push("El cursor global no avanzara porque Gmail no entrego un historyId candidato valido.");
+  if (!mail.ok) warnings.push("El cursor global no avanzara porque el preview Gmail no pudo completarse.");
+  const snapshot: GoogleGmailFocusedSyncSnapshot = {
+    candidateHistoryId,
+    complete,
+    connectedAccountId: cleanNullable(input.connectedAccountId),
+    cursorBefore,
+    items,
+    messagesRead: mailRead.messages.length,
+    mode,
+    pagesRead: mailRead.pagesRead,
+    preview,
+    recoverySince,
+    resultSizeEstimate: mailRead.resultSizeEstimate,
+    truncatedBy: [...(mailRead.truncatedBy ?? [])],
+    warnings
+  };
+  return {
+    result: googleMailOnlyResult(mail, mailRead, warnings, snapshot),
+    snapshot
+  };
+}
+
+export async function applyGoogleGmailFocusedSync(
+  input: ApplyGoogleGmailFocusedSyncInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
+): Promise<SyncGoogleInteractionsResult> {
+  const deps = defaultDependencies(dependencies);
+  if (cleanNullable(input.connectedAccountId) !== input.snapshot.connectedAccountId) {
+    throw new Error("La cuenta Google activa cambio desde la revision. Vuelve a revisar Gmail.");
+  }
+  const selectedIds = Array.from(new Set(input.externalIds.map((id) => id.trim()).filter(Boolean)));
+  const itemsByExternalId = new Map(input.snapshot.items.map((item) => [item.externalId.toLowerCase(), item]));
+  const missingIds = selectedIds.filter((id) => !itemsByExternalId.has(id.toLowerCase()));
+  if (missingIds.length) {
+    throw new Error("La seleccion contiene correos que no pertenecen al snapshot revisado.");
+  }
+  const selectedItems = selectedIds.map((id) => itemsByExternalId.get(id.toLowerCase())!);
+  const requiredIds = actionablePreviewExternalIds(input.snapshot.preview);
+  const selectedIdSet = new Set(selectedIds.map((id) => id.toLowerCase()));
+  const allEligibleSelected = requiredIds.every((id) => selectedIdSet.has(id.toLowerCase()));
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: input.snapshot.candidateHistoryId,
+    cursorBefore: input.snapshot.cursorBefore,
+    dryRun: false,
+    items: selectedItems,
+    mode: input.snapshot.mode === "incremental" ? "incremental" : "historical",
+    provider: GOOGLE_PROVIDER,
+    scope: {
+      externalIds: selectedIds,
+      limit: selectedItems.length,
+      reason: input.snapshot.mode === "incremental" ? "google_gmail_global_incremental" : "google_gmail_global_recovery"
+    },
+    source: input.snapshot.mode === "incremental" ? "google_gmail_global_incremental" : "google_gmail_global_recovery"
+  });
+  const applyComplete = input.snapshot.complete
+    && allEligibleSelected
+    && mail.ok
+    && mail.counts.failed === 0
+    && mail.counts.scanned === selectedItems.length;
+  if (applyComplete) {
+    await deps.writeCursor({
+      connectedAccountId: input.connectedAccountId,
+      cursorLabel: "",
+      cursorValue: input.snapshot.candidateHistoryId,
+      metadata: {
+        mode: input.snapshot.mode,
+        pages_read: input.snapshot.pagesRead,
+        recovery_since: input.snapshot.recoverySince,
+        selected_items: selectedItems.length
+      },
+      resourceType: "mail"
+    });
+  }
+  const warnings = [...input.snapshot.warnings, ...mail.warnings];
+  if (!input.snapshot.complete) warnings.push("El cursor global no se actualizo porque la lectura Gmail fue incompleta.");
+  if (!allEligibleSelected) warnings.push("El cursor global no se actualizo porque quedaron correos Foco elegibles sin aplicar.");
+  if (!mail.ok || mail.counts.failed > 0 || mail.counts.scanned !== selectedItems.length) {
+    warnings.push("El cursor global no se actualizo porque no se aplicaron todos los correos Foco seleccionados.");
+  }
+  return googleMailOnlyResult(mail, {
+    complete: input.snapshot.complete,
+    messages: [],
+    mode: input.snapshot.mode === "incremental" ? "incremental" : "full",
+    nextCursor: input.snapshot.candidateHistoryId,
+    pagesRead: input.snapshot.pagesRead,
+    resultSizeEstimate: input.snapshot.resultSizeEstimate,
+    truncatedBy: input.snapshot.truncatedBy,
+    warnings: input.snapshot.warnings
+  }, warnings, input.snapshot);
+}
+
+export async function reviewGoogleGmailContactBackfill(
+  input: ReviewGoogleGmailContactBackfillInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {},
+  appContacts?: ContactRow[]
+): Promise<{ result: SyncGoogleInteractionsResult; snapshot: GoogleGmailContactBackfillSnapshot }> {
+  const deps = defaultDependencies(dependencies);
+  const contacts = appContacts ?? await deps.readAppContacts();
+  const contact = contacts.find((item) => item.id === input.contactId && item.is_active);
+  const window = contactBackfillWindow(input.now);
+  const warnings: string[] = [];
+  const requestGovernor = deps.createMailRequestGovernor();
+  let mailRead = emptyContactBackfillRead();
+
+  if (!contact) {
+    warnings.push("Gmail no se reviso porque el contacto ya no esta activo.");
+  } else if (!contact.networking_focus) {
+    warnings.push("Gmail no se reviso porque el contacto no esta marcado como Foco.");
+  } else {
+    const queries = gmailQueriesForScopedContacts([contact]);
+    if (!queries.length) {
+      warnings.push("Gmail no se reviso porque el contacto no tiene correos utilizables.");
+    } else {
+      mailRead = await readMailForQueries(deps, {
+        accessToken: input.accessToken,
+        maxMessages: input.maxMailMessages,
+        maxPages: input.maxPages,
+        queries,
+        requestGovernor,
+        since: window.since
+      });
+    }
+  }
+
+  const contactsByEmail = contact ? contactIndexByEmail([contact]) : {};
+  const items = filterExternalInteractionsToDate(
+    filterExternalInteractionsFromDate(
+      mailRead.messages
+        .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
+        .filter((item): item is ExternalInteractionInput => Boolean(item)),
+      window.since
+    ),
+    window.until
+  );
+  const preview = await buildInteractionSyncPreview(deps, {
+    items,
+    provider: GOOGLE_PROVIDER,
+    sourceService: "gmail"
+  });
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: null,
+    cursorBefore: null,
+    dryRun: true,
+    items,
+    mode: "single_contact",
+    provider: GOOGLE_PROVIDER,
+    scope: {
+      contactIds: [input.contactId],
+      limit: input.maxMailMessages ?? null,
+      reason: "google_gmail_contact_backfill",
+      since: window.since,
+      until: window.until
+    },
+    source: "google_gmail_contact_backfill"
+  });
+  mail.preview = preview;
+  warnings.push(...mailRead.warnings, ...mail.warnings);
+  const complete = mailRead.complete !== false && mail.ok;
+  if (mailRead.complete === false) {
+    warnings.push("La lectura Gmail de los ultimos 14 dias quedo incompleta.");
+  }
+  const snapshot: GoogleGmailContactBackfillSnapshot = {
+    complete,
+    connectedAccountId: cleanNullable(input.connectedAccountId),
+    contactId: input.contactId,
+    items,
+    messagesRead: mailRead.messages.length,
+    pagesRead: mailRead.pagesRead,
+    preview,
+    resultSizeEstimate: mailRead.resultSizeEstimate,
+    since: window.since,
+    truncatedBy: [...(mailRead.truncatedBy ?? [])],
+    until: window.until,
+    warnings
+  };
+  return {
+    result: googleMailOnlyResult(mail, mailRead, warnings, null, snapshot),
+    snapshot
+  };
+}
+
+export async function applyGoogleGmailContactBackfill(
+  input: ApplyGoogleGmailContactBackfillInput,
+  dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
+): Promise<SyncGoogleInteractionsResult> {
+  const deps = defaultDependencies(dependencies);
+  if (!input.snapshot.complete) {
+    throw new Error("La lectura Gmail de los ultimos 14 dias quedo incompleta. Vuelve a actualizar la ficha.");
+  }
+  if (cleanNullable(input.connectedAccountId) !== input.snapshot.connectedAccountId) {
+    throw new Error("La cuenta Google activa cambio desde la revision. Vuelve a actualizar la ficha.");
+  }
+  if (input.contactId !== input.snapshot.contactId) {
+    throw new Error("El contacto cambio desde la revision. Vuelve a actualizar la ficha.");
+  }
+  const selectedIds = Array.from(new Set(input.externalIds.map((id) => id.trim()).filter(Boolean)));
+  const itemsByExternalId = new Map(input.snapshot.items.map((item) => [item.externalId.toLowerCase(), item]));
+  const missingIds = selectedIds.filter((id) => !itemsByExternalId.has(id.toLowerCase()));
+  if (missingIds.length) {
+    throw new Error("La actualizacion contiene correos que no pertenecen al snapshot de la ficha.");
+  }
+  const selectedItems = selectedIds.map((id) => itemsByExternalId.get(id.toLowerCase())!);
+  const requiredIds = actionablePreviewExternalIds(input.snapshot.preview);
+  const selectedIdSet = new Set(selectedIds.map((id) => id.toLowerCase()));
+  const allEligibleSelected = requiredIds.every((id) => selectedIdSet.has(id.toLowerCase()));
+  const mail = await deps.syncMail({
+    connectedAccountId: input.connectedAccountId,
+    cursorAfter: null,
+    cursorBefore: null,
+    dryRun: false,
+    items: selectedItems,
+    mode: "single_contact",
+    provider: GOOGLE_PROVIDER,
+    scope: {
+      contactIds: [input.contactId],
+      externalIds: selectedIds,
+      limit: selectedItems.length,
+      reason: "google_gmail_contact_backfill",
+      since: input.snapshot.since,
+      until: input.snapshot.until
+    },
+    source: "google_gmail_contact_backfill"
+  });
+  const warnings = [...input.snapshot.warnings, ...mail.warnings];
+  if (!input.snapshot.complete) warnings.push("La lectura Gmail de los ultimos 14 dias estaba incompleta.");
+  if (!allEligibleSelected) warnings.push("Quedaron correos elegibles sin aplicar en la ficha.");
+  return googleMailOnlyResult(mail, {
+    complete: input.snapshot.complete,
+    messages: [],
+    mode: "full",
+    nextCursor: "",
+    pagesRead: input.snapshot.pagesRead,
+    resultSizeEstimate: input.snapshot.resultSizeEstimate,
+    truncatedBy: input.snapshot.truncatedBy,
+    warnings: input.snapshot.warnings
+  }, warnings, null, input.snapshot);
+}
+
+async function readFocusedMailRecovery(
+  deps: SyncGoogleInteractionsDependencies,
+  input: ReviewGoogleGmailFocusedSyncInput,
+  focusedContacts: ContactRow[],
+  requestGovernor: GoogleGmailRequestGovernor
+) {
+  const candidateHistoryId = await deps.readMailProfileHistoryId({ accessToken: input.accessToken, requestGovernor });
+  const recoverySince = focusedRecoverySince(input.now);
+  const queries = gmailQueriesForScopedContacts(focusedContacts);
+  const mailRead = queries.length
+    ? await readMailForQueries(deps, {
+        accessToken: input.accessToken,
+        maxMessages: input.maxMailMessages,
+        maxPages: input.maxPages,
+        queries,
+        requestGovernor,
+        since: recoverySince
+      })
+    : emptyFocusedRecoveryRead(candidateHistoryId);
+  return { candidateHistoryId, mailRead, recoverySince };
+}
+
+function emptyFocusedRecoveryRead(nextCursor: string): GoogleGmailReadDependencyResult {
+  return {
+    complete: true,
+    messages: [],
+    mode: "full",
+    nextCursor,
+    pagesRead: 0,
+    resultSizeEstimate: 0,
+    truncatedBy: [],
+    warnings: []
+  };
+}
+
+function validGlobalMailCursor(cursor: SyncCursorRecord | null, connectedAccountId?: string | null) {
+  if (!cursor || cursor.status !== "ok") return null;
+  if (cleanNullable(cursor.connected_account_id) !== cleanNullable(connectedAccountId)) return null;
+  return numericCursor(cursor.cursor_value);
+}
+
+function focusedRecoverySince(now?: string) {
+  const reference = now ? new Date(now) : new Date();
+  if (Number.isNaN(reference.getTime())) throw new Error("La fecha de referencia para recovery Gmail no es valida.");
+  reference.setUTCDate(reference.getUTCDate() - GMAIL_FOCUSED_RECOVERY_DAYS);
+  return reference.toISOString();
+}
+
+function actionablePreviewExternalIds(preview: SyncPreviewChange[]) {
+  return preview
+    .filter((change) => change.type !== "unchanged" && change.type !== "skipped")
+    .map((change) => typeof change.metadata?.externalId === "string" ? change.metadata.externalId.trim() : "")
+    .filter(Boolean);
+}
+
+function globalMailExternalIds(externalIds: string[]) {
+  return externalIds.filter((externalId) => externalId.trim().toUpperCase().startsWith("GMAIL_"));
+}
+
+function contactMailExternalIds(externalIds: string[]) {
+  return globalMailExternalIds(externalIds);
+}
+
+function cleanNullable(value: string | null | undefined) {
+  return value?.trim() || null;
+}
+
+function requireFocusedSnapshot(snapshot: GoogleGmailFocusedSyncSnapshot | null | undefined) {
+  if (!snapshot) throw new Error("El snapshot Gmail global ya no esta disponible. Vuelve a revisar la actividad.");
+  return snapshot;
+}
+
+function requireContactSnapshot(snapshot: GoogleGmailContactBackfillSnapshot | null | undefined) {
+  if (!snapshot) throw new Error("El snapshot Gmail de la ficha ya no esta disponible. Vuelve a actualizarla.");
+  return snapshot;
+}
+
+function requireSingleContactId(contactIds?: string[]) {
+  const ids = Array.from(new Set((contactIds ?? []).map((id) => id.trim()).filter(Boolean)));
+  if (ids.length !== 1) throw new Error("La actualizacion Gmail de ficha requiere un unico contacto.");
+  return ids[0];
+}
+
+function contactBackfillWindow(now?: string) {
+  const until = now ? new Date(now) : new Date();
+  if (Number.isNaN(until.getTime())) throw new Error("La fecha de referencia para la ficha Gmail no es valida.");
+  const since = new Date(until.getTime() - GMAIL_CONTACT_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+  return { since: since.toISOString(), until: until.toISOString() };
+}
+
+function emptyContactBackfillRead(): GoogleGmailReadDependencyResult {
+  return {
+    complete: true,
+    messages: [],
+    mode: "full",
+    nextCursor: "",
+    pagesRead: 0,
+    resultSizeEstimate: 0,
+    truncatedBy: [],
+    warnings: []
+  };
+}
+
+export function requireHistoricalBootstrapLabelId(value: string | null | undefined) {
+  const labelId = value?.trim() ?? "";
+  if (!labelId) throw new Error("Selecciona una etiqueta Gmail antes de revisar correos.");
+  return labelId;
+}
+
+function googleMailOnlyResult(
+  mail: SyncRunResult,
+  mailRead: GoogleGmailReadDependencyResult,
+  warnings: string[],
+  gmailFocusedSnapshot: GoogleGmailFocusedSyncSnapshot | null = null,
+  gmailContactSnapshot: GoogleGmailContactBackfillSnapshot | null = null
+): SyncGoogleInteractionsResult {
+  return {
+    calendar: null,
+    calendarRollingSnapshot: null,
+    errors: mail.errors,
+    gmailContactSnapshot,
+    gmailFocusedSnapshot,
+    googleRead: {
+      calendarEvents: 0,
+      calendarPages: 0,
+      mailMessages: mailRead.messages.length || mail.counts.scanned,
+      mailPages: mailRead.pagesRead
+    },
+    mail,
+    ok: mail.ok,
+    warnings
   };
 }
 
@@ -324,6 +1122,7 @@ async function readCalendarWithExpiredCursorRetry(
     cursorLabel: string;
     maxCalendarEvents?: number;
     maxPages?: number;
+    rollingWindow?: boolean;
     syncToken: string | null;
   }
 ) {
@@ -334,6 +1133,57 @@ async function readCalendarWithExpiredCursorRetry(
     await deps.markCursorExpired({ cursorLabel: input.cursorLabel, resourceType: "calendar" });
     return readCalendarForScope(deps, { ...input, syncToken: null });
   }
+}
+
+function createCalendarRollingSnapshot(
+  input: SyncGoogleInteractionsInput,
+  items: ExternalInteractionInput[],
+  preview: SyncPreviewChange[],
+  calendarRead: ScopedCalendarReadResult
+): GoogleCalendarRollingSnapshot {
+  if (!input.calendarRollingWindowSync || !input.calendarTimeMin || !input.calendarFutureTimeMax) {
+    throw new Error("La lectura rolling de Calendar no tiene una ventana valida.");
+  }
+  return {
+    complete: calendarRead.complete !== false,
+    connectedAccountId: input.connectedAccountId ?? null,
+    eventsRead: calendarRead.events.length,
+    items,
+    pagesRead: calendarRead.pagesRead,
+    preview,
+    scope: input.calendarRollingWindowSync,
+    timeMax: input.calendarFutureTimeMax,
+    timeMin: input.calendarTimeMin,
+    warnings: calendarRead.warnings
+  };
+}
+
+function requireCalendarRollingSnapshot(
+  snapshot: GoogleCalendarRollingSnapshot | null | undefined,
+  input: SyncGoogleInteractionsInput
+) {
+  if (!snapshot || !snapshot.complete) {
+    throw new Error("Falta el snapshot completo de Calendar revisado para aplicar.");
+  }
+  if (snapshot.scope !== input.calendarRollingWindowSync) {
+    throw new Error("El snapshot de Calendar no corresponde al alcance solicitado.");
+  }
+  if (snapshot.connectedAccountId !== (input.connectedAccountId ?? null)) {
+    throw new Error("El snapshot de Calendar no corresponde a la cuenta conectada actual.");
+  }
+  return snapshot;
+}
+
+function calendarReadFromRollingSnapshot(snapshot: GoogleCalendarRollingSnapshot): ScopedCalendarReadResult {
+  return {
+    complete: snapshot.complete,
+    events: [],
+    mode: "full",
+    nextSyncToken: null,
+    pagesRead: snapshot.pagesRead,
+    truncatedBy: [],
+    warnings: snapshot.warnings
+  };
 }
 
 async function readCalendarForScope(
@@ -347,10 +1197,17 @@ async function readCalendarForScope(
     calendarQuery?: string | null;
     maxCalendarEvents?: number;
     maxPages?: number;
+    rollingWindow?: boolean;
     syncToken: string | null;
   }
 ): Promise<ScopedCalendarReadResult> {
   const calendarQueries = input.calendarQueries ?? [];
+  if (input.rollingWindow) {
+    return readCalendarQueriesForWindows(deps, input, [{
+      timeMin: input.calendarTimeMin,
+      timeMax: input.calendarFutureTimeMax
+    }]);
+  }
   if (input.syncToken) {
     const result = await deps.readCalendar({
       accessToken: input.accessToken,
@@ -405,7 +1262,11 @@ async function readCalendarQueriesForWindows(
   const eventsById = new Map<string, GoogleCalendarReadResult["events"][number]>();
   const matchedContactEmailsByEventKey: Record<string, string[]> = {};
   const warnings: string[] = [];
+  const truncatedBy = new Set<"max_events" | "max_pages">();
+  let complete = true;
   let pagesRead = 0;
+  let readsCompleted = 0;
+  const plannedReads = windows.length * calendarQueries.length;
 
   for (const window of windows) {
     for (const query of calendarQueries) {
@@ -418,8 +1279,11 @@ async function readCalendarQueriesForWindows(
         timeMin: window.timeMin,
         timeMax: window.timeMax
       });
+      readsCompleted += 1;
       pagesRead += result.pagesRead;
       warnings.push(...result.warnings);
+      complete = complete && result.complete !== false;
+      for (const reason of result.truncatedBy ?? []) truncatedBy.add(reason);
       for (const event of result.events) {
         const key = calendarEventKey(event);
         eventsById.set(key, event);
@@ -434,12 +1298,20 @@ async function readCalendarQueriesForWindows(
     if (eventsById.size >= (input.maxCalendarEvents ?? Number.POSITIVE_INFINITY)) break;
   }
 
+  if (readsCompleted < plannedReads) {
+    complete = false;
+    truncatedBy.add("max_events");
+    warnings.push("Se alcanzo el limite total de eventos antes de completar todas las consultas de Calendar.");
+  }
+
   return {
+    complete,
     events: Array.from(eventsById.values()),
     matchedContactEmailsByEventKey,
     mode: "full",
     nextSyncToken: null,
     pagesRead,
+    truncatedBy: Array.from(truncatedBy),
     warnings
   };
 }
@@ -469,18 +1341,43 @@ function mergeScopedCalendarReadResults(
   }
   return {
     ...primary,
+    complete: primary.complete !== false && supplemental.complete !== false,
     events: Array.from(eventsByKey.values()),
     matchedContactEmailsByEventKey: {
       ...(primary.matchedContactEmailsByEventKey ?? {}),
       ...(supplemental.matchedContactEmailsByEventKey ?? {})
     },
     pagesRead: primary.pagesRead + supplemental.pagesRead,
+    truncatedBy: Array.from(new Set([
+      ...(primary.truncatedBy ?? []),
+      ...(supplemental.truncatedBy ?? [])
+    ])),
     warnings: [...primary.warnings, ...supplemental.warnings]
   };
 }
 
 function cleanIso(value?: string | null) {
   return value?.trim() || null;
+}
+
+async function writeRollingCalendarFreshness(
+  deps: SyncGoogleInteractionsDependencies,
+  input: SyncGoogleInteractionsInput,
+  pagesRead: number
+) {
+  await deps.writeCursor({
+    connectedAccountId: input.connectedAccountId,
+    cursorLabel: "",
+    cursorValue: null,
+    metadata: {
+      mode: "rolling_window",
+      pages_read: pagesRead,
+      time_max: cleanIso(input.calendarFutureTimeMax),
+      time_min: cleanIso(input.calendarTimeMin),
+      token_available: false
+    },
+    resourceType: "calendar"
+  });
 }
 
 async function readMailWithExpiredCursorRetry(
@@ -527,7 +1424,7 @@ async function readMailForQueries(
     requestGovernor: GoogleGmailRequestGovernor;
     since?: string | null;
   }
-): Promise<GoogleGmailReadResult> {
+): Promise<GoogleGmailReadDependencyResult> {
   if (input.queries.length <= 1) {
     return deps.readMail({
       accessToken: input.accessToken,
@@ -545,9 +1442,12 @@ async function readMailForQueries(
   const totalPageBudget = Math.max(configuredPageBudget, input.queries.length);
   const messagesById = new Map<string, GoogleGmailReadResult["messages"][number]>();
   const warnings = new Set<string>();
+  const truncatedBy = new Set<"max_messages" | "max_pages">();
+  let complete = true;
   const cursors: string[] = [];
   let pagesRead = 0;
   let pageBudgetAssigned = 0;
+  let processedQueries = 0;
   let resultSizeEstimate = 0;
   let hasResultSizeEstimate = false;
 
@@ -567,8 +1467,11 @@ async function readMailForQueries(
       requestGovernor: input.requestGovernor,
       since: input.since
     });
+    processedQueries += 1;
 
     pagesRead += result.pagesRead;
+    complete = complete && result.complete !== false;
+    for (const reason of result.truncatedBy ?? []) truncatedBy.add(reason);
     if (result.nextCursor) cursors.push(result.nextCursor);
     for (const warning of result.warnings) warnings.add(warning);
     if (result.resultSizeEstimate !== null) {
@@ -583,12 +1486,19 @@ async function readMailForQueries(
     }
   }
 
+  if (processedQueries < input.queries.length) {
+    complete = false;
+    truncatedBy.add("max_messages");
+  }
+
   return {
+    complete,
     messages: Array.from(messagesById.values()),
     mode: "full",
     nextCursor: latestNumericCursor(cursors),
     pagesRead,
     resultSizeEstimate: hasResultSizeEstimate ? resultSizeEstimate : null,
+    truncatedBy: Array.from(truncatedBy),
     warnings: Array.from(warnings)
   };
 }
@@ -616,13 +1526,20 @@ function defaultDependencies(overrides: Partial<SyncGoogleInteractionsDependenci
       });
       return cursor?.status === "ok" ? cursor.cursor_value : null;
     },
+    readCursorRecord: async (input) => readSyncCursor({
+      cursorLabel: input.cursorLabel,
+      provider: GOOGLE_PROVIDER,
+      resourceType: input.resourceType
+    }),
     readMail: readGoogleGmailMessages,
+    readMailProfileHistoryId: readGoogleGmailProfileHistoryId,
     readExternalSourcesForPreview: readExternalSourcesForPreview,
     saveCalendarReadDiagnostics,
     syncCalendar: syncCalendarInteractions,
     syncMail: syncMailInteractions,
     writeCursor: async (input) => {
       await upsertSyncCursor({
+        connectedAccountId: input.connectedAccountId,
         cursorLabel: input.cursorLabel,
         cursorValue: input.cursorValue,
         metadata: input.metadata,
@@ -810,6 +1727,15 @@ function filterExternalInteractionsFromDate(items: ExternalInteractionInput[], m
   });
 }
 
+function filterExternalInteractionsToDate(items: ExternalInteractionInput[], maxIso?: string | null) {
+  const maxTime = parsedTime(maxIso);
+  if (maxTime === null) return items;
+  return items.filter((item) => {
+    const itemTime = parsedTime(item.occurredAt);
+    return itemTime === null || itemTime <= maxTime;
+  });
+}
+
 function parsedTime(value?: string | null) {
   const cleanValue = value?.trim();
   if (!cleanValue) return null;
@@ -915,7 +1841,13 @@ function matchedContactEmailsForEvents(events: GoogleCalendarReadResult["events"
 
 function filterContactsForSync(contacts: ContactRow[], input: SyncGoogleInteractionsInput) {
   const ids = new Set((input.contactIds ?? []).map((id) => id.trim()).filter(Boolean));
-  if (ids.size) return contacts.filter((contact) => ids.has(contact.id));
+  if (ids.size) {
+    return contacts.filter((contact) => (
+      ids.has(contact.id)
+      && contact.is_active
+      && (!input.focusedOnly || contact.networking_focus)
+    ));
+  }
   if (input.focusedOnly) return contacts.filter((contact) => contact.networking_focus && contact.is_active);
   return contacts.filter((contact) => contact.is_active);
 }

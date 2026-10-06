@@ -4,10 +4,15 @@ import { useEffect, useState } from "react";
 import { GOOGLE_CONTACTS_READONLY_SCOPE } from "../lib/googleContactsClient";
 import {
   GOOGLE_INTERACTIONS_READONLY_SCOPES,
-  GoogleInteractionClientError
+  GoogleInteractionClientError,
+  listGoogleGmailUserLabels,
+  type GoogleGmailLabel
 } from "../lib/googleInteractionClient";
 import {
+  applyGoogleGmailHistoricalBootstrap,
+  reviewGoogleGmailHistoricalBootstrap,
   syncGoogleInteractions,
+  type GoogleGmailHistoricalBootstrapSnapshot,
   type SyncGoogleInteractionsResult
 } from "../lib/googleInteractionSyncFlow";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
@@ -56,10 +61,15 @@ type GoogleInteractionsState = {
   applying: boolean;
   connectedAccountId: string | null;
   error: string;
+  gmailLabels: GoogleGmailLabel[];
+  gmailLabelsError: string;
+  gmailLabelsLoading: boolean;
   lastRun: SyncGoogleInteractionsResult | null;
   loading: boolean;
   message: string;
   previewOpen: boolean;
+  selectedGmailLabelId: string;
+  bootstrapSnapshot: GoogleGmailHistoricalBootstrapSnapshot | null;
   stats: ActivityImportStats;
   syncLimits: ActivitySyncLimitValues;
   userEmail: string;
@@ -71,10 +81,15 @@ const initialState: GoogleInteractionsState = {
   applying: false,
   connectedAccountId: null,
   error: "",
+  gmailLabels: [],
+  gmailLabelsError: "",
+  gmailLabelsLoading: true,
   lastRun: null,
   loading: false,
   message: "",
   previewOpen: false,
+  selectedGmailLabelId: "",
+  bootstrapSnapshot: null,
   stats: {
     contactsInScope: 0,
     linkedCalendar: 0,
@@ -117,9 +132,10 @@ export function GoogleInteractionsSyncPanel({
   registerRememberedScopes = true
 }: GoogleInteractionsSyncPanelProps) {
   const [state, setState] = useState<GoogleInteractionsState>(initialState);
+  const [gmailLabelsReloadKey, setGmailLabelsReloadKey] = useState(0);
   const activeResource = state.activeResource ?? "mail";
   const previewChanges = interactionPreviewChanges(state.lastRun);
-  const effectiveAccessToken = googleAccessToken ?? state.accessToken;
+  const effectiveAccessToken = googleAccessToken?.trim() || state.accessToken;
   const mailActionDisabledReason = compact ? mailDisabledReason
     || googleResourceDisabledReason({
       accessToken: effectiveAccessToken,
@@ -141,7 +157,12 @@ export function GoogleInteractionsSyncPanel({
 
   useEffect(() => {
     let active = true;
-    Promise.all([readCurrentGoogleConnectionState({ registerRememberedScopes }), loadActivitySyncLimitValues(), loadActivityImportStats()]).then(([googleConnection, syncLimits, stats]) => {
+    void (async () => {
+      const [googleConnection, syncLimits, stats] = await Promise.all([
+        readCurrentGoogleConnectionState({ registerRememberedScopes }),
+        loadActivitySyncLimitValues(),
+        loadActivityImportStats()
+      ]);
       if (!active) return;
       setState((current) => ({
         ...current,
@@ -151,11 +172,62 @@ export function GoogleInteractionsSyncPanel({
         syncLimits,
         userEmail: googleConnection.userEmail
       }));
-    });
+    })();
     return () => {
       active = false;
     };
   }, [registerRememberedScopes]);
+
+  useEffect(() => {
+    let active = true;
+    const accessToken = effectiveAccessToken.trim();
+    if (!accessToken || !googleMailAvailable) {
+      setState((current) => ({
+        ...current,
+        gmailLabels: [],
+        gmailLabelsError: "",
+        gmailLabelsLoading: false,
+        selectedGmailLabelId: ""
+      }));
+      return () => {
+        active = false;
+      };
+    }
+
+    setState((current) => ({
+      ...current,
+      gmailLabelsError: "",
+      gmailLabelsLoading: true
+    }));
+    void listGoogleGmailUserLabels({ accessToken })
+      .then((gmailLabels) => {
+        if (!active) return;
+        const sortedLabels = gmailLabels.sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+        setState((current) => ({
+          ...current,
+          gmailLabels: sortedLabels,
+          gmailLabelsError: "",
+          gmailLabelsLoading: false,
+          selectedGmailLabelId: sortedLabels.some((label) => label.id === current.selectedGmailLabelId)
+            ? current.selectedGmailLabelId
+            : ""
+        }));
+      })
+      .catch((error) => {
+        if (!active) return;
+        setState((current) => ({
+          ...current,
+          gmailLabels: [],
+          gmailLabelsError: gmailLabelsErrorMessage(error),
+          gmailLabelsLoading: false,
+          selectedGmailLabelId: ""
+        }));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [effectiveAccessToken, gmailLabelsReloadKey, googleMailAvailable]);
 
   async function connectGoogle() {
     try {
@@ -169,7 +241,7 @@ export function GoogleInteractionsSyncPanel({
   }
 
   async function reviewMail() {
-    await runSync(true, "mail");
+    await runMailBootstrapReview();
   }
 
   async function reviewCalendar() {
@@ -184,12 +256,183 @@ export function GoogleInteractionsSyncPanel({
 
     const externalIds = externalIdsFromInteractionPreview(selectedChanges ?? interactionPreviewChanges(state.lastRun));
 
-    if (!externalIds.length) {
+    if (!externalIds.length && state.activeResource !== "mail") {
       setState((current) => ({ ...current, error: "No hay correos o citas seleccionadas para aplicar." }));
       return;
     }
 
+    if (state.activeResource === "mail") {
+      await applyMailBootstrap(externalIds);
+      return;
+    }
     await runSync(false, state.activeResource, externalIds);
+  }
+
+  async function runMailBootstrapReview() {
+    if (!state.selectedGmailLabelId) {
+      setState((current) => ({
+        ...current,
+        activeResource: "mail",
+        error: "Selecciona una etiqueta Gmail antes de revisar correos.",
+        previewOpen: false
+      }));
+      return;
+    }
+    if (mailActionDisabledReason) {
+      setState((current) => ({ ...current, activeResource: "mail", error: mailActionDisabledReason }));
+      return;
+    }
+    try {
+      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
+      const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
+      if (!googleConnection.connected
+        || !googleConnection.accessToken
+        || !googleConnectionHasCapability(googleConnection, "gmail_read")) {
+        setState((current) => ({ ...current, error: "", loading: true, message: "Reconectando Google..." }));
+        await connectGoogle();
+        return;
+      }
+      if (!googleConnection.userEmail) throw new Error("No pude identificar el correo del usuario conectado.");
+      const selectedLabel = state.gmailLabels.find((label) => label.id === state.selectedGmailLabelId);
+      if (!selectedLabel) throw new Error("La etiqueta Gmail seleccionada ya no esta disponible.");
+
+      setState((current) => ({
+        ...current,
+        accessToken: googleConnection.accessToken,
+        activeResource: "mail",
+        applying: false,
+        bootstrapSnapshot: null,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        error: "",
+        lastRun: null,
+        loading: true,
+        message: "Revisando correos sin guardar cambios...",
+        previewOpen: false,
+        userEmail: googleConnection.userEmail
+      }));
+
+      const runId = createSyncRunId();
+      let stepOrder = 0;
+      const logStep = (step: string, detail?: string | null, status: "info" | "running" | "success" | "warning" | "error" = "info", metadata?: Record<string, unknown>) => {
+        stepOrder += 1;
+        void writeSyncRunLogStep({
+          detail,
+          metadata,
+          operation: "review",
+          provider: "google",
+          resourceType: "mail",
+          runId,
+          scopeLabel: "cuenta:bootstrap",
+          status,
+          step,
+          stepOrder
+        });
+      };
+      logStep("Inicio", "Revision historica solicitada.", "running");
+      const historicalStart = await readNetworkingStartIso();
+      const syncLimits = await loadActivitySyncLimitValues();
+      const reviewed = await reviewGoogleGmailHistoricalBootstrap({
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        label: { id: selectedLabel.id, name: selectedLabel.name },
+        maxMailMessages: syncLimits.mailMessages,
+        maxPages: syncLimits.mailPages,
+        since: historicalStart,
+        userEmail: googleConnection.userEmail
+      });
+      setState((current) => ({
+        ...current,
+        applying: false,
+        bootstrapSnapshot: reviewed.snapshot,
+        error: reviewed.result.errors.map((error) => error.message).join(" "),
+        lastRun: reviewed.result,
+        loading: false,
+        message: reviewed.snapshot.complete
+          ? formatGoogleInteractionHistoricalMessage(reviewed.result)
+          : "La revision alcanzo el limite disponible. Puedes aplicar estos correos, pero la importacion historica quedara incompleta.",
+        previewOpen: true,
+        syncLimits
+      }));
+      logStep("Preview listo", interactionLogSummary(reviewed.result, "mail"), reviewed.snapshot.complete ? "success" : "warning", {
+        complete: reviewed.snapshot.complete,
+        truncated_by: reviewed.snapshot.truncatedBy,
+        warnings: reviewed.result.warnings
+      });
+    } catch (error) {
+      handleMailBootstrapError(error);
+    }
+  }
+
+  async function applyMailBootstrap(externalIds: string[]) {
+    const snapshot = state.bootstrapSnapshot;
+    if (!snapshot) {
+      setState((current) => ({ ...current, error: "El preview de correos ya no esta disponible. Vuelve a revisar Gmail." }));
+      return;
+    }
+    try {
+      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
+      setState((current) => ({
+        ...current,
+        applying: true,
+        error: "",
+        message: "Sincronizando correos seleccionados..."
+      }));
+      const result = await applyGoogleGmailHistoricalBootstrap({
+        connectedAccountId: state.connectedAccountId,
+        externalIds,
+        snapshot
+      });
+      const stats = result.ok ? await loadActivityImportStats() : state.stats;
+      setState((current) => ({
+        ...current,
+        applying: false,
+        bootstrapSnapshot: result.ok ? null : current.bootstrapSnapshot,
+        error: result.errors.map((error) => error.message).join(" "),
+        lastRun: result,
+        loading: false,
+        message: snapshot.complete
+          ? formatGoogleInteractionHistoricalMessage(result)
+          : "Se aplicaron los correos seleccionados, pero la importacion historica quedo incompleta.",
+        previewOpen: !result.ok,
+        stats
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        applying: false,
+        error: error instanceof Error ? error.message : "No pude aplicar los correos seleccionados.",
+        loading: false,
+        previewOpen: true
+      }));
+    }
+  }
+
+  function handleMailBootstrapError(error: unknown) {
+    if (error instanceof GoogleInteractionClientError && error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") {
+      invalidateActiveGoogleDataAuthorization();
+      setState((current) => ({
+        ...current,
+        accessToken: "",
+        activeResource: "mail",
+        applying: false,
+        bootstrapSnapshot: null,
+        error: "El permiso de Google vencio o no incluye Gmail. Vuelve a conectar Google.",
+        loading: false,
+        message: "",
+        previewOpen: false
+      }));
+      return;
+    }
+    setState((current) => ({
+      ...current,
+      activeResource: "mail",
+      applying: false,
+      bootstrapSnapshot: null,
+      error: error instanceof Error ? error.message : "No pude revisar los correos de Gmail.",
+      loading: false,
+      message: "",
+      previewOpen: false
+    }));
   }
 
   async function runSync(dryRun: boolean, resource: ActivitySyncResource, externalIds: string[] = []) {
@@ -389,9 +632,48 @@ export function GoogleInteractionsSyncPanel({
     }
   }
 
+  const gmailLabelPicker = (
+    <div className="connected-service-label-picker">
+      <label className="field connected-service-label-field">
+        <span>Etiqueta Gmail</span>
+        <select
+          aria-label="Etiqueta Gmail para importar"
+          disabled={state.gmailLabelsLoading || Boolean(state.gmailLabelsError) || !state.gmailLabels.length || state.loading || state.applying}
+          onChange={(event) => setState((current) => ({
+            ...current,
+            bootstrapSnapshot: null,
+            error: "",
+            lastRun: null,
+            selectedGmailLabelId: event.target.value
+          }))}
+          value={state.selectedGmailLabelId}
+        >
+          <option value="">{gmailLabelPlaceholder(state, Boolean(effectiveAccessToken))}</option>
+          {state.gmailLabels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}
+        </select>
+      </label>
+      {state.gmailLabelsError ? (
+        <div className="connected-service-label-feedback">
+          <span className="form-error" role="alert">{state.gmailLabelsError}</span>
+          <Button
+            disabled={state.gmailLabelsLoading || state.loading || state.applying}
+            icon="sync"
+            onClick={() => setGmailLabelsReloadKey((current) => current + 1)}
+            tone="ghost"
+          >
+            Reintentar
+          </Button>
+        </div>
+      ) : !state.gmailLabelsLoading && effectiveAccessToken && !state.gmailLabels.length ? (
+        <span className="connected-service-label-empty" role="status">No hay etiquetas personales en esta cuenta de Gmail.</span>
+      ) : null}
+    </div>
+  );
+
   const syncFeedback = (
     <>
       <SyncPreviewDialog
+        allowEmptyApply={activeResource === "mail" && Boolean(state.bootstrapSnapshot)}
         applying={state.applying}
         changes={previewChanges}
         description={previewDescription(activeResource)}
@@ -412,12 +694,13 @@ export function GoogleInteractionsSyncPanel({
           <div className="connected-service-action-main">
             <strong>Correos</strong>
             <span>{state.stats.linkedMail} vinculados</span>
+            {gmailLabelPicker}
           </div>
           <div className="toolbar connected-service-action-controls">
             {mailActionDisabledReason && !state.loading ? (
               <span className="connected-service-action-reason">{mailActionDisabledReason}</span>
             ) : null}
-            <Button disabled={Boolean(mailActionDisabledReason) || state.loading || state.applying} icon="mail" onClick={reviewMail} tone="primary">
+            <Button disabled={Boolean(mailActionDisabledReason) || !state.selectedGmailLabelId || state.loading || state.applying} icon="mail" onClick={reviewMail} tone="primary">
               {googleConnectionLoading ? "Verificando..." : state.loading && activeResource === "mail" ? "Revisando..." : "Importar"}
             </Button>
             <Button icon="trash" onClick={() => confirmImportedDataDelete("correos")} tone="danger">
@@ -456,7 +739,7 @@ export function GoogleInteractionsSyncPanel({
         </div>
         <div className="toolbar">
           <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={connectGoogle} />
-          <Button disabled={state.loading || state.applying} icon="mail" onClick={state.accessToken ? reviewMail : connectGoogle} tone="primary">
+          <Button disabled={state.loading || state.applying || (Boolean(state.accessToken) && !state.selectedGmailLabelId)} icon="mail" onClick={state.accessToken ? reviewMail : connectGoogle} tone="primary">
             {state.loading && activeResource === "mail" ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
           </Button>
           <Button disabled={state.loading || state.applying} icon="calendar" onClick={state.accessToken ? reviewCalendar : connectGoogle} tone="primary">
@@ -464,6 +747,8 @@ export function GoogleInteractionsSyncPanel({
           </Button>
         </div>
       </div>
+
+      {gmailLabelPicker}
 
       <div className="activity-import-stats" aria-label="Resumen de actividad importada">
         <span><strong>{state.stats.totalContacts}</strong> contactos</span>
@@ -490,6 +775,20 @@ function googleResourceDisabledReason(input: {
   if (!input.available) return `Actualiza la autorización de Google para habilitar ${input.serviceLabel}.`;
   if (!input.networkingStartReady) return "Define primero la fecha de inicio de networking.";
   return "";
+}
+
+function gmailLabelPlaceholder(state: GoogleInteractionsState, hasAccessToken: boolean) {
+  if (state.gmailLabelsLoading) return "Cargando etiquetas...";
+  if (state.gmailLabelsError) return "No se pudieron cargar las etiquetas";
+  if (hasAccessToken && !state.gmailLabels.length) return "No hay etiquetas personales";
+  return "Selecciona una etiqueta";
+}
+
+function gmailLabelsErrorMessage(error: unknown) {
+  const detail = error instanceof Error ? error.message.trim() : "";
+  return detail
+    ? `No pude cargar las etiquetas de Gmail. ${detail}`
+    : "No pude cargar las etiquetas de Gmail. Reintenta la lectura.";
 }
 
 async function loadActivityImportStats(): Promise<ActivityImportStats> {

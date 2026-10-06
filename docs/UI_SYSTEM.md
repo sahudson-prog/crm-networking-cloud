@@ -149,7 +149,7 @@ Los estados persistidos son `not_started`, `in_progress`, `dismissed` y `complet
 
 Tras Objetivos, el recorrido muestra la importación real de contactos por vCard o Google y luego la vista de Contactos, incluso si la red está vacía. La ficha se muestra solo cuando existe un contacto; de otro modo se pasa al cierre. Contactos ofrece creación manual mediante el mismo editor tanto en la vista normal como durante el recorrido. El Coach aparece siempre a ancho completo antes del contenido; en pantallas estrechas la mascota queda sobre la burbuja. Las separaciones entre el Coach y los bloques principales del recorrido usan el token semántico `--crm-section-gap`. Mientras Dashboard no se expone en la navegación, aplazar, salir o completar el recorrido vuelve a Contactos. Cuenta conserva únicamente el reinicio de prueba en development.
 
-La navegación principal visible se ordena como Objetivos y Contactos. El link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido.
+La navegación principal visible se ordena como Objetivos y Contactos. El link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido. El header muestra junto a la acción de actualización global un estado compacto calculado desde el servicio habilitado menos reciente, además de ejecución, resultado transitorio o error accionable; esa acción aplica directamente la actividad elegible sin abrir preview. `Cerrar sesión` vive en una sección separada de Cuenta y no en el header.
 
 ## Responsive y accesibilidad observable
 
