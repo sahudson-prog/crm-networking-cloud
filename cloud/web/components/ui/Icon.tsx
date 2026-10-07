@@ -6,6 +6,7 @@ type IconName =
   | "collapse"
   | "edit"
   | "expand"
+  | "file"
   | "plus"
   | "sync"
   | "settings"
@@ -39,6 +40,7 @@ const paths: Record<IconName, string> = {
   collapse: "M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5",
   edit: "M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Zm11-13 2 2",
   expand: "M3 9V4h5m8 0h5v5M3 15v5h5m13-5v5h-5",
+  file: "M6 3h8l4 4v14H6V3Zm8 0v5h4M9 12h6M9 16h6",
   plus: "M12 5v14M5 12h14",
   sync: "M20 12a8 8 0 0 1-14.7 4.4M4 12a8 8 0 0 1 14.7-4.4M7 17H5v-2M17 7h2v2",
   settings:

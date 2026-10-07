@@ -577,6 +577,164 @@ textarea::placeholder {
   gap: 14px;
 }
 
+.account-data-group {
+  display: grid;
+  gap: 10px;
+}
+
+.account-data-group > h3 {
+  margin: 0;
+  color: var(--crm-text);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.account-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.account-data-grid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.account-data-block {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  padding: 14px;
+}
+
+.account-data-block > h3 {
+  margin: 0;
+  color: var(--crm-text);
+}
+
+.account-data-block > h3 {
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.account-data-options {
+  display: grid;
+  gap: 8px;
+}
+
+.account-data-block .account-source-row,
+.account-data-block .connected-service-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 0;
+  border-radius: 0;
+  padding: 5px 0;
+}
+
+.account-data-block .account-source-actions,
+.account-data-block .connected-service-action-controls {
+  justify-self: start;
+}
+
+.account-data-block .connected-service-label-picker {
+  max-width: none;
+}
+
+.account-provider-identity,
+.account-sync-preference-service {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.account-sync-preference-service {
+  flex: 1 1 auto;
+}
+
+.account-provider-identity > div,
+.account-sync-preference-service > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-provider-identity span,
+.account-sync-preference-service small {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.connected-service-logo .provider-icon,
+.connected-service-logo .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.account-icon-action.destructive {
+  color: var(--crm-text);
+}
+
+.account-icon-action.destructive .icon {
+  color: var(--crm-danger);
+}
+
+.account-icon-action.destructive:not(:disabled):hover {
+  border-color: var(--crm-primary);
+  background: var(--crm-field-soft);
+  color: var(--crm-text);
+}
+
+.account-provider-sync-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 420px);
+  gap: 12px;
+}
+
+.account-provider-sync-block {
+  gap: 12px;
+}
+
+.account-provider-sync-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.account-provider-sync-heading strong {
+  color: var(--crm-text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.account-provider-sync-options {
+  display: grid;
+  gap: 8px;
+}
+
+.account-data-type-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--crm-radius);
+  background: var(--crm-field-soft);
+  color: var(--crm-muted);
+}
+
+.gmail-history-dialog {
+  width: min(460px, calc(100vw - 28px));
+  grid-template-rows: auto auto auto auto auto;
+}
+
+.account-source-placeholder {
+  opacity: 0.72;
+}
+
 .account-section-title {
   display: grid;
   gap: 3px;
@@ -871,7 +1029,8 @@ textarea::placeholder {
   cursor: pointer;
 }
 
-.account-sync-preference > span {
+.account-sync-preference > span,
+.account-sync-preference-service > span:last-child {
   display: grid;
   min-width: 0;
   gap: 2px;
@@ -898,6 +1057,7 @@ textarea::placeholder {
   border-radius: 999px;
   background: var(--crm-field-soft);
   cursor: pointer;
+  outline: 0;
   transition: background 140ms ease, border-color 140ms ease;
 }
 
@@ -915,8 +1075,8 @@ textarea::placeholder {
 }
 
 .account-sync-preference input:checked {
-  border-color: var(--crm-success);
-  background: var(--crm-success);
+  border-color: var(--crm-positive);
+  background: var(--crm-positive);
 }
 
 .account-sync-preference input:checked::after {
@@ -924,8 +1084,13 @@ textarea::placeholder {
 }
 
 .account-sync-preference input:focus-visible {
+  border-color: var(--crm-border);
   outline: 2px solid var(--crm-accent);
   outline-offset: 2px;
+}
+
+.account-sync-preference input:checked:focus-visible {
+  border-color: var(--crm-positive);
 }
 
 .account-sync-preference input:disabled {
@@ -7541,6 +7706,10 @@ textarea::placeholder {
 }
 
 @media (max-width: 780px) {
+  .account-data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .contact-profile-grid.onboarding-contact-profile-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:

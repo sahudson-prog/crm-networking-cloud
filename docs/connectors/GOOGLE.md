@@ -21,7 +21,7 @@ Los OAuth clients, callbacks, redirects y su separación por ambiente se documen
 
 El login Google se inicia desde `AuthGate` usando Supabase Auth con provider `google` y scopes mínimos de identidad: `openid`, `email` y `profile`. Usa PKCE y vuelve a `/auth/callback`, donde el SDK intercambia el código antes de entrar a la app. Este login no registra ni actualiza `connected_accounts`, no solicita Contacts, Gmail ni Calendar, y no sirve por sí solo como consentimiento para leer datos Google.
 
-La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, PKCE, callback explícito y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios.
+La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, PKCE, callback explícito y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios. Cuenta inicia este OAuth desde la acción concreta de Contacts, Gmail o Calendar y solicita únicamente el scope readonly de ese servicio. Las ampliaciones usan consentimiento incremental de Google (`include_granted_scopes=true`) para que el token efectivo nuevo conserve los grants anteriores.
 Antes de iniciar OAuth de datos, la app recuerda temporalmente los scopes solicitados y un intent de conexión de datos en `sessionStorage`. Esos scopes son intención de OAuth, no evidencia de permisos concedidos.
 Al volver desde Google, si el intent, nonce y fingerprint del token son coherentes, el navegador llama `POST /api/google/connected-account/finalize` con el `provider_token` temporal y el access token Supabase de la sesión.
 La ruta server-side valida sesión Supabase, acceso efectivo de Coffeecito, Google UserInfo, tokeninfo, audience/client binding, expiración y scopes efectivos. Solo después de esa verificación persiste la conexión local.
@@ -32,18 +32,11 @@ Una cuenta puede estar vinculada, pero sin permiso activo si la sesión actual n
 ### Conectar y reconectar
 Conectar y reconectar usan el mismo mecanismo OAuth.
 Si ya existe una cuenta Google no revocada para el mismo usuario y email normalizado, la app actualiza esa fila canónica. Si no existe, crea una fila nueva.
-Al reconectar, los scopes persistidos se reemplazan por los scopes efectivos observados en el token actual verificado. No se combinan ciegamente con scopes históricos.
+Al reconectar, los scopes persistidos se reemplazan por los scopes efectivos observados en el token actual verificado. No se combinan ciegamente con scopes históricos: la preservación de capacidades anteriores depende del token efectivo emitido por Google mediante consentimiento incremental y vuelve a verificarse server-side.
 El flujo efectivo usa una cuenta Google activa por email canónico del usuario. Las filas históricas o revocadas pueden permanecer, pero no representan la cuenta conectada actual.
 
 ### Desconectar
-La desconexión actual es local dentro de CRM Networking.
-Al desvincular Google, la app invoca una RPC estrecha de self-service que cambia `status` a `revoked`, registra `revoked_at` y limpia scopes recordados temporalmente.
-La desconexión actual no borra la fila.
-La desconexión actual no llama a un endpoint de revocación de Google.
-La desconexión actual no ejecuta `supabase.auth.signOut`.
-La desconexión actual no elimina tokens en Google.
-La desconexión actual no cierra la cuenta de acceso a CRM Networking.
-La desconexión actual no borra contactos, correos, citas, interacciones ni datos ya importados.
+Cuenta no expone una acción de desconexión o revocación Google. Desactivar Gmail o Calendar solo cambia la preferencia de sincronización: no revoca permisos, no desconecta Google y no borra datos ya importados.
 
 ## Scopes
 Scopes de login:
@@ -54,15 +47,13 @@ Scopes técnicos observados por API:
 - Gmail: `https://www.googleapis.com/auth/gmail.readonly`
 - Calendar: `https://www.googleapis.com/auth/calendar.readonly`
 Cómo se solicitan actualmente:
-- Autorizar acceso solicita Contacts + Gmail + Calendar junto con los scopes de identidad que requiere el flujo.
-- Importar/revisar contactos usa Contacts si la capability efectiva `contacts_read` está activa.
+- Importar/revisar Google Contacts solicita solo Contacts si falta la capability efectiva `contacts_read`.
 - Actualizar datos de un contacto usa Contacts si la capability efectiva `contacts_read` está activa.
-- Importar actividad desde Cuenta solicita Contacts + Gmail + Calendar.
-- Actualizar actividad global solicita Contacts + Gmail + Calendar.
-- Actualizar actividad de un contacto solicita Contacts + Gmail + Calendar.
-- La página Cuenta solicita Contacts + Gmail + Calendar al conectar o renovar acceso.
+- Importar histórico Gmail solicita solo Gmail si falta `gmail_read`.
+- Activar la preferencia Google Gmail solicita solo Gmail si falta `gmail_read`.
+- Activar la preferencia Google Calendar solicita solo Calendar si falta `calendar_read`.
+- Las acciones globales y de ficha consumen únicamente los servicios habilitados y sus capabilities ya verificadas; si falta una, derivan a Cuenta.
 Consentimiento parcial debe funcionar: Contacts, Gmail y Calendar se habilitan por separado según los scopes efectivos verificados por tokeninfo.
-Contacts aparece en entry points de actividad por coupling de implementación de la conexión Google compartida. Gmail y Calendar no requieren técnicamente Contacts para leer mensajes o eventos.
 
 Las preferencias de producto para mantener actividad sincronizada se guardan por usuario en `user_settings` bajo `interaction_sync_preferences_v1`, con flags independientes `gmailEnabled` y `calendarEnabled`. La ausencia de la preferencia equivale a ambos servicios desactivados; scopes, capabilities o una cuenta conectada no implican activación. Habilitar un servicio ya autorizado solo persiste la preferencia. Si falta su capability, Cuenta reutiliza el OAuth de datos existente y persiste `ON` únicamente después de verificar el retorno. Deshabilitarlo no revoca OAuth, no desconecta Google y no borra datos ni cursores.
 
@@ -181,7 +172,7 @@ Datos leídos y usados:
 El adaptador conserva asunto desde `summary`, fecha desde `start.dateTime` o `start.date`, descripción como detalle, ubicación agregada al detalle, URL externa desde `htmlLink`, participantes y metadata con ID de evento Google.
 La identidad externa generada y persistida por el flujo es `CALENDAR_{eventId}` como `external_id`.
 Un evento solo se convierte en interacción si puede vincularse con al menos un contacto local conocido.
-La importación Calendar histórica de Cuenta todavía puede mirar desde la fecha de inicio de networking y usar continuidad legacy. Su reemplazo por importación `.ics` queda fuera del sync periódico.
+La UI de Cuenta no ofrece la importación Calendar histórica legacy: presenta `.ics` como opción futura y mantiene Google Calendar únicamente como preferencia de sync periódico. La implementación legacy puede permanecer internamente mientras no sea necesaria para la ruta principal.
 
 ## Mapping hacia estructuras internas
 Contacts produce contactos externos normalizados que luego entran al flujo genérico de contactos.

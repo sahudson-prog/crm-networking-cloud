@@ -312,14 +312,15 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
   assert.match(routeSource, /Si prefieres, también puedes construir tu red manualmente/);
   assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
   assert.match(accountSource, /includeVCard[\s\S]*redirectPath="\/onboarding\/google"/);
-  assert.match(accountSource, /includeOtherSources \|\| includeVCard \? <VCardImportPanel \/>/);
+  assert.match(accountSource, /<VCardImportPanel[\s\S]*actionLabel="Importar archivo vCard"[\s\S]*sourceLabel="vCard \(\.vcf\)"/);
   assert.doesNotMatch(accountSource, /OnboardingVCardImportPreview/);
   assert.match(vcardSource, /accept="\.vcf,text\/vcard,text\/x-vcard"/);
   assert.match(vcardSource, /parseVCardContacts\(await file\.text\(\)\)/);
   assert.match(vcardSource, /<SyncPreviewDialog[\s\S]*onApply=\{\(selectedChanges\) => void applySelection\(selectedChanges\)\}/);
   assert.match(vcardSource, /importSelectedVCardContacts\(selectedContacts, saveContactFromEditor\)/);
   assert.match(accountSource, /redirectPath="\/onboarding\/google"/);
-  assert.match(accountSource, /reconnectGoogle\(googleRequiredScopes\(\), `\$\{window\.location\.origin\}\$\{redirectPath\}`\)/);
+  assert.match(accountSource, /authorizationRedirectPath=\{redirectPath\}/);
+  assert.match(accountSource, /resumeImport=\{resumeAction === "import_contacts"\}/);
 });
 
 test("las burbujas usan el copy aprobado y una estructura uniforme", () => {

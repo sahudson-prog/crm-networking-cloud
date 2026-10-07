@@ -1,4 +1,4 @@
-export type ProviderIconName = "google" | "apple" | "microsoft";
+export type ProviderIconName = "google" | "gmail" | "googleCalendar" | "apple" | "microsoft";
 
 type ProviderButtonProps = {
   disabled?: boolean;
@@ -25,6 +25,8 @@ export function ProviderButton({ disabled = false, label, name, onClick }: Provi
 
 export function ProviderIcon({ name }: { name: ProviderIconName }) {
   if (name === "google") return <GoogleIcon />;
+  if (name === "gmail") return <GmailIcon />;
+  if (name === "googleCalendar") return <GoogleCalendarIcon />;
   if (name === "apple") return <AppleIcon />;
   return <MicrosoftIcon />;
 }
@@ -48,6 +50,32 @@ function GoogleIcon() {
         d="M12 6.1c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.8 9.8 0 0 0 12 2a10 10 0 0 0-9 5.5l3.3 2.7A6 6 0 0 1 12 6.1Z"
         fill="#ea4335"
       />
+    </svg>
+  );
+}
+
+function GmailIcon() {
+  return (
+    <svg className="provider-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6.5 12 13l9-6.5V19H3V6.5Z" fill="#fff" />
+      <path d="M3 6.5 7 9.4V19H3V6.5Z" fill="#4285f4" />
+      <path d="M17 9.4 21 6.5V19h-4V9.4Z" fill="#34a853" />
+      <path d="M3 6.5 5.3 4.8 12 9.7l6.7-4.9L21 6.5 12 13 3 6.5Z" fill="#ea4335" />
+      <path d="M3 6.5V19" stroke="#c5221f" strokeWidth="1.6" />
+      <path d="M21 6.5V19" stroke="#fbbc04" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function GoogleCalendarIcon() {
+  return (
+    <svg className="provider-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 5h16v15H4V5Z" fill="#fff" />
+      <path d="M4 5h16v4H4V5Z" fill="#4285f4" />
+      <path d="M4 9h4v11H4V9Z" fill="#34a853" />
+      <path d="M8 16h12v4H8v-4Z" fill="#fbbc04" />
+      <path d="M16 9h4v7h-4V9Z" fill="#ea4335" />
+      <text x="12" y="15.2" fill="#4285f4" fontSize="7.5" fontWeight="800" textAnchor="middle">31</text>
     </svg>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GOOGLE_CONTACTS_READONLY_SCOPE } from "../lib/googleContactsClient";
 import {
-  GOOGLE_INTERACTIONS_READONLY_SCOPES,
+  GOOGLE_CALENDAR_READONLY_SCOPE,
   GoogleInteractionClientError,
   listGoogleGmailUserLabels,
   type GoogleGmailLabel
@@ -23,7 +22,8 @@ import {
 } from "../lib/interactionSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
+import { invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
+import { beginGoogleDataAuthorization } from "../lib/googleDataAuthorizationIntent";
 import {
   ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
   ACTIVITY_SYNC_MAX_CALENDAR_PAGES,
@@ -38,13 +38,7 @@ import { loadActivitySyncLimitValues, type ActivitySyncLimitValues } from "../li
 import { InteractionSyncResultSummary } from "./InteractionSyncResultSummary";
 import { SyncPreviewDialog } from "./SyncPreviewDialog";
 import { Button } from "./ui/Button";
-import { ProviderButton } from "./ui/ProviderIcon";
-
-const GOOGLE_ACCOUNT_READONLY_SCOPES = [
-  ...GOOGLE_AUTH_LOGIN_SCOPES,
-  GOOGLE_CONTACTS_READONLY_SCOPE,
-  GOOGLE_INTERACTIONS_READONLY_SCOPES
-].join(" ");
+import { ProviderButton, ProviderIcon } from "./ui/ProviderIcon";
 
 type ActivitySyncResource = "mail" | "calendar";
 
@@ -107,6 +101,7 @@ const initialState: GoogleInteractionsState = {
 };
 
 type GoogleInteractionsSyncPanelProps = {
+  authorizationRedirectPath?: string;
   calendarDisabledReason?: string;
   compact?: boolean;
   googleAccessToken?: string;
@@ -116,10 +111,14 @@ type GoogleInteractionsSyncPanelProps = {
   googleMailAvailable?: boolean;
   mailDisabledReason?: string;
   networkingStartReady?: boolean;
+  onResumeMailImportHandled?: () => void;
   registerRememberedScopes?: boolean;
+  resumeMailImport?: boolean;
+  showCalendarAction?: boolean;
 };
 
 export function GoogleInteractionsSyncPanel({
+  authorizationRedirectPath = "/cuenta",
   calendarDisabledReason = "",
   compact = false,
   googleAccessToken,
@@ -129,13 +128,18 @@ export function GoogleInteractionsSyncPanel({
   googleMailAvailable = true,
   mailDisabledReason = "",
   networkingStartReady = true,
-  registerRememberedScopes = true
+  onResumeMailImportHandled,
+  registerRememberedScopes = true,
+  resumeMailImport = false,
+  showCalendarAction = true
 }: GoogleInteractionsSyncPanelProps) {
   const [state, setState] = useState<GoogleInteractionsState>(initialState);
   const [gmailLabelsReloadKey, setGmailLabelsReloadKey] = useState(0);
+  const [historicalImportOpen, setHistoricalImportOpen] = useState(false);
   const activeResource = state.activeResource ?? "mail";
   const previewChanges = interactionPreviewChanges(state.lastRun);
   const effectiveAccessToken = googleAccessToken?.trim() || state.accessToken;
+  const mailAuthorizationRequired = !googleConnected || !effectiveAccessToken || !googleMailAvailable;
   const mailActionDisabledReason = compact ? mailDisabledReason
     || googleResourceDisabledReason({
       accessToken: effectiveAccessToken,
@@ -229,9 +233,27 @@ export function GoogleInteractionsSyncPanel({
     };
   }, [effectiveAccessToken, gmailLabelsReloadKey, googleMailAvailable]);
 
-  async function connectGoogle() {
+  useEffect(() => {
+    if (!resumeMailImport || googleConnectionLoading) return;
+    if (googleMailAvailable && effectiveAccessToken) {
+      setState((current) => ({
+        ...current,
+        error: "",
+        message: "Autorización Gmail lista. Selecciona una etiqueta para revisar el histórico."
+      }));
+    }
+    setHistoricalImportOpen(true);
+    onResumeMailImportHandled?.();
+  }, [effectiveAccessToken, googleConnectionLoading, googleMailAvailable, resumeMailImport]);
+
+  async function connectGoogle(resource: ActivitySyncResource) {
     try {
-      await reconnectGoogle(GOOGLE_ACCOUNT_READONLY_SCOPES, `${window.location.origin}/cuenta`);
+      const redirectTo = `${window.location.origin}${authorizationRedirectPath}`;
+      if (resource === "mail") {
+        await beginGoogleDataAuthorization("import_gmail_history", redirectTo);
+      } else {
+        await reconnectGoogle([GOOGLE_CALENDAR_READONLY_SCOPE], redirectTo);
+      }
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -269,6 +291,22 @@ export function GoogleInteractionsSyncPanel({
   }
 
   async function runMailBootstrapReview() {
+    try {
+      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        activeResource: "mail",
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        loading: false,
+        previewOpen: false
+      }));
+      return;
+    }
+    if (mailAuthorizationRequired) {
+      await connectGoogle("mail");
+      return;
+    }
     if (!state.selectedGmailLabelId) {
       setState((current) => ({
         ...current,
@@ -283,13 +321,12 @@ export function GoogleInteractionsSyncPanel({
       return;
     }
     try {
-      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
       const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
       if (!googleConnection.connected
         || !googleConnection.accessToken
         || !googleConnectionHasCapability(googleConnection, "gmail_read")) {
         setState((current) => ({ ...current, error: "", loading: true, message: "Reconectando Google..." }));
-        await connectGoogle();
+        await connectGoogle("mail");
         return;
       }
       if (!googleConnection.userEmail) throw new Error("No pude identificar el correo del usuario conectado.");
@@ -340,6 +377,7 @@ export function GoogleInteractionsSyncPanel({
         since: historicalStart,
         userEmail: googleConnection.userEmail
       });
+      setHistoricalImportOpen(false);
       setState((current) => ({
         ...current,
         applying: false,
@@ -493,7 +531,7 @@ export function GoogleInteractionsSyncPanel({
         loading: true,
         message: "Reconectando Google..."
       }));
-      await connectGoogle();
+      await connectGoogle(resource);
       return;
     }
 
@@ -656,13 +694,13 @@ export function GoogleInteractionsSyncPanel({
         <div className="connected-service-label-feedback">
           <span className="form-error" role="alert">{state.gmailLabelsError}</span>
           <Button
+            aria-label="Reintentar carga de etiquetas Gmail"
             disabled={state.gmailLabelsLoading || state.loading || state.applying}
             icon="sync"
             onClick={() => setGmailLabelsReloadKey((current) => current + 1)}
+            square
             tone="ghost"
-          >
-            Reintentar
-          </Button>
+          />
         </div>
       ) : !state.gmailLabelsLoading && effectiveAccessToken && !state.gmailLabels.length ? (
         <span className="connected-service-label-empty" role="status">No hay etiquetas personales en esta cuenta de Gmail.</span>
@@ -690,25 +728,84 @@ export function GoogleInteractionsSyncPanel({
   if (compact) {
     return (
       <>
-        <div className="connected-service-action">
-          <div className="connected-service-action-main">
-            <strong>Correos</strong>
-            <span>{state.stats.linkedMail} vinculados</span>
-            {gmailLabelPicker}
+        <div className="account-source-row gmail-history-source">
+          <div className="account-source-main">
+            <span className="connected-service-logo active" title="Google"><ProviderIcon name="google" /></span>
+            <div>
+              <strong>Seleccionar correos</strong>
+              <span>Importa correos antiguos por etiqueta.</span>
+            </div>
           </div>
-          <div className="toolbar connected-service-action-controls">
-            {mailActionDisabledReason && !state.loading ? (
-              <span className="connected-service-action-reason">{mailActionDisabledReason}</span>
-            ) : null}
-            <Button disabled={Boolean(mailActionDisabledReason) || !state.selectedGmailLabelId || state.loading || state.applying} icon="mail" onClick={reviewMail} tone="primary">
-              {googleConnectionLoading ? "Verificando..." : state.loading && activeResource === "mail" ? "Revisando..." : "Importar"}
-            </Button>
-            <Button icon="trash" onClick={() => confirmImportedDataDelete("correos")} tone="danger">
-              Borrar importados
-            </Button>
+          <div className="account-source-actions">
+            <Button
+              aria-haspopup="dialog"
+              aria-label="Seleccionar correos de Gmail"
+              icon="plus"
+              onClick={() => setHistoricalImportOpen(true)}
+              square
+              tone="secondary"
+            />
           </div>
         </div>
-        <div className="connected-service-action">
+        {historicalImportOpen ? (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              aria-describedby="gmail-history-description"
+              aria-labelledby="gmail-history-title"
+              aria-modal="true"
+              className="modal-card gmail-history-dialog"
+              role="dialog"
+            >
+              <div className="modal-head">
+                <div>
+                  <h2 id="gmail-history-title">Importar correos antiguos</h2>
+                  <p id="gmail-history-description">Elige una etiqueta personal de Gmail. Revisarás los correos antes de guardarlos.</p>
+                </div>
+                <Button aria-label="Cerrar importación de correos antiguos" icon="close" onClick={() => setHistoricalImportOpen(false)} square tone="ghost" />
+              </div>
+
+              {mailAuthorizationRequired ? (
+                <p className="meta">Autoriza el acceso de solo lectura a Gmail para cargar tus etiquetas y seleccionar correos.</p>
+              ) : gmailLabelPicker}
+              {!mailAuthorizationRequired && mailActionDisabledReason && !state.loading ? (
+                <p className="connected-service-action-reason">{mailActionDisabledReason}</p>
+              ) : null}
+              {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}
+              {state.message ? <p className="meta" role="status">{state.message}</p> : null}
+
+              <div className="modal-actions">
+                <Button
+                  aria-label="Borrar correos importados"
+                  className="account-icon-action destructive"
+                  icon="trash"
+                  onClick={() => confirmImportedDataDelete("correos")}
+                  square
+                  tone="secondary"
+                />
+                {mailAuthorizationRequired ? (
+                  <Button
+                    disabled={googleConnectionLoading}
+                    icon="link"
+                    onClick={() => void connectGoogle("mail")}
+                    tone="primary"
+                  >
+                    Autorizar Gmail
+                  </Button>
+                ) : (
+                  <Button
+                    aria-label={googleConnectionLoading ? "Verificando Gmail" : state.loading ? "Revisando correos antiguos" : "Importar correos antiguos"}
+                    disabled={state.loading || state.applying || Boolean(mailActionDisabledReason) || !state.selectedGmailLabelId}
+                    icon="mail"
+                    onClick={reviewMail}
+                    square
+                    tone="primary"
+                  />
+                )}
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {showCalendarAction ? <div className="connected-service-action">
           <div className="connected-service-action-main">
             <strong>Citas calendario</strong>
             <span>{state.stats.linkedCalendar} vinculadas</span>
@@ -724,7 +821,7 @@ export function GoogleInteractionsSyncPanel({
               Borrar importadas
             </Button>
           </div>
-        </div>
+        </div> : null}
         <div className="connected-service-feedback">{syncFeedback}</div>
       </>
     );
@@ -738,11 +835,11 @@ export function GoogleInteractionsSyncPanel({
           <span className="panel-caption">Fuerza una nueva lectura de datos de Google para contactos en foco. Puede reemplazar datos fuente ya vinculados; tus minutas se conservan.</span>
         </div>
         <div className="toolbar">
-          <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={connectGoogle} />
-          <Button disabled={state.loading || state.applying || (Boolean(state.accessToken) && !state.selectedGmailLabelId)} icon="mail" onClick={state.accessToken ? reviewMail : connectGoogle} tone="primary">
+          <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={() => connectGoogle("mail")} />
+          <Button disabled={state.loading || state.applying || (Boolean(state.accessToken) && !state.selectedGmailLabelId)} icon="mail" onClick={reviewMail} tone="primary">
             {state.loading && activeResource === "mail" ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
           </Button>
-          <Button disabled={state.loading || state.applying} icon="calendar" onClick={state.accessToken ? reviewCalendar : connectGoogle} tone="primary">
+          <Button disabled={state.loading || state.applying} icon="calendar" onClick={state.accessToken ? reviewCalendar : () => connectGoogle("calendar")} tone="primary">
             {state.loading && activeResource === "calendar" ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
           </Button>
         </div>

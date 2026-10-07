@@ -151,6 +151,8 @@ Tras Objetivos, el recorrido muestra la importación real de contactos por vCard
 
 La navegación principal visible se ordena como Objetivos y Contactos. El link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido. El header muestra junto a la acción de actualización global un estado compacto calculado desde el servicio habilitado menos reciente, además de ejecución, resultado transitorio o error accionable; esa acción aplica directamente la actividad elegible sin abrir preview. `Cerrar sesión` vive en una sección separada de Cuenta y no en el header.
 
+Cuenta separa `Importar datos` de `Sincronización automática`. La importación manual o histórica se organiza en tres bloques compactos para Contactos, Citas y Correos; en desktop comparten una cuadrícula de tres columnas y en mobile se apilan. Las acciones usan botones de icono con nombre accesible y los proveedores mantienen logos, contenedores y alineación homogéneos. Google se autoriza desde la acción concreta de importar Contacts, seleccionar correos históricos o activar los toggles Gmail/Calendar; no existe un CTA principal separado para vincular el proveedor. El histórico Gmail se abre desde `Seleccionar correos` en un diálogo y permanece independiente del toggle. La sincronización automática agrupa bajo Google únicamente Calendar y Gmail, las capacidades reales vigentes; `.ics`, Apple Contacts y Microsoft Contacts se mantienen como opciones futuras.
+
 ## Responsive y accesibilidad observable
 
 El responsive se resuelve con media queries en `components.css`, principalmente en 780px, 760px, 920px y 1120px, más un container query para Coach compacto.
