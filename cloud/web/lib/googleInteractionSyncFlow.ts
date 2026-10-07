@@ -1203,10 +1203,26 @@ async function readCalendarForScope(
 ): Promise<ScopedCalendarReadResult> {
   const calendarQueries = input.calendarQueries ?? [];
   if (input.rollingWindow) {
-    return readCalendarQueriesForWindows(deps, input, [{
+    const result = await deps.readCalendar({
+      accessToken: input.accessToken,
+      maxEvents: input.maxCalendarEvents,
+      maxPages: input.maxPages,
+      query: null,
+      syncToken: null,
       timeMin: input.calendarTimeMin,
       timeMax: input.calendarFutureTimeMax
-    }]);
+    });
+    const matchedContactEmailsByEventKey = matchedParticipantEmailsForEvents(result.events, calendarQueries);
+    const relevantEvents = new Map<string, GoogleCalendarReadResult["events"][number]>();
+    for (const event of result.events) {
+      const key = calendarEventKey(event);
+      if (matchedContactEmailsByEventKey[key]?.length) relevantEvents.set(key, event);
+    }
+    return {
+      ...result,
+      events: Array.from(relevantEvents.values()),
+      matchedContactEmailsByEventKey
+    };
   }
   if (input.syncToken) {
     const result = await deps.readCalendar({
@@ -1835,6 +1851,23 @@ function matchedContactEmailsForEvents(events: GoogleCalendarReadResult["events"
     const eventText = JSON.stringify(event).toLowerCase();
     const eventMatches = cleanEmails.filter((email) => eventText.includes(email));
     if (eventMatches.length) matches[calendarEventKey(event)] = Array.from(new Set(eventMatches));
+  }
+  return matches;
+}
+
+function matchedParticipantEmailsForEvents(events: GoogleCalendarReadResult["events"], emails: string[]) {
+  const scopedEmails = new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean));
+  const matches: Record<string, string[]> = {};
+  for (const event of events) {
+    const participantEmails = [
+      event.organizer?.email,
+      ...(event.attendees ?? []).map((attendee) => attendee.email)
+    ]
+      .map((email) => email?.trim().toLowerCase() ?? "")
+      .filter((email) => scopedEmails.has(email));
+    if (participantEmails.length) {
+      matches[calendarEventKey(event)] = Array.from(new Set(participantEmails));
+    }
   }
   return matches;
 }

@@ -479,9 +479,10 @@ test("consumidores Google exigen capability efectiva antes de usar token", () =>
 
 test("ActivitySyncButton ejecuta servicios independientes conservando snapshots Gmail", () => {
   const source = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+  const execution = readFileSync(new URL("../lib/activitySyncExecution.ts", import.meta.url), "utf8");
 
   assert.match(source, /globalFocusedMailSync: variant === "focus_incremental"/);
-  assert.match(source, /await runGlobalSync\(/);
+  assert.match(source, /startGlobalActivitySync\(async \(\) =>/);
   assert.match(source, /executeActivitySyncServices\(\{/);
   assert.match(source, /runService: \(service\) => runActivityService\(input, scope, service\)/);
   assert.match(source, /includeCalendar: service === "calendar"/);
@@ -503,18 +504,40 @@ test("ActivitySyncButton ejecuta servicios independientes conservando snapshots 
   assert.doesNotMatch(source, /SyncPreviewDialog/);
   assert.match(source, /scope === "global" && allActivitySyncServicesSucceeded\(outcomes\)/);
   assert.match(source, /recordGlobalActivitySyncSuccess/);
-  assert.match(source, /freshnessAfterActivitySync\(current\.serviceFreshness, outcomes\)/);
-  assert.match(source, /reauthorizationRequired: true/);
-  assert.match(source, /state\.reauthorizationRequired \? "Reautorizar" : "Configurar"/);
+  assert.match(source, /freshnessAfterActivitySync\(current\.serviceFreshness, globalOutcomes\)/);
+  assert.match(source, /running: globalSync\.running/);
+  assert.doesNotMatch(source, /transientOutcomes|serviceErrors/);
+  assert.match(execution, /if \(activeGlobalActivitySync\)/);
+  assert.match(execution, /\.finally\(\(\) => \{[\s\S]*activeGlobalActivitySync = null/);
   assert.match(source, /finally \{[\s\S]*applying: false,[\s\S]*loading: false,[\s\S]*message: ""/);
 });
 
-test("ActivitySyncButton conserva preflight conjunto antes de separar servicios", () => {
+test("ActivitySyncButton abre popover antes de ejecutar y deriva una acción contextual", () => {
   const source = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
 
   assert.match(source, /if \(currentSelection\.connectionRequired \|\| !googleConnection\.connected \|\| !googleConnection\.accessToken\)/);
-  assert.match(source, /openSyncSettings\(\)/);
+  assert.match(source, /onClick=\{\(\) => setPopoverOpen\(true\)\}/);
+  assert.match(source, /onFocus=\{\(\) => setPopoverOpen\(true\)\}/);
+  assert.match(source, /globalPrimaryAction\.kind === "authorize"/);
+  assert.match(source, /beginActivitySyncAuthorization\(enabledGlobalServices, missingServices, window\.location\.href\)/);
+  assert.match(source, /aria-label="Estado de sincronización"/);
+  assert.doesNotMatch(source, /activity-sync-status/);
   assert.match(source, /executeActivitySyncServices\(\{/);
+});
+
+test("sync now solicita solo scopes faltantes de servicios ON y reanuda tras OAuth", () => {
+  const source = readFileSync(new URL("../components/ActivitySyncButton.tsx", import.meta.url), "utf8");
+  const authorization = readFileSync(new URL("../lib/activitySyncAuthorization.ts", import.meta.url), "utf8");
+
+  assert.match(authorization, /service === "mail" \? GOOGLE_GMAIL_READONLY_SCOPE : GOOGLE_CALENDAR_READONLY_SCOPE/);
+  assert.doesNotMatch(authorization, /GOOGLE_CONTACTS_READONLY_SCOPE|contacts\.readonly|"contacts"/);
+  assert.match(authorization, /rememberPendingActivitySyncAuthorization\(normalizedRequestedServices\)/);
+  assert.match(authorization, /reconnectGoogle\(activitySyncAuthorizationScopes\(normalizedMissingServices\), redirectTo\)/);
+  assert.match(authorization, /PENDING_ACTIVITY_SYNC_AUTHORIZATION_KEY/);
+  assert.match(source, /pendingAuthorization\.services\.filter\(\(service\) => \([\s\S]*gmailEnabled[\s\S]*calendarEnabled/);
+  assert.match(source, /oauthReturn\.status !== "completed" \|\| resumeAuthorizationRef\.current/);
+  assert.match(source, /missingServices\.length \|\| !googleConnection\.accessToken \|\| !googleConnection\.userEmail/);
+  assert.match(source, /startGlobalActivitySync\(\(\) => runGlobalSync\(\{[\s\S]*requestedServices\.includes\("calendar"\)[\s\S]*requestedServices\.includes\("mail"\)/);
 });
 
 test("preferencias de interacción gobiernan Cuenta y ActivitySyncButton sin afectar Bootstrap", () => {

@@ -7,6 +7,10 @@ import {
   allActivitySyncServicesSucceeded,
   executeActivitySyncServices,
   freshnessAfterActivitySync,
+  getGlobalActivitySyncSnapshot,
+  resetGlobalActivitySyncCoordinatorForTests,
+  startGlobalActivitySync,
+  subscribeGlobalActivitySync,
   type ActivitySyncServiceOutcome
 } from "../lib/activitySyncExecution.ts";
 
@@ -136,6 +140,65 @@ test("solo se ejecutan servicios seleccionados por el preflight", async () => {
     }
   });
   assert.deepEqual(calls, ["mail"]);
+});
+
+test("coordinador global es single-flight y sobrevive a nuevos suscriptores", async () => {
+  resetGlobalActivitySyncCoordinatorForTests();
+  let resolveRun!: (outcomes: ActivitySyncServiceOutcome[]) => void;
+  let operationCalls = 0;
+  const snapshots: boolean[] = [];
+  const unsubscribe = subscribeGlobalActivitySync(() => {
+    snapshots.push(getGlobalActivitySyncSnapshot().running);
+  });
+  const operation = () => {
+    operationCalls += 1;
+    return new Promise<ActivitySyncServiceOutcome[]>((resolve) => {
+      resolveRun = resolve;
+    });
+  };
+
+  const first = startGlobalActivitySync(operation);
+  const second = startGlobalActivitySync(operation);
+  assert.equal(first.started, true);
+  assert.equal(second.started, false);
+  assert.equal(first.promise, second.promise);
+  assert.equal(operationCalls, 0);
+  assert.equal(getGlobalActivitySyncSnapshot().running, true);
+
+  const remountedSnapshots = [getGlobalActivitySyncSnapshot().running];
+  const unsubscribeRemounted = subscribeGlobalActivitySync(() => {
+    remountedSnapshots.push(getGlobalActivitySyncSnapshot().running);
+  });
+
+  await Promise.resolve();
+  assert.equal(operationCalls, 1);
+  resolveRun([success("mail", 1)]);
+  await first.promise;
+
+  assert.equal(getGlobalActivitySyncSnapshot().running, false);
+  assert.equal(getGlobalActivitySyncSnapshot().outcomes[0]?.created, 1);
+  assert.deepEqual(snapshots, [true, false]);
+  assert.deepEqual(remountedSnapshots, [true, false]);
+  unsubscribe();
+  unsubscribeRemounted();
+  resetGlobalActivitySyncCoordinatorForTests();
+});
+
+test("coordinador global libera single-flight en finally ante error inesperado", async () => {
+  resetGlobalActivitySyncCoordinatorForTests();
+  const failed = startGlobalActivitySync(async () => {
+    throw new Error("fallo controlado");
+  });
+  assert.deepEqual(await failed.promise, []);
+  assert.equal(getGlobalActivitySyncSnapshot().running, false);
+  assert.equal(getGlobalActivitySyncSnapshot().error, "fallo controlado");
+
+  const retry = startGlobalActivitySync(async () => [success("calendar", 0)]);
+  assert.equal(retry.started, true);
+  await retry.promise;
+  assert.equal(getGlobalActivitySyncSnapshot().running, false);
+  assert.equal(getGlobalActivitySyncSnapshot().error, "");
+  resetGlobalActivitySyncCoordinatorForTests();
 });
 
 function success(service: ActivitySyncServiceOutcome["service"], created: number): ActivitySyncServiceOutcome {

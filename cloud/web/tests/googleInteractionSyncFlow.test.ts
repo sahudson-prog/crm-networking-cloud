@@ -1880,11 +1880,37 @@ test("Calendar periodico global usa ventana movil Foco, deduplica y actualiza fr
       reads.push(input);
       return {
         complete: true,
-        events: [{
-          id: "event-rolling-shared",
-          summary: "Cafe Maria",
-          start: { dateTime: "2026-10-07T14:00:00.000Z" }
-        }],
+        events: [
+          {
+            attendees: [{ email: "MARIA@EMPRESA.CL" }],
+            id: "event-rolling-shared",
+            summary: "Cafe Maria",
+            start: { dateTime: "2026-10-07T14:00:00.000Z" }
+          },
+          {
+            attendees: [{ email: "maria@empresa.cl" }],
+            id: "event-rolling-shared",
+            summary: "Cafe Maria duplicado",
+            start: { dateTime: "2026-10-07T14:00:00.000Z" }
+          },
+          {
+            id: "event-organized-by-focus",
+            organizer: { email: "maria.secundario@empresa.cl" },
+            summary: "Cafe secundario",
+            start: { dateTime: "2026-10-08T14:00:00.000Z" }
+          },
+          {
+            attendees: [{ email: "fuera@empresa.cl" }],
+            id: "event-outside-focus",
+            summary: "No corresponde al Foco",
+            start: { dateTime: "2026-10-09T14:00:00.000Z" }
+          },
+          {
+            id: "event-without-participants",
+            summary: "Sin participantes",
+            start: { dateTime: "2026-10-10T14:00:00.000Z" }
+          }
+        ],
         mode: "full" as const,
         nextSyncToken: "token-que-no-debe-usarse",
         pagesRead: 1,
@@ -1931,11 +1957,12 @@ test("Calendar periodico global usa ventana movil Foco, deduplica y actualiza fr
 
   assert.equal(first.ok, true);
   assert.equal(second.ok, true);
-  assert.deepEqual(createdPerRun, [1, 0]);
-  assert.equal(first.calendar?.counts.created, 1);
+  assert.deepEqual(createdPerRun, [2, 0]);
+  assert.equal(first.calendar?.counts.created, 2);
   assert.equal(second.calendar?.counts.created, 0);
   assert.equal(cursorReads, 0);
-  assert.deepEqual(new Set(reads.map((read) => read.query)), new Set(["maria@empresa.cl", "maria.secundario@empresa.cl"]));
+  assert.equal(reads.length, 2);
+  assert.deepEqual(new Set(reads.map((read) => read.query)), new Set([null]));
   assert.equal(reads.every((read) => read.syncToken === null), true);
   assert.equal(reads.every((read) => read.timeMin === "2026-09-22T15:30:00.000Z"), true);
   assert.equal(reads.every((read) => read.timeMax === "2027-01-06T15:30:00.000Z"), true);
@@ -1943,6 +1970,56 @@ test("Calendar periodico global usa ventana movil Foco, deduplica y actualiza fr
   assert.equal(writes.every((write) => write.cursorLabel === "" && write.cursorValue === null), true);
   assert.equal(writes.every((write) => write.connectedAccountId === "account-1"), true);
   assert.equal(writes.every((write) => write.metadata?.mode === "rolling_window"), true);
+});
+
+test("Calendar rolling hace un solo scan aunque existan 150 emails Foco", async () => {
+  const focusedContacts = Array.from({ length: 150 }, (_, index): ContactRow => ({
+    ...contacts[0],
+    id: `contact-${index}`,
+    display_name: `Contacto ${index}`,
+    contact_emails: [{ email: `contacto-${index}@empresa.cl`, domain: "empresa.cl" }]
+  }));
+  const reads: Array<{ query?: string | null }> = [];
+  const result = await syncGoogleInteractions({
+    accessToken: "token",
+    calendarFutureTimeMax: "2026-11-05T15:30:00.000Z",
+    calendarRollingWindowSync: "global",
+    calendarTimeMin: "2026-09-29T15:30:00.000Z",
+    connectedAccountId: "account-1",
+    dryRun: true,
+    focusedOnly: true,
+    includeCalendar: true,
+    includeMail: false,
+    maxCalendarEvents: 2500,
+    maxPages: 2,
+    saveCursors: true,
+    userEmail: "sergio@crm.cl"
+  }, contactBackfillDependencies({
+    readAppContacts: async () => focusedContacts,
+    readCalendar: async (input: { query?: string | null }) => {
+      reads.push(input);
+      return {
+        complete: true,
+        events: [{
+          attendees: [{ email: "CONTACTO-149@EMPRESA.CL" }],
+          id: "event-contact-149",
+          start: { dateTime: "2026-10-07T14:00:00.000Z" },
+          summary: "Cafe"
+        }],
+        mode: "full" as const,
+        nextSyncToken: null,
+        pagesRead: 1,
+        truncatedBy: [],
+        warnings: []
+      };
+    }
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.calendarRollingSnapshot?.items.length, 1);
+  assert.equal(result.calendarRollingSnapshot?.items[0]?.externalId, "CALENDAR_event-contact-149");
+  assert.equal(reads.length, 1);
+  assert.equal(reads[0].query, null);
 });
 
 test("Calendar rolling aplica el snapshot revisado sin repetir lecturas Google", async () => {
@@ -1955,6 +2032,7 @@ test("Calendar rolling aplica el snapshot revisado sin repetir lecturas Google",
       return {
         complete: true,
         events: [{
+          attendees: [{ email: "maria@empresa.cl" }],
           id: "event-snapshot",
           summary: "Cafe Maria",
           start: { dateTime: "2026-10-07T14:00:00.000Z" }
@@ -2149,13 +2227,14 @@ test("Calendar periodico de ficha exige Foco y no lee ni escribe cursores", asyn
     },
     readCalendar: async ({ query, syncToken, timeMin, timeMax }: { query?: string | null; syncToken?: string | null; timeMin?: string | null; timeMax?: string | null }) => {
       calendarReads += 1;
-      assert.equal(query, "maria@empresa.cl");
+      assert.equal(query, null);
       assert.equal(syncToken, null);
       assert.equal(timeMin, "2026-09-22T15:30:00.000Z");
       assert.equal(timeMax, "2027-01-06T15:30:00.000Z");
       return {
         complete: true,
         events: [{
+          attendees: [{ email: "maria@empresa.cl" }],
           id: "event-contact-rolling",
           summary: "Cafe Maria",
           start: { dateTime: "2026-10-07T14:00:00.000Z" }

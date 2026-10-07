@@ -1,23 +1,35 @@
-import type { SyncGoogleInteractionsResult } from "./googleInteractionSyncFlow";
+import type { ActivitySyncService, ActivitySyncServiceOutcome } from "./activitySyncExecution";
 import type { InteractionSyncPreferences } from "./interactionSyncPreferences";
 
 export const GLOBAL_SYNC_SUMMARY_DURATION_MS = 10_000;
 
-export type GlobalActivityStatusInput = {
-  applying: boolean;
-  connectionRequired?: boolean;
-  error: string;
-  lastSuccessfulAt: string | null;
-  loading: boolean;
-  pendingUpdate?: boolean;
-  reauthorizationRequired: boolean;
-  syncDisabled?: boolean;
-  transientSummary: string;
-};
+export type GlobalActivityIconState = "normal" | "syncing" | "auth_required" | "error" | "success";
 
 export type GlobalActivityServiceFreshness = {
   calendar: string | null;
   mail: string | null;
+};
+
+export type GlobalActivityServiceState = {
+  authorized: boolean;
+  error: string;
+  reauthorizationRequired: boolean;
+};
+
+export type GlobalActivityServiceStates = Record<ActivitySyncService, GlobalActivityServiceState>;
+
+export type GlobalActivitySyncRow = {
+  icon: "calendar" | "mail" | "sync";
+  key: ActivitySyncService | "disabled";
+  label: string;
+  status: string;
+  tone: "default" | "error" | "muted" | "success";
+};
+
+export type GlobalActivityPrimaryAction = {
+  disabled: boolean;
+  kind: "authorize" | "retry" | "sync";
+  label: string;
 };
 
 export function resolveActivitySyncSelection(input: {
@@ -42,74 +54,127 @@ export function resolveActivitySyncSelection(input: {
   };
 }
 
-export function aggregateGlobalActivityFreshness(
-  preferences: InteractionSyncPreferences,
-  freshness: GlobalActivityServiceFreshness
-) {
-  const enabledTimestamps = [
-    preferences.gmailEnabled ? freshness.mail : undefined,
-    preferences.calendarEnabled ? freshness.calendar : undefined
-  ].filter((value): value is string | null => value !== undefined);
-  if (!enabledTimestamps.length) return { lastSuccessfulAt: null, pendingUpdate: false };
-  if (enabledTimestamps.some((value) => !validTimestamp(value))) {
-    return { lastSuccessfulAt: null, pendingUpdate: true };
+export function deriveGlobalActivityIconState(input: {
+  authorizationRequired: boolean;
+  hasError: boolean;
+  running: boolean;
+  successFeedback: boolean;
+}): GlobalActivityIconState {
+  if (input.running) return "syncing";
+  if (input.authorizationRequired) return "auth_required";
+  if (input.hasError) return "error";
+  if (input.successFeedback) return "success";
+  return "normal";
+}
+
+export function globalActivityPrimaryAction(input: {
+  anyServiceEnabled: boolean;
+  iconState: GlobalActivityIconState;
+  ready: boolean;
+}): GlobalActivityPrimaryAction | null {
+  if (!input.anyServiceEnabled) return null;
+  if (input.iconState === "syncing") {
+    return { disabled: true, kind: "sync", label: "Actualizando…" };
   }
-  const oldest = enabledTimestamps
-    .map((value) => value as string)
-    .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0] ?? null;
-  return { lastSuccessfulAt: oldest, pendingUpdate: false };
-}
-
-export function globalActivityCreatedSummary(result: SyncGoogleInteractionsResult) {
-  const mailCreated = result.mail?.counts.created ?? 0;
-  const calendarCreated = result.calendar?.counts.created ?? 0;
-  if (!mailCreated && !calendarCreated) return "Sin novedades";
-  return `+${mailCreated} ${mailCreated === 1 ? "correo" : "correos"} · +${calendarCreated} ${calendarCreated === 1 ? "cita" : "citas"}`;
-}
-
-export function formatGlobalActivityLastUpdated(value: string | null, now = new Date()) {
-  if (!value) return "Nunca actualizado";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Nunca actualizado";
-  const time = date.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
-  if (date.toDateString() === now.toDateString()) return `Última actualización: hoy ${time}`;
-  const day = date.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" });
-  return `Última actualización: ${day} ${time}`;
-}
-
-export function globalActivityStatusText(state: GlobalActivityStatusInput, now = new Date()) {
-  if (state.syncDisabled) return "Sincronización desactivada";
-  if (state.connectionRequired) return "Requiere conexión";
-  const lastUpdate = formatGlobalActivityFreshness(state.lastSuccessfulAt, now);
-  const compactLastUpdate = lastUpdate === "Nunca actualizado"
-    ? "nunca actualizado"
-    : lastUpdate.toLocaleLowerCase("es-CL");
-  if (state.loading || state.applying) {
-    return state.lastSuccessfulAt ? `Actualizando… · ${compactLastUpdate}` : "Actualizando…";
+  if (input.iconState === "auth_required") {
+    return { disabled: !input.ready, kind: "authorize", label: "Autorizar y actualizar" };
   }
-  if (state.transientSummary) return state.transientSummary;
-  if (state.reauthorizationRequired) {
-    return state.lastSuccessfulAt
-      ? `Autorización de Google requerida · ${compactLastUpdate}`
-      : "Autorización de Google requerida";
+  if (input.iconState === "error") {
+    return { disabled: !input.ready, kind: "retry", label: "Reintentar" };
   }
-  if (state.error) return state.lastSuccessfulAt ? `${state.error} · ${compactLastUpdate}` : state.error;
-  if (state.pendingUpdate) return "Pendiente de actualización";
-  return lastUpdate;
+  return { disabled: !input.ready, kind: "sync", label: "Actualizar ahora" };
 }
 
-export function formatGlobalActivityFreshness(value: string | null, now = new Date()) {
-  if (!validTimestamp(value)) return "Nunca actualizado";
+export function buildGlobalActivitySyncRows(input: {
+  freshness: GlobalActivityServiceFreshness;
+  globalError?: boolean;
+  outcomes?: ActivitySyncServiceOutcome[];
+  preferences: InteractionSyncPreferences;
+  services: GlobalActivityServiceStates;
+  now?: Date;
+}): GlobalActivitySyncRow[] {
+  const enabledServices = activityServicesFromPreferences(input.preferences);
+  if (!enabledServices.length) {
+    return [{
+      icon: "sync",
+      key: "disabled",
+      label: "",
+      status: "Sincronización desactivada",
+      tone: "muted"
+    }];
+  }
+
+  const outcomes = new Map((input.outcomes ?? []).map((outcome) => [outcome.service, outcome]));
+  return enabledServices.map((service) => {
+    const outcome = outcomes.get(service);
+    if (outcome) return rowFromOutcome(outcome);
+
+    const serviceState = input.services[service];
+    if (input.globalError) {
+      return serviceRow(service, "Error al actualizar", "error");
+    }
+    if (!serviceState.authorized || serviceState.reauthorizationRequired) {
+      return serviceRow(service, "Requiere autorización", "error");
+    }
+    if (serviceState.error) {
+      return serviceRow(service, "Error al actualizar", "error");
+    }
+    return serviceRow(
+      service,
+      formatActivityServiceFreshness(input.freshness[service], input.now),
+      input.freshness[service] ? "default" : "muted"
+    );
+  });
+}
+
+export function activityServicesFromPreferences(preferences: InteractionSyncPreferences) {
+  const services: ActivitySyncService[] = [];
+  if (preferences.gmailEnabled) services.push("mail");
+  if (preferences.calendarEnabled) services.push("calendar");
+  return services;
+}
+
+export function formatActivityServiceFreshness(value: string | null, now = new Date()) {
+  if (!validTimestamp(value)) return "Pendiente de primera actualización";
   const elapsedMs = Math.max(0, now.getTime() - new Date(value as string).getTime());
+  if (elapsedMs < 60 * 1000) return "Actualizado ahora";
   if (elapsedMs < 60 * 60 * 1000) {
-    const upperMinutes = Math.max(1, Math.floor(elapsedMs / (60 * 1000)) + 1);
-    return `Actualizado hace menos de ${upperMinutes} min`;
+    return `Actualizado hace ${Math.floor(elapsedMs / (60 * 1000))} min`;
   }
   if (elapsedMs < 24 * 60 * 60 * 1000) {
-    const upperHours = Math.max(1, Math.floor(elapsedMs / (60 * 60 * 1000)) + 1);
-    return `Actualizado hace menos de ${upperHours} h`;
+    return `Actualizado hace ${Math.floor(elapsedMs / (60 * 60 * 1000))} h`;
   }
-  return formatGlobalActivityLastUpdated(value, now);
+  return `Actualizado hace ${Math.floor(elapsedMs / (24 * 60 * 60 * 1000))} d`;
+}
+
+function rowFromOutcome(outcome: ActivitySyncServiceOutcome): GlobalActivitySyncRow {
+  if (outcome.reauthorizationRequired) {
+    return serviceRow(outcome.service, "Requiere autorización", "error");
+  }
+  if (!outcome.success) {
+    return serviceRow(outcome.service, "Error al actualizar", "error");
+  }
+  if (outcome.created === 0) {
+    return serviceRow(outcome.service, "Sin novedades", "success");
+  }
+  const noun = outcome.service === "mail"
+    ? outcome.created === 1 ? "correo" : "correos"
+    : outcome.created === 1 ? "cita" : "citas";
+  return serviceRow(outcome.service, `+${outcome.created} ${noun}`, "success");
+}
+
+function serviceRow(
+  service: ActivitySyncService,
+  status: string,
+  tone: GlobalActivitySyncRow["tone"]
+): GlobalActivitySyncRow {
+  return {
+    icon: service === "mail" ? "mail" : "calendar",
+    key: service,
+    label: service === "mail" ? "Correos" : "Citas",
+    status,
+    tone
+  };
 }
 
 function validTimestamp(value: string | null) {

@@ -124,7 +124,7 @@ Si una carga histórica no trae mensajes, el cliente puede leer el perfil Gmail 
 Si el sync global no tiene cursor, el cursor pertenece a otra cuenta o Gmail lo informa vencido, captura primero el `historyId` actual y recupera solamente los últimos 14 días para los emails Foco. Ese recovery no usa la fecha de inicio de networking ni una etiqueta Gmail, y guarda el baseline capturado solo después de una lectura completa y un Apply exitoso. Sin contactos Foco o emails utilizables, el recovery no recorre mensajes y puede inicializar el baseline como no-op exitoso.
 El botón global del Shell ejecuta Review y Apply como una sola acción sin preview visible. El Historical Bootstrap de Cuenta conserva Review, selección y Apply explícitos.
 En la ficha, Gmail ejecuta un backfill directo de los últimos 14 días para todos los emails utilizables del contacto, únicamente cuando está marcado como Foco. Conserva el snapshot normalizado entre Review y Apply, no muestra preview, no usa `history.list`, etiqueta histórica ni `Fecha_Inicio_Networking`, y no lee ni escribe cursores Gmail globales o `contact:<contactId>`.
-En la ficha, Calendar consulta directamente una ventana móvil de los últimos 14 días a los próximos 3 meses para todos los emails utilizables del contacto Foco. No lee ni escribe cursores `contact:<contactId>` y no modifica la frescura global.
+En la ficha, Calendar consulta directamente una ventana móvil desde 7 días antes de la corrida hasta 30 días después para los emails utilizables del contacto Foco. No lee ni escribe cursores `contact:<contactId>` y no modifica la frescura global.
 Datos leídos y usados:
 - `messageId`;
 - `threadId`;
@@ -146,7 +146,7 @@ Fuera del Historical Bootstrap, un correo solo se convierte en interacción si p
 ## Calendar
 Calendar usa Google Calendar API.
 El calendario actual es `primary`.
-El sync periódico manual global consulta solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha consulta solo el contacto Foco actual. Ambos usan una ventana móvil desde 14 días antes de la corrida hasta 3 meses después, sin `syncToken` ni `Fecha_Inicio_Networking`, y deduplican eventos por ID antes de aplicar idempotentemente.
+El sync periódico manual global consulta solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha consulta solo el contacto Foco actual. Ambos leen una vez el calendario `primary` dentro de una ventana móvil desde 7 días antes de la corrida hasta 30 días después, paginan esa lectura y filtran localmente por asistentes u organizador que coincidan con emails Foco. La cantidad de requests depende de las páginas de la ventana y no del número de emails Foco. No usan `syncToken` ni `Fecha_Inicio_Networking`, y deduplican eventos por ID antes de aplicar idempotentemente.
 Lectura por ventana:
 - usa Events API;
 - usa `singleEvents=true`;
@@ -213,7 +213,9 @@ Fallback implementado:
 - marcar cursor vencido en la app;
 - repetir lectura completa controlada con el scope correspondiente.
 
-La frescura compacta del Shell usa como fuente primaria `last_synced_at` de los cursores globales (`cursor_label=''`) de cada servicio habilitado: `resource_type='mail'` para Gmail y `resource_type='calendar'` para Calendar. Con ambos habilitados muestra el timestamp más antiguo; ignora servicios deshabilitados y queda pendiente si alguno todavía no registra un éxito. La marca user-scoped `global_activity_success` (`resource_type='messages'`, `cursor_value=null`) se conserva como dato auxiliar y no reemplaza los cursores Gmail o Calendar.
+El popover Sync del Shell usa como fuente primaria `last_synced_at` de los cursores globales (`cursor_label=''`) de cada servicio habilitado: `resource_type='mail'` para Gmail y `resource_type='calendar'` para Calendar. Muestra freshness individual por servicio, omite servicios deshabilitados y marca pendiente de primera actualización cuando el cursor correspondiente todavía no registra un éxito. La marca user-scoped `global_activity_success` (`resource_type='messages'`, `cursor_value=null`) se conserva como dato auxiliar y no reemplaza los cursores Gmail o Calendar. El icono global solo distingue ejecución, autorización requerida, error técnico y feedback transitorio de éxito; el detalle y la acción explícita viven en el popover.
+
+Cuando un servicio habilitado carece de capability efectiva, la acción del popover solicita únicamente los scopes faltantes de Gmail o Calendar mediante el OAuth incremental existente, conserva grants previos y guarda una intención efímera de `sync now`. Solo un retorno OAuth válido que confirma todas las capabilities solicitadas reanuda automáticamente la corrida; una cancelación, un fallo o permisos incompletos conservan las preferencias y no ejecutan el sync. Contacts no participa de esta autorización contextual.
 
 ## Errores y recuperación
 Branches especiales observados:
@@ -274,7 +276,6 @@ Deuda específica del conector Google:
 - dependencia del `session.provider_token` de Supabase y ausencia observada de refresh server-side robusto;
 - existencia de `oauth_refresh_token_encrypted` en schema sin uso efectivo observado en el flujo actual;
 - tokeninfo se acepta en esta beta como mecanismo de introspección de effective scopes; antes de lanzamiento público debe revisarse porque Google lo caracteriza principalmente como mecanismo diagnóstico y puede estar sujeto a throttling;
-- coupling de scopes: los entry points de autorización solicitan Contacts junto con Gmail y Calendar para simplificar la beta;
 - Calendar limitado actualmente al calendario `primary`;
 - diagnóstico adicional disponible para Calendar, pero no equivalente para Gmail;
 - no hay refresh token persistente ni background refresh en esta fase;

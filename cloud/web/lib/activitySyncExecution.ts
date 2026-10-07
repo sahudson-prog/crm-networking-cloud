@@ -9,6 +9,102 @@ export type ActivitySyncServiceOutcome = {
   syncedAt: string | null;
 };
 
+export type GlobalActivitySyncSnapshot = {
+  completedAt: number | null;
+  error: string;
+  outcomes: ActivitySyncServiceOutcome[];
+  runId: number;
+  running: boolean;
+};
+
+type GlobalActivitySyncListener = () => void;
+
+const idleGlobalActivitySyncSnapshot: GlobalActivitySyncSnapshot = {
+  completedAt: null,
+  error: "",
+  outcomes: [],
+  runId: 0,
+  running: false
+};
+
+let globalActivitySyncSnapshot = idleGlobalActivitySyncSnapshot;
+let activeGlobalActivitySync: Promise<ActivitySyncServiceOutcome[]> | null = null;
+const globalActivitySyncListeners = new Set<GlobalActivitySyncListener>();
+
+export function getGlobalActivitySyncSnapshot() {
+  return globalActivitySyncSnapshot;
+}
+
+export function getGlobalActivitySyncServerSnapshot() {
+  return idleGlobalActivitySyncSnapshot;
+}
+
+export function subscribeGlobalActivitySync(listener: GlobalActivitySyncListener) {
+  globalActivitySyncListeners.add(listener);
+  return () => globalActivitySyncListeners.delete(listener);
+}
+
+export function startGlobalActivitySync(
+  operation: () => Promise<ActivitySyncServiceOutcome[]>
+) {
+  if (activeGlobalActivitySync) {
+    return { promise: activeGlobalActivitySync, started: false };
+  }
+
+  const runId = globalActivitySyncSnapshot.runId + 1;
+  publishGlobalActivitySync({
+    completedAt: null,
+    error: "",
+    outcomes: [],
+    runId,
+    running: true
+  });
+
+  const promise = Promise.resolve()
+    .then(operation)
+    .then((outcomes) => {
+      publishGlobalActivitySync({
+        completedAt: Date.now(),
+        error: "",
+        outcomes,
+        runId,
+        running: false
+      });
+      return outcomes;
+    })
+    .catch((error: unknown) => {
+      publishGlobalActivitySync({
+        completedAt: Date.now(),
+        error: error instanceof Error ? error.message : "No pude actualizar las interacciones.",
+        outcomes: [],
+        runId,
+        running: false
+      });
+      return [];
+    })
+    .finally(() => {
+      activeGlobalActivitySync = null;
+    });
+
+  activeGlobalActivitySync = promise;
+  return { promise, started: true };
+}
+
+export function clearGlobalActivitySyncFeedback() {
+  if (globalActivitySyncSnapshot.running) return;
+  publishGlobalActivitySync({
+    ...globalActivitySyncSnapshot,
+    completedAt: null,
+    outcomes: globalActivitySyncSnapshot.outcomes.filter((outcome) => !outcome.success)
+  });
+}
+
+export function resetGlobalActivitySyncCoordinatorForTests() {
+  activeGlobalActivitySync = null;
+  globalActivitySyncSnapshot = idleGlobalActivitySyncSnapshot;
+  globalActivitySyncListeners.clear();
+}
+
 export async function executeActivitySyncServices(input: {
   includeCalendar: boolean;
   includeMail: boolean;
@@ -83,4 +179,9 @@ function genericServiceError(service: ActivitySyncService) {
 
 function serviceLabel(service: ActivitySyncService) {
   return service === "mail" ? "Gmail" : "Calendar";
+}
+
+function publishGlobalActivitySync(snapshot: GlobalActivitySyncSnapshot) {
+  globalActivitySyncSnapshot = snapshot;
+  for (const listener of globalActivitySyncListeners) listener();
 }

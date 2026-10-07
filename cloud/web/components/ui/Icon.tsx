@@ -29,6 +29,7 @@ type IconName =
   | "trash"
   | "search"
   | "link"
+  | "linkOff"
   | "history"
   | "user";
 
@@ -64,6 +65,7 @@ const paths: Record<IconName, string> = {
   trash: "M5 7h14M10 11v6m4-6v6M8 7l1-3h6l1 3m-9 0 1 13h8l1-13",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 4 4",
   link: "M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1",
+  linkOff: "M10 13a5 5 0 0 0 5.2 1.2M17 12l2-2a5 5 0 0 0-6.8-7.2L11 4M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1M4 4l16 16",
   history: "M3 12a9 9 0 1 0 3-6.7M3 5v5h5M12 7v5l3 2",
   user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z"
 };

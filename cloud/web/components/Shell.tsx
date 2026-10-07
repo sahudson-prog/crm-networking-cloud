@@ -79,6 +79,7 @@ function ShellContent({ children }: { children: ReactNode }) {
               <span className="sr-only">Sistema</span>
             </Link>
           ) : null}
+          <ActivitySyncButton variant="focus_incremental" square />
           <Link
             aria-label="Cuenta"
             className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
@@ -88,7 +89,6 @@ function ShellContent({ children }: { children: ReactNode }) {
             <Icon name="user" />
             <span className="sr-only">Cuenta</span>
           </Link>
-          <ActivitySyncButton variant="focus_incremental" square />
         </div>
       </header>
       {children}

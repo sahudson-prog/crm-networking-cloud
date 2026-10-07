@@ -410,8 +410,35 @@ test("Google Calendar client incluye invitaciones ocultas en lectura historica",
   assert.equal(params.get("q"), "francisca@empresa.cl");
   assert.equal(params.get("showHiddenInvitations"), "true");
   assert.equal(params.get("singleEvents"), "true");
+  assert.equal(params.get("showDeleted"), null);
   assert.equal(params.get("timeMin"), "2026-08-01T00:00:00.000Z");
   assert.equal(params.get("timeMax"), "2026-11-13T00:00:00.000Z");
+});
+
+test("Google Calendar client pagina la ventana completa sin cambiar la semantica de eventos", async () => {
+  const requestedUrls: string[] = [];
+  const result = await readGoogleCalendarEvents({
+    accessToken: "token",
+    maxPages: 2,
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return requestedUrls.length === 1
+        ? jsonResponse({
+            items: [{ id: "event-1", recurringEventId: "series-1", status: "confirmed" }],
+            nextPageToken: "page-2"
+          })
+        : jsonResponse({
+            items: [{ id: "event-2", recurringEventId: "series-1", status: "confirmed" }]
+          });
+    }
+  });
+
+  assert.equal(result.complete, true);
+  assert.equal(result.pagesRead, 2);
+  assert.deepEqual(result.events.map((event) => event.id), ["event-1", "event-2"]);
+  assert.equal(new URL(requestedUrls[0]).searchParams.get("singleEvents"), "true");
+  assert.equal(new URL(requestedUrls[0]).searchParams.get("showDeleted"), null);
+  assert.equal(new URL(requestedUrls[1]).searchParams.get("pageToken"), "page-2");
 });
 
 test("Google Calendar client marca incompleta una lectura truncada por paginas", async () => {
