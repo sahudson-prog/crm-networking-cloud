@@ -18,6 +18,10 @@ import {
   readPendingGoogleDataAction,
   type GoogleDataAuthorizationIntent
 } from "../lib/googleDataAuthorizationIntent";
+import {
+  GOOGLE_DATA_SESSION_REQUIRED_MESSAGE,
+  googleDataSessionEligibility
+} from "../lib/googleDataSessionGuard";
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
@@ -46,6 +50,7 @@ type AccountState = {
   googleConnectionKnown: boolean;
   googleConnectionLoading: boolean;
   googleAuthorizationVerifying: boolean;
+  googleDataAuthorizationAllowed: boolean;
   googlePermissionActive: boolean;
   message: string;
   networkingStartReady: boolean;
@@ -329,6 +334,10 @@ function GoogleImportSection({
   ]);
 
   async function changeSyncPreference(service: InteractionSyncService, enabled: boolean) {
+    if (enabled && !account.googleDataAuthorizationAllowed) {
+      setAccount((current) => ({ ...current, message: GOOGLE_DATA_SESSION_REQUIRED_MESSAGE }));
+      return;
+    }
     const capabilityAvailable = service === "gmail" ? googleServices.mail : googleServices.calendar;
     const action = interactionSyncToggleAction({ capabilityAvailable, enabled });
     if (action === "disable" || action === "enable") {
@@ -438,16 +447,20 @@ function GoogleImportSection({
               <div className="account-provider-sync-options">
                 <InteractionSyncPreferenceToggle
                   checked={syncPreferences.preferences.calendarEnabled}
-                  description={googleServices.calendar ? "Autorizado" : "Requiere autorización"}
-                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying}
+                  description={!account.googleDataAuthorizationAllowed
+                    ? "No disponible para esta sesión"
+                    : googleServices.calendar ? "Autorizado" : "Requiere autorización"}
+                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
                   icon="calendar"
                   label="Citas de Google Calendar"
                   onChange={(enabled) => void changeSyncPreference("calendar", enabled)}
                 />
                 <InteractionSyncPreferenceToggle
                   checked={syncPreferences.preferences.gmailEnabled}
-                  description={googleServices.mail ? "Autorizado" : "Requiere autorización"}
-                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying}
+                  description={!account.googleDataAuthorizationAllowed
+                    ? "No disponible para esta sesión"
+                    : googleServices.mail ? "Autorizado" : "Requiere autorización"}
+                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
                   icon="mail"
                   label="Correos de Gmail"
                   onChange={(enabled) => void changeSyncPreference("gmail", enabled)}
@@ -455,6 +468,9 @@ function GoogleImportSection({
               </div>
             </section>
           </div>
+          {!account.googleDataAuthorizationAllowed ? (
+            <p className="connected-service-action-reason">{GOOGLE_DATA_SESSION_REQUIRED_MESSAGE}</p>
+          ) : null}
           {syncPreferences.error ? <p className="form-error" role="alert">{syncPreferences.error}</p> : null}
         </section>
       ) : null}
@@ -539,6 +555,7 @@ function googleImportDisabledReason(
 ) {
   if (account.googleAuthorizationVerifying) return "Estamos verificando la autorización de Google.";
   if (account.googleConnectionLoading && !account.googleConnectionKnown) return "Revisando autorización de Google.";
+  if (!account.googleDataAuthorizationAllowed) return GOOGLE_DATA_SESSION_REQUIRED_MESSAGE;
   if ((service === "calendar" || service === "mail") && !account.networkingStartReady) {
     return "Define primero la fecha de inicio de networking.";
   }
@@ -556,6 +573,7 @@ function googleServiceAvailability(account: AccountState) {
 async function loadAccountState(options: { registerRememberedScopes: boolean }): Promise<AccountState> {
   const { data } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
   const email = data.session?.user.email ?? "";
+  const googleDataAuthorizationAllowed = googleDataSessionEligibility(data.session?.user).allowed;
   let message = "";
 
   let googleConnection: GoogleConnectionState | null = null;
@@ -581,6 +599,7 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
     googleConnected: Boolean(activeGoogle),
     googleConnectionKnown: true,
     googleAuthorizationVerifying: false,
+    googleDataAuthorizationAllowed,
     googleConnectionLoading: false,
     googlePermissionActive: Boolean(activeGoogle && googleConnection?.permissionActive),
     message,
@@ -597,6 +616,7 @@ function createInitialAccountState(googleConnectionLoading: boolean): AccountSta
     googleConnected: false,
     googleConnectionKnown: false,
     googleAuthorizationVerifying: false,
+    googleDataAuthorizationAllowed: false,
     googleConnectionLoading,
     googlePermissionActive: false,
     message: "",

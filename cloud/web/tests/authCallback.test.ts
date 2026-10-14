@@ -165,3 +165,20 @@ test("login, magic link y Google Connected Account usan el mismo callback PKCE",
   assert.match(googleSessionSource, /signInWithGoogleForAuth[\s\S]*prepareAuthCallback/);
   assert.match(googleSessionSource, /reconnectGoogle[\s\S]*prepareAuthCallback/);
 });
+
+test("callback Data OAuth cierra sesion antes de navegar si cambia el principal", () => {
+  const callbackSource = readFileSync(new URL("../app/auth/callback/page.tsx", import.meta.url), "utf8");
+  const mismatchIndex = callbackSource.indexOf('if (principalStatus !== "match")');
+  const signOutIndex = callbackSource.indexOf('supabase.auth.signOut({ scope: "local" })', mismatchIndex);
+  const failedResultIndex = callbackSource.indexOf("completed: false", mismatchIndex);
+  const routerIndex = callbackSource.indexOf("if (completed) router.replace(returnTo)");
+
+  assert.ok(mismatchIndex > -1);
+  assert.ok(signOutIndex > mismatchIndex);
+  assert.ok(failedResultIndex > signOutIndex);
+  assert.ok(routerIndex > failedResultIndex);
+  assert.match(callbackSource, /clearRememberedGoogleRequestedScopes\(\)/);
+  assert.match(callbackSource, /clearPendingGoogleDataAction\(\)/);
+  assert.match(callbackSource, /clearPendingActivitySyncAuthorization\(\)/);
+  assert.match(callbackSource, /GOOGLE_DATA_PRINCIPAL_MISMATCH_MESSAGE/);
+});

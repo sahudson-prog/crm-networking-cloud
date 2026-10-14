@@ -735,10 +735,10 @@ export function ActivitySyncButton({
     setState((current) => ({ ...current, error: "" }));
     try {
       await beginActivitySyncAuthorization(enabledGlobalServices, missingServices, window.location.href);
-    } catch {
+    } catch (error) {
       setState((current) => ({
         ...current,
-        error: "",
+        error: error instanceof Error ? error.message : "No pude abrir la autorización de Google.",
         serviceReauthorizationRequired: missingServices.reduce(
           (services, service) => ({ ...services, [service]: true }),
           current.serviceReauthorizationRequired
