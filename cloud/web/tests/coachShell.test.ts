@@ -78,10 +78,17 @@ test("Shell usa el lockup oficial de Coffeecito sin texto legacy", () => {
 test("Shell separa marca, navegacion primaria y utilidades para el header responsive", () => {
   const shell = source("../components/Shell.tsx");
   const css = source("../styles/components.css");
+  const utilityStart = shell.indexOf('className="nav-utility"');
+  const systemPosition = shell.indexOf('aria-label="Sistema"', utilityStart);
+  const syncPosition = shell.indexOf('<ActivitySyncButton variant="focus_incremental" square />', utilityStart);
+  const accountPosition = shell.indexOf('aria-label="Cuenta"', utilityStart);
 
   assert.match(shell, /<nav className="nav-primary" aria-label="Navegacion principal">/);
   assert.match(shell, /Objetivos[\s\S]*Contactos/);
-  assert.match(shell, /className="nav-utility"[\s\S]*nav-tutorial-link[\s\S]*Ver tutorial[\s\S]*aria-label="Cuenta"[\s\S]*ActivitySyncButton[\s\S]*aria-label="Cerrar sesión"/);
+  assert.match(shell, /className="nav-utility"[\s\S]*nav-tutorial-link[\s\S]*Ver tutorial/);
+  assert.ok(systemPosition > utilityStart && syncPosition > systemPosition && accountPosition > syncPosition);
+  assert.doesNotMatch(shell, /aria-label="Cerrar sesión"/);
+  assert.match(source("../components/AccountPage.tsx"), /<h2 id="account-session-title">Sesión<\/h2>[\s\S]*Cerrar sesión/);
   assert.match(shell, /showSystem \? \([\s\S]*aria-label="Sistema"/);
   assert.match(css, /\.topbar\s*\{[\s\S]*grid-template-areas: "brand primary utility"[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
   assert.match(css, /@media \(max-width: 780px\)[\s\S]*\.topbar\s*\{[\s\S]*"brand utility"[\s\S]*"primary primary"/);

@@ -2,24 +2,35 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
+import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Icon } from "./ui/Icon";
 import { canRenderSystemSurface } from "../lib/systemAccess";
 
+const ShellActionsContext = createContext<{ onSignOut?: () => void }>({});
+
+export function useShellActions() {
+  return useContext(ShellActionsContext);
+}
+
 export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
   return (
     <SystemAccessProvider>
-      <OnboardingProvider>
-        <ShellContent onSignOut={onSignOut}>{children}</ShellContent>
-      </OnboardingProvider>
+      <InteractionSyncPreferencesProvider>
+        <OnboardingProvider>
+          <ShellActionsContext.Provider value={{ onSignOut }}>
+            <ShellContent>{children}</ShellContent>
+          </ShellActionsContext.Provider>
+        </OnboardingProvider>
+      </InteractionSyncPreferencesProvider>
     </SystemAccessProvider>
   );
 }
 
-function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
+function ShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const onboarding = useOnboarding();
   const systemAccess = useSystemAccess();
@@ -68,6 +79,7 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
               <span className="sr-only">Sistema</span>
             </Link>
           ) : null}
+          <ActivitySyncButton variant="focus_incremental" square />
           <Link
             aria-label="Cuenta"
             className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
@@ -77,19 +89,6 @@ function ShellContent({ children, onSignOut }: { children: ReactNode; onSignOut?
             <Icon name="user" />
             <span className="sr-only">Cuenta</span>
           </Link>
-          <ActivitySyncButton variant="focus_incremental" square />
-          {onSignOut ? (
-            <button
-              aria-label="Cerrar sesión"
-              className="nav-link nav-link-icon"
-              onClick={onSignOut}
-              title="Cerrar sesión"
-              type="button"
-            >
-              <Icon name="close" />
-              <span className="sr-only">Cerrar sesión</span>
-            </button>
-          ) : null}
         </div>
       </header>
       {children}

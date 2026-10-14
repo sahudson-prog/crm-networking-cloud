@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { GOOGLE_CONTACTS_READONLY_SCOPE } from "../lib/googleContactsClient";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
-  GOOGLE_INTERACTIONS_READONLY_SCOPES,
   GoogleInteractionClientError
 } from "../lib/googleInteractionClient";
 import {
@@ -12,30 +10,56 @@ import {
 } from "../lib/googleInteractionSyncFlow";
 import {
   ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
+  ACTIVITY_SYNC_MAX_CALENDAR_PAGES,
   ACTIVITY_SYNC_MAX_MAIL_MESSAGES,
   ACTIVITY_SYNC_MAX_MAIL_PAGES
 } from "../lib/interactionSyncLimits";
-import { formatGoogleInteractionSyncMessage } from "../lib/interactionSyncText";
 import {
-  externalIdsFromInteractionPreview,
-  interactionPreviewChanges
+  GLOBAL_SYNC_SUMMARY_DURATION_MS,
+  activityServicesFromPreferences,
+  buildGlobalActivitySyncRows,
+  deriveGlobalActivityIconState,
+  globalActivityPrimaryAction,
+  resolveActivitySyncSelection
+} from "../lib/activitySyncStatus";
+import {
+  activitySyncExecutionHasErrors,
+  activitySyncExecutionSummary,
+  allActivitySyncServicesSucceeded,
+  clearGlobalActivitySyncFeedback,
+  executeActivitySyncServices,
+  freshnessAfterActivitySync,
+  getGlobalActivitySyncServerSnapshot,
+  getGlobalActivitySyncSnapshot,
+  startGlobalActivitySync,
+  subscribeGlobalActivitySync,
+  type ActivitySyncService,
+  type ActivitySyncServiceOutcome
+} from "../lib/activitySyncExecution";
+import {
+  actionableInteractionPreviewChanges,
+  externalIdsFromInteractionPreview
 } from "../lib/interactionSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
+import { invalidateActiveGoogleDataAuthorization, readGoogleDataConnectionReturn } from "../lib/googleAuthSession";
+import {
+  beginActivitySyncAuthorization,
+  clearPendingActivitySyncAuthorization,
+  readPendingActivitySyncAuthorization
+} from "../lib/activitySyncAuthorization";
 import type { ContactRow } from "../lib/readModel";
-import { calendarFutureWindowIso, readNetworkingStartIso } from "../lib/syncDate";
+import { calendarRollingWindowIso } from "../lib/syncDate";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
 import { loadActivitySyncLimitValues } from "../lib/usageLimitSettings";
-import type { SyncPreviewChange } from "../lib/syncOrchestrator";
-import { SyncPreviewDialog } from "./SyncPreviewDialog";
+import {
+  readGlobalActivityServiceFreshness,
+  recordGlobalActivitySyncSuccess,
+  type GlobalActivityServiceFreshness
+} from "../lib/syncCursorStore";
+import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
 import { Button } from "./ui/Button";
-
-const GOOGLE_ACCOUNT_READONLY_SCOPES = [
-  ...GOOGLE_AUTH_LOGIN_SCOPES,
-  GOOGLE_CONTACTS_READONLY_SCOPE,
-  GOOGLE_INTERACTIONS_READONLY_SCOPES
-].join(" ");
+import { Icon } from "./ui/Icon";
 
 type ActivitySyncButtonProps = {
   contact?: ContactRow;
@@ -52,27 +76,45 @@ export type ActivitySyncNotice = {
   tone: "error" | "info";
 };
 
+type ActivitySyncAttempt = {
+  error: string;
+  reauthorizationRequired: boolean;
+  result: SyncGoogleInteractionsResult | null;
+};
+
 type ActivitySyncState = {
   accessToken: string;
   applying: boolean;
+  calendarAvailable: boolean;
+  connectionKnown: boolean;
   connectedAccountId: string | null;
   error: string;
-  lastRun: SyncGoogleInteractionsResult | null;
+  gmailAvailable: boolean;
   loading: boolean;
   message: string;
-  previewOpen: boolean;
+  reauthorizationRequired: boolean;
+  serviceFreshness: GlobalActivityServiceFreshness;
+  serviceReauthorizationRequired: Record<ActivitySyncService, boolean>;
+  transientError: boolean;
+  transientSummary: string;
   userEmail: string;
 };
 
 const initialState: ActivitySyncState = {
   accessToken: "",
   applying: false,
+  calendarAvailable: false,
+  connectionKnown: false,
   connectedAccountId: null,
   error: "",
-  lastRun: null,
+  gmailAvailable: false,
   loading: false,
   message: "",
-  previewOpen: false,
+  reauthorizationRequired: false,
+  serviceFreshness: { calendar: null, mail: null },
+  serviceReauthorizationRequired: { calendar: false, mail: false },
+  transientError: false,
+  transientSummary: "",
   userEmail: ""
 };
 
@@ -84,28 +126,254 @@ export function ActivitySyncButton({
   square = false,
   variant
 }: ActivitySyncButtonProps) {
+  const syncPreferences = useInteractionSyncPreferences();
   const [state, setState] = useState<ActivitySyncState>(initialState);
-  const previewChanges = interactionPreviewChanges(state.lastRun);
+  const globalSync = useSyncExternalStore(
+    subscribeGlobalActivitySync,
+    getGlobalActivitySyncSnapshot,
+    getGlobalActivitySyncServerSnapshot
+  );
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const controlRef = useRef<HTMLSpanElement | null>(null);
+  const resumeAuthorizationRef = useRef(false);
+  const transientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selection = useMemo(() => resolveActivitySyncSelection({
+    calendarAvailable: state.calendarAvailable,
+    contactFocused: contact?.networking_focus,
+    gmailAvailable: state.gmailAvailable,
+    preferences: syncPreferences.preferences,
+    variant
+  }), [
+    contact?.networking_focus,
+    state.calendarAvailable,
+    state.gmailAvailable,
+    syncPreferences.preferences,
+    variant
+  ]);
+  const enabledGlobalServices = useMemo(
+    () => activityServicesFromPreferences(syncPreferences.preferences),
+    [syncPreferences.preferences]
+  );
+  const globalOutcomes = globalSync.outcomes;
+  const globalFreshness = useMemo(
+    () => freshnessAfterActivitySync(state.serviceFreshness, globalOutcomes),
+    [globalOutcomes, state.serviceFreshness]
+  );
+  const globalServiceStates = useMemo(() => ({
+    calendar: {
+      authorized: state.calendarAvailable,
+      error: serviceOutcomeError(globalOutcomes, "calendar"),
+      reauthorizationRequired: state.serviceReauthorizationRequired.calendar
+        || serviceOutcomeRequiresAuthorization(globalOutcomes, "calendar")
+    },
+    mail: {
+      authorized: state.gmailAvailable,
+      error: serviceOutcomeError(globalOutcomes, "mail"),
+      reauthorizationRequired: state.serviceReauthorizationRequired.mail
+        || serviceOutcomeRequiresAuthorization(globalOutcomes, "mail")
+    }
+  }), [
+    state.calendarAvailable,
+    state.gmailAvailable,
+    state.serviceReauthorizationRequired,
+    globalOutcomes
+  ]);
+  const authorizationRequired = Boolean(
+    state.connectionKnown
+    && !state.error
+    && enabledGlobalServices.some((service) => (
+      !globalServiceStates[service].authorized
+      || globalServiceStates[service].reauthorizationRequired
+    ))
+  );
+  const globalHasError = Boolean(
+    state.error
+    || globalSync.error
+    || enabledGlobalServices.some((service) => (
+      Boolean(globalServiceStates[service].error)
+      && !globalServiceStates[service].reauthorizationRequired
+    ))
+  );
+  const globalIconState = deriveGlobalActivityIconState({
+    authorizationRequired,
+    hasError: globalHasError,
+    running: globalSync.running,
+    successFeedback: globalOutcomes.length > 0
+      && allActivitySyncServicesSucceeded(globalOutcomes)
+  });
+  const globalRows = useMemo(() => buildGlobalActivitySyncRows({
+    freshness: globalFreshness,
+    globalError: Boolean(state.error || globalSync.error),
+    outcomes: globalOutcomes.length ? globalOutcomes : undefined,
+    preferences: syncPreferences.preferences,
+    services: globalServiceStates
+  }), [globalFreshness, globalOutcomes, globalServiceStates, globalSync.error, state.error, syncPreferences.preferences]);
+  const globalPrimaryAction = globalActivityPrimaryAction({
+    anyServiceEnabled: enabledGlobalServices.length > 0,
+    iconState: globalIconState,
+    ready: state.connectionKnown && !syncPreferences.loading
+  });
   const notice = useMemo(
-    () => activitySyncNotice(state),
-    [state.applying, state.error, state.loading, state.message, state.previewOpen]
+    () => activitySyncNotice(state, {
+      connectionRequired: selection.connectionRequired,
+      preferencesError: syncPreferences.error,
+      preferencesLoading: syncPreferences.loading,
+      syncDisabled: selection.syncDisabled,
+      variant
+    }),
+    [selection.connectionRequired, selection.syncDisabled, state, syncPreferences.error, syncPreferences.loading, variant]
   );
 
   useEffect(() => {
     let active = true;
-    readCurrentGoogleConnectionState({ registerRememberedScopes: true }).then((googleConnection) => {
-      if (!active) return;
-      setState((current) => ({
-        ...current,
-        accessToken: googleConnection.accessToken,
-        connectedAccountId: googleConnection.account?.id ?? null,
-        userEmail: googleConnection.userEmail
-      }));
-    });
-    return () => {
+    if (syncPreferences.loading) return () => {
       active = false;
     };
-  }, []);
+    readCurrentGoogleConnectionState({ registerRememberedScopes: true }).then(async (googleConnection) => {
+        const serviceFreshness = variant === "focus_incremental"
+          ? await readGlobalActivityServiceFreshness(googleConnection.account?.id ?? null).catch(() => ({ calendar: null, mail: null }))
+          : { calendar: null, mail: null };
+        if (!active) return;
+        setState((current) => ({
+          ...current,
+          accessToken: googleConnection.accessToken,
+          calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
+          connectionKnown: true,
+          connectedAccountId: googleConnection.account?.id ?? null,
+          gmailAvailable: googleConnectionHasCapability(googleConnection, "gmail_read"),
+          serviceFreshness,
+          userEmail: googleConnection.userEmail
+        }));
+
+        if (variant !== "focus_incremental") return;
+        const pendingAuthorization = readPendingActivitySyncAuthorization();
+        if (!pendingAuthorization) return;
+        const oauthReturn = readGoogleDataConnectionReturn(window.location.href);
+        if (oauthReturn.status === "invalid") {
+          clearPendingActivitySyncAuthorization();
+          setPopoverOpen(true);
+          setState((current) => ({
+            ...current,
+            serviceReauthorizationRequired: pendingAuthorization.services.reduce(
+              (services, service) => ({ ...services, [service]: true }),
+              current.serviceReauthorizationRequired
+            )
+          }));
+          return;
+        }
+        if (oauthReturn.status !== "completed" || resumeAuthorizationRef.current) return;
+
+        const requestedServices = pendingAuthorization.services.filter((service) => (
+          service === "mail"
+            ? syncPreferences.preferences.gmailEnabled
+            : syncPreferences.preferences.calendarEnabled
+        ));
+        const missingServices = requestedServices.filter((service) => !connectionHasService(googleConnection, service));
+        setPopoverOpen(true);
+        if (!requestedServices.length) {
+          clearPendingActivitySyncAuthorization();
+          return;
+        }
+        if (missingServices.length || !googleConnection.accessToken || !googleConnection.userEmail) {
+          clearPendingActivitySyncAuthorization();
+          setState((current) => ({
+            ...current,
+            serviceReauthorizationRequired: missingServices.reduce(
+              (services, service) => ({ ...services, [service]: true }),
+              current.serviceReauthorizationRequired
+            )
+          }));
+          return;
+        }
+
+        try {
+          await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
+          if (!active) return;
+          resumeAuthorizationRef.current = true;
+          clearPendingActivitySyncAuthorization();
+          await startGlobalActivitySync(() => runGlobalSync({
+              accessToken: googleConnection.accessToken,
+              connectedAccountId: googleConnection.account?.id ?? null,
+              includeCalendar: requestedServices.includes("calendar"),
+              includeMail: requestedServices.includes("mail"),
+              userEmail: googleConnection.userEmail
+            })).promise;
+        } catch (error) {
+          if (!active) return;
+          clearPendingActivitySyncAuthorization();
+          setState((current) => ({
+            ...current,
+            error: error instanceof Error ? error.message : "No pude reanudar la actualización."
+          }));
+        }
+      }).catch((error) => {
+        if (!active) return;
+        const pendingAuthorization = variant === "focus_incremental"
+          ? readPendingActivitySyncAuthorization()
+          : null;
+        const oauthReturn = readGoogleDataConnectionReturn(window.location.href);
+        if (pendingAuthorization && oauthReturn.status !== "none") {
+          clearPendingActivitySyncAuthorization();
+          setPopoverOpen(true);
+          setState((current) => ({
+            ...current,
+            connectionKnown: true,
+            error: "",
+            serviceReauthorizationRequired: pendingAuthorization.services.reduce(
+              (services, service) => ({ ...services, [service]: true }),
+              current.serviceReauthorizationRequired
+            )
+          }));
+          return;
+        }
+        setState((current) => ({
+          ...current,
+          connectionKnown: true,
+          error: error instanceof Error ? error.message : "No pude revisar la conexión Google."
+        }));
+      });
+    return () => {
+      active = false;
+      if (transientTimerRef.current) clearTimeout(transientTimerRef.current);
+    };
+  }, [syncPreferences.loading, syncPreferences.preferences, variant]);
+
+  useEffect(() => {
+    if (!popoverOpen || variant !== "focus_incremental") return;
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (!controlRef.current?.contains(event.target as Node)) setPopoverOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setPopoverOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [popoverOpen, variant]);
+
+  useEffect(() => {
+    if (variant !== "focus_incremental" || !globalSync.completedAt) return;
+    setState((current) => ({
+      ...current,
+      serviceFreshness: freshnessAfterActivitySync(current.serviceFreshness, globalOutcomes),
+      serviceReauthorizationRequired: updateServiceAuthorizationState(
+        current.serviceReauthorizationRequired,
+        globalOutcomes
+      )
+    }));
+
+    const elapsed = Date.now() - globalSync.completedAt;
+    const remaining = GLOBAL_SYNC_SUMMARY_DURATION_MS - elapsed;
+    if (remaining <= 0) {
+      clearGlobalActivitySyncFeedback();
+      return;
+    }
+    const timer = setTimeout(clearGlobalActivitySyncFeedback, remaining);
+    return () => clearTimeout(timer);
+  }, [globalOutcomes, globalSync.completedAt, globalSync.runId, variant]);
 
   useEffect(() => {
     onNoticeChange?.(notice);
@@ -116,16 +384,36 @@ export function ActivitySyncButton({
   }, [onNoticeChange]);
 
   const label = variant === "single_contact" ? "Actualizar interacciones contacto" : "Actualizar interacciones";
-  const contactEmails = useMemo(
-    () => (contact?.contact_emails ?? []).map((item) => item.email.trim()).filter(Boolean),
-    [contact?.contact_emails]
-  );
 
-  async function connectGoogle() {
-    await reconnectGoogle(GOOGLE_ACCOUNT_READONLY_SCOPES);
+  function openSyncSettings() {
+    window.location.assign("/cuenta#interaction-sync-preferences");
   }
 
   async function reviewSync() {
+    if (syncPreferences.loading || selection.syncDisabled) return;
+    if (!state.connectionKnown || (selection.connectionRequired && !state.error)) {
+      if (variant === "focus_incremental") {
+        setPopoverOpen(true);
+        setState((current) => ({
+          ...current,
+          serviceReauthorizationRequired: {
+            calendar: selection.includeCalendar && !state.calendarAvailable
+              ? true
+              : current.serviceReauthorizationRequired.calendar,
+            mail: selection.includeMail && !state.gmailAvailable
+              ? true
+              : current.serviceReauthorizationRequired.mail
+          }
+        }));
+      } else {
+        openSyncSettings();
+      }
+      return;
+    }
+    if (variant === "focus_incremental") {
+      await reviewGlobalSync();
+      return;
+    }
     try {
       await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
     } catch (error) {
@@ -134,95 +422,338 @@ export function ActivitySyncButton({
         applying: false,
         error: error instanceof Error ? error.message : "No pude validar permisos.",
         loading: false,
-        message: "",
-        previewOpen: true
+        message: ""
       }));
       return;
     }
 
-    setState((current) => ({ ...current, error: "", loading: true, message: "Conectando con Google..." }));
-    const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    const includeMail = googleConnectionHasCapability(googleConnection, "gmail_read");
-    const includeCalendar = googleConnectionHasCapability(googleConnection, "calendar_read");
     setState((current) => ({
       ...current,
-      accessToken: googleConnection.accessToken,
-      connectedAccountId: googleConnection.account?.id ?? null,
-      userEmail: googleConnection.userEmail
+      error: "",
+      loading: true,
+      message: "Conectando con Google...",
+      reauthorizationRequired: false,
+      transientError: false,
+      transientSummary: ""
     }));
-    if (!googleConnection.connected || !googleConnection.accessToken || (!includeMail && !includeCalendar)) {
-      setState((current) => ({ ...current, error: "", loading: true, message: "Reconectando Google..." }));
-      await connectGoogle();
-      return;
-    }
+    try {
+      const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
+      const currentSelection = resolveActivitySyncSelection({
+        calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
+        contactFocused: contact?.networking_focus,
+        gmailAvailable: googleConnectionHasCapability(googleConnection, "gmail_read"),
+        preferences: syncPreferences.preferences,
+        variant
+      });
+      setState((current) => ({
+        ...current,
+        accessToken: googleConnection.accessToken,
+        calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
+        connectionKnown: true,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        gmailAvailable: googleConnectionHasCapability(googleConnection, "gmail_read"),
+        userEmail: googleConnection.userEmail
+      }));
+      if (currentSelection.connectionRequired || !googleConnection.connected || !googleConnection.accessToken) {
+        setState((current) => ({
+          ...current,
+          error: "",
+          reauthorizationRequired: true,
+          serviceReauthorizationRequired: {
+            calendar: currentSelection.includeCalendar && !googleConnectionHasCapability(googleConnection, "calendar_read"),
+            mail: currentSelection.includeMail && !googleConnectionHasCapability(googleConnection, "gmail_read")
+          }
+        }));
+        openSyncSettings();
+        return;
+      }
 
-    if (!googleConnection.userEmail) {
-      setState((current) => ({ ...current, error: "No pude identificar el correo del usuario conectado." }));
-      return;
-    }
+      if (!googleConnection.userEmail) {
+        setState((current) => ({
+          ...current,
+          error: "No pude identificar el correo del usuario conectado."
+        }));
+        return;
+      }
 
-    if (variant === "single_contact" && (!contact?.id || !contactEmails.length)) {
-      setState((current) => ({ ...current, error: "Este contacto no tiene correos para buscar actividad." }));
-      return;
-    }
+      if (!contact?.id) {
+        setState((current) => ({ ...current, error: "No pude identificar el contacto que se debe actualizar." }));
+        return;
+      }
 
-    setState((current) => ({ ...current, error: "", lastRun: null, loading: true, message: "Revisando actividad conectada..." }));
-    await runSync({
-      accessToken: googleConnection.accessToken,
-      connectedAccountId: googleConnection.account?.id ?? null,
-      dryRun: true,
-      includeCalendar,
-      includeMail,
-      userEmail: googleConnection.userEmail
-    });
+      await runContactSync({
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        includeCalendar: currentSelection.includeCalendar,
+        includeMail: currentSelection.includeMail,
+        userEmail: googleConnection.userEmail
+      });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "No pude actualizar las interacciones."
+      }));
+    } finally {
+      setState((current) => ({
+        ...current,
+        applying: false,
+        loading: false,
+        message: ""
+      }));
+    }
   }
 
-  async function applySync(selectedChanges: SyncPreviewChange[]) {
-    try {
+  async function reviewGlobalSync() {
+    setPopoverOpen(true);
+    setState((current) => ({
+      ...current,
+      error: "",
+      serviceReauthorizationRequired: { calendar: false, mail: false }
+    }));
+    await startGlobalActivitySync(async () => {
       await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
-    } catch (error) {
+      const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
+      const currentSelection = resolveActivitySyncSelection({
+        calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
+        gmailAvailable: googleConnectionHasCapability(googleConnection, "gmail_read"),
+        preferences: syncPreferences.preferences,
+        variant: "focus_incremental"
+      });
+      if (currentSelection.connectionRequired || !googleConnection.connected || !googleConnection.accessToken) {
+        return requestedServiceOutcomes(currentSelection, (service) => ({
+          created: 0,
+          error: `${activityServiceLabel(service)} requiere reconexión.`,
+          reauthorizationRequired: true,
+          service,
+          success: false,
+          syncedAt: null
+        }));
+      }
+      if (!googleConnection.userEmail) {
+        throw new Error("No pude identificar el correo del usuario conectado.");
+      }
+      return runGlobalSync({
+        accessToken: googleConnection.accessToken,
+        connectedAccountId: googleConnection.account?.id ?? null,
+        includeCalendar: currentSelection.includeCalendar,
+        includeMail: currentSelection.includeMail,
+        userEmail: googleConnection.userEmail
+      });
+    }).promise;
+  }
+
+  async function runGlobalSync(input: {
+    accessToken: string;
+    connectedAccountId: string | null;
+    includeCalendar: boolean;
+    includeMail: boolean;
+    userEmail: string;
+  }) {
+    return runIndependentActivitySync(input, "global");
+  }
+
+  async function runContactSync(input: {
+    accessToken: string;
+    connectedAccountId: string | null;
+    includeCalendar: boolean;
+    includeMail: boolean;
+    userEmail: string;
+  }) {
+    await runIndependentActivitySync(input, "contact");
+  }
+
+  async function runIndependentActivitySync(
+    input: {
+      accessToken: string;
+      connectedAccountId: string | null;
+      includeCalendar: boolean;
+      includeMail: boolean;
+      userEmail: string;
+    },
+    scope: "global" | "contact"
+  ) {
+    if (scope === "contact") {
+      clearTransientSummary();
       setState((current) => ({
         ...current,
         applying: false,
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        error: "",
+        loading: true,
+        message: "Actualizando…",
+        reauthorizationRequired: false,
+        transientError: false,
+        transientSummary: ""
+      }));
+    }
+    const outcomes = await executeActivitySyncServices({
+      includeCalendar: input.includeCalendar,
+      includeMail: input.includeMail,
+      runService: (service) => runActivityService(input, scope, service)
+    });
+
+    if (scope === "global" && allActivitySyncServicesSucceeded(outcomes)) {
+      try {
+        await recordGlobalActivitySyncSuccess({
+          connectedAccountId: input.connectedAccountId,
+          services: includedGoogleActivityServices(input),
+          syncedAt: new Date().toISOString()
+        });
+      } catch {}
+    }
+
+    if (scope === "global") return outcomes;
+
+    const transientSummary = activitySyncExecutionSummary(outcomes);
+    const transientError = activitySyncExecutionHasErrors(outcomes);
+    const reauthorizationRequired = outcomes.some((outcome) => outcome.reauthorizationRequired);
+    const anySuccess = outcomes.some((outcome) => outcome.success);
+    setState((current) => {
+      const serviceReauthorizationRequired = { ...current.serviceReauthorizationRequired };
+      for (const outcome of outcomes) {
+        if (outcome.success) {
+          serviceReauthorizationRequired[outcome.service] = false;
+        } else if (outcome.reauthorizationRequired) {
+          serviceReauthorizationRequired[outcome.service] = true;
+        } else {
+          serviceReauthorizationRequired[outcome.service] = false;
+        }
+      }
+      return {
+        ...current,
+        accessToken: reauthorizationRequired ? "" : current.accessToken,
+        applying: false,
+        calendarAvailable: reauthorizationRequired ? false : current.calendarAvailable,
+        error: "",
+        gmailAvailable: reauthorizationRequired ? false : current.gmailAvailable,
         loading: false,
         message: "",
-        previewOpen: true
+        reauthorizationRequired,
+        serviceReauthorizationRequired,
+        transientError,
+        transientSummary
+      };
+    });
+    transientTimerRef.current = setTimeout(() => {
+      setState((current) => ({
+        ...current,
+        transientError: false,
+        transientSummary: ""
       }));
-      return;
+      transientTimerRef.current = null;
+    }, GLOBAL_SYNC_SUMMARY_DURATION_MS);
+    if (anySuccess) onSynced?.();
+    return outcomes;
+  }
+
+  async function runActivityService(
+    input: {
+      accessToken: string;
+      connectedAccountId: string | null;
+      includeCalendar: boolean;
+      includeMail: boolean;
+      userEmail: string;
+    },
+    scope: "global" | "contact",
+    service: ActivitySyncService
+  ): Promise<ActivitySyncServiceOutcome> {
+    const serviceInput = {
+      ...input,
+      includeCalendar: service === "calendar",
+      includeMail: service === "mail"
+    };
+    if (scope === "contact") {
+      setState((current) => ({ ...current, applying: false, loading: true, message: "Actualizando…" }));
+    }
+    const reviewed = await runSync({ ...serviceInput, dryRun: true });
+    if (!reviewed.result || !reviewed.result.ok) {
+      return failedServiceOutcome(service, reviewed);
     }
 
-    setState((current) => ({ ...current, error: "", message: "Conectando con Google..." }));
-    const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
-    const includeMail = googleConnectionHasCapability(googleConnection, "gmail_read");
-    const includeCalendar = googleConnectionHasCapability(googleConnection, "calendar_read");
-    setState((current) => ({
-      ...current,
-      accessToken: googleConnection.accessToken,
-      connectedAccountId: googleConnection.account?.id ?? null,
-      userEmail: googleConnection.userEmail
-    }));
-    if (!googleConnection.connected || !googleConnection.accessToken || (!includeMail && !includeCalendar)) {
-      setState((current) => ({ ...current, accessToken: "", error: "", message: "Reconectando Google..." }));
-      await connectGoogle();
-      return;
+    if (service === "mail") {
+      const snapshot = scope === "global"
+        ? reviewed.result.gmailFocusedSnapshot
+        : reviewed.result.gmailContactSnapshot;
+      if (!snapshot?.complete) {
+        return {
+          created: 0,
+          error: scope === "global"
+            ? "Gmail no pudo completar la lectura. Intenta nuevamente."
+            : "Gmail no pudo completar la lectura de los últimos 14 días. Intenta nuevamente.",
+          reauthorizationRequired: false,
+          service,
+          success: false,
+          syncedAt: null
+        };
+      }
     }
 
-    const externalIds = externalIdsFromInteractionPreview(selectedChanges);
-    if (!externalIds.length) {
-      setState((current) => ({ ...current, error: "No hay actividad seleccionada para aplicar." }));
-      return;
+    const externalIds = externalIdsFromInteractionPreview(actionableInteractionPreviewChanges(reviewed.result));
+    if (scope === "contact") {
+      setState((current) => ({ ...current, applying: true, loading: false, message: "Actualizando…" }));
     }
-    setState((current) => ({ ...current, applying: true, error: "", message: "Aplicando..." }));
-    await runSync({
-      accessToken: googleConnection.accessToken,
-      connectedAccountId: googleConnection.account?.id ?? null,
+    const applied = await runSync({
+      ...serviceInput,
       dryRun: false,
       externalIds,
-      includeCalendar,
-      includeMail,
-      userEmail: googleConnection.userEmail
+      gmailContactSnapshot: scope === "contact" ? reviewed.result.gmailContactSnapshot : undefined,
+      gmailFocusedSnapshot: scope === "global" ? reviewed.result.gmailFocusedSnapshot : undefined,
+      calendarRollingSnapshot: reviewed.result.calendarRollingSnapshot
     });
+    if (!applied.result || !applied.result.ok) {
+      return failedServiceOutcome(service, applied);
+    }
+
+    const serviceResult = service === "mail" ? applied.result.mail : applied.result.calendar;
+    return {
+      created: serviceResult?.counts.created ?? 0,
+      error: "",
+      reauthorizationRequired: false,
+      service,
+      success: true,
+      syncedAt: new Date().toISOString()
+    };
+  }
+
+  function clearTransientSummary() {
+    if (transientTimerRef.current) {
+      clearTimeout(transientTimerRef.current);
+      transientTimerRef.current = null;
+    }
+  }
+
+  async function authorizeAndSync() {
+    const missingServices = enabledGlobalServices.filter((service) => (
+      !globalServiceStates[service].authorized
+      || globalServiceStates[service].reauthorizationRequired
+    ));
+    if (!missingServices.length) {
+      await reviewSync();
+      return;
+    }
+
+    setPopoverOpen(true);
+    setState((current) => ({ ...current, error: "" }));
+    try {
+      await beginActivitySyncAuthorization(enabledGlobalServices, missingServices, window.location.href);
+    } catch {
+      setState((current) => ({
+        ...current,
+        error: "",
+        serviceReauthorizationRequired: missingServices.reduce(
+          (services, service) => ({ ...services, [service]: true }),
+          current.serviceReauthorizationRequired
+        )
+      }));
+    }
+  }
+
+  async function runGlobalPrimaryAction() {
+    if (!globalPrimaryAction || globalPrimaryAction.disabled) return;
+    if (globalPrimaryAction.kind === "authorize") {
+      await authorizeAndSync();
+      return;
+    }
+    await reviewSync();
   }
 
   async function runSync(input: {
@@ -230,10 +761,13 @@ export function ActivitySyncButton({
     connectedAccountId: string | null;
     dryRun: boolean;
     externalIds?: string[];
+    gmailContactSnapshot?: SyncGoogleInteractionsResult["gmailContactSnapshot"];
+    gmailFocusedSnapshot?: SyncGoogleInteractionsResult["gmailFocusedSnapshot"];
+    calendarRollingSnapshot?: SyncGoogleInteractionsResult["calendarRollingSnapshot"];
     includeCalendar: boolean;
     includeMail: boolean;
     userEmail: string;
-  }) {
+  }): Promise<ActivitySyncAttempt> {
     const runId = createSyncRunId();
     const scopeLabel = variant === "single_contact" ? `contacto:${contact?.display_name ?? contact?.id ?? ""}` : "foco";
     let stepOrder = 0;
@@ -255,10 +789,11 @@ export function ActivitySyncButton({
     logStep("Inicio", input.dryRun ? "Actualizacion solicitada." : `${input.externalIds?.length ?? 0} elemento(s) seleccionados.`, "running");
 
     try {
-      const since = await readNetworkingStartIso();
-      const calendarFutureWindow = calendarFutureWindowIso();
+      const calendarWindow = input.includeCalendar ? calendarRollingWindowIso() : null;
       const syncLimits = await loadActivitySyncLimitValues();
-      logStep("Parametros", `Fecha inicio: ${formatLogDate(since)}.`, "info", {
+      logStep("Parametros", input.includeCalendar
+        ? `Ventana Calendar: ${formatLogDate(calendarWindow?.since ?? null)} a ${formatLogDate(calendarWindow?.until ?? null)}.`
+        : "Calendar no participa en esta unidad.", "info", {
         calendar_events_limit: syncLimits.calendarEvents,
         contact_id: contact?.id ?? null,
         mail_messages_limit: syncLimits.mailMessages,
@@ -267,124 +802,172 @@ export function ActivitySyncButton({
       const result = await syncGoogleInteractions({
         accessToken: input.accessToken,
         calendarQuery: null,
-        calendarFutureTimeMax: calendarFutureWindow.until,
-        calendarFutureTimeMin: calendarFutureWindow.from,
-        calendarTimeMin: since,
+        calendarFutureTimeMax: calendarWindow?.until ?? null,
+        calendarFutureTimeMin: null,
+        calendarRollingWindowSync: input.includeCalendar ? (variant === "focus_incremental" ? "global" : "contact") : undefined,
+        calendarRollingSnapshot: input.dryRun ? null : input.calendarRollingSnapshot,
+        calendarTimeMin: calendarWindow?.since ?? null,
         connectedAccountId: input.connectedAccountId,
         contactIds: variant === "single_contact" && contact?.id ? [contact.id] : undefined,
-        cursorLabel: variant === "single_contact" && contact?.id ? `contact:${contact.id}` : undefined,
         dryRun: input.dryRun,
-        focusedOnly: variant === "focus_incremental",
-        gmailQuery: variant === "single_contact" ? gmailContactQuery(contactEmails) : null,
-        gmailSince: since,
+        focusedOnly: variant === "focus_incremental" || input.includeCalendar,
+        globalFocusedMailSync: variant === "focus_incremental",
+        contactRecentMailSync: variant === "single_contact",
+        gmailContactSnapshot: input.dryRun ? null : input.gmailContactSnapshot,
+        gmailFocusedSnapshot: input.dryRun ? null : input.gmailFocusedSnapshot,
+        gmailQuery: null,
+        gmailSince: null,
         includeCalendar: input.includeCalendar,
-        includeMail: input.includeMail,
+        includeMail: input.includeMail && (
+          input.dryRun
+          || Boolean(input.gmailContactSnapshot)
+          || Boolean(input.gmailFocusedSnapshot)
+        ),
         maxCalendarEvents: syncLimits.calendarEvents || ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
         maxMailMessages: syncLimits.mailMessages || ACTIVITY_SYNC_MAX_MAIL_MESSAGES,
-        maxPages: Math.max(syncLimits.calendarPages, syncLimits.mailPages) || ACTIVITY_SYNC_MAX_MAIL_PAGES,
+        maxPages: input.includeCalendar
+          ? syncLimits.calendarPages || ACTIVITY_SYNC_MAX_CALENDAR_PAGES
+          : syncLimits.mailPages || ACTIVITY_SYNC_MAX_MAIL_PAGES,
         ...(input.externalIds?.length ? { externalIds: input.externalIds } : {}),
-        saveCursors: true,
+        saveCursors: variant === "focus_incremental" || input.includeMail,
         saveReadDiagnostics: input.dryRun,
         userEmail: input.userEmail
       });
-      const message = resultMessage(result);
       const authFailure = hasGoogleInteractionAuthFailure(result);
       if (authFailure) {
         invalidateActiveGoogleDataAuthorization();
-        setState((current) => ({
-          ...current,
-          accessToken: "",
-          applying: false,
-          error: "",
-          lastRun: result,
-          loading: true,
-          message: "Reconectando Google...",
-          previewOpen: false
-        }));
-        logStep("Reconectando Google", "Permiso vencido o insuficiente.", "warning", {
+        logStep("Autorización Google requerida", "Permiso vencido o insuficiente.", "warning", {
           errors: result.errors
         });
-        await connectGoogle();
-        return;
+        return {
+          error: serviceSyncErrorMessage(result, requestedActivityService(input)),
+          reauthorizationRequired: true,
+          result
+        };
       }
-      setState((current) => ({
-        ...current,
-        applying: false,
-        error: result.errors.map((error) => error.message).join(" ") || "",
-        lastRun: result,
-        loading: false,
-        message,
-        previewOpen: input.dryRun
-      }));
       logStep(input.dryRun ? "Preview listo" : "Aplicacion terminada", activityLogSummary(result), result.ok ? "success" : "warning", {
         errors: result.errors,
         warnings: result.warnings
       });
-      if (!input.dryRun && result.ok) {
-        setState((current) => ({ ...current, previewOpen: false }));
-        onSynced?.();
-      }
+      return {
+        error: result.ok ? "" : serviceSyncErrorMessage(result, requestedActivityService(input)),
+        reauthorizationRequired: false,
+        result
+      };
     } catch (error) {
       logStep("Error", error instanceof Error ? error.message : "No pude actualizar la actividad.", "error");
       if (error instanceof GoogleInteractionClientError && error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") {
         invalidateActiveGoogleDataAuthorization();
-        setState((current) => ({
-          ...current,
-          accessToken: "",
-          applying: false,
-          error: "",
-          loading: true,
-          message: "Reconectando Google...",
-          previewOpen: false
-        }));
-        logStep("Reconectando Google", "Permiso vencido o insuficiente.", "warning");
-        await connectGoogle();
-        return;
+        logStep("Autorización Google requerida", "Permiso vencido o insuficiente.", "warning");
+        return {
+          error: serviceThrownErrorMessage(requestedActivityService(input), error),
+          reauthorizationRequired: true,
+          result: null
+        };
       }
-      setState((current) => ({
-        ...current,
-        applying: false,
-        error: error instanceof Error ? error.message : "No pude actualizar la actividad.",
-        loading: false,
-        message: "",
-        previewOpen: true
-      }));
+      return {
+        error: serviceThrownErrorMessage(requestedActivityService(input), error),
+        reauthorizationRequired: false,
+        result: null
+      };
     }
   }
 
-  return (
-    <>
-      <span className="activity-sync-control">
+  if (variant === "focus_incremental") {
+    const accessibleState = globalIconState === "syncing"
+      ? "actualizando"
+      : globalIconState === "auth_required"
+        ? "requiere autorización"
+        : globalIconState === "error"
+          ? "con error"
+          : globalIconState === "success"
+            ? "actualización completada"
+            : "estado normal";
+    return (
+      <span className="activity-sync-control global-activity-sync-control" ref={controlRef}>
         <Button
-          aria-label={label}
-          className={variant === "focus_incremental" ? "global-activity-sync" : ""}
-          disabled={state.loading || state.applying}
+          aria-expanded={popoverOpen}
+          aria-haspopup="dialog"
+          aria-label={`Sincronización: ${accessibleState}`}
+          className={`global-activity-sync state-${globalIconState}`}
           icon="sync"
-          onClick={reviewSync}
-          square={square}
-          tone={square ? "secondary" : variant === "focus_incremental" ? "primary" : "secondary"}
-        >
-          {square ? null : state.loading ? "Revisando..." : state.applying ? "Aplicando..." : label}
-        </Button>
-        {showMessage && notice ? (
-          <span className={`activity-sync-message ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
-            {notice.text}
+          onClick={() => setPopoverOpen(true)}
+          onFocus={() => setPopoverOpen(true)}
+          square
+          tone="secondary"
+        />
+        {globalIconState === "auth_required" ? (
+          <span aria-hidden="true" className="activity-sync-badge auth-required">
+            <Icon name="linkOff" />
           </span>
         ) : null}
+        {globalIconState === "error" ? (
+          <span aria-hidden="true" className="activity-sync-badge error">!</span>
+        ) : null}
+        {globalIconState === "success" ? (
+          <span aria-hidden="true" className="activity-sync-badge success">
+            <Icon name="check" />
+          </span>
+        ) : null}
+        {popoverOpen ? (
+          <section aria-label="Estado de sincronización" className="activity-sync-popover" role="dialog">
+            <div className="activity-sync-popover-heading">
+              <strong>Sincronización</strong>
+              <span className="sr-only" role="status">{accessibleState}</span>
+            </div>
+            <div className="activity-sync-service-list">
+              {globalRows.map((row) => (
+                <div className={`activity-sync-service-row ${row.tone}`} key={row.key}>
+                  <span className="activity-sync-service-icon" aria-hidden="true">
+                    <Icon name={row.icon} />
+                  </span>
+                  {row.label ? <strong>{row.label}</strong> : null}
+                  <span>{row.status}</span>
+                </div>
+              ))}
+            </div>
+            {globalPrimaryAction ? (
+              <Button
+                disabled={globalPrimaryAction.disabled}
+                onClick={() => void runGlobalPrimaryAction()}
+                tone="primary"
+              >
+                {globalPrimaryAction.label}
+              </Button>
+            ) : (
+              <a className="activity-sync-configure" href="/cuenta#interaction-sync-preferences">
+                Configurar
+              </a>
+            )}
+          </section>
+        ) : null}
       </span>
-      <SyncPreviewDialog
-        applying={state.applying}
-        changes={previewChanges}
-        description={previewDescription(variant, contact?.display_name)}
-        feedbackMessage={state.error || state.message}
-        feedbackTone={state.error ? "error" : "info"}
-        onApply={applySync}
-        onClose={() => setState((current) => ({ ...current, previewOpen: false }))}
-        open={state.previewOpen}
-        tabKeys={["new", "modified", "skipped"]}
-        title={variant === "single_contact" ? "Actividad del contacto" : "Actividad en foco networking"}
-      />
-    </>
+    );
+  }
+
+  return (
+    <span className="activity-sync-control">
+      <Button
+        aria-label={label}
+        disabled={syncPreferences.loading || !state.connectionKnown || !selection.canSync || state.loading || state.applying}
+        icon="sync"
+        onClick={reviewSync}
+        square={square}
+        tone="secondary"
+      >
+        {square ? null : state.loading ? "Revisando..." : state.applying ? "Aplicando..." : label}
+      </Button>
+      {showMessage && notice ? (
+        <span className={`activity-sync-message ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
+          {notice.text}
+        </span>
+      ) : null}
+      {state.reauthorizationRequired || (state.connectionKnown && selection.connectionRequired) ? (
+        <button className="activity-sync-reauthorize" onClick={openSyncSettings} type="button">
+          {state.reauthorizationRequired ? "Reautorizar" : "Configurar"}
+        </button>
+      ) : null}
+    </span>
   );
 }
 
@@ -392,27 +975,135 @@ function hasGoogleInteractionAuthFailure(result: SyncGoogleInteractionsResult) {
   return result.errors.some((error) => error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED");
 }
 
-function previewDescription(variant: ActivitySyncButtonProps["variant"], contactName?: string) {
-  if (variant === "single_contact") {
-    return `Revisa actividad detectada para ${contactName || "este contacto"}. Nada se guarda hasta aplicar la seleccion.`;
+function connectionHasService(
+  connection: Awaited<ReturnType<typeof readCurrentGoogleConnectionState>>,
+  service: ActivitySyncService
+) {
+  return googleConnectionHasCapability(
+    connection,
+    service === "mail" ? "gmail_read" : "calendar_read"
+  );
+}
+
+function includedGoogleActivityServices(input: { includeCalendar: boolean; includeMail: boolean }) {
+  const services: Array<"calendar" | "mail"> = [];
+  if (input.includeMail) services.push("mail");
+  if (input.includeCalendar) services.push("calendar");
+  return services.sort();
+}
+
+function requestedServiceOutcomes(
+  input: { includeCalendar: boolean; includeMail: boolean },
+  outcome: (service: ActivitySyncService) => ActivitySyncServiceOutcome
+) {
+  return includedGoogleActivityServices(input).map(outcome);
+}
+
+function serviceOutcomeError(outcomes: ActivitySyncServiceOutcome[], service: ActivitySyncService) {
+  const outcome = outcomes.find((item) => item.service === service);
+  return outcome && !outcome.success && !outcome.reauthorizationRequired ? outcome.error : "";
+}
+
+function serviceOutcomeRequiresAuthorization(outcomes: ActivitySyncServiceOutcome[], service: ActivitySyncService) {
+  return outcomes.some((outcome) => outcome.service === service && outcome.reauthorizationRequired);
+}
+
+function updateServiceAuthorizationState(
+  current: Record<ActivitySyncService, boolean>,
+  outcomes: ActivitySyncServiceOutcome[]
+) {
+  const next = { ...current };
+  for (const outcome of outcomes) {
+    next[outcome.service] = outcome.reauthorizationRequired;
   }
-  return "Revisa actividad detectada para contactos en foco networking. Nada se guarda hasta aplicar la seleccion.";
+  return next;
 }
 
-function gmailContactQuery(emails: string[]) {
-  const parts = emails.flatMap((email) => [`from:${email}`, `to:${email}`, `cc:${email}`, `bcc:${email}`]);
-  return parts.length ? `(${parts.join(" OR ")})` : null;
+function failedServiceOutcome(service: ActivitySyncService, attempt: ActivitySyncAttempt): ActivitySyncServiceOutcome {
+  return {
+    created: 0,
+    error: attempt.error || `Error al actualizar ${activityServiceLabel(service)}`,
+    reauthorizationRequired: attempt.reauthorizationRequired,
+    service,
+    success: false,
+    syncedAt: null
+  };
 }
 
-function resultMessage(result: SyncGoogleInteractionsResult) {
-  return formatGoogleInteractionSyncMessage(result);
+function requestedActivityService(input: { includeCalendar: boolean; includeMail: boolean }): ActivitySyncService {
+  return input.includeMail ? "mail" : "calendar";
 }
 
-function activitySyncNotice(state: ActivitySyncState): ActivitySyncNotice | null {
+function serviceSyncErrorMessage(result: SyncGoogleInteractionsResult, service: ActivitySyncService) {
+  const serviceResult = service === "mail" ? result.mail : result.calendar;
+  const codes = new Set([
+    ...result.errors.map((error) => error.code),
+    ...(serviceResult?.errors ?? []).map((error) => error.code)
+  ]);
+  const label = activityServiceLabel(service);
+  if (codes.has("GOOGLE_INTERACTIONS_AUTH_REQUIRED")) return `${label} requiere reconexión.`;
+  if (codes.has("GOOGLE_INTERACTIONS_RATE_LIMITED")) {
+    return `${label} alcanzó temporalmente su límite de uso. Intenta nuevamente más tarde.`;
+  }
+  if (codes.has("GOOGLE_INTERACTIONS_INVALID_RESPONSE")) {
+    return `${label} devolvió una respuesta inesperada. Intenta nuevamente.`;
+  }
+  if ((serviceResult?.counts.failed ?? 0) > 0 || (serviceResult?.errors.length ?? 0) > 0) {
+    return service === "mail"
+      ? "No pude guardar algunos correos. Intenta nuevamente."
+      : "No pude guardar algunas citas. Intenta nuevamente.";
+  }
+  return `Error al actualizar ${label}`;
+}
+
+function serviceThrownErrorMessage(service: ActivitySyncService, error: unknown) {
+  const label = activityServiceLabel(service);
+  if (error instanceof GoogleInteractionClientError) {
+    if (error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") return `${label} requiere reconexión.`;
+    if (error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED") {
+      return `${label} alcanzó temporalmente su límite de uso. Intenta nuevamente más tarde.`;
+    }
+    if (error.code === "GOOGLE_INTERACTIONS_INVALID_RESPONSE") {
+      return `${label} devolvió una respuesta inesperada. Intenta nuevamente.`;
+    }
+  }
+  return `Error al actualizar ${label}`;
+}
+
+function activityServiceLabel(service: ActivitySyncService) {
+  return service === "mail" ? "Gmail" : "Calendar";
+}
+
+function activitySyncNotice(state: ActivitySyncState, input: {
+  connectionRequired: boolean;
+  preferencesError: string;
+  preferencesLoading: boolean;
+  syncDisabled: boolean;
+  variant: ActivitySyncButtonProps["variant"];
+}): ActivitySyncNotice | null {
+  if (input.preferencesError) {
+    return { text: input.preferencesError, tone: "error" };
+  }
+  if (input.preferencesLoading || !state.connectionKnown) return null;
+  if (input.connectionRequired) {
+    return { text: "Requiere conexión", tone: "error" };
+  }
+  if (input.syncDisabled) {
+    return {
+      text: input.variant === "focus_incremental" ? "Sincronización desactivada" : "Sin servicios habilitados para este contacto",
+      tone: "info"
+    };
+  }
   if (state.error) {
     return { text: state.error, tone: "error" };
   }
-  if (state.previewOpen || !state.message) {
+  if (state.transientSummary) {
+    return { text: state.transientSummary, tone: state.transientError ? "error" : "info" };
+  }
+  if (state.reauthorizationRequired) {
+    return { text: "Requiere conexión", tone: "error" };
+  }
+  if (!state.message) {
     return null;
   }
   return { busy: state.loading || state.applying, text: state.message, tone: "info" };

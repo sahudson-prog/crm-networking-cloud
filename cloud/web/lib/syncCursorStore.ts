@@ -30,6 +30,19 @@ export type SyncCursorWriteInput = SyncCursorKey & {
   syncedAt?: string;
 };
 
+export const GLOBAL_ACTIVITY_SYNC_CURSOR_LABEL = "global_activity_success";
+
+export type GlobalActivitySyncSuccess = {
+  connectedAccountId: string | null;
+  services: Array<"calendar" | "mail">;
+  syncedAt: string;
+};
+
+export type GlobalActivityServiceFreshness = {
+  calendar: string | null;
+  mail: string | null;
+};
+
 type SupabaseLike = {
   auth: {
     getUser: () => Promise<{ data: { user: { id: string } | null }; error?: unknown }>;
@@ -85,6 +98,61 @@ export async function markSyncCursorExpired(input: SyncCursorKey, client: Supaba
     metadata: { expired_at: new Date().toISOString() },
     status: "expired"
   }, client);
+}
+
+export async function readGlobalActivitySyncSuccess(client: SupabaseLike | null = supabase): Promise<GlobalActivitySyncSuccess | null> {
+  const record = await readSyncCursor({
+    cursorLabel: GLOBAL_ACTIVITY_SYNC_CURSOR_LABEL,
+    provider: "google",
+    resourceType: "messages"
+  }, client);
+  if (!record || record.status !== "ok" || !record.last_synced_at) return null;
+  const services = Array.isArray(record.metadata?.services)
+    ? record.metadata.services.filter((service): service is "calendar" | "mail" => service === "calendar" || service === "mail")
+    : [];
+  if (!services.length) return null;
+  return {
+    connectedAccountId: record.connected_account_id ?? null,
+    services: Array.from(new Set(services)).sort(),
+    syncedAt: record.last_synced_at
+  };
+}
+
+export async function readGlobalActivityServiceFreshness(
+  connectedAccountId: string | null,
+  client: SupabaseLike | null = supabase
+): Promise<GlobalActivityServiceFreshness> {
+  const [mail, calendar] = await Promise.all([
+    readSyncCursor({ cursorLabel: "", provider: "google", resourceType: "mail" }, client),
+    readSyncCursor({ cursorLabel: "", provider: "google", resourceType: "calendar" }, client)
+  ]);
+  return {
+    calendar: matchingCursorTimestamp(calendar, connectedAccountId),
+    mail: matchingCursorTimestamp(mail, connectedAccountId)
+  };
+}
+
+export async function recordGlobalActivitySyncSuccess(
+  input: GlobalActivitySyncSuccess,
+  client: SupabaseLike | null = supabase
+) {
+  const services = Array.from(new Set(input.services)).sort();
+  if (!services.length) throw new Error("La corrida global no incluyo servicios para registrar.");
+  return upsertSyncCursor({
+    connectedAccountId: input.connectedAccountId,
+    cursorLabel: GLOBAL_ACTIVITY_SYNC_CURSOR_LABEL,
+    cursorValue: null,
+    metadata: { services },
+    provider: "google",
+    resourceType: "messages",
+    syncedAt: input.syncedAt
+  }, client);
+}
+
+function matchingCursorTimestamp(record: SyncCursorRecord | null, connectedAccountId: string | null) {
+  if (!record || record.status !== "ok" || !record.last_synced_at) return null;
+  if ((record.connected_account_id ?? null) !== connectedAccountId) return null;
+  return record.last_synced_at;
 }
 
 function requireClient(client: SupabaseLike | null): SupabaseLike {

@@ -9,6 +9,7 @@ import { Button } from "./ui/Button";
 import { ProgressBar, type ProgressBarProps } from "./ui/ProgressBar";
 
 type SyncPreviewDialogProps = {
+  allowEmptyApply?: boolean;
   open: boolean;
   title?: string;
   description?: string;
@@ -60,6 +61,7 @@ const PREVIEW_TABS: Array<{ key: SyncPreviewTabKey; label: string; types: SyncPr
 ];
 
 export function SyncPreviewDialog({
+  allowEmptyApply = false,
   applyLabel = "Aplicar seleccion",
   applying = false,
   applyingLabel = "Aplicando...",
@@ -284,7 +286,7 @@ export function SyncPreviewDialog({
           </div>
           <div className="modal-actions">
             <Button disabled={applying} onClick={handleClose}>Cancelar</Button>
-            <Button disabled={!selectedChanges.length || applying} onClick={() => onApply(selectedChanges)} tone="primary">
+            <Button disabled={(!allowEmptyApply && !selectedChanges.length) || applying} onClick={() => onApply(selectedChanges)} tone="primary">
               {applying ? applyingLabel : applyLabel}
             </Button>
           </div>

@@ -68,6 +68,9 @@ export async function reconnectGoogle(scopes: string | string[], redirectTo?: st
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
+      queryParams: {
+        include_granted_scopes: "true"
+      },
       redirectTo: prepareAuthCallback(buildGoogleDataConnectionRedirectTo(
         redirectTo ?? `${window.location.origin}${window.location.pathname}${window.location.search}`,
         nonce

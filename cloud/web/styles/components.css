@@ -88,6 +88,189 @@
   color: var(--crm-danger);
 }
 
+.global-activity-sync-control {
+  position: relative;
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+.global-activity-sync:focus-visible,
+.activity-sync-popover .button:focus-visible,
+.activity-sync-configure:focus-visible {
+  outline: 2px solid var(--crm-accent);
+  outline-offset: 2px;
+}
+
+.global-activity-sync.state-syncing .icon {
+  animation: activity-sync-spin 900ms linear infinite;
+}
+
+.activity-sync-badge {
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  right: -4px;
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 2px solid var(--crm-surface);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.activity-sync-badge .icon {
+  width: 9px;
+  height: 9px;
+  stroke-width: 2.5;
+}
+
+.activity-sync-badge.auth-required {
+  background: var(--crm-warning);
+}
+
+.activity-sync-badge.error {
+  background: var(--crm-danger);
+}
+
+.activity-sync-badge.success {
+  background: var(--crm-positive);
+}
+
+.activity-sync-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: -44px;
+  display: grid;
+  width: min(320px, calc(100vw - 18px));
+  gap: 12px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+  padding: 14px;
+}
+
+.activity-sync-popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.activity-sync-popover-heading strong {
+  color: var(--crm-text);
+  font-size: 14px;
+}
+
+.activity-sync-service-list {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-sync-service-row {
+  display: grid;
+  grid-template-columns: 24px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+.activity-sync-service-row + .activity-sync-service-row {
+  border-top: 1px solid var(--crm-border);
+}
+
+.activity-sync-service-row strong {
+  color: var(--crm-text);
+  font-size: 13px;
+}
+
+.activity-sync-service-row > span:last-child {
+  min-width: 0;
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.activity-sync-service-row .activity-sync-service-icon + span:last-child {
+  grid-column: 2 / 4;
+  text-align: left;
+}
+
+.activity-sync-service-row.error > span:last-child {
+  color: var(--crm-danger);
+}
+
+.activity-sync-service-row.success > span:last-child {
+  color: var(--crm-positive);
+}
+
+.activity-sync-service-row.muted > span:last-child {
+  color: var(--crm-muted);
+}
+
+.activity-sync-service-icon {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--crm-field-soft);
+  color: var(--crm-text);
+}
+
+.activity-sync-service-icon .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.activity-sync-popover > .button {
+  width: 100%;
+}
+
+.activity-sync-configure {
+  justify-self: start;
+  color: var(--crm-accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-underline-offset: 2px;
+}
+
+@keyframes activity-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.activity-sync-reauthorize {
+  border: 0;
+  background: transparent;
+  color: var(--crm-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.activity-sync-reauthorize:hover {
+  color: var(--brand-espresso);
+}
+
+.activity-sync-reauthorize:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--crm-accent);
+  outline-offset: 2px;
+}
+
 .global-activity-sync {
   white-space: nowrap;
 }
@@ -539,6 +722,164 @@ textarea::placeholder {
   gap: 14px;
 }
 
+.account-data-group {
+  display: grid;
+  gap: 10px;
+}
+
+.account-data-group > h3 {
+  margin: 0;
+  color: var(--crm-text);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.account-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.account-data-grid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.account-data-block {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  padding: 14px;
+}
+
+.account-data-block > h3 {
+  margin: 0;
+  color: var(--crm-text);
+}
+
+.account-data-block > h3 {
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.account-data-options {
+  display: grid;
+  gap: 8px;
+}
+
+.account-data-block .account-source-row,
+.account-data-block .connected-service-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 0;
+  border-radius: 0;
+  padding: 5px 0;
+}
+
+.account-data-block .account-source-actions,
+.account-data-block .connected-service-action-controls {
+  justify-self: start;
+}
+
+.account-data-block .connected-service-label-picker {
+  max-width: none;
+}
+
+.account-provider-identity,
+.account-sync-preference-service {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.account-sync-preference-service {
+  flex: 1 1 auto;
+}
+
+.account-provider-identity > div,
+.account-sync-preference-service > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-provider-identity span,
+.account-sync-preference-service small {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.connected-service-logo .provider-icon,
+.connected-service-logo .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.account-icon-action.destructive {
+  color: var(--crm-text);
+}
+
+.account-icon-action.destructive .icon {
+  color: var(--crm-danger);
+}
+
+.account-icon-action.destructive:not(:disabled):hover {
+  border-color: var(--crm-primary);
+  background: var(--crm-field-soft);
+  color: var(--crm-text);
+}
+
+.account-provider-sync-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 420px);
+  gap: 12px;
+}
+
+.account-provider-sync-block {
+  gap: 12px;
+}
+
+.account-provider-sync-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.account-provider-sync-heading strong {
+  color: var(--crm-text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.account-provider-sync-options {
+  display: grid;
+  gap: 8px;
+}
+
+.account-data-type-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--crm-radius);
+  background: var(--crm-field-soft);
+  color: var(--crm-muted);
+}
+
+.gmail-history-dialog {
+  width: min(460px, calc(100vw - 28px));
+  grid-template-rows: auto auto auto auto auto;
+}
+
+.account-source-placeholder {
+  opacity: 0.72;
+}
+
 .account-section-title {
   display: grid;
   gap: 3px;
@@ -816,6 +1157,92 @@ textarea::placeholder {
   font-weight: 800;
 }
 
+.account-sync-preferences {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  border-top: 1px solid var(--crm-border);
+  padding-top: 10px;
+}
+
+.account-sync-preference {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.account-sync-preference > span,
+.account-sync-preference-service > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-sync-preference strong {
+  color: var(--crm-text);
+  font-size: 13px;
+}
+
+.account-sync-preference small {
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.account-sync-preference input {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  appearance: none;
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
+  background: var(--crm-field-soft);
+  cursor: pointer;
+  outline: 0;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.account-sync-preference input::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--crm-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  content: "";
+  transition: transform 140ms ease;
+}
+
+.account-sync-preference input:checked {
+  border-color: var(--crm-positive);
+  background: var(--crm-positive);
+}
+
+.account-sync-preference input:checked::after {
+  transform: translateX(16px);
+}
+
+.account-sync-preference input:focus-visible {
+  border-color: var(--crm-border);
+  outline: 2px solid var(--crm-accent);
+  outline-offset: 2px;
+}
+
+.account-sync-preference input:checked:focus-visible {
+  border-color: var(--crm-positive);
+}
+
+.account-sync-preference input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .connected-service-actions {
   display: grid;
   gap: 8px;
@@ -838,6 +1265,25 @@ textarea::placeholder {
 .connected-service-action-main {
   display: grid;
   gap: 2px;
+}
+
+.connected-service-label-picker {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 320px;
+}
+
+.connected-service-label-feedback {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+}
+
+.connected-service-label-feedback .form-error,
+.connected-service-label-empty {
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .connected-service-action-controls {
@@ -7405,6 +7851,10 @@ textarea::placeholder {
 }
 
 @media (max-width: 780px) {
+  .account-data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .contact-profile-grid.onboarding-contact-profile-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
@@ -7658,6 +8108,10 @@ textarea::placeholder {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .global-activity-sync.state-syncing .icon {
+    animation: none;
+  }
+
   .onboarding-intro-swiper .swiper-wrapper {
     transition-duration: 0ms !important;
   }
@@ -7788,6 +8242,15 @@ code {
     justify-content: flex-start;
     margin-left: 0;
     gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .global-activity-sync-control {
+    justify-content: flex-end;
+  }
+
+  .activity-sync-popover {
+    right: -36px;
   }
 
   .shell-brand-lockup {
@@ -7951,5 +8414,9 @@ code {
 
   .nav-utility {
     gap: 2px;
+  }
+
+  .activity-sync-popover {
+    right: -34px;
   }
 }

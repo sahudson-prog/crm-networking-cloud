@@ -30,7 +30,17 @@ const VCARD_PREVIEW_TABS: readonly SyncPreviewTabDefinition[] = [
   }
 ];
 
-export function VCardImportPanel() {
+export function VCardImportPanel({
+  actionLabel = "Importar",
+  compactAction = false,
+  description = "Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.",
+  sourceLabel = "Importar contactos desde archivo vCard"
+}: {
+  actionLabel?: string;
+  compactAction?: boolean;
+  description?: string;
+  sourceLabel?: string;
+} = {}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [applying, setApplying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -110,11 +120,11 @@ export function VCardImportPanel() {
       <div className="account-source-row">
         <div className="account-source-main">
           <span className="connected-service-logo active">
-            <Icon name="users" />
+            <Icon name="file" />
           </span>
           <div>
-            <strong>Importar contactos desde archivo vCard</strong>
-            <span>Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.</span>
+            <strong>{sourceLabel}</strong>
+            <span>{description}</span>
           </div>
         </div>
         <div className="account-source-actions">
@@ -126,8 +136,15 @@ export function VCardImportPanel() {
             ref={inputRef}
             type="file"
           />
-          <Button disabled={loading || applying} icon="plus" onClick={() => inputRef.current?.click()} tone="secondary">
-            {loading ? "Leyendo..." : "Importar"}
+          <Button
+            aria-label={loading ? "Leyendo archivo vCard" : actionLabel}
+            disabled={loading || applying}
+            icon="plus"
+            onClick={() => inputRef.current?.click()}
+            square={compactAction}
+            tone="secondary"
+          >
+            {compactAction ? null : loading ? "Leyendo..." : actionLabel}
           </Button>
         </div>
       </div>

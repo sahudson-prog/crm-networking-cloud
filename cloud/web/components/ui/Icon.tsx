@@ -6,6 +6,7 @@ type IconName =
   | "collapse"
   | "edit"
   | "expand"
+  | "file"
   | "plus"
   | "sync"
   | "settings"
@@ -28,6 +29,7 @@ type IconName =
   | "trash"
   | "search"
   | "link"
+  | "linkOff"
   | "history"
   | "user";
 
@@ -39,6 +41,7 @@ const paths: Record<IconName, string> = {
   collapse: "M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5",
   edit: "M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Zm11-13 2 2",
   expand: "M3 9V4h5m8 0h5v5M3 15v5h5m13-5v5h-5",
+  file: "M6 3h8l4 4v14H6V3Zm8 0v5h4M9 12h6M9 16h6",
   plus: "M12 5v14M5 12h14",
   sync: "M20 12a8 8 0 0 1-14.7 4.4M4 12a8 8 0 0 1 14.7-4.4M7 17H5v-2M17 7h2v2",
   settings:
@@ -62,6 +65,7 @@ const paths: Record<IconName, string> = {
   trash: "M5 7h14M10 11v6m4-6v6M8 7l1-3h6l1 3m-9 0 1 13h8l1-13",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 4 4",
   link: "M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1",
+  linkOff: "M10 13a5 5 0 0 0 5.2 1.2M17 12l2-2a5 5 0 0 0-6.8-7.2L11 4M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1M4 4l16 16",
   history: "M3 12a9 9 0 1 0 3-6.7M3 5v5h5M12 7v5l3 2",
   user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z"
 };

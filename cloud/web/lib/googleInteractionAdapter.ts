@@ -65,6 +65,7 @@ export function mapGmailMessageToExternalInteraction(input: {
   message: GoogleGmailMessage;
   userEmail: string;
   contactsByEmail: GoogleContactIndex;
+  includeUnresolvedParticipants?: boolean;
 }): ExternalInteractionInput | null {
   const messageId = clean(input.message.id);
   if (!messageId) return null;
@@ -74,14 +75,20 @@ export function mapGmailMessageToExternalInteraction(input: {
   const contactIndex = normalizeContactIndex(input.contactsByEmail);
   const from = emailsByHeader(headers, "from");
   const fromUser = from.some((address) => address.email === userEmail);
-  const fromKnownContacts = participantsForAddresses(from, "FROM", contactIndex);
+  const fromKnownContacts = participantsForAddresses(
+    from,
+    "FROM",
+    contactIndex,
+    Boolean(input.includeUnresolvedParticipants),
+    userEmail
+  );
 
-  if (!fromUser && !fromKnownContacts.length) return null;
+  if (!input.includeUnresolvedParticipants && !fromUser && !fromKnownContacts.length) return null;
 
   const recipientParticipants = [
-    ...participantsForAddresses(emailsByHeader(headers, "to"), "TO", contactIndex),
-    ...participantsForAddresses(emailsByHeader(headers, "cc"), "CC", contactIndex),
-    ...participantsForAddresses(emailsByHeader(headers, "bcc"), "BCC", contactIndex)
+    ...participantsForAddresses(emailsByHeader(headers, "to"), "TO", contactIndex, Boolean(input.includeUnresolvedParticipants), userEmail),
+    ...participantsForAddresses(emailsByHeader(headers, "cc"), "CC", contactIndex, Boolean(input.includeUnresolvedParticipants), userEmail),
+    ...participantsForAddresses(emailsByHeader(headers, "bcc"), "BCC", contactIndex, Boolean(input.includeUnresolvedParticipants), userEmail)
   ];
 
   const participants = fromUser
@@ -198,15 +205,18 @@ export function extractGmailBodyText(payload: GoogleMessagePayload | null | unde
 function participantsForAddresses(
   addresses: Array<{ email: string; name: string }>,
   role: string,
-  contactsByEmail: GoogleContactIndex
+  contactsByEmail: GoogleContactIndex,
+  includeUnresolved = false,
+  excludedEmail = ""
 ): ExternalInteractionParticipantInput[] {
   return addresses
+    .filter((address) => address.email !== excludedEmail)
     .map((address) => ({
       contactId: contactsByEmail[address.email]?.contactId || null,
       email: address.email,
       role
     }))
-    .filter((participant) => participant.contactId);
+    .filter((participant) => includeUnresolved || participant.contactId);
 }
 
 function parseAddressList(value: string) {

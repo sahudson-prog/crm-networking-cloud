@@ -1,9 +1,10 @@
-import { readUserSetting } from "./cloudData";
-
 export const CALENDAR_FUTURE_LOOKAHEAD_MONTHS = 3;
+export const CALENDAR_ROLLING_FUTURE_LOOKAHEAD_DAYS = 30;
+export const CALENDAR_RECENT_LOOKBACK_DAYS = 7;
 
 export async function readNetworkingStartIso() {
   try {
+    const { readUserSetting } = await import("./cloudData.ts");
     const value = await readUserSetting("Fecha_Inicio_Networking");
     const parsed = parseDateSetting(value);
     return parsed?.toISOString() ?? null;
@@ -18,6 +19,14 @@ export function calendarFutureWindowIso(now = new Date()) {
   return {
     from: from.toISOString(),
     until: until.toISOString()
+  };
+}
+
+export function calendarRollingWindowIso(now = new Date()) {
+  const since = new Date(now.getTime() - CALENDAR_RECENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    since: since.toISOString(),
+    until: new Date(now.getTime() + CALENDAR_ROLLING_FUTURE_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString()
   };
 }
 

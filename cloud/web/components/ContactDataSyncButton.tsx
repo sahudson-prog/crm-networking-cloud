@@ -5,9 +5,8 @@ import { applyContactSyncPreview, type ApplyContactSyncPreviewResult, type Apply
 import { buildContactSyncPreview } from "../lib/contactSyncPreview";
 import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
-import { GOOGLE_AUTH_LOGIN_SCOPES, invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
+import { invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import { GOOGLE_CONTACTS_READONLY_SCOPE, GoogleContactsClientError, readGoogleContact } from "../lib/googleContactsClient";
-import { GOOGLE_INTERACTIONS_READONLY_SCOPES } from "../lib/googleInteractionClient";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
@@ -81,11 +80,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
   }, [onNoticeChange]);
 
   async function connectGoogle() {
-    await reconnectGoogle([
-      ...GOOGLE_AUTH_LOGIN_SCOPES,
-      GOOGLE_CONTACTS_READONLY_SCOPE,
-      ...GOOGLE_INTERACTIONS_READONLY_SCOPES.split(" ")
-    ]);
+    await reconnectGoogle([GOOGLE_CONTACTS_READONLY_SCOPE]);
   }
 
   async function reviewContactData() {
