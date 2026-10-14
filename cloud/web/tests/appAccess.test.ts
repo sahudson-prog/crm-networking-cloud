@@ -140,7 +140,8 @@ test("Cuenta distingue loading Google de desconectado", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
 
   assert.match(source, /createInitialAccountState\(true\)/);
-  assert.match(source, /label: "Revisando conexión"/);
+  assert.match(source, /googleConnectionRevalidationUi/);
+  assert.match(source, /Revisando autorización de Google\./);
   assert.match(source, /googleConnectionLoading: false/);
 });
 
