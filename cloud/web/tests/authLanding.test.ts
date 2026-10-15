@@ -23,6 +23,8 @@ test("landing conserva una sola implementacion de los flujos Google y email", ()
   assert.match(authGateSource, /onClick=\{signInWithGoogle\}/);
   assert.match(authGateSource, /<details className="auth-email-fallback">/);
   assert.match(authGateSource, /<summary>Continuar con email<\/summary>/);
+  assert.match(authGateSource, /\{legalIntentChecked \? \([\s\S]*<details className="auth-email-fallback">/);
+  assert.match(authGateSource, /<button aria-disabled="true" className="auth-email-fallback-disabled" disabled type="button">/);
   assert.match(authGateSource, /<form onSubmit=\{signIn\}/);
   assert.match(authGateSource, /<TurnstileWidget/);
 });
@@ -49,13 +51,14 @@ test("landing mantiene una composicion compacta y CTAs equivalentes", () => {
   assert.match(stylesSource, /\.auth-landing-copy\s*\{[\s\S]*width: min\(100%, 800px\)/);
   assert.match(stylesSource, /\.auth-landing-copy h1\s*\{[\s\S]*margin: 0 auto[\s\S]*max-width: 660px[\s\S]*font-size: 44px[\s\S]*letter-spacing: -0\.02em/);
   assert.match(stylesSource, /\.auth-google-button\s*\{[\s\S]*height: 52px[\s\S]*border-radius: 10px[\s\S]*font-size: 15px[\s\S]*font-weight: 600/);
-  assert.match(stylesSource, /\.auth-email-fallback summary\s*\{[\s\S]*min-height: 52px[\s\S]*border-radius: 10px[\s\S]*font-size: 15px[\s\S]*font-weight: 600/);
+  assert.match(stylesSource, /\.auth-email-fallback summary,[\s\S]*\.auth-email-fallback-disabled\s*\{[\s\S]*min-height: 52px[\s\S]*border-radius: 10px[\s\S]*font-size: 15px[\s\S]*font-weight: 600/);
   assert.match(stylesSource, /\.auth-entry-actions\s*\{[\s\S]*gap: 10px/);
   assert.match(stylesSource, /\.auth-google-button \.provider-icon\s*\{[\s\S]*filter: brightness\(0\) invert\(1\)/);
 });
 
 test("fallback email conserva details nativo con marcador oculto y foco visible", () => {
-  assert.match(stylesSource, /\.auth-email-fallback summary\s*\{[\s\S]*list-style: none/);
+  assert.match(stylesSource, /\.auth-email-fallback summary,[\s\S]*\.auth-email-fallback-disabled\s*\{[\s\S]*list-style: none/);
+  assert.match(stylesSource, /\.auth-email-fallback-disabled:disabled\s*\{[\s\S]*cursor: not-allowed/);
   assert.match(stylesSource, /\.auth-email-fallback summary::marker\s*\{[\s\S]*content: ""/);
   assert.match(stylesSource, /\.auth-email-fallback summary::-webkit-details-marker\s*\{[\s\S]*display: none/);
   assert.match(stylesSource, /\.auth-email-fallback summary:focus-visible\s*\{[\s\S]*outline: 2px solid var\(--brand-terracotta\)/);

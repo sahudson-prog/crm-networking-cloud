@@ -1,19 +1,34 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { legalDocuments } from "../content/legalDocuments.ts";
+import { legalDocuments, legalDocumentVersions } from "../content/legalDocuments.ts";
 import { parseLegalDocument } from "../lib/legalDocumentRenderer.ts";
 
 test("los documentos publicos conservan la versión y fecha aprobadas", () => {
   for (const document of Object.values(legalDocuments)) {
-    assert.equal(document.version, "1.0");
+    assert.equal(document.version, "1.1");
     assert.equal(document.effectiveDate, "15 de octubre de 2026");
-    assert.match(document.content, /\*\*Versión 1\.0 — 15 de octubre de 2026\*\*/);
+    assert.match(document.content, /\*\*Versión 1\.1 — 15 de octubre de 2026\*\*/);
   }
   assert.match(legalDocuments.terms.content, /# Términos de Servicio de Coffeecito/);
   assert.match(legalDocuments.privacy.content, /# Política de Privacidad de Coffeecito/);
   assert.match(legalDocuments.privacy.content, /## 8\. Transferencias internacionales/);
+});
+
+test("V1.0 permanece reconstruible exactamente y V1.1 solo reubica la identificación", () => {
+  const historical = legalDocumentVersions["1.0"];
+  assert.equal(sha256(historical.terms.content.trim()), "80323d9b915dd2cb423fe4cfbaed7851675cd070da596117c5bc08214af4cd12");
+  assert.equal(sha256(historical.privacy.content.trim()), "f0ec2f6ecf1ca3f262508942a37f2d057b79449bab20fb6729a5861a6a75fd30");
+  assert.match(historical.terms.content, /Versión 1\.0[\s\S]*Coffeecito es operado por \*\*Sergio Hudson/);
+  assert.match(section(historical.privacy.content, "## 1. Responsable y contacto"), /Sergio Hudson/);
+
+  const currentTermsOpening = legalDocuments.terms.content.slice(0, legalDocuments.terms.content.indexOf("## 1. Aceptación"));
+  assert.doesNotMatch(currentTermsOpening, /Sergio Hudson/);
+  assert.match(section(legalDocuments.terms.content, "## 16. Contacto"), /Sergio Hudson[\s\S]*\/contacto/);
+  assert.doesNotMatch(section(legalDocuments.privacy.content, "## 1. Responsable y contacto"), /Sergio Hudson/);
+  assert.match(section(legalDocuments.privacy.content, "## 15. Contacto"), /Sergio Hudson[\s\S]*responsable de datos[\s\S]*\/contacto/);
 });
 
 test("los documentos conservan sus secciones y la transferencia internacional aprobada", () => {
@@ -71,4 +86,8 @@ function section(content: string, heading: string) {
   const start = content.indexOf(heading);
   const next = content.indexOf("\n## ", start + heading.length);
   return content.slice(start, next === -1 ? undefined : next).trim();
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }

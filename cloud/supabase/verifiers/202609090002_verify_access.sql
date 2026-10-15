@@ -54,7 +54,7 @@ declare
     'contact_objective_assignments'
   ];
   no_authenticated_table_privileges text[] := array[
-    'app_access_allowlist', 'contact_requests'
+    'app_access_allowlist', 'contact_requests', 'legal_acceptances'
   ];
   internal_functions regprocedure[] := array[
     'public.set_updated_at()'::regprocedure,
@@ -79,6 +79,8 @@ declare
     'public.reconcile_ics_focus_participants_v1(boolean)'::regprocedure,
     'public.admin_list_contact_requests_v1(integer)'::regprocedure,
     'public.admin_update_contact_request_v1(uuid,text,text)'::regprocedure,
+    'public.current_user_legal_acceptance_status_v1()'::regprocedure,
+    'public.record_current_user_legal_acceptance_v1()'::regprocedure,
     'public.disconnect_current_user_google_connected_account(uuid)'::regprocedure,
     'public.validate_contact_sync_storage_v0_1()'::regprocedure
   ];
