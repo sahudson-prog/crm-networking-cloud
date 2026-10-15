@@ -16,6 +16,7 @@
     "test:logs": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/syncRunLog.test.ts tests/externalInteractionReadDiagnostics.test.ts",
     "test:system-access": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/systemAccess.test.ts",
     "test:contact-requests": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/contactRequests.test.ts",
+    "test:legal": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/legalPages.test.ts",
     "test:onboarding": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/onboarding.test.ts",
     "test:ics": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/icsImport.test.ts tests/icsImportReview.test.ts tests/icsImportData.test.ts tests/icsImportApply.test.ts tests/icsImportApplySql.test.ts tests/icsImportPanel.test.ts tests/interactionSchemaCompatibility.test.ts",
     "test:vcard": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/vcardImport.test.ts",
