@@ -49,14 +49,25 @@ test("administracion de maestros habilita Sistema y HeadHunter solamente", () =>
   assert.equal(hasSystemSurfaceAccess(granted, "maintenance"), false);
 });
 
-test("las tres capabilities administrativas habilitan todas las superficies", () => {
+test("administracion de solicitudes habilita solo su bandeja de Sistema", () => {
+  const granted: SystemCapabilityCode[] = ["admin.manage_contact_requests"];
+
+  assert.equal(hasSystemSurfaceAccess(granted, "system"), true);
+  assert.equal(hasSystemSurfaceAccess(granted, "requests"), true);
+  assert.equal(hasSystemSurfaceAccess(granted, "maintenance"), false);
+  assert.equal(hasSystemSurfaceAccess(granted, "logs"), false);
+  assert.equal(hasSystemSurfaceAccess(granted, "headhunters"), false);
+});
+
+test("las capabilities administrativas habilitan todas las superficies", () => {
   const granted: SystemCapabilityCode[] = [
     "admin.view_diagnostics",
     "admin.manage_access",
+    "admin.manage_contact_requests",
     "admin.manage_global_masters"
   ];
 
-  for (const surface of ["system", "design", "logs", "maintenance", "headhunters"] as const) {
+  for (const surface of ["system", "design", "logs", "maintenance", "headhunters", "requests"] as const) {
     assert.equal(hasSystemSurfaceAccess(granted, surface), true);
   }
 });
@@ -72,6 +83,7 @@ test("resolucion pendiente o con error falla cerrada", () => {
   const result = resolveSystemAccessChecks([
     accessCheck("admin.view_diagnostics", "allowed"),
     accessCheck("admin.manage_access", "error"),
+    accessCheck("admin.manage_contact_requests", "denied"),
     accessCheck("admin.manage_global_masters", "denied")
   ]);
   assert.equal(result.status, "error");
@@ -84,7 +96,8 @@ test("todas las rutas de Sistema autentican y guardan antes de montar contenido 
     ["../app/sistema/diseno/page.tsx", "design", "DesignSystemPreview"],
     ["../app/sistema/logs/page.tsx", "logs", "SyncLogsPage"],
     ["../app/sistema/mantencion/page.tsx", "maintenance", "AdminMaintenancePage"],
-    ["../app/sistema/headhunters/page.tsx", "headhunters", "HeadhunterCompanyMasterPage"]
+    ["../app/sistema/headhunters/page.tsx", "headhunters", "HeadhunterCompanyMasterPage"],
+    ["../app/sistema/solicitudes/page.tsx", "requests", "ContactRequestsAdminPage"]
   ] as const;
 
   for (const [path, surface, privateComponent] of routes) {

@@ -9,6 +9,7 @@ const migrations = [
   readSql('../migrations/202609090004_application_rpcs.sql'),
   readSql('../migrations/202610120001_require_ics_focus_contacts_v1.sql'),
   readSql('../migrations/202610140001_enforce_ics_networking_start_v1.sql'),
+  readSql('../migrations/202610150001_contact_requests_v1.sql'),
 ];
 
 function expectedNames(listName) {
@@ -37,6 +38,7 @@ test('every Coffeecito SECURITY DEFINER function is in the scoped verifier inven
     ...authenticated,
     'hook_enforce_app_access_allowlist',
     'finalize_google_connected_account_verified',
+    'submit_contact_request_v1',
   ];
   const defined = [...new Set(migrations.flatMap(migrationDefinerNames))];
 

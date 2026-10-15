@@ -30,6 +30,8 @@ Datos globales: catálogos compartidos por la app, como conectores disponibles, 
 
 Datos técnicos de soporte: estructuras para sincronización, diagnóstico, acciones, auditoría, métricas, límites y exportaciones. Algunas son centrales para operación interna, pero no necesariamente representan una funcionalidad visible completa.
 
+Solicitudes de contacto: `contact_requests` conserva el nombre opcional, email, motivo, submotivo de privacidad opcional, mensaje, estados operativos y de verificación de identidad, y un `user_id` opcional validado server-side cuando existe sesión. No guarda IP ni User-Agent. La tabla no expone acceso directo a roles cliente; su captura y administración usan RPCs estrechas.
+
 ## Usuarios y configuración
 
 `profiles` representa el perfil interno asociado a un usuario de Supabase Auth. Su identidad principal es `id`, que referencia `auth.users(id)`. Conserva datos básicos como `email` y `full_name`.
