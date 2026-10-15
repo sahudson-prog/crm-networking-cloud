@@ -28,6 +28,7 @@ import {
 } from "./syncOrchestrator.ts";
 import type { ExternalInteractionInput } from "./externalInteractionSync.ts";
 import type { ContactRow } from "./readModel.ts";
+import { latestIsoInstant } from "./syncDate.ts";
 import { supabase } from "./supabaseClient.ts";
 
 const GOOGLE_PROVIDER = "google";
@@ -118,6 +119,7 @@ export type ReviewGoogleGmailContactBackfillInput = {
   contactId: string;
   maxMailMessages?: number;
   maxPages?: number;
+  minimumOccurredAt?: string | null;
   now?: string;
   userEmail: string;
 };
@@ -150,6 +152,7 @@ export type ReviewGoogleGmailFocusedSyncInput = {
   connectedAccountId?: string | null;
   maxMailMessages?: number;
   maxPages?: number;
+  minimumOccurredAt?: string | null;
   now?: string;
   userEmail: string;
 };
@@ -304,6 +307,7 @@ export async function syncGoogleInteractions(
               connectedAccountId: input.connectedAccountId,
               maxMailMessages: input.maxMailMessages,
               maxPages: input.maxPages,
+              minimumOccurredAt: input.gmailSince,
               userEmail: input.userEmail
             }, deps, contacts)
           : await applyGoogleGmailFocusedSync({
@@ -324,6 +328,7 @@ export async function syncGoogleInteractions(
               contactId,
               maxMailMessages: input.maxMailMessages,
               maxPages: input.maxPages,
+              minimumOccurredAt: input.gmailSince,
               now: input.contactRecentNow,
               userEmail: input.userEmail
             }, deps, contacts)
@@ -713,7 +718,7 @@ export async function reviewGoogleGmailFocusedSync(
     mailRead.messages
       .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
       .filter((item): item is ExternalInteractionInput => Boolean(item)),
-    recoverySince
+    latestIsoInstant(recoverySince, input.minimumOccurredAt)
   );
   const preview = await buildInteractionSyncPreview(deps, {
     items,
@@ -837,6 +842,7 @@ export async function reviewGoogleGmailContactBackfill(
   const contacts = appContacts ?? await deps.readAppContacts();
   const contact = contacts.find((item) => item.id === input.contactId && item.is_active);
   const window = contactBackfillWindow(input.now);
+  const minimumOccurredAt = latestIsoInstant(window.since, input.minimumOccurredAt) ?? window.since;
   const warnings: string[] = [];
   const requestGovernor = deps.createMailRequestGovernor();
   let mailRead = emptyContactBackfillRead();
@@ -856,7 +862,7 @@ export async function reviewGoogleGmailContactBackfill(
         maxPages: input.maxPages,
         queries,
         requestGovernor,
-        since: window.since
+        since: minimumOccurredAt
       });
     }
   }
@@ -867,7 +873,7 @@ export async function reviewGoogleGmailContactBackfill(
       mailRead.messages
         .map((message) => mapGmailMessageToExternalInteraction({ contactsByEmail, message, userEmail: input.userEmail }))
         .filter((item): item is ExternalInteractionInput => Boolean(item)),
-      window.since
+      minimumOccurredAt
     ),
     window.until
   );
@@ -888,7 +894,7 @@ export async function reviewGoogleGmailContactBackfill(
       contactIds: [input.contactId],
       limit: input.maxMailMessages ?? null,
       reason: "google_gmail_contact_backfill",
-      since: window.since,
+      since: minimumOccurredAt,
       until: window.until
     },
     source: "google_gmail_contact_backfill"
@@ -908,7 +914,7 @@ export async function reviewGoogleGmailContactBackfill(
     pagesRead: mailRead.pagesRead,
     preview,
     resultSizeEstimate: mailRead.resultSizeEstimate,
-    since: window.since,
+    since: minimumOccurredAt,
     truncatedBy: [...(mailRead.truncatedBy ?? [])],
     until: window.until,
     warnings
@@ -983,7 +989,7 @@ async function readFocusedMailRecovery(
   requestGovernor: GoogleGmailRequestGovernor
 ) {
   const candidateHistoryId = await deps.readMailProfileHistoryId({ accessToken: input.accessToken, requestGovernor });
-  const recoverySince = focusedRecoverySince(input.now);
+  const recoverySince = latestIsoInstant(focusedRecoverySince(input.now), input.minimumOccurredAt);
   const queries = gmailQueriesForScopedContacts(focusedContacts);
   const mailRead = queries.length
     ? await readMailForQueries(deps, {
@@ -1739,7 +1745,7 @@ function filterExternalInteractionsFromDate(items: ExternalInteractionInput[], m
   if (minTime === null) return items;
   return items.filter((item) => {
     const itemTime = parsedTime(item.occurredAt);
-    return itemTime === null || itemTime >= minTime;
+    return itemTime !== null && itemTime >= minTime;
   });
 }
 

@@ -770,6 +770,13 @@ textarea::placeholder {
   gap: 8px;
 }
 
+.account-import-limits {
+  margin: 0;
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .account-data-block .account-source-row,
 .account-data-block .connected-service-action {
   grid-template-columns: minmax(0, 1fr) auto;

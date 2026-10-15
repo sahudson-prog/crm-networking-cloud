@@ -31,7 +31,7 @@ import {
   ACTIVITY_SYNC_MAX_MAIL_MESSAGES,
   ACTIVITY_SYNC_MAX_MAIL_PAGES
 } from "../lib/interactionSyncLimits";
-import { calendarFutureWindowIso, readNetworkingStartIso } from "../lib/syncDate";
+import { calendarFutureWindowIso, requireNetworkingStartIso } from "../lib/syncDate";
 import { supabase } from "../lib/supabaseClient";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
 import { loadActivitySyncLimitValues, type ActivitySyncLimitValues } from "../lib/usageLimitSettings";
@@ -371,7 +371,7 @@ export function GoogleInteractionsSyncPanel({
         });
       };
       logStep("Inicio", "Revision historica solicitada.", "running");
-      const historicalStart = await readNetworkingStartIso();
+      const historicalStart = await requireNetworkingStartIso();
       const syncLimits = await loadActivitySyncLimitValues();
       const reviewed = await reviewGoogleGmailHistoricalBootstrap({
         accessToken: googleConnection.accessToken,
@@ -579,7 +579,7 @@ export function GoogleInteractionsSyncPanel({
     logStep("Inicio", dryRun ? "Revision solicitada." : `${externalIds.length} elemento(s) seleccionados.`, "running");
 
     try {
-      const historicalStart = await readNetworkingStartIso();
+      const historicalStart = await requireNetworkingStartIso();
       const calendarFutureWindow = calendarFutureWindowIso();
       const syncLimits = await loadActivitySyncLimitValues();
       logStep("Parametros", `Fecha inicio: ${formatLogDate(historicalStart)}.`, "info", {

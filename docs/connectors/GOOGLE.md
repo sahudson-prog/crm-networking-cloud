@@ -121,10 +121,10 @@ Lectura incremental:
 - avanza el cursor al `historyId` devuelto por la lectura incremental completa únicamente después de aplicar sin fallos todos los correos Foco elegibles.
 El cursor Gmail persistido por la app es `historyId`.
 Si una carga histórica no trae mensajes, el cliente puede leer el perfil Gmail para obtener un `historyId` base.
-Si el sync global no tiene cursor, el cursor pertenece a otra cuenta o Gmail lo informa vencido, captura primero el `historyId` actual y recupera solamente los últimos 14 días para los emails Foco. Ese recovery no usa la fecha de inicio de networking ni una etiqueta Gmail, y guarda el baseline capturado solo después de una lectura completa y un Apply exitoso. Sin contactos Foco o emails utilizables, el recovery no recorre mensajes y puede inicializar el baseline como no-op exitoso.
+Si el sync global no tiene cursor, el cursor pertenece a otra cuenta o Gmail lo informa vencido, captura primero el `historyId` actual y recupera como máximo los últimos 14 días para los emails Foco, respetando además una fecha de inicio de networking posterior si está configurada. No usa una etiqueta Gmail y guarda el baseline capturado solo después de una lectura completa y un Apply exitoso. Sin contactos Foco o emails utilizables, el recovery no recorre mensajes y puede inicializar el baseline como no-op exitoso.
 El botón global del Shell ejecuta Review y Apply como una sola acción sin preview visible. El Historical Bootstrap de Cuenta conserva Review, selección y Apply explícitos.
-En la ficha, Gmail ejecuta un backfill directo de los últimos 14 días para todos los emails utilizables del contacto, únicamente cuando está marcado como Foco. Conserva el snapshot normalizado entre Review y Apply, no muestra preview, no usa `history.list`, etiqueta histórica ni `Fecha_Inicio_Networking`, y no lee ni escribe cursores Gmail globales o `contact:<contactId>`.
-En la ficha, Calendar consulta directamente una ventana móvil desde 7 días antes de la corrida hasta 30 días después para los emails utilizables del contacto Foco. No lee ni escribe cursores `contact:<contactId>` y no modifica la frescura global.
+En la ficha, Gmail ejecuta un backfill directo de como máximo los últimos 14 días para todos los emails utilizables del contacto, únicamente cuando está marcado como Foco. Una fecha de inicio de networking posterior acorta ese período. Conserva el snapshot normalizado entre Review y Apply, no muestra preview, no usa `history.list` ni etiqueta histórica, y no lee ni escribe cursores Gmail globales o `contact:<contactId>`.
+En la ficha, Calendar consulta directamente una ventana móvil de como máximo 7 días antes de la corrida hasta 30 días después para los emails utilizables del contacto Foco; una fecha de inicio de networking posterior acorta el límite inferior. No lee ni escribe cursores `contact:<contactId>` y no modifica la frescura global.
 Datos leídos y usados:
 - `messageId`;
 - `threadId`;
@@ -146,7 +146,7 @@ Fuera del Historical Bootstrap, un correo solo se convierte en interacción si p
 ## Calendar
 Calendar usa Google Calendar API.
 El calendario actual es `primary`.
-El sync periódico manual global consulta solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha consulta solo el contacto Foco actual. Ambos leen una vez el calendario `primary` dentro de una ventana móvil desde 7 días antes de la corrida hasta 30 días después, paginan esa lectura y filtran localmente por asistentes u organizador que coincidan con emails Foco. La cantidad de requests depende de las páginas de la ventana y no del número de emails Foco. No usan `syncToken` ni `Fecha_Inicio_Networking`, y deduplican eventos por ID antes de aplicar idempotentemente.
+El sync periódico manual global consulta solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha consulta solo el contacto Foco actual. Ambos leen una vez el calendario `primary` dentro de una ventana móvil de como máximo 7 días antes de la corrida hasta 30 días después; una fecha de inicio de networking posterior acorta el límite inferior. Paginan esa lectura y filtran localmente por asistentes u organizador que coincidan con emails Foco. La cantidad de requests depende de las páginas de la ventana y no del número de emails Foco. No usan `syncToken` y deduplican eventos por ID antes de aplicar idempotentemente.
 Lectura por ventana:
 - usa Events API;
 - usa `singleEvents=true`;

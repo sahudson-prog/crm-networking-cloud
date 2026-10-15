@@ -1,0 +1,18 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:Google-Case-Sensitive@example.com
+DTSTART:20260915T130000Z
+DTEND:20260915T140000Z
+SUMMARY:Café con equipo\, producto
+DESCRIPTION:Primera línea\nsegunda línea con texto muy largo que se dobla para probar el line folding de exportaciones de Google y continúa en la siguient
+ e línea sin perder contenido.
+LOCATION:Café Central\; Providencia
+ORGANIZER;CN=Jefa:mailto:BOSS@EXAMPLE.COM
+ATTENDEE;CN=Ada;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:Ada@Example.com
+ATTENDEE;CN=Grace;ROLE=OPT-PARTICIPANT:mailto:grace@example.com
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR

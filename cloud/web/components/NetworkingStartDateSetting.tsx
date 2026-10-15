@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { readNetworkingStartIso } from "../lib/syncDate";
+import {
+  networkingStartBounds,
+  networkingStartErrorMessage,
+  networkingStartStatus,
+  readNetworkingStartStatus
+} from "../lib/syncDate";
 import { saveUserSetting } from "../lib/userSettingsActions";
 import { Button } from "./ui/Button";
 
@@ -21,13 +26,13 @@ export function NetworkingStartDateSetting({ onSaved }: NetworkingStartDateSetti
 
   useEffect(() => {
     let active = true;
-    readNetworkingStartIso()
-      .then((value) => {
+    readNetworkingStartStatus()
+      .then((status) => {
         if (!active) return;
-        const dateValue = toDateInputValue(value);
+        const dateValue = status.configuredDate ?? "";
         setDraftDate(dateValue);
         setSavedDate(dateValue);
-        setError("");
+        setError(status.valid ? "" : networkingStartErrorMessage(status));
       })
       .catch((loadError) => {
         if (!active) return;
@@ -43,7 +48,9 @@ export function NetworkingStartDateSetting({ onSaved }: NetworkingStartDateSetti
   }, []);
 
   const changed = draftDate !== savedDate;
-  const canSave = Boolean(draftDate) && changed && !loading && !saving;
+  const draftStatus = networkingStartStatus(draftDate);
+  const canSave = draftStatus.valid && changed && !loading && !saving;
+  const bounds = networkingStartBounds();
 
   async function saveDate() {
     if (!canSave) return;
@@ -76,7 +83,18 @@ export function NetworkingStartDateSetting({ onSaved }: NetworkingStartDateSetti
       <div className="account-setting-row">
         <label className="field account-setting-date">
           <span>Fecha de inicio</span>
-          <input disabled={loading || saving} type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} />
+          <input
+            disabled={loading || saving}
+            max={bounds.maximumDate}
+            min={bounds.minimumDate}
+            type="date"
+            value={draftDate}
+            onChange={(event) => {
+              setDraftDate(event.target.value);
+              setError("");
+              setMessage("");
+            }}
+          />
         </label>
         <Button disabled={!canSave} icon="check" onClick={saveDate} tone="primary">
           {saving ? "Guardando..." : "Guardar fecha"}
@@ -87,11 +105,4 @@ export function NetworkingStartDateSetting({ onSaved }: NetworkingStartDateSetti
       {error ? <p className="form-error">{error}</p> : null}
     </div>
   );
-}
-
-function toDateInputValue(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
 }

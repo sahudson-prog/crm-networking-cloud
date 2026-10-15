@@ -585,10 +585,11 @@ test("ActivitySyncButton ejecuta servicios independientes conservando snapshots 
   assert.match(source, /gmailContactSnapshot: input\.dryRun \? null : input\.gmailContactSnapshot/);
   assert.match(source, /calendarRollingSnapshot: reviewed\.result\.calendarRollingSnapshot/);
   assert.match(source, /calendarRollingSnapshot: input\.dryRun \? null : input\.calendarRollingSnapshot/);
-  assert.match(source, /gmailSince: null/);
+  assert.match(source, /const networkingStart = await requireNetworkingStartIso\(\)/);
+  assert.match(source, /gmailSince: networkingStart/);
   assert.match(source, /calendarRollingWindowSync: input\.includeCalendar \? \(variant === "focus_incremental" \? "global" : "contact"\)/);
   assert.match(source, /const calendarWindow = input\.includeCalendar \? calendarRollingWindowIso\(\) : null/);
-  assert.doesNotMatch(source, /readNetworkingStartIso/);
+  assert.match(source, /const calendarTimeMin = latestIsoInstant\(calendarWindow\?\.since, networkingStart\)/);
   assert.match(source, /input\.includeCalendar[\s\S]*syncLimits\.calendarPages \|\| ACTIVITY_SYNC_MAX_CALENDAR_PAGES[\s\S]*syncLimits\.mailPages \|\| ACTIVITY_SYNC_MAX_MAIL_PAGES/);
   assert.doesNotMatch(source, /SyncPreviewDialog/);
   assert.match(source, /scope === "global" && allActivitySyncServicesSucceeded\(outcomes\)/);

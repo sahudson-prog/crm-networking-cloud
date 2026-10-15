@@ -22,6 +22,7 @@ import {
   GOOGLE_DATA_SESSION_REQUIRED_MESSAGE,
   googleDataSessionEligibility
 } from "../lib/googleDataSessionGuard";
+import { isIcsImportEnabled } from "../lib/icsImportFeature";
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
@@ -33,6 +34,7 @@ import { supabase } from "../lib/supabaseClient";
 import { ContactDuplicateReviewPanel } from "./ContactDuplicateReviewPanel";
 import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
+import { IcsImportPanel } from "./IcsImportPanel";
 import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
 import { NetworkingStartDateSetting } from "./NetworkingStartDateSetting";
 import { useShellActions } from "./Shell";
@@ -408,7 +410,9 @@ function GoogleImportSection({
 
           {includeOtherSources ? (
             <AccountDataBlock title="Citas">
-              <SourcePlaceholder icon="file" title="iCalendar (.ics)" />
+              {isIcsImportEnabled()
+                ? <IcsImportPanel />
+                : <SourcePlaceholder icon="file" title="iCalendar (.ics)" />}
             </AccountDataBlock>
           ) : null}
 

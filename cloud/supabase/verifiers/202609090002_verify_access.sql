@@ -75,6 +75,8 @@ declare
     'public.admin_get_app_access_diagnostic(uuid)'::regprocedure,
     'public.merge_contacts_deep(uuid,uuid[],jsonb,text)'::regprocedure,
     'public.reset_current_user_app_data_v0_1(text)'::regprocedure,
+    'public.apply_ics_import_v1(jsonb)'::regprocedure,
+    'public.reconcile_ics_focus_participants_v1(boolean)'::regprocedure,
     'public.disconnect_current_user_google_connected_account(uuid)'::regprocedure,
     'public.validate_contact_sync_storage_v0_1()'::regprocedure
   ];

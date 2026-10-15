@@ -212,6 +212,7 @@ La site key pública se configura en Vercel Production y el secret se configura 
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`, alternativa de compatibilidad
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+- `NEXT_PUBLIC_ICS_IMPORT_ENABLED`, feature gate público del importador histórico `.ics`; debe permanecer ausente o en `false` hasta aplicar y verificar su RPC en el ambiente correspondiente.
 
 Las variables `NEXT_PUBLIC_*` son visibles al navegador. No son secrets, pero una combinación DEV/PROD incorrecta puede conectar un build al ambiente equivocado.
 
