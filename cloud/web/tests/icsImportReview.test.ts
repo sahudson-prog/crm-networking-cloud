@@ -364,6 +364,19 @@ test("all-day queda omitido solo como recuento agregado", () => {
   assert.match(icsReviewDescription(result), /1 cita de día completo fue omitida/);
 });
 
+test("iCalendar conserva tabs propios vacíos cuando el archivo solo tiene omisiones agregadas", () => {
+  const allDay = `BEGIN:VEVENT\r\nUID:omitted-tab@example.com\r\nDTSTART;VALUE=DATE:20261008\r\nDTEND;VALUE=DATE:20261009\r\nSUMMARY:Offsite\r\nATTENDEE:mailto:ada@example.com\r\nEND:VEVENT`;
+  const result = snapshot({ source: allDay });
+  const previewSource = readFileSync(new URL("../components/IcsImportPreviewDialog.tsx", import.meta.url), "utf8");
+  const syncPreviewSource = readFileSync(new URL("../components/SyncPreviewDialog.tsx", import.meta.url), "utf8");
+
+  assert.deepEqual(result.changes, []);
+  assert.match(previewSource, /ICS_PREVIEW_TABS\.filter\(\(tab\) => snapshot\?\.changes\.some\(tab\.matches\)\)/);
+  assert.match(previewSource, /tabs=\{tabs\}/);
+  assert.match(syncPreviewSource, /if \(customTabs !== undefined\) return \[\.\.\.customTabs\];/);
+  assert.doesNotMatch(syncPreviewSource, /customTabs\?\.length/);
+});
+
 test("floating queda omitido de forma agregada y no inventa timezone", () => {
   const result = snapshot({
     source: event({ uid: "floating@example.com", start: "20261008T100000", end: "20261008T110000" })

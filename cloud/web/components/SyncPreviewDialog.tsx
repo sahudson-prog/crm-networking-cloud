@@ -86,7 +86,7 @@ export function SyncPreviewDialog({
   const [mergeDecisions, setMergeDecisions] = useState<Record<string, ContactMergeResult>>({});
   const wasOpenRef = useRef(false);
   const tabsConfig = useMemo(() => {
-    if (customTabs?.length) return [...customTabs];
+    if (customTabs !== undefined) return [...customTabs];
     const allowed = new Set(tabKeys ?? PREVIEW_TABS.map((tab) => tab.key));
     return PREVIEW_TABS
       .filter((tab) => allowed.has(tab.key))
