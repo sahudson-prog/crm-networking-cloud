@@ -23,6 +23,16 @@ import {
 } from "../lib/authCaptcha";
 import { clearRememberedGoogleRequestedScopes, signInWithGoogleForAuth } from "../lib/googleAuthSession";
 import { cleanLegacyImplicitAuthFragment, prepareAuthCallback } from "../lib/authCallback";
+import {
+  clearLegalAcceptanceIntent,
+  hasCurrentLegalAcceptanceIntent,
+  recordCurrentLegalAcceptance,
+  rememberLegalAcceptanceIntent,
+  resolveLegalAcceptanceForSession,
+  type LegalAcceptanceGateState
+} from "../lib/legalAcceptance";
+import { LegalAcceptanceCheckbox } from "./LegalAcceptanceCheckbox";
+import { LegalAcceptanceGate } from "./LegalAcceptanceGate";
 import { TurnstileWidget } from "./TurnstileWidget";
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -36,9 +46,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
   const [signingInWithGoogle, setSigningInWithGoogle] = useState(false);
+  const [legalIntentChecked, setLegalIntentChecked] = useState(false);
+  const [legalGateChecked, setLegalGateChecked] = useState(false);
+  const [acceptingLegal, setAcceptingLegal] = useState(false);
+  const [legalAcceptance, setLegalAcceptance] = useState<LegalAcceptanceGateState>({ status: "checking" });
   const accessRequestId = useRef(0);
   const accessRef = useRef<AppAccessGateState>({ status: "checking" });
   const sessionRef = useRef<Session | null>(null);
+  const legalAcceptanceRef = useRef<LegalAcceptanceGateState>({ status: "checking" });
+  const legalUserIdRef = useRef("");
 
   function commitAccess(nextAccess: AppAccessGateState) {
     accessRef.current = nextAccess;
@@ -50,9 +66,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setSession(nextSession);
   }
 
+  function commitLegalAcceptance(nextAcceptance: LegalAcceptanceGateState) {
+    legalAcceptanceRef.current = nextAcceptance;
+    setLegalAcceptance(nextAcceptance);
+  }
+
   useEffect(() => {
     const cleanUrl = cleanLegacyImplicitAuthFragment(window.location.href);
     if (cleanUrl) window.history.replaceState(window.history.state, "", cleanUrl);
+    setLegalIntentChecked(hasCurrentLegalAcceptanceIntent(window.sessionStorage));
 
     if (!supabase) {
       setSessionLoading(false);
@@ -75,6 +97,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
       if (!currentSession || !supabase) {
         commitAccess(resetAppAccessForLogout());
+        legalUserIdRef.current = "";
+        commitLegalAcceptance({ status: "checking" });
         return;
       }
 
@@ -87,6 +111,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
         if (preservePrivateUi && resolution.status === "error") {
           setMessage(resolution.message);
         }
+        if (nextAccess.status !== "allowed") {
+          legalUserIdRef.current = "";
+          commitLegalAcceptance({ status: "checking" });
+          return;
+        }
+
+        const preserveAcceptedLegalState = preservePrivateUi
+          && legalAcceptanceRef.current.status === "accepted"
+          && legalUserIdRef.current === currentSession.user.id;
+        if (preserveAcceptedLegalState) return;
+
+        commitLegalAcceptance({ status: "checking" });
+        const nextLegalAcceptance = await resolveLegalAcceptanceForSession(supabase, window.sessionStorage);
+        if (!active || requestId !== accessRequestId.current) return;
+        legalUserIdRef.current = currentSession.user.id;
+        commitLegalAcceptance(nextLegalAcceptance);
       } catch {
         if (!active || requestId !== accessRequestId.current) return;
         if (preservePrivateUi) {
@@ -131,6 +171,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
+    if (!legalIntentChecked) {
+      setMessage("Debes aceptar los Términos y confirmar la lectura de la Política de Privacidad para continuar.");
+      return;
+    }
     if (!canSubmitPasswordlessEmail({
       captchaStatus,
       captchaToken,
@@ -161,6 +205,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   async function signInWithGoogle() {
     if (!supabase) return;
+    if (!legalIntentChecked) {
+      setMessage("Debes aceptar los Términos y confirmar la lectura de la Política de Privacidad para continuar.");
+      return;
+    }
     setSigningInWithGoogle(true);
     setMessage("Abriendo Google...");
     try {
@@ -192,6 +240,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   async function signOut() {
     if (!supabase) return;
     clearRememberedGoogleRequestedScopes();
+    clearLegalAcceptanceIntent(window.sessionStorage);
+    setLegalIntentChecked(false);
+    setLegalGateChecked(false);
     accessRequestId.current += 1;
     setSigningOut(true);
     setMessage("");
@@ -206,7 +257,31 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     commitSession(null);
     commitAccess(resetAppAccessForLogout());
+    legalUserIdRef.current = "";
+    commitLegalAcceptance({ status: "checking" });
     setSigningOut(false);
+  }
+
+  function updateLegalIntent(checked: boolean) {
+    setLegalIntentChecked(checked);
+    rememberLegalAcceptanceIntent(window.sessionStorage, checked);
+    if (checked) setMessage("");
+  }
+
+  async function acceptLegalContract() {
+    if (!supabase || !legalGateChecked || acceptingLegal) return;
+    setAcceptingLegal(true);
+    const resolution = await recordCurrentLegalAcceptance(supabase);
+    if (resolution.status === "accepted") {
+      clearLegalAcceptanceIntent(window.sessionStorage);
+      commitLegalAcceptance(resolution);
+      setLegalGateChecked(false);
+    } else {
+      commitLegalAcceptance(resolution.status === "required"
+        ? { status: "error", message: "No se pudo registrar la aceptación legal." }
+        : resolution);
+    }
+    setAcceptingLegal(false);
   }
 
   async function retryAccessCheck() {
@@ -218,13 +293,25 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const resolution = await resolveAppAccessForSession(session, supabase);
       if (requestId !== accessRequestId.current) return;
       commitAccess(resolution);
+      if (resolution.status === "allowed") {
+        commitLegalAcceptance({ status: "checking" });
+        const nextLegalAcceptance = await resolveLegalAcceptanceForSession(supabase, window.sessionStorage);
+        if (requestId !== accessRequestId.current) return;
+        legalUserIdRef.current = session.user.id;
+        commitLegalAcceptance(nextLegalAcceptance);
+      }
     } catch {
       if (requestId !== accessRequestId.current) return;
       commitAccess({ status: "error", message: "No se pudo revisar el acceso." });
     }
   }
 
-  if (sessionLoading || signingOut || (session && access.status === "checking")) {
+  if (
+    sessionLoading
+    || signingOut
+    || (session && access.status === "checking")
+    || (session && access.status === "allowed" && legalAcceptance.status === "checking")
+  ) {
     return <main className="app-shell">Cargando...</main>;
   }
 
@@ -255,9 +342,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
             ) : null}
             {!supabaseConfigError ? (
               <div className="auth-entry-actions">
+                <LegalAcceptanceCheckbox
+                  checked={legalIntentChecked}
+                  id="pre-auth-legal-acceptance"
+                  onChange={updateLegalIntent}
+                />
                 <button
                   className="button primary auth-google-button"
-                  disabled={signingInWithGoogle}
+                  disabled={signingInWithGoogle || !legalIntentChecked}
                   onClick={signInWithGoogle}
                   type="button"
                 >
@@ -265,44 +357,52 @@ export function AuthGate({ children }: { children: ReactNode }) {
                   <span>{signingInWithGoogle ? "Abriendo Google..." : "Continuar con Google"}</span>
                 </button>
                 {message ? <span className="meta auth-entry-message">{message}</span> : null}
-                <details className="auth-email-fallback">
-                  <summary>Continuar con email</summary>
-                  <form onSubmit={signIn} className="grid" style={{ marginTop: 12 }}>
-                    <input
-                      className="search"
-                      type="email"
-                      required
-                      placeholder="tu correo"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                    />
-                    {TURNSTILE_SITE_KEY ? (
-                      <TurnstileWidget
-                        key={turnstileResetKey}
-                        onError={handleCaptchaError}
-                        onExpired={handleCaptchaExpired}
-                        onResolved={handleCaptchaResolved}
-                        siteKey={TURNSTILE_SITE_KEY}
+                {legalIntentChecked ? (
+                  <details className="auth-email-fallback">
+                    <summary>Continuar con email</summary>
+                    <form onSubmit={signIn} className="grid" style={{ marginTop: 12 }}>
+                      <input
+                        className="search"
+                        type="email"
+                        required
+                        placeholder="tu correo"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
                       />
-                    ) : (
-                      <span className="auth-captcha-message">{captchaStatusMessage("not_configured")}</span>
-                    )}
-                    <button
-                      className="button secondary"
-                      disabled={!canSubmitPasswordlessEmail({
-                        captchaStatus,
-                        captchaToken,
-                        siteKey: TURNSTILE_SITE_KEY
-                      })}
-                      type="submit"
-                    >
-                      Enviar link de acceso
+                      {TURNSTILE_SITE_KEY ? (
+                        <TurnstileWidget
+                          key={turnstileResetKey}
+                          onError={handleCaptchaError}
+                          onExpired={handleCaptchaExpired}
+                          onResolved={handleCaptchaResolved}
+                          siteKey={TURNSTILE_SITE_KEY}
+                        />
+                      ) : (
+                        <span className="auth-captcha-message">{captchaStatusMessage("not_configured")}</span>
+                      )}
+                      <button
+                        className="button secondary"
+                        disabled={!canSubmitPasswordlessEmail({
+                          captchaStatus,
+                          captchaToken,
+                          siteKey: TURNSTILE_SITE_KEY
+                        })}
+                        type="submit"
+                      >
+                        Enviar link de acceso
+                      </button>
+                      {TURNSTILE_SITE_KEY && captchaStatus !== "resolved" ? (
+                        <span className="auth-captcha-message">{captchaStatusMessage(captchaStatus)}</span>
+                      ) : null}
+                    </form>
+                  </details>
+                ) : (
+                  <div className="auth-email-fallback">
+                    <button aria-disabled="true" className="auth-email-fallback-disabled" disabled type="button">
+                      Continuar con email
                     </button>
-                    {TURNSTILE_SITE_KEY && captchaStatus !== "resolved" ? (
-                      <span className="auth-captcha-message">{captchaStatusMessage(captchaStatus)}</span>
-                    ) : null}
-                  </form>
-                </details>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -352,6 +452,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </div>
         </section>
       </main>
+    );
+  }
+
+  if (legalAcceptance.status !== "accepted") {
+    return (
+      <LegalAcceptanceGate
+        accepting={acceptingLegal}
+        checked={legalGateChecked}
+        error={legalAcceptance.status === "error" ? legalAcceptance.message : undefined}
+        onAccept={() => void acceptLegalContract()}
+        onCheckedChange={setLegalGateChecked}
+        onSignOut={() => void signOut()}
+      />
     );
   }
 

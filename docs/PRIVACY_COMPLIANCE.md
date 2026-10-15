@@ -122,7 +122,7 @@ OAuth Google confirma autorización técnica para scopes de proveedor. No equiva
 
 El Before User Created Auth Hook de Supabase, cuando se active, usará la allowlist para impedir altas no autorizadas. Ese bloqueo no revela el contenido de la allowlist al usuario.
 
-Las páginas públicas \`/terminos\` y \`/privacidad\` publican la versión vigente 1.0, de 15 de octubre de 2026. \`/contacto\` es el canal público operativo para consultas, soporte y solicitudes de privacidad. Los previews, confirmaciones UI y prompts destructivos son controles de producto. No se observa todavía un registro formal de aceptación, versiones aceptadas o historial de consentimiento.
+Las páginas públicas \`/terminos\` y \`/privacidad\` publican la versión vigente 1.1, de 15 de octubre de 2026, y conservan V1.0 como contenido histórico reconstruible. \`/contacto\` es el canal público operativo para consultas, soporte y solicitudes de privacidad. El acceso privado exige aceptación contractual explícita de Términos y reconocimiento de lectura de la Política vigente. La evidencia persistida incluye usuario, timestamp server-side, método \`explicit_web\`, versiones y hashes SHA-256 exactos; no incluye IP, User-Agent ni fingerprint. El reconocimiento de la Política no se modela como consentimiento general para todos los tratamientos.
 
 No se observó una política automática de retención, expiración o limpieza por antigüedad para contactos, interacciones, logs, diagnósticos o auditoría.
 
@@ -150,7 +150,7 @@ No existe revocación real contra Google al desvincular desde la app.
 
 No existe retención automática observada.
 
-No existe consentimiento versionado observado.
+No existe todavía un modelo separado de consentimientos opcionales por finalidad; el registro vigente cubre aceptación contractual y reconocimiento de lectura de la Política publicada.
 
 No existe cobertura uniforme de auditoría para todas las mutaciones.
 

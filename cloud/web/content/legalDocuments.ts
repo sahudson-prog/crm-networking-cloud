@@ -1,7 +1,12 @@
-export const LEGAL_DOCUMENT_VERSION = "1.0";
-export const LEGAL_DOCUMENT_EFFECTIVE_DATE = "15 de octubre de 2026";
+import {
+  LEGAL_DOCUMENT_EFFECTIVE_DATE,
+  LEGAL_DOCUMENT_VERSION
+} from "../lib/legalContract.ts";
+
+export { LEGAL_DOCUMENT_EFFECTIVE_DATE, LEGAL_DOCUMENT_VERSION };
 
 export type LegalDocumentKey = "terms" | "privacy";
+export type LegalDocumentVersion = "1.0" | "1.1";
 
 export type LegalDocument = {
   content: string;
@@ -11,7 +16,9 @@ export type LegalDocument = {
   version: string;
 };
 
-export const legalDocuments: Record<LegalDocumentKey, LegalDocument> = {
+const LEGAL_DOCUMENT_V1_EFFECTIVE_DATE = "15 de octubre de 2026";
+
+const legalDocumentsV1: Record<LegalDocumentKey, LegalDocument> = {
   terms: {
     content: `
 # Términos de Servicio de Coffeecito
@@ -183,9 +190,9 @@ Para soporte, consultas, privacidad, ejercicio de derechos o reporte de problema
 **\`/contacto\`**
 `,
     description: "Términos de Servicio de Coffeecito.",
-    effectiveDate: LEGAL_DOCUMENT_EFFECTIVE_DATE,
+    effectiveDate: LEGAL_DOCUMENT_V1_EFFECTIVE_DATE,
     slug: "terms",
-    version: LEGAL_DOCUMENT_VERSION
+    version: "1.0"
   },
   privacy: {
     content: `
@@ -424,8 +431,73 @@ Para consultas sobre privacidad, ejercicio de derechos, eliminación de datos o 
 **\`/contacto\`**
 `,
     description: "Política de Privacidad de Coffeecito.",
-    effectiveDate: LEGAL_DOCUMENT_EFFECTIVE_DATE,
+    effectiveDate: LEGAL_DOCUMENT_V1_EFFECTIVE_DATE,
     slug: "privacy",
+    version: "1.0"
+  }
+};
+
+const TERMS_OPERATOR_IDENTIFICATION = "Coffeecito es operado por **Sergio Hudson, persona natural en Chile**, en adelante “Coffeecito”.";
+const PRIVACY_OPERATOR_IDENTIFICATION = "Coffeecito es operado por **Sergio Hudson, persona natural en Chile**.";
+const PRIVACY_CONTROLLER_IDENTIFICATION = "Respecto de los tratamientos cuyas finalidades y medios determina Coffeecito, Sergio Hudson actúa como responsable de datos.";
+const VERSION_V1_LABEL = "**Versión 1.0 — 15 de octubre de 2026**";
+const VERSION_V1_1_LABEL = "**Versión 1.1 — 15 de octubre de 2026**";
+
+const legalDocumentsV1_1: Record<LegalDocumentKey, LegalDocument> = {
+  terms: {
+    ...legalDocumentsV1.terms,
+    content: moveTermsOperatorIdentification(legalDocumentsV1.terms.content),
+    effectiveDate: LEGAL_DOCUMENT_EFFECTIVE_DATE,
+    version: LEGAL_DOCUMENT_VERSION
+  },
+  privacy: {
+    ...legalDocumentsV1.privacy,
+    content: movePrivacyControllerIdentification(legalDocumentsV1.privacy.content),
+    effectiveDate: LEGAL_DOCUMENT_EFFECTIVE_DATE,
     version: LEGAL_DOCUMENT_VERSION
   }
 };
+
+export const legalDocumentVersions: Record<
+  LegalDocumentVersion,
+  Record<LegalDocumentKey, LegalDocument>
+> = {
+  "1.0": legalDocumentsV1,
+  "1.1": legalDocumentsV1_1
+};
+
+export const legalDocuments = legalDocumentVersions[LEGAL_DOCUMENT_VERSION];
+
+function moveTermsOperatorIdentification(content: string) {
+  const withoutHeaderIdentification = replaceExactlyOnce(
+    replaceExactlyOnce(content, VERSION_V1_LABEL, VERSION_V1_1_LABEL),
+    `${TERMS_OPERATOR_IDENTIFICATION}\n\n`,
+    ""
+  );
+  return replaceExactlyOnce(
+    withoutHeaderIdentification,
+    "## 16. Contacto\n\nPara soporte, consultas, privacidad, ejercicio de derechos o reporte de problemas, utiliza:",
+    `## 16. Contacto\n\n${TERMS_OPERATOR_IDENTIFICATION}\n\nPara soporte, consultas, privacidad, ejercicio de derechos o reporte de problemas, utiliza:`
+  );
+}
+
+function movePrivacyControllerIdentification(content: string) {
+  const withoutOpeningIdentification = replaceExactlyOnce(
+    replaceExactlyOnce(content, VERSION_V1_LABEL, VERSION_V1_1_LABEL),
+    `${PRIVACY_OPERATOR_IDENTIFICATION}\n\n${PRIVACY_CONTROLLER_IDENTIFICATION}\n\n`,
+    ""
+  );
+  return replaceExactlyOnce(
+    withoutOpeningIdentification,
+    "## 15. Contacto\n\nPara consultas sobre privacidad, ejercicio de derechos, eliminación de datos o cuenta, soporte o reporte de problemas, utiliza:",
+    `## 15. Contacto\n\n${PRIVACY_OPERATOR_IDENTIFICATION}\n\n${PRIVACY_CONTROLLER_IDENTIFICATION}\n\nPara consultas sobre privacidad, ejercicio de derechos, eliminación de datos o cuenta, soporte o reporte de problemas, utiliza:`
+  );
+}
+
+function replaceExactlyOnce(content: string, expected: string, replacement: string) {
+  const firstMatch = content.indexOf(expected);
+  if (firstMatch < 0 || content.indexOf(expected, firstMatch + expected.length) >= 0) {
+    throw new Error("El contenido legal versionado no coincide con la transformación aprobada.");
+  }
+  return `${content.slice(0, firstMatch)}${replacement}${content.slice(firstMatch + expected.length)}`;
+}

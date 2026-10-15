@@ -9,25 +9,17 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
 
   return (
     <main className="public-legal-page">
-      <header className="public-legal-header">
-        <Link aria-label="Volver a Coffeecito" className="public-legal-brand" href="/">
-          <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <span>Coffeecito</span>
-        </Link>
-        <div className="public-legal-navigation">
+      <div aria-hidden="true" className="onboarding-intro-background" />
+      <section className="public-legal-panel">
+        <article className="public-legal-document">
+          {blocks.map((block, index) => renderBlock(block, index))}
+        </article>
+
+        <footer className="public-legal-footer">
           <PublicSiteLinks />
-          <Link className="public-legal-home-link" href="/">Volver a Coffeecito</Link>
-        </div>
-      </header>
-
-      <article className="public-legal-document">
-        {blocks.map((block, index) => renderBlock(block, index))}
-      </article>
-
-      <footer className="public-legal-footer">
-        <PublicSiteLinks />
-        <Link href="/">Coffeecito</Link>
-      </footer>
+          <Link href="/">Volver a Coffeecito</Link>
+        </footer>
+      </section>
     </main>
   );
 }
@@ -47,7 +39,7 @@ function renderBlock(block: LegalBlock, index: number) {
 function renderInline(content: string): ReactNode[] {
   const matches = content.split(/(\*\*[^*]+\*\*|\`[^\`]+\`)/g);
   return matches.filter(Boolean).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("**") && part.endsWith("**")) return <span key={index}>{part.slice(2, -2)}</span>;
     if (part.startsWith("\`") && part.endsWith("\`")) return <code key={index}>{part.slice(1, -1)}</code>;
     return part;
   });

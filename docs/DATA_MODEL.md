@@ -32,6 +32,8 @@ Datos técnicos de soporte: estructuras para sincronización, diagnóstico, acci
 
 Solicitudes de contacto: `contact_requests` conserva el nombre opcional, email, motivo, submotivo de privacidad opcional, mensaje, estados operativos y de verificación de identidad, y un `user_id` opcional validado server-side cuando existe sesión. No guarda IP ni User-Agent. La tabla no expone acceso directo a roles cliente; su captura y administración usan RPCs estrechas.
 
+Aceptaciones legales: `legal_acceptances` conserva historial por `user_id` de la aceptación explícita de Términos y reconocimiento de lectura de Privacidad. Registra versiones, hashes SHA-256 del contenido canónico, método `explicit_web` y `accepted_at` server-side. La unicidad del contrato por usuario hace idempotentes los reintentos. No almacena IP, User-Agent ni fingerprint y no expone acceso directo desde roles cliente; consulta y registro ocurren mediante RPCs estrechas que derivan ownership desde `auth.uid()`.
+
 ## Usuarios y configuración
 
 `profiles` representa el perfil interno asociado a un usuario de Supabase Auth. Su identidad principal es `id`, que referencia `auth.users(id)`. Conserva datos básicos como `email` y `full_name`.

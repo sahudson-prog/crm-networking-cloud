@@ -10,6 +10,8 @@ const migrations = [
   readSql('../migrations/202610120001_require_ics_focus_contacts_v1.sql'),
   readSql('../migrations/202610140001_enforce_ics_networking_start_v1.sql'),
   readSql('../migrations/202610150001_contact_requests_v1.sql'),
+  readSql('../migrations/202610150002_legal_acceptance_v1.sql'),
+  readSql('../migrations/202610150003_legal_acceptance_v1_1.sql'),
 ];
 
 function expectedNames(listName) {

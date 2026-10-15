@@ -24,7 +24,7 @@ La entrada visible principal usa Supabase Auth con Google login (`signInWithOAut
 
 Turnstile protege la solicitud passwordless contra abuso automatizado, pero no reemplaza la elegibilidad de beta cerrada. La allowlist y el acceso efectivo siguen resolviéndose en Supabase/Auth Hook/RPC, sin consulta de allowlist desde el formulario.
 
-Después de confirmar sesión, `AuthGate` consulta `current_user_app_access_status()` y solo muestra la app si la RPC devuelve acceso permitido. Si no hay sesión, conserva la pantalla de entrada. Si el acceso es denegado, muestra una pantalla de Coffeecito por invitación con opción de cerrar sesión. Si la RPC falla, no asume acceso y muestra un error recuperable con reintento y cierre de sesión.
+Después de confirmar sesión, `AuthGate` consulta `current_user_app_access_status()` y solo continúa si la RPC devuelve acceso permitido. A continuación exige la aceptación legal vigente mediante `current_user_legal_acceptance_status_v1()` antes de montar onboarding o producto privado. Una intención marcada antes del login solo se materializa después de sesión y acceso válidos mediante `record_current_user_legal_acceptance_v1()`; si falta o falla esa evidencia, el gate queda cerrado. Si no hay sesión, conserva la pantalla de entrada. Si el acceso es denegado, muestra una pantalla de Coffeecito por invitación con opción de cerrar sesión. Si una verificación falla, no asume acceso.
 
 La relación entre usuario Auth y datos de aplicación se materializa en `profiles`. La migración de acceso agrega `handle_new_auth_user_profile`, un trigger `SECURITY DEFINER` sobre `auth.users` que crea o actualiza `profiles`.
 
@@ -86,6 +86,8 @@ En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capabilit
 
 La administración de acceso beta se realiza mediante RPCs estrechas, no como CRUD genérico desde la UI. Las operaciones administrativas verifican `admin.manage_access` en SQL, usan `SECURITY DEFINER` con `search_path` fijo cuando necesitan consultar `auth.users`, y no exponen metadata Auth completa, tokens, identidades crudas ni datos de contraseña.
 
+La evidencia legal se conserva en `legal_acceptances`, sin grants directos para roles cliente. Las RPCs de consulta y registro no reciben `user_id`, versiones ni hashes: derivan identidad desde `auth.uid()`, exigen acceso efectivo y fijan server-side el contrato legal vigente. Solo `authenticated` puede ejecutarlas.
+
 Las operaciones disponibles son listar allowlist con estado seguro, autorizar o reautorizar un email, revocar autorización y diagnosticar acceso de un usuario registrado. Autorizar un email no crea `auth.users`. Revocar no borra usuario, datos, roles ni cuentas conectadas; el bloqueo ocurre porque la decisión central de acceso deja de permitir entrada.
 
 Cuando un usuario ya registrado quedó solamente en el estado inicial `beta_pending`/`pending`, autorizarlo desde Mantención puede promoverlo a `active`/`approved` y asegurar el rol base `user`. La operación no reactiva estados administrativos más fuertes, como cuenta `closed` o beta `blocked`.
@@ -115,6 +117,8 @@ Sí existen funciones SQL con `SECURITY DEFINER`:
 - `handle_new_auth_user_profile`, para crear perfil, perfil de acceso y rol base al crearse un usuario Auth;
 - `current_user_has_capability`, para consultar capacidades desde tablas de acceso y ser usada por frontend y policies;
 - funciones de validación de storage/sync y maestro headhunter, orientadas a diagnóstico de estructura.
+
+`current_user_legal_acceptance_status_v1` y `record_current_user_legal_acceptance_v1` son fronteras estrechas para el gate legal. Ambas exigen `auth.uid()` y acceso efectivo; la segunda inserta de forma idempotente el contrato vigente sin aceptar identidad o versiones desde el navegador.
 
 `reset_current_user_app_data_v0_1` y `merge_contacts_deep` son funciones `SECURITY DEFINER` estrechas: exigen `auth.uid()`, verifican la capability correspondiente y limitan cada operación al `user_id` autenticado. Su owner esperado es `postgres`, los roles cliente no pueden alterarlas y solo `authenticated` recibe `EXECUTE`.
 
