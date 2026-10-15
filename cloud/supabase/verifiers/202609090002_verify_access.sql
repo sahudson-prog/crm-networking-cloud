@@ -7,8 +7,13 @@ declare
   internal_function regprocedure;
   app_function regprocedure;
   client_role text;
+  allowlist_privilege text;
   discovered_tables text[];
   classified_tables text[];
+  allowlist_table_privileges text[] := array[
+    'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+    'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'
+  ];
   select_tables text[] := array[
     'profiles', 'user_settings', 'service_connectors', 'connected_accounts',
     'contacts', 'external_contact_ids', 'external_contact_snapshots',
@@ -117,6 +122,44 @@ begin
       or array_position(delete_tables, table_name) is not null then
       raise exception 'No-privilege table public.% also appears in an authenticated privilege matrix', table_name;
     end if;
+  end loop;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'app_access_allowlist'
+      and relation.relkind in ('r', 'p')
+      and pg_catalog.pg_get_userbyid(relation.relowner) = 'postgres'
+  ) then
+    raise exception 'public.app_access_allowlist owner must be postgres';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'app_access_allowlist'
+      and relation.relkind in ('r', 'p')
+      and relation.relrowsecurity
+      and not relation.relforcerowsecurity
+  ) then
+    raise exception 'public.app_access_allowlist must have RLS enabled without FORCE RLS';
+  end if;
+
+  foreach client_role in array array['anon', 'authenticated', 'service_role'] loop
+    foreach allowlist_privilege in array allowlist_table_privileges loop
+      if pg_catalog.has_table_privilege(
+        client_role,
+        'public.app_access_allowlist',
+        allowlist_privilege
+      ) then
+        raise exception 'Role % has forbidden % privilege on public.app_access_allowlist',
+          client_role, allowlist_privilege;
+      end if;
+    end loop;
   end loop;
 
   security_definer_functions := array_remove(
