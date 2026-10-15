@@ -233,7 +233,7 @@ function exactIdentityChange(
     || normalizedMaterialText(interaction.description) !== normalizedMaterialText(event.description);
   return baseChange(event, changeId, {
     type: modified ? "modified" : "unchanged",
-    defaultSelected: modified,
+    defaultSelected: false,
     blocking: !modified,
     reason: modified ? "La cita cambió desde la importación anterior." : "La cita ya está actualizada.",
     fields,
@@ -254,7 +254,7 @@ function exactIdentityChange(
 function newChange(event: NormalizedIcsEvent, changeId: string): SyncPreviewChange {
   return baseChange(event, changeId, {
     type: "new",
-    defaultSelected: true,
+    defaultSelected: false,
     blocking: false,
     reason: null,
     fields: summaryFields(event),

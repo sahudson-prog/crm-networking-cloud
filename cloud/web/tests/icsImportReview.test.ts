@@ -96,11 +96,11 @@ function snapshot(input: {
   });
 }
 
-test("clasifica nuevas y las selecciona por defecto", () => {
+test("clasifica nuevas sin seleccionarlas por defecto", () => {
   const result = snapshot();
   assert.equal(result.changes[0].metadata?.icsCategory, "new");
   assert.equal(result.changes[0].type, "new");
-  assert.equal(result.changes[0].defaultSelected, true);
+  assert.equal(result.changes[0].defaultSelected, false);
   assert.equal(result.changes[0].blocking, false);
 });
 
@@ -113,7 +113,7 @@ test("clasifica mismo UID exacto como modificado sin exponer DESCRIPTION en la f
   const [change] = result.changes;
 
   assert.equal(change.type, "modified");
-  assert.equal(change.defaultSelected, true);
+  assert.equal(change.defaultSelected, false);
   assert.equal(change.fields.find((field) => field.label === "Fecha")?.changed, false);
   assert.equal(change.fields.find((field) => field.label === "Título")?.changed, true);
   assert.equal(change.fields.some((field) => field.label === "Descripción"), false);
@@ -322,7 +322,7 @@ test("detecta duplicados heurísticos dentro del mismo archivo", () => {
   });
 
   assert.deepEqual(result.changes.map((change) => change.metadata?.icsCategory), ["new", "possible_duplicate"]);
-  assert.deepEqual(result.changes.map((change) => change.defaultSelected), [true, false]);
+  assert.deepEqual(result.changes.map((change) => change.defaultSelected), [false, false]);
 });
 
 test("no marca citas parecidas si cambia hora, título, participantes o duración conocida", () => {
