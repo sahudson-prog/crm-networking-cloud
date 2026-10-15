@@ -12,6 +12,7 @@ import {
 } from "../lib/contactRequests";
 import { supabase } from "../lib/supabaseClient";
 import { TurnstileWidget } from "./TurnstileWidget";
+import { PublicSiteLinks } from "./PublicSiteLinks";
 import { Button } from "./ui/Button";
 
 export function PublicContactPage() {
@@ -170,6 +171,7 @@ export function PublicContactPage() {
             </Button>
           </div>
         </form>
+        <PublicSiteLinks />
       </div>
     </main>
   );

@@ -122,7 +122,7 @@ OAuth Google confirma autorización técnica para scopes de proveedor. No equiva
 
 El Before User Created Auth Hook de Supabase, cuando se active, usará la allowlist para impedir altas no autorizadas. Ese bloqueo no revela el contenido de la allowlist al usuario.
 
-Los previews, confirmaciones UI y prompts destructivos son controles de producto. No se observó un registro formal de consentimiento, versiones de política aceptadas o historial de consentimiento.
+Las páginas públicas \`/terminos\` y \`/privacidad\` publican la versión vigente 1.0, de 15 de octubre de 2026. \`/contacto\` es el canal público operativo para consultas, soporte y solicitudes de privacidad. Los previews, confirmaciones UI y prompts destructivos son controles de producto. No se observa todavía un registro formal de aceptación, versiones aceptadas o historial de consentimiento.
 
 No se observó una política automática de retención, expiración o limpieza por antigüedad para contactos, interacciones, logs, diagnósticos o auditoría.
 
@@ -141,8 +141,6 @@ No se observó política cerrada para conservar evidencia mínima después de un
 Estas herramientas son útiles para soporte y diagnóstico, pero aumentan sensibilidad operacional. Deben tratarse como acceso interno privilegiado, no como interfaz normal de usuario final.
 
 ## Límites del estado actual
-
-No existe una política legal final dentro del repositorio.
 
 No existe eliminación real de cuenta de autenticación desde la UI.
 
