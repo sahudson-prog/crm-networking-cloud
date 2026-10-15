@@ -6,6 +6,12 @@ import {
   readGoogleDataConnectionReturn
 } from "./googleAuthLoginConfig";
 import type { GoogleDataCapabilities } from "./googleConnectedAccountVerification.ts";
+import {
+  GOOGLE_DATA_SESSION_REQUIRED_MESSAGE,
+  googleDataConnectionPrincipalsMatch,
+  googleDataSessionEligibility
+} from "./googleDataSessionGuard";
+import type { GoogleDataConnectionPrincipal } from "./googleDataSessionGuard";
 import { clearAuthCallbackReturnTo, prepareAuthCallback } from "./authCallback";
 
 export {
@@ -29,6 +35,8 @@ export type FinalizedGoogleDataConnection = {
   effectiveScopes: string[];
 };
 
+export type GoogleDataConnectionPrincipalStatus = "match" | "mismatch" | "not_data_connection";
+
 const GOOGLE_REQUESTED_SCOPES_STORAGE_KEY = "crm_networking_google_requested_scopes";
 const GOOGLE_DATA_CONNECTION_INTENT_STORAGE_KEY = "crm_networking_google_data_connection_intent";
 const GOOGLE_ACTIVE_DATA_TOKEN_FINGERPRINT_STORAGE_KEY = "crm_networking_google_active_data_token_fingerprint";
@@ -40,6 +48,8 @@ type GoogleDataConnectionIntent = {
   nonce: string;
   previousProviderTokenFingerprint: string;
   scopes: string[];
+  sessionEmail: string;
+  sessionUserId: string;
 };
 
 export async function readGoogleOAuthSession(): Promise<GoogleOAuthSession> {
@@ -57,13 +67,21 @@ export async function reconnectGoogle(scopes: string | string[], redirectTo?: st
   const scopeList = normalizeGoogleScopeList(scopes);
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
-  const previousProviderTokenFingerprint = await fingerprintProviderToken(data.session?.provider_token ?? "");
+  const session = data.session;
+  const eligibility = googleDataSessionEligibility(session?.user);
+  if (!session || !eligibility.allowed) {
+    clearPendingGoogleDataConnection();
+    throw new Error(GOOGLE_DATA_SESSION_REQUIRED_MESSAGE);
+  }
+  const previousProviderTokenFingerprint = await fingerprintProviderToken(session.provider_token ?? "");
   const nonce = createGoogleDataConnectionNonce();
   rememberGoogleDataConnectionIntent({
     createdAt: Date.now(),
     nonce,
     previousProviderTokenFingerprint,
-    scopes: scopeList
+    scopes: scopeList,
+    sessionEmail: eligibility.canonicalEmail,
+    sessionUserId: session.user.id
   });
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -106,6 +124,7 @@ export function clearRememberedGoogleRequestedScopes() {
 export async function finalizeRememberedGoogleDataConnection(
   providerToken: string,
   supabaseAccessToken: string,
+  currentSession: { email: string; userId: string },
   finalizeImpl = finalizeGoogleDataConnectionOnServer
 ): Promise<FinalizedGoogleDataConnection | null> {
   if (typeof window === "undefined") return null;
@@ -121,6 +140,15 @@ export async function finalizeRememberedGoogleDataConnection(
   if (oauthReturn.status === "invalid" || intentExpired) {
     clearPendingGoogleDataConnection();
     return null;
+  }
+
+  if (!googleDataConnectionPrincipalsMatch({
+    email: intent.sessionEmail,
+    userId: intent.sessionUserId
+  }, currentSession)) {
+    clearPendingGoogleDataConnection();
+    invalidateActiveGoogleDataAuthorization();
+    throw new Error(GOOGLE_DATA_SESSION_REQUIRED_MESSAGE);
   }
 
   const currentProviderTokenFingerprint = await fingerprintProviderToken(providerToken);
@@ -152,6 +180,31 @@ export async function finalizeRememberedGoogleDataConnection(
   rememberActiveGoogleDataTokenFingerprint(currentProviderTokenFingerprint);
   clearPendingGoogleDataConnection();
   return finalized;
+}
+
+export function googleDataConnectionReturnPrincipalStatus(
+  returnTo: string,
+  currentSession: GoogleDataConnectionPrincipal
+): GoogleDataConnectionPrincipalStatus {
+  const oauthReturn = readGoogleDataConnectionReturn(returnTo);
+  const intent = readRememberedGoogleDataConnectionIntent();
+  if (oauthReturn.status === "none" && !intent) return "not_data_connection";
+  if (oauthReturn.status !== "completed"
+    || !intent
+    || isExpiredGoogleDataConnectionIntent(intent)
+    || oauthReturn.nonce !== intent.nonce) {
+    return "mismatch";
+  }
+
+  return googleDataConnectionPrincipalsMatch({
+    email: intent.sessionEmail,
+    userId: intent.sessionUserId
+  }, currentSession) ? "match" : "mismatch";
+}
+
+export function isGoogleDataConnectionCallback(returnTo: string) {
+  return readGoogleDataConnectionReturn(returnTo).status !== "none"
+    || Boolean(readRememberedGoogleDataConnectionIntent());
 }
 
 export async function currentGoogleProviderTokenFingerprint(providerToken: string) {
@@ -257,8 +310,10 @@ function readRememberedGoogleDataConnectionIntent(): GoogleDataConnectionIntent 
     const previousProviderTokenFingerprint = typeof value?.previousProviderTokenFingerprint === "string"
       ? value.previousProviderTokenFingerprint
       : "";
-    if (!nonce || !createdAt || !scopes.length) return null;
-    return { createdAt, nonce, previousProviderTokenFingerprint, scopes };
+    const sessionEmail = typeof value?.sessionEmail === "string" ? value.sessionEmail : "";
+    const sessionUserId = typeof value?.sessionUserId === "string" ? value.sessionUserId : "";
+    if (!nonce || !createdAt || !scopes.length || !sessionEmail || !sessionUserId) return null;
+    return { createdAt, nonce, previousProviderTokenFingerprint, scopes, sessionEmail, sessionUserId };
   } catch {
     return null;
   }

@@ -57,7 +57,14 @@ export async function readCurrentGoogleConnectionState(options: { registerRememb
   const session = data.session;
   const providerToken = session?.provider_token ?? "";
   if (options.registerRememberedScopes) {
-    await finalizeRememberedGoogleDataConnection(providerToken, session?.access_token ?? "");
+    await finalizeRememberedGoogleDataConnection(
+      providerToken,
+      session?.access_token ?? "",
+      {
+        email: (session?.user.email ?? "").trim().toLowerCase(),
+        userId: session?.user.id ?? ""
+      }
+    );
   }
 
   const connectedAccounts = await readConnectedAccounts("google");

@@ -303,6 +303,15 @@ export function GoogleInteractionsSyncPanel({
       }));
       return;
     }
+    if (mailActionDisabledReason) {
+      setState((current) => ({
+        ...current,
+        activeResource: "mail",
+        error: mailActionDisabledReason,
+        previewOpen: false
+      }));
+      return;
+    }
     if (mailAuthorizationRequired) {
       await connectGoogle("mail");
       return;
@@ -314,10 +323,6 @@ export function GoogleInteractionsSyncPanel({
         error: "Selecciona una etiqueta Gmail antes de revisar correos.",
         previewOpen: false
       }));
-      return;
-    }
-    if (mailActionDisabledReason) {
-      setState((current) => ({ ...current, activeResource: "mail", error: mailActionDisabledReason }));
       return;
     }
     try {
@@ -740,6 +745,7 @@ export function GoogleInteractionsSyncPanel({
             <Button
               aria-haspopup="dialog"
               aria-label="Seleccionar correos de Gmail"
+              disabled={Boolean(mailActionDisabledReason)}
               icon="plus"
               onClick={() => setHistoricalImportOpen(true)}
               square
@@ -747,6 +753,9 @@ export function GoogleInteractionsSyncPanel({
             />
           </div>
         </div>
+        {mailActionDisabledReason && !state.loading ? (
+          <p className="connected-service-action-reason">{mailActionDisabledReason}</p>
+        ) : null}
         {historicalImportOpen ? (
           <div className="modal-backdrop" role="presentation">
             <section
@@ -765,9 +774,11 @@ export function GoogleInteractionsSyncPanel({
               </div>
 
               {mailAuthorizationRequired ? (
-                <p className="meta">Autoriza el acceso de solo lectura a Gmail para cargar tus etiquetas y seleccionar correos.</p>
+                !mailActionDisabledReason ? (
+                  <p className="meta">Autoriza el acceso de solo lectura a Gmail para cargar tus etiquetas y seleccionar correos.</p>
+                ) : null
               ) : gmailLabelPicker}
-              {!mailAuthorizationRequired && mailActionDisabledReason && !state.loading ? (
+              {mailActionDisabledReason && !state.loading ? (
                 <p className="connected-service-action-reason">{mailActionDisabledReason}</p>
               ) : null}
               {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}
@@ -784,7 +795,7 @@ export function GoogleInteractionsSyncPanel({
                 />
                 {mailAuthorizationRequired ? (
                   <Button
-                    disabled={googleConnectionLoading}
+                    disabled={googleConnectionLoading || Boolean(mailActionDisabledReason)}
                     icon="link"
                     onClick={() => void connectGoogle("mail")}
                     tone="primary"

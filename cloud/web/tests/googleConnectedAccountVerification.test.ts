@@ -17,11 +17,69 @@ import {
   selectCurrentGoogleConnectedAccount
 } from "../lib/googleAuthLoginConfig.ts";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi.ts";
+import {
+  GOOGLE_DATA_SESSION_REQUIRED_MESSAGE,
+  googleDataConnectionPrincipalsMatch,
+  googleDataSessionEligibility
+} from "../lib/googleDataSessionGuard.ts";
 
 const EXPECTED_CLIENT_ID = "expected-client.apps.googleusercontent.com";
 
 test("normalize email recorta espacios y compara en minusculas", () => {
   assert.equal(normalizeEmail(" User@Example.Invalid "), "user@example.invalid");
+});
+
+test("sesion Google compatible habilita autorizacion de datos", () => {
+  const result = googleDataSessionEligibility({
+    email: " User@Example.Invalid ",
+    identities: [{
+      identity_data: { email: "user@example.invalid" },
+      provider: "google"
+    }]
+  });
+
+  assert.deepEqual(result, {
+    allowed: true,
+    canonicalEmail: "user@example.invalid"
+  });
+});
+
+test("sesion OTP sin identidad Google compatible queda bloqueada", () => {
+  assert.equal(
+    GOOGLE_DATA_SESSION_REQUIRED_MESSAGE,
+    "Para usar Google, entra a Coffeecito con la misma cuenta Google que quieres sincronizar."
+  );
+  assert.equal(googleDataSessionEligibility({
+    email: "user@outlook.invalid",
+    identities: [{
+      identity_data: { email: "user@outlook.invalid" },
+      provider: "email"
+    }]
+  }).allowed, false);
+});
+
+test("identidad Google del mismo dominio pero otro email queda bloqueada", () => {
+  assert.equal(googleDataSessionEligibility({
+    email: "owner@example.invalid",
+    identities: [{
+      identity_data: { email: "other@example.invalid" },
+      provider: "google"
+    }]
+  }).allowed, false);
+});
+
+test("Data OAuth conserva el principal cuando A retorna como A", () => {
+  assert.equal(googleDataConnectionPrincipalsMatch(
+    { email: " User@Example.Invalid ", userId: "user-a" },
+    { email: "user@example.invalid", userId: "user-a" }
+  ), true);
+});
+
+test("Data OAuth falla cerrado cuando A retorna como B", () => {
+  assert.equal(googleDataConnectionPrincipalsMatch(
+    { email: "user-a@example.invalid", userId: "user-a" },
+    { email: "user-b@example.invalid", userId: "user-b" }
+  ), false);
 });
 
 test("effective scopes se extraen solo desde scope real del token", () => {
@@ -338,9 +396,40 @@ test("botones de importacion compactos reciben razones visibles para disabled", 
   assert.match(contactsSource, /connected-service-reason/);
   assert.match(interactionsSource, /connected-service-action-reason/);
   assert.match(contactsSource, /Boolean\(compactDisabledReason\) \|\| state\.loading/);
-  assert.match(interactionsSource, /!mailAuthorizationRequired && mailActionDisabledReason && !state\.loading/);
+  assert.match(interactionsSource, /mailActionDisabledReason && !state\.loading/);
   assert.match(interactionsSource, /Boolean\(mailActionDisabledReason\) \|\| !state\.selectedGmailLabelId/);
   assert.match(accountSource, /showCalendarAction=\{false\}/);
+});
+
+test("Cuenta bloquea todas las autorizaciones de datos para una sesion no Google sin afectar vCard", () => {
+  const accountSource = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
+  const contactsSource = readFileSync(new URL("../components/GoogleContactsSyncPanel.tsx", import.meta.url), "utf8");
+  const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(accountSource, /googleDataSessionEligibility\(data\.session\?\.user\)\.allowed/);
+  assert.match(accountSource, /!account\.googleDataAuthorizationAllowed[\s\S]*GOOGLE_DATA_SESSION_REQUIRED_MESSAGE/);
+  assert.match(accountSource, /googleDisabledReason=\{googleImportDisabledReason\(account, "contacts"\)\}/);
+  assert.match(accountSource, /calendarDisabledReason=\{googleImportDisabledReason\(account, "calendar"\)\}/);
+  assert.match(accountSource, /mailDisabledReason=\{googleImportDisabledReason\(account, "mail"\)\}/);
+  assert.match(accountSource, /disabled=\{syncPreferences\.loading \|\| syncPreferences\.saving \|\| account\.googleAuthorizationVerifying \|\| !account\.googleDataAuthorizationAllowed\}/);
+  assert.match(contactsSource, /disabled=\{Boolean\(compactDisabledReason\) \|\| state\.loading\}/);
+  assert.match(interactionsSource, /aria-label="Seleccionar correos de Gmail"[\s\S]*disabled=\{Boolean\(mailActionDisabledReason\)\}/);
+  assert.match(interactionsSource, /disabled=\{googleConnectionLoading \|\| Boolean\(mailActionDisabledReason\)\}/);
+  assert.match(accountSource, /<VCardImportPanel/);
+});
+
+test("guard central impide iniciar OAuth de datos antes de signInWithOAuth", () => {
+  const sessionSource = readFileSync(new URL("../lib/googleAuthSession.ts", import.meta.url), "utf8");
+  const eligibilityIndex = sessionSource.indexOf("googleDataSessionEligibility(session?.user)");
+  const blockedIndex = sessionSource.indexOf("if (!session || !eligibility.allowed)");
+  const oauthIndex = sessionSource.indexOf("supabase.auth.signInWithOAuth({");
+
+  assert.ok(eligibilityIndex > -1);
+  assert.ok(blockedIndex > eligibilityIndex);
+  assert.ok(oauthIndex > blockedIndex);
+  assert.match(sessionSource, /sessionEmail: eligibility\.canonicalEmail/);
+  assert.match(sessionSource, /sessionUserId: session\.user\.id/);
+  assert.match(sessionSource, /if \(!googleDataConnectionPrincipalsMatch\(\{[\s\S]*email: intent\.sessionEmail,[\s\S]*userId: intent\.sessionUserId[\s\S]*\}, currentSession\)\)/);
 });
 
 test("bootstrap Gmail de Cuenta exige una etiqueta USER antes de Review", () => {
