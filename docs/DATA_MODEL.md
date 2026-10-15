@@ -34,7 +34,7 @@ Datos técnicos de soporte: estructuras para sincronización, diagnóstico, acci
 
 `profiles` representa el perfil interno asociado a un usuario de Supabase Auth. Su identidad principal es `id`, que referencia `auth.users(id)`. Conserva datos básicos como `email` y `full_name`.
 
-`user_settings` guarda preferencias por usuario. Usa `user_id`, `setting_key`, `setting_value` y `value_json`. El código actual observado usa `setting_value` para la lectura y escritura funcional; `value_json` permanece disponible en el schema. Existe unicidad por usuario y clave de configuración.
+`user_settings` guarda preferencias por usuario. Usa `user_id`, `setting_key`, `setting_value` y `value_json`. El código actual observado usa `setting_value` para la lectura y escritura funcional; `value_json` permanece disponible en el schema. Existe unicidad por usuario y clave de configuración. Todo perfil debe tener `Fecha_Inicio_Networking`: nace con la fecha UTC de registro de Auth en formato `YYYY-MM-DD` y puede editarse posteriormente desde Cuenta.
 
 El perfil interno no reemplaza la autenticación. La autenticación vive en Supabase Auth; `profiles` y tablas relacionadas agregan datos propios de la aplicación.
 
