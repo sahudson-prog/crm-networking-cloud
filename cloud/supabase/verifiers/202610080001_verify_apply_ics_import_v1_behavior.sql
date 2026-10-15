@@ -124,11 +124,10 @@ begin
     (v_user_no_access, 'authenticated', 'authenticated', 'ics-apply-no-access-' || v_user_no_access::text || '@example.invalid', pg_catalog.now(),
       '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, pg_catalog.now(), pg_catalog.now());
 
-  insert into public.user_settings (user_id, setting_key, setting_value)
-  values
-    (v_user_a, 'Fecha_Inicio_Networking', '2026-10-01'),
-    (v_user_b, 'Fecha_Inicio_Networking', '2026-10-01'),
-    (v_user_no_access, 'Fecha_Inicio_Networking', '2026-10-01');
+  update public.user_settings
+  set setting_value = '2026-10-01'
+  where user_id in (v_user_a, v_user_b, v_user_no_access)
+    and setting_key = 'Fecha_Inicio_Networking';
 
   insert into public.contacts (id, user_id, display_name, networking_focus, is_active)
   values

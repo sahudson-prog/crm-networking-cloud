@@ -94,6 +94,11 @@ begin
     true
   );
 
+  -- Build the missing-setting negative fixture explicitly; the entire verifier rolls back.
+  delete from public.user_settings
+  where user_id = v_user
+    and setting_key = 'Fecha_Inicio_Networking';
+
   begin
     perform public.apply_ics_import_v1(pg_catalog.jsonb_build_array(
       pg_temp.ics_networking_start_item(

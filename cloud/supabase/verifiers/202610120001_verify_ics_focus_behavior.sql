@@ -60,8 +60,10 @@ begin
     v_user, 'authenticated', 'authenticated', 'ics-focus-' || v_user::text || '@example.invalid', pg_catalog.now(),
     '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, pg_catalog.now(), pg_catalog.now()
   );
-  insert into public.user_settings (user_id, setting_key, setting_value)
-  values (v_user, 'Fecha_Inicio_Networking', '2026-10-01');
+  update public.user_settings
+  set setting_value = '2026-10-01'
+  where user_id = v_user
+    and setting_key = 'Fecha_Inicio_Networking';
   insert into public.contacts (id, user_id, display_name, networking_focus, is_active)
   values
     (v_focus_contact, v_user, 'Focus fixture', true, true),
