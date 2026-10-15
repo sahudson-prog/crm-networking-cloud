@@ -49,7 +49,7 @@ import {
   readPendingActivitySyncAuthorization
 } from "../lib/activitySyncAuthorization";
 import type { ContactRow } from "../lib/readModel";
-import { calendarRollingWindowIso } from "../lib/syncDate";
+import { calendarRollingWindowIso, latestIsoInstant, requireNetworkingStartIso } from "../lib/syncDate";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
 import { loadActivitySyncLimitValues } from "../lib/usageLimitSettings";
 import {
@@ -789,7 +789,9 @@ export function ActivitySyncButton({
     logStep("Inicio", input.dryRun ? "Actualizacion solicitada." : `${input.externalIds?.length ?? 0} elemento(s) seleccionados.`, "running");
 
     try {
+      const networkingStart = await requireNetworkingStartIso();
       const calendarWindow = input.includeCalendar ? calendarRollingWindowIso() : null;
+      const calendarTimeMin = latestIsoInstant(calendarWindow?.since, networkingStart);
       const syncLimits = await loadActivitySyncLimitValues();
       logStep("Parametros", input.includeCalendar
         ? `Ventana Calendar: ${formatLogDate(calendarWindow?.since ?? null)} a ${formatLogDate(calendarWindow?.until ?? null)}.`
@@ -806,7 +808,7 @@ export function ActivitySyncButton({
         calendarFutureTimeMin: null,
         calendarRollingWindowSync: input.includeCalendar ? (variant === "focus_incremental" ? "global" : "contact") : undefined,
         calendarRollingSnapshot: input.dryRun ? null : input.calendarRollingSnapshot,
-        calendarTimeMin: calendarWindow?.since ?? null,
+        calendarTimeMin,
         connectedAccountId: input.connectedAccountId,
         contactIds: variant === "single_contact" && contact?.id ? [contact.id] : undefined,
         dryRun: input.dryRun,
@@ -816,7 +818,7 @@ export function ActivitySyncButton({
         gmailContactSnapshot: input.dryRun ? null : input.gmailContactSnapshot,
         gmailFocusedSnapshot: input.dryRun ? null : input.gmailFocusedSnapshot,
         gmailQuery: null,
-        gmailSince: null,
+        gmailSince: networkingStart,
         includeCalendar: input.includeCalendar,
         includeMail: input.includeMail && (
           input.dryRun

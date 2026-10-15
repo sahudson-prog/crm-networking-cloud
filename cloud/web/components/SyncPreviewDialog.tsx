@@ -20,6 +20,7 @@ type SyncPreviewDialogProps = {
   feedbackTone?: "error" | "info";
   applying?: boolean;
   progress?: ProgressBarProps;
+  sortChanges?: (left: SyncPreviewChange, right: SyncPreviewChange) => number;
   onClose: () => void;
   onApply: (selectedChanges: SyncPreviewChange[]) => void;
   onOpenSavedDuplicateMerge?: (sources: ContactMergeSource[]) => void;
@@ -74,6 +75,7 @@ export function SyncPreviewDialog({
   onOpenSavedDuplicateMerge,
   open,
   progress,
+  sortChanges,
   tabs: customTabs,
   tabKeys,
   title = "Cambios detectados"
@@ -118,9 +120,9 @@ export function SyncPreviewDialog({
   const tabs = useMemo(
     () => tabsConfig.map((tab) => ({
       ...tab,
-      changes: sortChangesByTitle(changes.filter(tab.matches))
+      changes: [...changes.filter(tab.matches)].sort(sortChanges ?? compareChangesByTitle)
     })),
-    [changes, tabsConfig]
+    [changes, sortChanges, tabsConfig]
   );
 
   if (!open) return null;
@@ -191,6 +193,8 @@ export function SyncPreviewDialog({
             ) : null}
             {duplicatePendingNotice(change)}
           </div>
+
+          {change.metadata?.showReason === true && change.reason ? <p className="meta">{change.reason}</p> : null}
 
           {visibleFields(change).length ? (
             <div className="sync-preview-fields">
@@ -501,17 +505,20 @@ function formatFieldValue(value?: string | null) {
 }
 
 function visibleFields(change: SyncPreviewChange) {
+  if (change.metadata?.showInformationalFields === true) {
+    return change.fields.filter((field) => field.after?.trim() || field.before?.trim());
+  }
   if (change.type === "new" || change.type === "duplicate_complex" || change.type === "deleted" || change.type === "skipped") {
     return change.fields.filter((field) => field.after?.trim() || field.before?.trim());
   }
   return change.fields.filter((field) => field.changed);
 }
 
-function sortChangesByTitle(changes: SyncPreviewChange[]) {
-  return [...changes].sort((a, b) => (
+function compareChangesByTitle(a: SyncPreviewChange, b: SyncPreviewChange) {
+  return (
     cleanSortTitle(a.title).localeCompare(cleanSortTitle(b.title), "es", { sensitivity: "base" })
     || a.id.localeCompare(b.id)
-  ));
+  );
 }
 
 function cleanSortTitle(value: string) {

@@ -1575,7 +1575,7 @@ test("syncGoogleInteractions guarda diagnostico Calendar con eventos leidos aunq
   ]);
 });
 
-test("Gmail de ficha usa todos los emails Foco, exactamente 14 dias y Apply reutiliza el snapshot sin cursores", async () => {
+test("Gmail de ficha usa todos los emails Foco, como máximo 14 dias y Apply reutiliza el snapshot sin cursores", async () => {
   const focusedContact: ContactRow = {
     ...contacts[0],
     contact_emails: [
@@ -1632,6 +1632,7 @@ test("Gmail de ficha usa todos los emails Foco, exactamente 14 dias y Apply reut
     dryRun: true,
     includeCalendar: false,
     includeMail: true,
+    gmailSince: "2026-10-01T00:00:00.000Z",
     userEmail: "sergio@crm.cl"
   }, dependencies);
 
@@ -1639,7 +1640,7 @@ test("Gmail de ficha usa todos los emails Foco, exactamente 14 dias y Apply reut
   assert.equal(mailReads.length, 1);
   assert.equal(mailReads[0]?.historyId, null);
   assert.equal(mailReads[0]?.labelIds, undefined);
-  assert.equal(mailReads[0]?.since, "2026-09-21T12:00:00.000Z");
+  assert.equal(mailReads[0]?.since, "2026-10-01T00:00:00.000Z");
   assert.match(mailReads[0]?.query ?? "", /maria@empresa\.cl/);
   assert.match(mailReads[0]?.query ?? "", /maria\.alias@empresa\.cl/);
   assert.deepEqual(reviewed.gmailContactSnapshot?.items.map((item) => item.externalId), ["GMAIL_mail-reciente"]);
@@ -2288,6 +2289,7 @@ test("Gmail global usa history cursor valido, filtra Foco y Apply no vuelve a le
       return gmailRead({
         messages: [
           gmailFromUser("mail-focus", "maria@empresa.cl"),
+          gmailFromUser("mail-focus-old", "maria@empresa.cl", "Antiguo", "Viejo", "Mon, 1 Jun 2026 08:00:00 -0400"),
           gmailFromUser("mail-non-focus", "fuera@empresa.cl")
         ],
         mode: "incremental",
@@ -2308,6 +2310,7 @@ test("Gmail global usa history cursor valido, filtra Foco y Apply no vuelve a le
     connectedAccountId: "account-1",
     dryRun: true,
     globalFocusedMailSync: true,
+    gmailSince: "2026-08-01T00:00:00.000Z",
     includeCalendar: false,
     includeMail: true,
     maxMailMessages: 25,
@@ -2425,6 +2428,27 @@ test("Gmail global recovery captura baseline antes, usa Foco y exactamente 14 di
   assert.equal(capturedRecoveryInput?.since, "2026-09-21T12:00:00.000Z");
   assert.match(capturedRecoveryInput?.query ?? "", /maria@empresa\.cl/);
   assert.doesNotMatch(capturedRecoveryInput?.query ?? "", /fuera@empresa\.cl/);
+});
+
+test("Gmail global recovery conserva el límite temporal más restrictivo", async () => {
+  let recoverySince: string | null | undefined;
+  const reviewed = await reviewGoogleGmailFocusedSync({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    minimumOccurredAt: "2026-10-01T00:00:00.000Z",
+    now: "2026-10-05T12:00:00.000Z",
+    userEmail: "sergio@crm.cl"
+  }, focusedSyncDependencies({
+    readCursorRecord: async () => null,
+    readMail: async ({ since }: { since?: string | null }) => {
+      recoverySince = since;
+      return gmailRead();
+    },
+    readMailProfileHistoryId: async () => "301"
+  }));
+
+  assert.equal(recoverySince, "2026-10-01T00:00:00.000Z");
+  assert.equal(reviewed.snapshot.recoverySince, "2026-10-01T00:00:00.000Z");
 });
 
 test("Gmail global usa recovery ante cursor vencido o de otra cuenta", async () => {
