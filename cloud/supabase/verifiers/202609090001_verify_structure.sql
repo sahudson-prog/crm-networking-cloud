@@ -96,6 +96,7 @@ begin
   if exists (
     with expected(capability_code, capability_area) as (values
       ('admin.manage_access', 'admin'),
+      ('admin.manage_contact_requests', 'admin'),
       ('admin.manage_global_masters', 'admin'),
       ('admin.view_diagnostics', 'admin'),
       ('coach.automate', 'coach'),
@@ -113,7 +114,7 @@ begin
       (select capability_code, capability_area from expected
        except select capability_code, capability_area from public.app_capabilities where is_active)
     ) differences
-  ) or (select count(*) from public.app_capabilities) <> 10 then
+  ) or (select count(*) from public.app_capabilities) <> 11 then
     raise exception 'Canonical capability keys or areas differ from the approved seed';
   end if;
 
@@ -141,6 +142,7 @@ begin
       ('sponsor_admin', 'admin.view_diagnostics'),
       ('support_admin', 'admin.view_diagnostics'),
       ('system_admin', 'admin.manage_access'),
+      ('system_admin', 'admin.manage_contact_requests'),
       ('system_admin', 'admin.manage_global_masters'),
       ('system_admin', 'admin.view_diagnostics'),
       ('system_admin', 'data.delete_account'),

@@ -6,6 +6,7 @@ begin;
 insert into public.app_capabilities (capability_code, display_name, capability_area, description)
 values
   ('admin.manage_access', 'Administrar accesos', 'admin', 'Gestionar roles, planes, usuarios, organizaciones y capacidades.'),
+  ('admin.manage_contact_requests', 'Gestionar solicitudes de contacto', 'admin', 'Revisar solicitudes de contacto y actualizar sus estados acotados.'),
   ('admin.view_diagnostics', 'Ver diagnosticos', 'admin', 'Ver paneles de mantencion, logs y datos crudos controlados.'),
   ('admin.manage_global_masters', 'Administrar maestros globales', 'admin', 'Crear o modificar catalogos globales como empresas headhunter.'),
   ('contacts.import_google', 'Importar contactos Google', 'contacts', 'Revisar e importar contactos desde Google en modo lectura.'),
@@ -46,6 +47,7 @@ values
   ('beta_tester', 'coach.use'),
   ('support_admin', 'admin.view_diagnostics'),
   ('system_admin', 'admin.manage_access'),
+  ('system_admin', 'admin.manage_contact_requests'),
   ('system_admin', 'admin.view_diagnostics'),
   ('system_admin', 'admin.manage_global_masters'),
   ('system_admin', 'data.delete_account'),

@@ -1,7 +1,6 @@
 "use client";
 
-import { cloneElement, isValidElement, useCallback, useEffect, useState } from "react";
-import { useRef } from "react";
+import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
@@ -23,24 +22,7 @@ import {
 } from "../lib/authCaptcha";
 import { clearRememberedGoogleRequestedScopes, signInWithGoogleForAuth } from "../lib/googleAuthSession";
 import { cleanLegacyImplicitAuthFragment, prepareAuthCallback } from "../lib/authCallback";
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        container: HTMLElement,
-        options: {
-          callback: (token: string) => void;
-          "error-callback": () => void;
-          "expired-callback": () => void;
-          sitekey: string;
-        }
-      ) => string;
-      remove?: (widgetId: string) => void;
-      reset?: (widgetId: string) => void;
-    };
-  }
-}
+import { TurnstileWidget } from "./TurnstileWidget";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -372,64 +354,4 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   return <>{isValidElement<{ onSignOut?: () => void }>(children) ? cloneElement(children, { onSignOut: signOut }) : children}</>;
-}
-
-function TurnstileWidget({
-  onError,
-  onExpired,
-  onResolved,
-  siteKey
-}: {
-  onError: () => void;
-  onExpired: () => void;
-  onResolved: (token: string) => void;
-  siteKey: string;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const widgetIdRef = useRef("");
-
-  useEffect(() => {
-    let active = true;
-    const scriptId = "cloudflare-turnstile-script";
-
-    function renderTurnstile() {
-      if (!active || !containerRef.current || !window.turnstile || widgetIdRef.current) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        callback: onResolved,
-        "error-callback": onError,
-        "expired-callback": onExpired,
-        sitekey: siteKey
-      });
-    }
-
-    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (existingScript) {
-      if (window.turnstile) renderTurnstile();
-      else existingScript.addEventListener("load", renderTurnstile);
-
-      return () => {
-        active = false;
-        existingScript.removeEventListener("load", renderTurnstile);
-        if (widgetIdRef.current && window.turnstile?.remove) window.turnstile.remove(widgetIdRef.current);
-      };
-    }
-
-    const script = document.createElement("script");
-    script.async = true;
-    script.defer = true;
-    script.id = scriptId;
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.addEventListener("load", renderTurnstile);
-    script.addEventListener("error", onError);
-    document.body.appendChild(script);
-
-    return () => {
-      active = false;
-      script.removeEventListener("load", renderTurnstile);
-      script.removeEventListener("error", onError);
-      if (widgetIdRef.current && window.turnstile?.remove) window.turnstile.remove(widgetIdRef.current);
-    };
-  }, [onError, onExpired, onResolved, siteKey]);
-
-  return <div className="auth-turnstile" ref={containerRef} />;
 }

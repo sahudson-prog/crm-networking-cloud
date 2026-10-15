@@ -2,6 +2,7 @@ import { supabase } from "./supabaseClient.ts";
 
 export type CapabilityCode =
   | "admin.manage_access"
+  | "admin.manage_contact_requests"
   | "admin.view_diagnostics"
   | "admin.manage_global_masters"
   | "contacts.import_google"

@@ -624,6 +624,266 @@
   line-height: 1.35;
 }
 
+.public-contact-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    linear-gradient(180deg, var(--brand-cream) 0, var(--crm-bg) 310px),
+    var(--crm-bg);
+  padding: 34px 20px 54px;
+}
+
+.public-contact-shell {
+  display: grid;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  gap: 24px;
+}
+
+.public-contact-brand {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 9px;
+  color: var(--brand-espresso);
+  text-decoration: none;
+}
+
+.public-contact-brand img {
+  display: block;
+  width: 52px;
+  height: auto;
+}
+
+.public-contact-brand span {
+  font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.public-contact-intro {
+  display: grid;
+  gap: 8px;
+}
+
+.public-contact-kicker {
+  margin: 0;
+  color: var(--brand-coffee);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.public-contact-intro h1 {
+  margin: 0;
+  color: var(--brand-espresso);
+  font-size: 32px;
+  line-height: 1.15;
+}
+
+.public-contact-intro > p:last-child {
+  max-width: 610px;
+  margin: 0;
+  color: var(--crm-muted);
+  line-height: 1.55;
+}
+
+.public-contact-form {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  box-shadow: var(--crm-shadow-panel);
+  padding: 22px;
+}
+
+.public-contact-message-field textarea {
+  min-height: 150px;
+}
+
+.public-contact-warning {
+  margin: 0;
+  border-left: 3px solid var(--crm-warning);
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  padding-left: 10px;
+}
+
+.public-contact-turnstile {
+  min-height: 65px;
+}
+
+.public-contact-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.contact-requests-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.7fr);
+  gap: 20px;
+  min-height: 420px;
+}
+
+.contact-requests-list {
+  display: grid;
+  align-content: start;
+  border-right: 1px solid var(--crm-border);
+  padding-right: 20px;
+}
+
+.contact-request-list-item {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  border: 0;
+  border-bottom: 1px solid var(--crm-border);
+  background: transparent;
+  color: var(--crm-text);
+  cursor: pointer;
+  font: inherit;
+  padding: 12px 10px;
+  text-align: left;
+}
+
+.contact-request-list-item:hover,
+.contact-request-list-item.active {
+  background: var(--crm-bg);
+}
+
+.contact-request-list-item:focus-visible {
+  outline: 2px solid var(--crm-accent);
+  outline-offset: -2px;
+}
+
+.contact-request-list-item span,
+.contact-request-list-item small {
+  color: var(--crm-muted);
+  font-size: 12px;
+}
+
+.contact-request-detail {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+}
+
+.contact-request-detail > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.contact-request-detail h3,
+.contact-request-detail p {
+  margin: 0;
+}
+
+.contact-request-detail header a {
+  color: var(--crm-accent);
+  font-size: 13px;
+}
+
+.contact-request-detail header > span {
+  color: var(--crm-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.contact-request-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.contact-request-facts div {
+  display: grid;
+  gap: 4px;
+}
+
+.contact-request-facts dt {
+  color: var(--crm-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.contact-request-facts dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+.contact-request-message {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--crm-border);
+  border-bottom: 1px solid var(--crm-border);
+  padding: 16px 0;
+}
+
+.contact-request-message p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.contact-request-admin-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .public-contact-page {
+    padding: 24px 14px 40px;
+  }
+
+  .public-contact-intro h1 {
+    font-size: 27px;
+  }
+
+  .public-contact-form {
+    padding: 16px;
+  }
+
+  .public-contact-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .public-contact-actions .button {
+    width: 100%;
+  }
+
+  .contact-requests-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-requests-list {
+    max-height: 240px;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--crm-border);
+    padding-right: 0;
+    padding-bottom: 12px;
+  }
+
+  .contact-request-detail > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .contact-request-facts,
+  .contact-request-admin-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .auth-landing {
     align-items: start;

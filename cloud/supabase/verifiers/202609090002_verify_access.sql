@@ -54,7 +54,7 @@ declare
     'contact_objective_assignments'
   ];
   no_authenticated_table_privileges text[] := array[
-    'app_access_allowlist'
+    'app_access_allowlist', 'contact_requests'
   ];
   internal_functions regprocedure[] := array[
     'public.set_updated_at()'::regprocedure,
@@ -77,8 +77,14 @@ declare
     'public.reset_current_user_app_data_v0_1(text)'::regprocedure,
     'public.apply_ics_import_v1(jsonb)'::regprocedure,
     'public.reconcile_ics_focus_participants_v1(boolean)'::regprocedure,
+    'public.admin_list_contact_requests_v1(integer)'::regprocedure,
+    'public.admin_update_contact_request_v1(uuid,text,text)'::regprocedure,
     'public.disconnect_current_user_google_connected_account(uuid)'::regprocedure,
     'public.validate_contact_sync_storage_v0_1()'::regprocedure
+  ];
+  service_role_functions regprocedure[] := array[
+    'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure,
+    'public.submit_contact_request_v1(text,text,text,text,text,uuid)'::regprocedure
   ];
   security_definer_functions regprocedure[];
 begin
@@ -167,9 +173,8 @@ begin
   security_definer_functions := array_remove(
     array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),
     'public.normalize_app_access_email(text)'::regprocedure
-  ) || authenticated_functions || array[
-    'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure,
-    'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure
+  ) || authenticated_functions || service_role_functions || array[
+    'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure
   ];
 
   for critical_policy in
@@ -184,7 +189,8 @@ begin
       ('Headhunter companies are admin writable', 'headhunter_companies', 'ALL', 'authenticated'),
       ('Headhunter company domains are admin writable', 'headhunter_company_domains', 'ALL', 'authenticated'),
       ('App access allowlist is admin readable', 'app_access_allowlist', 'SELECT', 'authenticated'),
-      ('App access allowlist is admin writable', 'app_access_allowlist', 'ALL', 'authenticated')
+      ('App access allowlist is admin writable', 'app_access_allowlist', 'ALL', 'authenticated'),
+      ('Contact requests are admin readable', 'contact_requests', 'SELECT', 'authenticated')
     ) as expected(policy_name, table_name, command_name, role_name)
   loop
     if not exists (
@@ -321,6 +327,16 @@ begin
     raise exception 'A critical admin policy uses an unexpected capability';
   end if;
 
+  if not exists (
+    select 1 from pg_catalog.pg_policies policy
+    where policy.schemaname = 'public'
+      and policy.tablename = 'contact_requests'
+      and policy.policyname = 'Contact requests are admin readable'
+      and coalesce(policy.qual, '') like '%admin.manage_contact_requests%'
+  ) then
+    raise exception 'Contact request read policy uses an unexpected capability';
+  end if;
+
   foreach table_name in array discovered_tables loop
     if not exists (
       select 1
@@ -449,7 +465,7 @@ begin
       raise exception 'Unexpected authenticated EXECUTE grant on %', app_function;
     end if;
     if has_function_privilege('service_role', app_function, 'EXECUTE')
-      <> (app_function = 'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure) then
+      <> (app_function = any(service_role_functions)) then
       raise exception 'Unexpected service_role EXECUTE grant on %', app_function;
     end if;
     if has_function_privilege('supabase_auth_admin', app_function, 'EXECUTE')

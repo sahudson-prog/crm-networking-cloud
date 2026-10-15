@@ -7,11 +7,12 @@ import {
 export const SYSTEM_CAPABILITY_CODES = [
   "admin.view_diagnostics",
   "admin.manage_access",
+  "admin.manage_contact_requests",
   "admin.manage_global_masters"
 ] as const satisfies readonly CapabilityCode[];
 
 export type SystemCapabilityCode = (typeof SYSTEM_CAPABILITY_CODES)[number];
-export type SystemSurface = "system" | "design" | "logs" | "maintenance" | "headhunters";
+export type SystemSurface = "system" | "design" | "logs" | "maintenance" | "headhunters" | "requests";
 
 export type SystemAccessState =
   | { status: "checking"; grantedCapabilities: SystemCapabilityCode[] }
@@ -25,6 +26,7 @@ const SYSTEM_SURFACE_REQUIREMENTS: Record<SystemSurface, readonly SystemCapabili
   headhunters: ["admin.manage_global_masters"],
   logs: ["admin.view_diagnostics"],
   maintenance: ["admin.manage_access"],
+  requests: ["admin.manage_contact_requests"],
   system: SYSTEM_CAPABILITY_CODES
 };
 

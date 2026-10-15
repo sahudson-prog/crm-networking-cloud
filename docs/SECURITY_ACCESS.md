@@ -82,7 +82,7 @@ La regla efectiva observada es:
 
 La RPC mínima `current_user_app_access_status()` devuelve solo `allowed` y `reason` para el usuario actual. `AuthGate` usa esa decisión efectiva sin consultar manualmente allowlist, profiles, roles, planes o capabilities. La razón puede servir para diagnóstico interno, pero no se expone como detalle técnico al usuario final.
 
-En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capability` y `requireCurrentUserCapability` detiene operaciones cuando la capacidad falta. Las capacidades tipadas en código incluyen administración, importación Google, gestión de contactos, uso/automatización de Coach, exportación y borrado/reset de datos. La navegación y las rutas de Sistema resuelven las capacidades administrativas efectivas, sin depender de nombres de roles: diagnóstico protege Guía y Logs, administración de acceso protege Mantención y administración de maestros protege HeadHunter. Cuenta permanece disponible para todo usuario con acceso efectivo a la aplicación.
+En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capability` y `requireCurrentUserCapability` detiene operaciones cuando la capacidad falta. Las capacidades tipadas en código incluyen administración, importación Google, gestión de contactos, uso/automatización de Coach, exportación y borrado/reset de datos. La navegación y las rutas de Sistema resuelven las capacidades administrativas efectivas, sin depender de nombres de roles: diagnóstico protege Guía y Logs, administración de acceso protege Mantención, administración de maestros protege HeadHunter y `admin.manage_contact_requests` protege la bandeja de solicitudes. Cuenta permanece disponible para todo usuario con acceso efectivo a la aplicación.
 
 La administración de acceso beta se realiza mediante RPCs estrechas, no como CRUD genérico desde la UI. Las operaciones administrativas verifican `admin.manage_access` en SQL, usan `SECURITY DEFINER` con `search_path` fijo cuando necesitan consultar `auth.users`, y no exponen metadata Auth completa, tokens, identidades crudas ni datos de contraseña.
 
@@ -108,7 +108,7 @@ Las rutas de Sistema usan `AuthGate` y un guard frontend compartido que falla ce
 
 ## Operaciones privilegiadas
 
-El runtime web normal usa cliente Supabase público y RLS. La excepción acotada vigente es la ruta server-side de finalización Google Connected Account, que requiere `SUPABASE_SERVICE_ROLE_KEY` solo del lado servidor y no lo expone al browser.
+El runtime web normal usa cliente Supabase público y RLS. Las excepciones acotadas vigentes son la ruta server-side de finalización Google Connected Account y la recepción pública de solicitudes de contacto después de validar Turnstile. Ambas requieren `SUPABASE_SERVICE_ROLE_KEY` solo del lado servidor y no lo exponen al browser. La ruta de contacto valida una sesión opcional antes de asociar `user_id`; el formulario nunca envía ese identificador.
 
 Sí existen funciones SQL con `SECURITY DEFINER`:
 
@@ -148,7 +148,7 @@ El modelo de roles, planes y capabilities existe, pero la app no aplica capabili
 
 La foundation de allowlist y el enforcement de acceso se preparan en dos pasos para evitar lockout: primero se instala la allowlist y el hook preparado; luego, tras autorizar al admin existente, se activa `current_user_has_app_access()`, capabilities fail-closed, trigger fail-closed y RLS reforzado.
 
-No hay backend privilegiado general para encapsular todas las operaciones sensibles. La excepción implementada es la finalización Google Connected Account verificada, acotada a ese flujo.
+No hay backend privilegiado general para encapsular todas las operaciones sensibles. Las fronteras server-side privilegiadas implementadas son flujos estrechos: la finalización verificada de Google Connected Account y la recepción validada de solicitudes públicas de contacto.
 
 Las organizations y sponsorships existen en schema, pero no se observa que otorguen acceso automático a datos privados de otros usuarios.
 

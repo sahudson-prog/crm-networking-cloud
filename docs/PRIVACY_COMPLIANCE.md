@@ -16,7 +16,7 @@ La aplicación vigente es la app cloud en `cloud/web`, con Supabase/Postgres com
 
 Los datos privados operativos se modelan principalmente como datos del usuario mediante `user_id` y RLS.
 
-Google es el único proveedor externo implementado. La app lee/importa/sincroniza desde Google Contacts, Gmail y Calendar hacia CRM Networking. No se observó escritura desde la app hacia Google.
+Google sigue siendo el proveedor externo conectado implementado. La app lee/importa/sincroniza desde Google Contacts, Gmail y Calendar hacia CRM Networking. iCalendar es una importación local y puntual de archivos, no un proveedor conectado. No se observó escritura desde la app hacia Google.
 
 La app distingue cuenta de acceso, perfil interno, cuenta conectada, datos locales, identidades externas, snapshots de proveedor, logs técnicos y auditoría de negocio.
 
@@ -45,6 +45,8 @@ Referidos: contacto que refiere, contacto vinculado opcional, nombre, empresa, c
 Objetivos profesionales: nombre, tipo, prioridad, descripción y asociaciones con contactos.
 
 Datos operativos: sugerencias Coach, configuraciones de reglas, acciones internas, logs de sincronización, diagnósticos, cursores, límites de uso, eventos de uso, métricas y auditoría.
+
+Solicitudes de contacto: nombre opcional, email, motivo, submotivo opcional de privacidad, mensaje, estado operativo, estado básico de verificación de identidad y vínculo opcional con una cuenta autenticada. El formulario no persiste IP ni User-Agent.
 
 ## Finalidad funcional observada
 
@@ -124,7 +126,7 @@ Los previews, confirmaciones UI y prompts destructivos son controles de producto
 
 No se observó una política automática de retención, expiración o limpieza por antigüedad para contactos, interacciones, logs, diagnósticos o auditoría.
 
-No se observó flujo completo para solicitud de acceso, rectificación formal, portabilidad, oposición, bloqueo, anonimización o eliminación total de cuenta.
+Existe un canal público para recibir y clasificar solicitudes de acceso, rectificación, supresión, portabilidad, oposición y bloqueo. Este intake no constituye por sí solo un portal de seguimiento, respuesta automatizada, exportación, anonimización ni eliminación total de cuenta.
 
 No se observó política cerrada para conservar evidencia mínima después de un reset o cierre de cuenta.
 

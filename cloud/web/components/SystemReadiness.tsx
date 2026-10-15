@@ -22,6 +22,7 @@ export function SystemReadiness() {
   const canViewDiagnostics = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "logs");
   const canManageAccess = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "maintenance");
   const canManageHeadhunters = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "headhunters");
+  const canManageRequests = hasSystemSurfaceAccess(systemAccess.grantedCapabilities, "requests");
 
   useEffect(() => {
     if (!canViewDiagnostics) return;
@@ -78,6 +79,11 @@ export function SystemReadiness() {
         {canManageHeadhunters ? (
           <Link className="button" href="/sistema/headhunters">
             Empresas headhunter
+          </Link>
+        ) : null}
+        {canManageRequests ? (
+          <Link className="button" href="/sistema/solicitudes">
+            Solicitudes de contacto
           </Link>
         ) : null}
       </div>
