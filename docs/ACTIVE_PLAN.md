@@ -53,38 +53,49 @@ Prompt de recuperación copy/paste-safe:
 - Current branch/worktree: `codex/onboarding-mandatory-first-run`.
 - Completed in current task:
   - REL-01 cerrado;
-  - PR #26 merged en `c1bee9d5672bcf38f1fd58bfbc7b19d770365bf0`;
-  - Vercel Production success y smoke funcional `N/A — docs-only`;
-  - post-release canonical sync PASS;
-  - worktree y branch de ONB-01 creados;
-  - checkpoint de ONB-01 publicado en origin;
-  - auditoría y plan mínimo cerrados sin necesidad de schema nuevo;
-  - implementación local del first-run obligatorio y replay opcional completada;
+  - implementación ONB-01 completada;
   - mandatory first-run enforcement implementado;
-  - carreras de doble activación y doble navegación en completion corregidas, preservando fail-closed;
-  - `test:onboarding`, `test:legal`, `test:system-access`, typecheck y build PASS;
+  - replay opcional para usuarios `completed` preservado;
+  - carreras de completion corregidas manteniendo fail-closed;
+  - `test:onboarding` 37/37 PASS;
+  - `test:legal` 15/15 PASS;
+  - `test:system-access` 11/11 PASS;
+  - typecheck PASS;
+  - build PASS;
+  - `git diff --check` PASS;
   - smoke manual previo confirmó enforcement first-run, bloqueo por URL y replay completed dismissible;
   - escenario A-completed → B-incompleto: automated coverage PASS / manual NOT RUN;
-  - FINAL POST-FIX TESTER VALIDATION: PENDING.
+  - implementación publicada en `d5209167bdb20710bc253e2fd1404c420f52928b`;
+  - FINAL POST-FIX TESTER VALIDATION: PENDING — POST-DEPLOY PROD GATE.
 - Still pending:
-  - commit y push;
-  - PR;
-  - tester validation de la versión final y aprobación del tester gate;
-  - merge y Production deployment;
-  - smoke PROD;
+  - PR manual;
+  - review/checks;
+  - merge manual;
+  - verificar SHA integrado en main;
+  - verificar Production deployment real y SHA desplegado;
+  - tester validation en PROD de la versión final;
+  - aprobación del tester/PROD smoke gate;
   - post-release canonical sync;
   - cierre ONB-01.
 - Blockers: None confirmed.
+- Gate de cierre:
+  - tester validation no es un gate previo al merge porque los testers operan sobre PROD; su ausencia no bloquea por sí sola PR ni merge;
+  - ONB-01 no puede marcarse `COMPLETED` hasta que tester validation / smoke PROD posterior al deployment sea PASS;
+  - si tester validation PROD detecta un defecto bloqueante, ONB-01 permanece `IN PROGRESS` y requiere una corrección/release posterior.
 - Manual/remote actions already executed:
   - fetch read-only de `origin/main`;
   - canonical `main` sincronizado por fast-forward;
   - worktree de ONB-01 creado;
   - branch `codex/onboarding-mandatory-first-run` publicada.
 - Immediate next action:
-  - publicar la implementación de ONB-01 para PR y tester validation.
+  - abrir PR manual;
+  - revisar checks;
+  - autorizar merge;
+  - después del deployment ejecutar tester validation en PROD.
 - Stop boundary:
-  - no crear PR ni mergear sin autorización;
-  - no modificar schema, aceptación legal ni crear una segunda máquina de estado.
+  - no crear PR desde Codex;
+  - no mergear;
+  - no cambios en servicios.
 - Deuda UX fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
@@ -194,7 +205,7 @@ Hacer obligatorio el onboarding inicial sin alterar el comportamiento dismissibl
 **Gates manuales y remotos**
 
 - Diseño e implementación local no requieren cambios remotos.
-- Antes del release: aprobar diff, ejecutar tests focales/typecheck/build, validar manualmente first-run y replay, y seguir el proceso normal de PR, deploy y smoke PROD.
+- Antes del merge: aprobar diff, ejecutar tests focales/typecheck/build y revisar checks. Después del deployment PROD: ejecutar tester validation / smoke funcional obligatorio; ONB-01 se cierra solo después de ese PASS.
 - Cualquier cambio de contrato persistente PROD debe seguir `docs/PROD_CONTRACTS.md` y no está preautorizado por esta fase.
 
 **Relación con otras fases**
