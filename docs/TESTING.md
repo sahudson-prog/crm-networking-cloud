@@ -130,6 +130,16 @@ La comprobación manual sigue siendo necesaria cuando el comportamiento depende 
 - Estados visuales responsivos desktop/mobile.
 - Operaciones destructivas o de alto impacto.
 
+## Triage de incidentes funcionales
+
+Antes de ampliar una auditoría de código ante un fallo reproducible:
+
+1. Reproducir el flujo en el navegador.
+2. Revisar Console y la excepción capturada.
+3. Revisar Network sin exponer tokens, credenciales ni payloads sensibles.
+4. Determinar si el fallo ocurre antes del proveedor, durante la llamada al proveedor o durante Apply.
+5. Auditar después el tramo de código identificado por esa evidencia.
+
 ## CI y automatización
 
 No se observó carpeta `.github` ni workflow de GitHub Actions en el repositorio. Por lo tanto, no debe asumirse que las validaciones corren automáticamente al hacer commit o push.

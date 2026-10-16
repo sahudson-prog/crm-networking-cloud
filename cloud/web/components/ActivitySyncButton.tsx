@@ -49,7 +49,12 @@ import {
   readPendingActivitySyncAuthorization
 } from "../lib/activitySyncAuthorization";
 import type { ContactRow } from "../lib/readModel";
-import { calendarRollingWindowIso, latestIsoInstant, requireNetworkingStartIso } from "../lib/syncDate";
+import {
+  calendarRollingWindowIso,
+  latestIsoInstant,
+  NetworkingStartConfigurationError,
+  requirePeriodicNetworkingStartIso
+} from "../lib/syncDate";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
 import { loadActivitySyncLimitValues } from "../lib/usageLimitSettings";
 import {
@@ -789,7 +794,7 @@ export function ActivitySyncButton({
     logStep("Inicio", input.dryRun ? "Actualizacion solicitada." : `${input.externalIds?.length ?? 0} elemento(s) seleccionados.`, "running");
 
     try {
-      const networkingStart = await requireNetworkingStartIso();
+      const networkingStart = await requirePeriodicNetworkingStartIso();
       const calendarWindow = input.includeCalendar ? calendarRollingWindowIso() : null;
       const calendarTimeMin = latestIsoInstant(calendarWindow?.since, networkingStart);
       const syncLimits = await loadActivitySyncLimitValues();
@@ -1060,6 +1065,7 @@ function serviceSyncErrorMessage(result: SyncGoogleInteractionsResult, service: 
 
 function serviceThrownErrorMessage(service: ActivitySyncService, error: unknown) {
   const label = activityServiceLabel(service);
+  if (error instanceof NetworkingStartConfigurationError) return error.message;
   if (error instanceof GoogleInteractionClientError) {
     if (error.code === "GOOGLE_INTERACTIONS_AUTH_REQUIRED") return `${label} requiere reconexión.`;
     if (error.code === "GOOGLE_INTERACTIONS_RATE_LIMITED") {

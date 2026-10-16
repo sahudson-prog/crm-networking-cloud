@@ -75,9 +75,20 @@ test("resultados quedan en filas por servicio con counts persistidos y error par
 
   assert.deepEqual(rows.map(({ label, status }) => ({ label, status })), [
     { label: "Correos", status: "+3 correos" },
-    { label: "Citas", status: "Error al actualizar" }
+    { label: "Citas", status: "Error al actualizar Calendar" }
   ]);
   assert.equal(rows.some((row) => row.status.includes("·")), false);
+});
+
+test("filas globales conservan errores accionables ya sanitizados por el servicio", () => {
+  const rows = buildGlobalActivitySyncRows({
+    freshness: { calendar: null, mail: null },
+    outcomes: [failure("mail", "Define la fecha de inicio de networking en Cuenta antes de importar correos o citas.")],
+    preferences: { calendarEnabled: false, gmailEnabled: true },
+    services: authorizedServices
+  });
+
+  assert.equal(rows[0]?.status, "Define la fecha de inicio de networking en Cuenta antes de importar correos o citas.");
 });
 
 test("filas distinguen autorización, error técnico y éxito sin novedades", () => {
@@ -209,10 +220,13 @@ function success(service: ActivitySyncServiceOutcome["service"], created: number
   };
 }
 
-function failure(service: ActivitySyncServiceOutcome["service"]): ActivitySyncServiceOutcome {
+function failure(
+  service: ActivitySyncServiceOutcome["service"],
+  error = `Error al actualizar ${service === "mail" ? "Gmail" : "Calendar"}`
+): ActivitySyncServiceOutcome {
   return {
     created: 0,
-    error: `Error al actualizar ${service}`,
+    error,
     reauthorizationRequired: false,
     service,
     success: false,
