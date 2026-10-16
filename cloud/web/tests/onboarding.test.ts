@@ -187,6 +187,9 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   const introEnd = routeComponent.indexOf("function OnboardingObjectivesStep", introStart);
   const introSource = routeComponent.slice(introStart, introEnd);
   const slideCount = slidesSource.match(/<SwiperSlide>/g)?.length ?? 0;
+  const navigationStart = slidesSource.indexOf('<div className="onboarding-intro-slide-navigation">');
+  const navigationEnd = slidesSource.indexOf("</div>\n      </div>\n      {onExit", navigationStart);
+  const primaryNavigation = slidesSource.slice(navigationStart, navigationEnd);
 
   assert.match(routeComponent, /<AuthGate>[\s\S]*routeId === "intro"[\s\S]*<OnboardingProvider>/);
   assert.match(introSource, /onboarding-intro-shell/);
@@ -222,12 +225,17 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   assert.match(introSource, /<OnboardingIntroSlides[\s\S]*onExit=\{onboarding\.replaying[\s\S]*onStart=\{\(\) => void onboarding\.start\(\)\}/);
   assert.match(slidesSource, /onStart/);
   assert.match(slidesSource, /Empecemos/);
+  assert.ok(navigationStart >= 0 && navigationEnd > navigationStart);
+  assert.doesNotMatch(primaryNavigation, /onExit|Salir/);
+  assert.match(slidesSource, /<div className="onboarding-intro-replay-exit">[\s\S]*<Button onClick=\{onExit\} tone="ghost">Salir<\/Button>/);
   assert.doesNotMatch(introSource, /Ahora no|onboarding\.defer|onboarding-intro-actions/);
   assert.doesNotMatch(introSource, /Comenzar recorrido/);
   assert.match(styles, /--onboarding-intro-title-size: clamp\(24px, 2\.1vw, 32px\)/);
   assert.match(styles, /--onboarding-intro-body-size: 15px/);
   assert.match(styles, /\.onboarding-intro-slide-final-content \{[\s\S]*place-items: center[\s\S]*text-align: center/);
   assert.match(styles, /\.onboarding-intro-slide-navigation \.button\.onboarding-intro-start \{[\s\S]*background: var\(--brand-espresso\)[\s\S]*color: var\(--brand-warm-white\)/);
+  assert.match(styles, /\.onboarding-intro-replay-exit \{[\s\S]*justify-content: center/);
+  assert.match(styles, /\.onboarding-intro-slide-navigation \{[\s\S]*display: grid;[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(styles, /onboarding-intro-actions|onboarding-intro-defer|onboarding-intro-closing/);
   assert.doesNotMatch(introSource, /<Shell|<CoachModule|Introducción/);
 });
