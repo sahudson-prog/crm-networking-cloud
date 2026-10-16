@@ -8,6 +8,7 @@ Este archivo contiene solo instrucciones transversales para trabajar en este rep
 - El backend usa Supabase/Postgres; schema, migraciones y verificadores viven en `cloud/supabase`.
 - Código, schema, migrations, tests y configuración actuales prevalecen sobre documentación desactualizada.
 - La documentación especializada se consulta solo cuando es relevante para la tarea.
+- Antes de planificar o implementar trabajo de producto o release, leer `docs/ACTIVE_PLAN.md` si existe. Es la autoridad para el pipeline de ejecución y el checkpoint activos; los owner docs siguen siendo la autoridad para contratos estables.
 - La antigua app local/Streamlit no forma parte del runtime activo. Cualquier herramienta legacy debe tratarse como migración aislada, no como arquitectura vigente.
 
 ## Forma de trabajo
