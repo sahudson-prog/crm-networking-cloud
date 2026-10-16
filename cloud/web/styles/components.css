@@ -7075,47 +7075,6 @@ textarea::placeholder {
   line-height: 1.55;
 }
 
-.onboarding-intro-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.onboarding-intro-actions .button.onboarding-intro-defer {
-  min-height: 44px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--brand-coffee);
-  box-shadow: none;
-}
-
-.onboarding-intro-actions .button.onboarding-intro-defer:not(:disabled):hover {
-  border-color: transparent;
-  background: rgba(255, 253, 251, 0.42);
-  color: var(--brand-espresso);
-  transform: none;
-}
-
-.onboarding-intro-actions .button.onboarding-intro-defer:focus-visible {
-  outline: 2px solid var(--brand-terracotta);
-  outline-offset: 2px;
-}
-
-.onboarding-intro-actions .button.onboarding-intro-start {
-  min-height: 44px;
-  border-color: var(--brand-espresso);
-  border-radius: 10px;
-  background: var(--brand-espresso);
-  color: var(--brand-warm-white);
-  font-weight: 600;
-}
-
-.onboarding-intro-actions .button.onboarding-intro-start:not(:disabled):hover {
-  border-color: var(--brand-coffee);
-  background: var(--brand-coffee);
-  color: var(--brand-warm-white);
-}
-
 .onboarding-intro-slideshow {
   display: grid;
   align-content: stretch;
@@ -7283,9 +7242,15 @@ textarea::placeholder {
   line-height: 1.45;
 }
 
-.onboarding-intro-closing {
+.onboarding-intro-slide-final-content {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  text-align: center;
+}
+
+.onboarding-intro-slide-final-content strong {
   max-width: 620px;
-  margin-top: 10px;
   color: var(--brand-espresso);
   font-size: clamp(27px, 2.8vw, 38px);
   line-height: 1.16;
@@ -7325,6 +7290,19 @@ textarea::placeholder {
 .onboarding-intro-slide-navigation .button:focus-visible {
   outline: 2px solid var(--brand-terracotta);
   outline-offset: 2px;
+}
+
+.onboarding-intro-slide-navigation .button.onboarding-intro-start {
+  border-color: var(--brand-espresso);
+  border-radius: 10px;
+  background: var(--brand-espresso);
+  color: var(--brand-warm-white);
+}
+
+.onboarding-intro-slide-navigation .button.onboarding-intro-start:not(:disabled):hover {
+  border-color: var(--brand-coffee);
+  background: var(--brand-coffee);
+  color: var(--brand-warm-white);
 }
 
 .onboarding-objectives-page {
@@ -8476,15 +8454,6 @@ textarea::placeholder {
   }
 
   .onboarding-intro-slide-navigation .button {
-    width: 100%;
-  }
-
-  .onboarding-intro-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-
-  .onboarding-intro-actions .button {
     width: 100%;
   }
 

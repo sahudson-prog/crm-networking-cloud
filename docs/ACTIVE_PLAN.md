@@ -29,12 +29,12 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release cerrada: PR #23, aceptación legal versionada V1.1.
+- Última release cerrada: PR #26, release runbook y canonical Git workflow (`docs-only`).
 - Last completed product release SHA: `14c11c37d1e1fcf10517c6d55416e25a2f939ca6`.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
-- Fase activa: `REL-01 — Release runbook`.
+- Fase activa: `ONB-01 — Mandatory first-run onboarding`.
 - Estado de la fase activa: `IN PROGRESS`.
 - Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
 
@@ -47,43 +47,58 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `REL-01 — Release runbook`.
+- Current phase: `ONB-01 — Mandatory first-run onboarding`.
 - Status: `IN PROGRESS`.
-- Baseline: `e5b46db8d486d7038481212bb24e3bfc01c81366`.
-- Current branch/worktree: `codex/release-runbook-v1`.
+- Baseline: `c1bee9d5672bcf38f1fd58bfbc7b19d770365bf0`.
+- Current branch/worktree: `codex/onboarding-mandatory-first-run`.
 - Completed in current task:
-  - OPS-LOCAL-01 cerrado;
-  - reconciliación documental completada;
-  - GitHub elegido como base documental;
-  - ENVIRONMENTS recuperado;
-  - RELEASE_RUNBOOK creado y revisado;
-  - AGENTS/README/ACTIVE_PLAN ajustados;
-  - commit inicial de REL-01 creado;
-  - branch publicada en origin.
+  - REL-01 cerrado;
+  - implementación ONB-01 completada;
+  - mandatory first-run enforcement implementado;
+  - replay opcional para usuarios `completed` preservado;
+  - carreras de completion corregidas manteniendo fail-closed;
+  - `test:onboarding` 37/37 PASS;
+  - `test:legal` 15/15 PASS;
+  - `test:system-access` 11/11 PASS;
+  - typecheck PASS;
+  - build PASS;
+  - `git diff --check` PASS;
+  - smoke manual previo confirmó enforcement first-run, bloqueo por URL y replay completed dismissible;
+  - escenario A-completed → B-incompleto: automated coverage PASS / manual NOT RUN;
+  - implementación publicada en `d5209167bdb20710bc253e2fd1404c420f52928b`;
+  - FINAL POST-FIX TESTER VALIDATION: PENDING — POST-DEPLOY PROD GATE.
 - Still pending:
-  - aplicar estas correcciones finales;
-  - crear PR manual;
-  - revisar checks;
+  - PR manual;
+  - review/checks;
   - merge manual;
-  - verificar SHA integrado;
-  - verificar deployment;
-  - ejecutar smoke si corresponde o justificar `N/A`;
-  - sincronizar canonical main;
-  - cerrar REL-01.
+  - verificar SHA integrado en main;
+  - verificar Production deployment real y SHA desplegado;
+  - tester validation en PROD de la versión final;
+  - aprobación del tester/PROD smoke gate;
+  - post-release canonical sync;
+  - cierre ONB-01.
 - Blockers: None confirmed.
+- Gate de cierre:
+  - tester validation no es un gate previo al merge porque los testers operan sobre PROD; su ausencia no bloquea por sí sola PR ni merge;
+  - ONB-01 no puede marcarse `COMPLETED` hasta que tester validation / smoke PROD posterior al deployment sea PASS;
+  - si tester validation PROD detecta un defecto bloqueante, ONB-01 permanece `IN PROGRESS` y requiere una corrección/release posterior.
 - Manual/remote actions already executed:
   - fetch read-only de `origin/main`;
-  - canonical clone validado;
-  - worktree de REL-01 creado;
-  - branch `codex/release-runbook-v1` publicada.
+  - canonical `main` sincronizado por fast-forward;
+  - worktree de ONB-01 creado;
+  - branch `codex/onboarding-mandatory-first-run` publicada.
 - Immediate next action:
-  - finalizar diff documental;
-  - commit/push;
-  - abrir PR manual.
+  - abrir PR manual;
+  - revisar checks;
+  - autorizar merge;
+  - después del deployment ejecutar tester validation en PROD.
 - Stop boundary:
-  - no merge;
-  - no cambios de servicios;
-  - no modificar repositorios históricos.
+  - no crear PR desde Codex;
+  - no mergear;
+  - no cambios en servicios.
+- Deuda UX fuera de alcance:
+  - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
+  - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
 
@@ -106,120 +121,21 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 
 ### REL-01 - Release runbook
 
-**Status:** `IN PROGRESS`
+**Status:** `COMPLETED`
 
-**Objetivo**
+**Resultado estable**
 
-Crear `docs/RELEASE_RUNBOOK.md` como owner operativo del proceso completo de promoción y cierre de releases.
-
-**Contrato normativo del runbook**
-
-**A. Inicio de tarea**
-
-- Trabajar desde canonical `main` limpio.
-- Ejecutar `git fetch origin main --prune` antes de validar baseline y verificar el `origin/main` real.
-- Nunca asumir que la referencia local `origin/main` está actualizada.
-- Crear el feature worktree desde `origin/main` recién fetched y su branch sin tracking accidental de `origin/main`.
-- No implementar directamente sobre canonical `main`.
-
-**B. Desarrollo local / DEV**
-
-- Leer `AGENTS.md` y `docs/ACTIVE_PLAN.md` y consultar solo owner docs relevantes.
-- Validar variables y ambiente antes de levantar runtime; confirmar explícitamente DEV antes de smoke local.
-- Implementar y validar proporcionalmente.
-- SQL remoto DEV requiere autorización explícita.
-- Registrar gates y blockers relevantes en `docs/ACTIVE_PLAN.md`.
-
-**C. Branch / push**
-
-- Commit y push solo cuando estén autorizados.
-- Al publicar una feature, usar upstream de su propia branch, no `origin/main`.
-- STOP después del push.
-- Codex no crea PR.
-
-**D. Pull Request**
-
-- El usuario crea el PR manualmente en GitHub Web.
-- Verificar base, head, SHA, archivos y checks.
-- Vercel Preview puede existir, pero no es un ambiente funcional soportado.
-- No mergear hasta un gate explícito.
-
-**E. Cambios persistentes / PROD**
-
-- Seguir `docs/PROD_CONTRACTS.md`; migrations aplicadas nunca se reescriben y las evoluciones son aditivas.
-- Validar en DEV antes de PROD.
-- SQL remoto o cambios PROD requieren autorización explícita.
-- Cuando corresponda, seguir: migration -> focal verifier -> canonical verifier -> app deployment -> smoke.
-
-**F. Merge**
-
-- El usuario realiza el merge manualmente desde GitHub Web.
-- Crear PR y mergear son gates separados.
-- Verificar el SHA realmente integrado en `main`.
-- Nunca asumir que merge equivale a deployment exitoso.
-
-**G. Deployment**
-
-- Verificar el deployment Production real y el commit o SHA asociado.
-- Exigir éxito de Vercel antes del smoke PROD manual correspondiente.
-
-**H. Post-release local synchronization**
-
-- En canonical `main` limpio, ejecutar `git fetch origin main --prune` y `git merge --ff-only origin/main`.
-- Verificar `HEAD = main = origin/main`, canonical `main` limpio y presencia física de migrations y verifiers merged.
-- Evitar `pull` ambiguo cuando sea posible.
-- No usar reset o rebase para sincronizar `main`.
-- Si canonical `main` está sucio, STOP y resolver antes de avanzar.
-
-**I. Worktree lifecycle**
-
-- Los feature worktrees son temporales y no son fuente permanente de migrations o docs.
-- Un worktree cerrado puede retirarse solo después de confirmar merge, sincronizar canonical `main`, verificar archivos ignorados o locales relevantes y obtener autorización explícita para la limpieza.
-- No es obligatorio limpiar worktrees en cada release si no generan riesgo.
-
-**J. Paths operacionales**
-
-- Docs y comandos versionados usan rutas relativas al repo y evitan paths absolutos personales.
-- Después del merge, el SQL manual se referencia desde el canonical repo, no desde worktrees temporales.
-- Un worktree path puede usarse antes del merge cuando ese es el artefacto validado.
-
-**K. Recuperación ante pérdida del PC**
-
-- GitHub permite reconstruir código, docs, migrations, tests e historial; los worktrees se recrean.
-- Los secrets no viven en Git y `.env.local` se reconstruye desde fuentes seguras.
-- Supabase, Vercel, Google y Cloudflare son externos al PC.
-- La recuperación de datos PROD es un problema distinto y sigue su proceso específico de backup y recovery.
-
-**L. Gates y STOP conditions**
-
-- STOP ante baseline remoto inesperado, canonical `main` sucio cuando debe sincronizarse, conflicto no fast-forward, migration aplicada modificada, ambiente DEV/PROD ambiguo, secrets detectados, deployment no confirmado, smoke fallido o contradicción material entre repo, `ACTIVE_PLAN` y owner docs.
-
-**Relación documental**
-
-- `docs/ACTIVE_PLAN.md`: qué se está haciendo y checkpoint.
-- `docs/RELEASE_RUNBOOK.md`: cómo se ejecuta una release.
-- `docs/ENVIRONMENTS.md`: definición de ambientes.
-- `docs/PROD_CONTRACTS.md`: compatibilidad persistente y gates PROD.
-- `AGENTS.md`: routing y reglas transversales.
-
-Durante REL-01 debe evaluarse un cambio mínimo en `AGENTS.md` para enrutar trabajo de release hacia `docs/RELEASE_RUNBOOK.md`. No agregar ese enlace antes de que el runbook exista.
-
-**Criterios de aceptación**
-
-- Runbook completo pero compacto, sin duplicar owner docs innecesariamente.
-- Cubre inicio, DEV, PR, PROD, merge, deployment, smoke y sincronización posterior al release.
-- Resuelve explícitamente `origin/main` stale y la clase de problema canonical `main` 26 commits behind.
-- Usa paths portables.
-- Permite reconstruir el proceso en un PC nuevo.
-- `git diff --check` pasa.
-
-**Dependencias**
-
-- OPS-LOCAL-01 completado y nuevo canonical repo validado.
+- PR #26 merged.
+- SHA integrado: `c1bee9d5672bcf38f1fd58bfbc7b19d770365bf0`.
+- Vercel Production success.
+- Smoke funcional: `N/A — docs-only`.
+- Post-release canonical sync: PASS.
+- `docs/RELEASE_RUNBOOK.md` establecido como owner operacional.
+- Single canonical clone + worktrees formalizados.
 
 ### ONB-01 - Mandatory first-run onboarding
 
-**Status:** `BLOCKED BY REL-01`
+**Status:** `IN PROGRESS`
 
 **Objetivo**
 
@@ -289,7 +205,7 @@ Hacer obligatorio el onboarding inicial sin alterar el comportamiento dismissibl
 **Gates manuales y remotos**
 
 - Diseño e implementación local no requieren cambios remotos.
-- Antes del release: aprobar diff, ejecutar tests focales/typecheck/build, validar manualmente first-run y replay, y seguir el proceso normal de PR, deploy y smoke PROD.
+- Antes del merge: aprobar diff, ejecutar tests focales/typecheck/build y revisar checks. Después del deployment PROD: ejecutar tester validation / smoke funcional obligatorio; ONB-01 se cierra solo después de ese PASS.
 - Cualquier cambio de contrato persistente PROD debe seguir `docs/PROD_CONTRACTS.md` y no está preautorizado por esta fase.
 
 **Relación con otras fases**

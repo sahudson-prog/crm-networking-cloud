@@ -6,9 +6,9 @@ import { A11y, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Button } from "./ui/Button";
 
-const SLIDE_COUNT = 3;
+const SLIDE_COUNT = 4;
 
-export function OnboardingIntroSlides() {
+export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void; onStart: () => void }) {
   const swiperRef = useRef<SwiperInstance | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -92,9 +92,14 @@ export function OnboardingIntroSlides() {
                 <p>¿Qué conversaciones o compromisos quedaron pendientes?</p>
                 <p>¿Estoy haciendo networking de forma efectiva?</p>
               </div>
-              <strong className="onboarding-intro-closing">
-                Coffeecito se encarga de la gestión. Tú del café y la conversación.
-              </strong>
+            </div>
+          </OnboardingIntroSlide>
+        </SwiperSlide>
+
+        <SwiperSlide>
+          <OnboardingIntroSlide className="onboarding-intro-slide-final">
+            <div className="onboarding-intro-slide-final-content">
+              <strong>Coffeecito se encarga de la gestión. Tú del café y la conversación.</strong>
             </div>
           </OnboardingIntroSlide>
         </SwiperSlide>
@@ -102,6 +107,7 @@ export function OnboardingIntroSlides() {
 
       <div className="onboarding-intro-slide-navigation">
         <div>
+          {onExit ? <Button onClick={onExit} tone="ghost">Salir</Button> : null}
           <Button
             disabled={activeIndex === 0}
             icon="arrowLeft"
@@ -109,13 +115,15 @@ export function OnboardingIntroSlides() {
           >
             Anterior
           </Button>
-          <Button
-            disabled={activeIndex === SLIDE_COUNT - 1}
-            icon="arrowRight"
-            onClick={() => swiperRef.current?.slideNext()}
-          >
-            Siguiente
-          </Button>
+          {activeIndex < SLIDE_COUNT - 1 ? (
+            <Button icon="arrowRight" onClick={() => swiperRef.current?.slideNext()}>
+              Siguiente
+            </Button>
+          ) : (
+            <Button className="onboarding-intro-start" icon="arrowRight" onClick={onStart} tone="primary">
+              Empecemos
+            </Button>
+          )}
         </div>
       </div>
     </section>

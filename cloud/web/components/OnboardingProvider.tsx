@@ -8,18 +8,18 @@ import {
   ONBOARDING_PRODUCT_DESTINATION,
   beginOnboarding,
   beginOnboardingReplay,
+  canMoveOnboardingToStep,
   completeOnboarding,
-  deferOnboarding,
-  dismissOnboarding,
+  isOnboardingReplayAllowed,
+  isOnboardingRouteAdmitted,
   isOnboardingTestResetAvailable,
-  markOnboardingIntroSeen,
+  isProductOnboardingComplete,
   moveOnboardingToStep,
+  normalizeOnboardingSession,
   onboardingRouteFor,
   onboardingRouteIdFromPathname,
   onboardingStepFromPathname,
-  shouldClearOnboardingSessionOnNormalRoute,
-  shouldRedirectOnboardingIntroToProduct,
-  shouldShowAutomaticOnboardingIntro,
+  requiredOnboardingRoute,
   type OnboardingSessionState,
   type OnboardingStep,
   type ProductOnboardingState
@@ -35,15 +35,17 @@ const ONBOARDING_SESSION_KEY = "coffeecito_onboarding_session_v1";
 type OnboardingContextValue = {
   active: boolean;
   complete: () => Promise<void>;
-  defer: () => Promise<void>;
+  completing: boolean;
   error: string;
   exit: (step?: OnboardingStep) => Promise<void>;
+  loadFailed: boolean;
   loading: boolean;
   moveTo: (step: OnboardingStep) => Promise<void>;
   openIntro: () => void;
   replay: () => void;
   replaying: boolean;
   resetForDevelopment: () => Promise<void>;
+  retry: () => void;
   routeReady: boolean;
   start: () => Promise<void>;
   state: ProductOnboardingState;
@@ -57,41 +59,31 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ProductOnboardingState>(INITIAL_ONBOARDING_STATE);
   const [session, setSession] = useState<OnboardingSessionState>(INACTIVE_ONBOARDING_SESSION);
   const [loading, setLoading] = useState(true);
-  const [routeReady, setRouteReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState("");
-  const routeSyncRequest = useRef(0);
-  const routeSyncStep = useRef<OnboardingStep | null>(null);
+  const [loadRequest, setLoadRequest] = useState(0);
+  const completionPending = useRef(false);
+  const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
     let active = true;
     const storedSession = readOnboardingSession();
-    setSession(storedSession);
+    setLoading(true);
+    setLoadFailed(false);
+    setError("");
 
     async function load() {
       try {
         const stored = await loadProductOnboardingState();
         if (!active) return;
-        let loadedState = stored.state;
-
-        if (shouldShowAutomaticOnboardingIntro(stored)) {
-          const seenState = markOnboardingIntroSeen(stored.state);
-          try {
-            await saveProductOnboardingState(seenState);
-            if (!active) return;
-            loadedState = seenState;
-            if (onboardingRouteIdFromPathname(pathname) !== "intro") {
-              router.replace(onboardingRouteFor("intro"));
-            }
-          } catch {
-            if (!active) return;
-            setError("No pudimos guardar el avance de la guía. Puedes seguir usando Coffeecito normalmente.");
-          }
-        }
-
-        setState(loadedState);
+        const nextSession = normalizeOnboardingSession(stored.state, storedSession);
+        if (nextSession !== storedSession) clearOnboardingSession();
+        setState(stored.state);
+        setSession(nextSession);
       } catch {
         if (!active) return;
-        setError("No pudimos cargar la guía. Puedes seguir usando Coffeecito normalmente.");
+        setLoadFailed(true);
+        setError("No pudimos comprobar el avance de la guía. Intenta nuevamente.");
       } finally {
         if (active) setLoading(false);
       }
@@ -102,84 +94,56 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadRequest]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || loadFailed) return;
     const routeId = onboardingRouteIdFromPathname(pathname);
     const routeStep = onboardingStepFromPathname(pathname);
+    const replayAllowed = isOnboardingReplayAllowed(state, session);
 
     if (!routeId) {
-      setRouteReady(true);
-      if (shouldClearOnboardingSessionOnNormalRoute(session)) {
-        clearOnboardingSession();
-        setSession(INACTIVE_ONBOARDING_SESSION);
+      if (!isProductOnboardingComplete(state)) {
+        router.replace(onboardingRouteFor(requiredOnboardingRoute(state)));
       }
       return;
     }
 
     if (routeId === "intro") {
-      if (shouldRedirectOnboardingIntroToProduct(state, session)) {
-        setRouteReady(false);
+      if (isProductOnboardingComplete(state) && !replayAllowed) {
         router.replace(ONBOARDING_PRODUCT_DESTINATION);
         return;
       }
-      if (state.status === "in_progress" && !session.active && !session.replay) {
-        if (!session.active) {
-          const nextSession = { active: true, replay: false };
-          writeOnboardingSession(nextSession);
-          setSession(nextSession);
-        }
-        setRouteReady(false);
-        router.replace(onboardingRouteFor(state.lastStep ?? "objectives"));
+      if (state.status === "in_progress" && !replayAllowed) {
+        router.replace(onboardingRouteFor(requiredOnboardingRoute(state)));
         return;
       }
-      setRouteReady(true);
       return;
     }
 
-    if (session.active && session.replay) {
-      setRouteReady(true);
-      return;
-    }
+    if (replayAllowed) return;
 
     if (state.status !== "in_progress" || !routeStep) {
-      setRouteReady(false);
-      router.replace(onboardingRouteFor("intro"));
+      router.replace(isProductOnboardingComplete(state)
+        ? ONBOARDING_PRODUCT_DESTINATION
+        : onboardingRouteFor(requiredOnboardingRoute(state)));
       return;
     }
 
-    if (!session.active) {
+    if (requiredOnboardingRoute(state) !== routeStep) {
+      router.replace(onboardingRouteFor(requiredOnboardingRoute(state)));
+      return;
+    }
+
+    if (!session.active || session.replay) {
       const nextSession = { active: true, replay: false };
       writeOnboardingSession(nextSession);
       setSession(nextSession);
     }
+  }, [loadFailed, loading, pathname, router, session, state]);
 
-    if (state.lastStep === routeStep) {
-      if (routeSyncStep.current === routeStep) return;
-      setRouteReady(true);
-      return;
-    }
-
-    const requestId = routeSyncRequest.current + 1;
-    routeSyncRequest.current = requestId;
-    const nextState = moveOnboardingToStep(state, routeStep);
-    routeSyncStep.current = routeStep;
-    setState(nextState);
-    setRouteReady(false);
-    saveProductOnboardingState(nextState)
-      .then(() => {
-        if (requestId !== routeSyncRequest.current) return;
-        routeSyncStep.current = null;
-        setRouteReady(true);
-      })
-      .catch(() => {
-        if (requestId !== routeSyncRequest.current) return;
-        routeSyncStep.current = null;
-        setError("No pudimos guardar el avance de la guía. Intenta nuevamente.");
-        router.replace(onboardingRouteFor("intro"));
-      });
-  }, [loading, pathname, router, session.active, session.replay, state]);
+  const routeId = onboardingRouteIdFromPathname(pathname);
+  const routeReady = !loading && !loadFailed && isOnboardingRouteAdmitted(state, session, routeId);
 
   async function persist(nextState: ProductOnboardingState) {
     setError("");
@@ -194,11 +158,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   }
 
   function openIntro() {
-    router.push(onboardingRouteFor("intro"));
+    if (isOnboardingReplayAllowed(state, session)) router.push(onboardingRouteFor("intro"));
   }
 
   async function start() {
-    if (session.replay) {
+    if (isOnboardingReplayAllowed(state, session)) {
       router.push(onboardingRouteFor("objectives"));
       return;
     }
@@ -211,26 +175,20 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     router.push(onboardingRouteFor(nextState.lastStep ?? "objectives"));
   }
 
-  async function defer() {
-    const nextState = deferOnboarding();
-    if (!(await persist(nextState))) return;
-    clearOnboardingSession();
-    setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push(ONBOARDING_PRODUCT_DESTINATION);
-  }
-
-  async function exit(step?: OnboardingStep) {
-    if (!session.replay) {
-      const nextState = dismissOnboarding(state, step);
-      if (!(await persist(nextState))) return;
-    }
+  async function exit(_step?: OnboardingStep) {
+    if (!isOnboardingReplayAllowed(state, session)) return;
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
     router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   async function moveTo(step: OnboardingStep) {
-    if (!session.replay) {
+    if (!isOnboardingReplayAllowed(state, session)) {
+      const currentStep = state.status === "in_progress" ? state.lastStep ?? "objectives" : null;
+      if (!currentStep || !canMoveOnboardingToStep(currentStep, step)) {
+        setError("No pudimos avanzar la guía desde este paso.");
+        return;
+      }
       const nextState = moveOnboardingToStep(state, step);
       if (!(await persist(nextState))) return;
     }
@@ -241,13 +199,31 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   }
 
   async function complete() {
-    if (!session.replay && !(await persist(completeOnboarding()))) return;
+    if (completionPending.current) return;
+    completionPending.current = true;
+    setCompleting(true);
+
+    const replayAllowed = isOnboardingReplayAllowed(state, session);
+    if (!replayAllowed) {
+      if (state.status !== "in_progress" || state.lastStep !== "final") {
+        setError("Completa los pasos anteriores antes de finalizar la guía.");
+        completionPending.current = false;
+        setCompleting(false);
+        return;
+      }
+      if (!(await persist(completeOnboarding()))) {
+        completionPending.current = false;
+        setCompleting(false);
+        return;
+      }
+    }
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    router.push(ONBOARDING_PRODUCT_DESTINATION);
+    if (replayAllowed) router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   function replay() {
+    if (!isProductOnboardingComplete(state)) return;
     const transition = beginOnboardingReplay(state);
     writeOnboardingSession(transition.session);
     setSession(transition.session);
@@ -268,20 +244,28 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function retry() {
+    clearOnboardingSession();
+    setSession(INACTIVE_ONBOARDING_SESSION);
+    setLoadRequest((current) => current + 1);
+  }
+
   return (
     <OnboardingContext.Provider
       value={{
         active: session.active,
         complete,
-        defer,
+        completing,
         error,
         exit,
+        loadFailed,
         loading,
         moveTo,
         openIntro,
         replay,
-        replaying: session.replay,
+        replaying: isOnboardingReplayAllowed(state, session),
         resetForDevelopment,
+        retry,
         routeReady,
         start,
         state

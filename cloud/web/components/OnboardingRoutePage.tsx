@@ -39,6 +39,15 @@ export function OnboardingRoutePage({ routeId }: { routeId: OnboardingRouteId })
 function OnboardingRouteContent({ routeId }: { routeId: OnboardingRouteId }) {
   const onboarding = useOnboarding();
 
+  if (onboarding.loadFailed) {
+    return (
+      <section className="onboarding-route onboarding-route-gate" role="alert">
+        <p>{onboarding.error}</p>
+        <Button onClick={onboarding.retry}>Reintentar</Button>
+      </section>
+    );
+  }
+
   if (onboarding.loading || !onboarding.routeReady) {
     return <p className="onboarding-route-loading" role="status">Preparando recorrido...</p>;
   }
@@ -70,21 +79,12 @@ function OnboardingIntro() {
               </p>
             </div>
           </div>
-          <OnboardingIntroSlides />
+          <OnboardingIntroSlides
+            onExit={onboarding.replaying ? () => void onboarding.exit() : undefined}
+            onStart={() => void onboarding.start()}
+          />
         </div>
         <OnboardingError />
-        <div className="onboarding-intro-actions">
-          <Button
-            className="onboarding-intro-defer"
-            onClick={() => void (onboarding.replaying ? onboarding.exit() : onboarding.defer())}
-            tone="ghost"
-          >
-            Ahora no
-          </Button>
-          <Button className="onboarding-intro-start" icon="arrowRight" onClick={() => void onboarding.start()} tone="primary">
-            Empecemos
-          </Button>
-        </div>
       </section>
     </main>
   );
@@ -302,10 +302,10 @@ function OnboardingCoach({
   return (
     <CoachModule
       mode="onboarding"
-      nextDisabled={nextDisabled}
+      nextDisabled={nextDisabled || (routeId === "final" && onboarding.completing)}
       nextLabel={nextLabel ?? (navigation.next ? "Siguiente" : "Finalizar")}
-      onBack={goBack}
-      onExit={() => void onboarding.exit(routeId)}
+      onBack={routeId === "objectives" && !onboarding.replaying ? undefined : goBack}
+      onExit={onboarding.replaying ? () => void onboarding.exit(routeId) : undefined}
       onNext={goNext}
       progress={`Paso ${stepIndex} de ${ONBOARDING_FLOW.length - 1}`}
       title={title}
