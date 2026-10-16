@@ -13,10 +13,20 @@ export type NetworkingStartStatus = {
   valid: boolean;
 };
 
+export class NetworkingStartConfigurationError extends Error {
+  readonly code = "NETWORKING_START_CONFIGURATION_REQUIRED";
+  readonly reason: NetworkingStartStatus["reason"];
+
+  constructor(status: NetworkingStartStatus) {
+    super(networkingStartErrorMessage(status));
+    this.name = "NetworkingStartConfigurationError";
+    this.reason = status.reason;
+  }
+}
+
 export async function readNetworkingStartStatus(now = new Date()): Promise<NetworkingStartStatus> {
   try {
-    const { readUserSetting } = await import("./cloudData.ts");
-    return networkingStartStatus(await readUserSetting(NETWORKING_START_SETTING_KEY), now);
+    return networkingStartStatus(await readNetworkingStartValue(), now);
   } catch {
     return networkingStartStatus(null, now);
   }
@@ -28,10 +38,19 @@ export async function readNetworkingStartIso(now = new Date()) {
 
 export async function requireNetworkingStartIso(now = new Date()) {
   const status = await readNetworkingStartStatus(now);
-  if (!status.valid || !status.effectiveStartIso) {
-    throw new Error(networkingStartErrorMessage(status));
-  }
-  return status.effectiveStartIso;
+  return historicalNetworkingStartIso(status);
+}
+
+export async function requirePeriodicNetworkingStartIso(now = new Date()) {
+  return resolvePeriodicNetworkingStartIso(await readNetworkingStartValue(), now);
+}
+
+export function resolveHistoricalNetworkingStartIso(value: string | null | undefined, now = new Date()) {
+  return historicalNetworkingStartIso(networkingStartStatus(value, now));
+}
+
+export function resolvePeriodicNetworkingStartIso(value: string | null | undefined, now = new Date()) {
+  return periodicNetworkingStartIso(networkingStartStatus(value, now));
 }
 
 export function networkingStartStatus(value: string | null | undefined, now = new Date()): NetworkingStartStatus {
@@ -68,6 +87,23 @@ export function networkingStartErrorMessage(status: NetworkingStartStatus) {
   }
   if (status.reason === "invalid") return "La fecha de inicio de networking no es válida. Revísala en Cuenta.";
   return "Define la fecha de inicio de networking en Cuenta antes de importar correos o citas.";
+}
+
+function historicalNetworkingStartIso(status: NetworkingStartStatus) {
+  if (!status.valid || !status.effectiveStartIso) throw new NetworkingStartConfigurationError(status);
+  return status.effectiveStartIso;
+}
+
+function periodicNetworkingStartIso(status: NetworkingStartStatus) {
+  if (status.reason === "too_old" && status.configuredDate) {
+    return `${status.configuredDate}T00:00:00.000Z`;
+  }
+  return historicalNetworkingStartIso(status);
+}
+
+async function readNetworkingStartValue() {
+  const { readUserSetting } = await import("./cloudData.ts");
+  return readUserSetting(NETWORKING_START_SETTING_KEY);
 }
 
 export function latestIsoInstant(...values: Array<string | null | undefined>) {

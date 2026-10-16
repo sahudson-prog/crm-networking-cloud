@@ -152,7 +152,7 @@ function rowFromOutcome(outcome: ActivitySyncServiceOutcome): GlobalActivitySync
     return serviceRow(outcome.service, "Requiere autorización", "error");
   }
   if (!outcome.success) {
-    return serviceRow(outcome.service, "Error al actualizar", "error");
+    return serviceRow(outcome.service, outcome.error || "Error al actualizar", "error");
   }
   if (outcome.created === 0) {
     return serviceRow(outcome.service, "Sin novedades", "success");

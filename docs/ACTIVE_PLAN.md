@@ -29,13 +29,15 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release cerrada: PR #26, release runbook y canonical Git workflow (`docs-only`).
+- Última release integrada: PR #28, hotfix de navegación mobile de ONB-01.
 - Last completed product release SHA: `14c11c37d1e1fcf10517c6d55416e25a2f939ca6`.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
 - Fase activa: `ONB-01 — Mandatory first-run onboarding`.
 - Estado de la fase activa: `IN PROGRESS`.
+- ONB-01 queda pendiente únicamente de tester validation final y cierre operativo.
+- Incidente funcional activo: `SYNC-INC-01 — Functional interaction sync failure`; causa raíz confirmada en browser PROD y fix local en progreso.
 - Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
 
 ## Deuda / pre-Early-Access gate
@@ -47,40 +49,34 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `ONB-01 — Mandatory first-run onboarding`.
+- Current phase: `SYNC-INC-01 — Functional interaction sync failure`.
 - Status: `IN PROGRESS`.
-- Baseline: `26ec207818609f8e8732d1431538c38fca5b42c7`.
-- Current branch/worktree: `codex/onboarding-intro-nav-fix`.
+- Baseline: `6ec6506661753ddb26c19375ea2d5f9426b7d71f`.
+- Current branch/worktree: `codex/sync-rolling-date-fix` en worktree aislado.
 - Completed in current task:
-  - PR #27 merged;
-  - SHA integrado: `26ec207818609f8e8732d1431538c38fca5b42c7`;
-  - Production deployment alcanzado;
-  - mandatory first-run enforcement y replay dismissible no reportan defectos funcionales;
-  - tester validation PROD: FAIL parcial por layout de navegación intro mobile;
-  - fix UX focal en progreso.
+  - causa raíz reproducida y confirmada en browser PROD antes de Gmail/Calendar;
+  - el sync periódico usaba indebidamente el límite histórico de 12 meses de `Fecha_Inicio_Networking`;
+  - fix focal local en progreso, separado de `OPS-SYNC-01`.
 - Still pending:
-  - validar y publicar el fix UX focal;
-  - repetir tester validation PROD después del deploy;
-  - aprobación del tester/PROD smoke gate;
-  - post-release canonical sync;
-  - cierre ONB-01.
+  - completar validaciones locales;
+  - revisión, commit, PR y merge por el flujo normal;
+  - deployment y smoke PROD;
+  - cierre de SYNC-INC-01;
+  - tester validation final y cierre operativo de ONB-01.
 - Blockers: None confirmed.
-- Gate de cierre:
-  - tester validation no es un gate previo al merge porque los testers operan sobre PROD; su ausencia no bloquea por sí sola PR ni merge;
-  - ONB-01 no puede marcarse `COMPLETED` hasta que tester validation / smoke PROD posterior al deployment sea PASS;
-  - si tester validation PROD detecta un defecto bloqueante, ONB-01 permanece `IN PROGRESS` y requiere una corrección/release posterior.
 - Manual/remote actions already executed:
-  - fetch read-only de `origin/main`;
-  - canonical `main` sincronizado por fast-forward;
-  - worktree de ONB-01 creado;
-  - branch `codex/onboarding-mandatory-first-run` publicada.
-- Immediate next action:
-  - finalizar el fix UX focal y publicar su PR para repetir tester validation PROD.
+  - reproducción en browser PROD por el owner;
+  - fetch read-only de `origin/main`.
+- Immediate next action: terminar tests y revisión del fix local sin ejecutar operaciones remotas.
+- Post-release smoke requerido:
+  - Gmail solo, Calendar solo y ambos servicios habilitados;
+  - botón global y ficha de un contacto Foco;
+  - fecha de networking antigua no bloquea y las ventanas permanecen acotadas;
+  - freshness y cursor avanzan únicamente después de éxito.
 - Stop boundary:
-  - no crear PR desde Codex;
-  - no mergear;
-  - no cambios en servicios.
-- Deuda UX fuera de alcance:
+  - no cerrar SYNC-INC-01 antes del smoke PROD;
+  - no mezclarlo con `OPS-SYNC-01` ni modificar servicios desde esta tarea.
+- Deuda UX de ONB-01 fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
 
