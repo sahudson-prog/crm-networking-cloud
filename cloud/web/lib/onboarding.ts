@@ -76,25 +76,57 @@ export function resolveStoredOnboardingState(input: {
   value: string | null;
 }): ProductOnboardingState {
   if (!input.exists) return INITIAL_ONBOARDING_STATE;
-  return parseProductOnboardingState(input.value ?? "") ?? {
-    ...INITIAL_ONBOARDING_STATE,
-    introSeen: true
-  };
+  return parseProductOnboardingState(input.value ?? "") ?? INITIAL_ONBOARDING_STATE;
 }
 
-export function shouldShowAutomaticOnboardingIntro(input: {
-  exists: boolean;
-  state: ProductOnboardingState;
-}) {
-  return !input.exists && input.state.status === "not_started" && !input.state.introSeen;
+export function isProductOnboardingComplete(state: ProductOnboardingState) {
+  return state.status === "completed";
+}
+
+export function requiredOnboardingRoute(state: ProductOnboardingState): OnboardingRouteId {
+  return state.status === "in_progress" ? state.lastStep ?? "objectives" : "intro";
+}
+
+export function isOnboardingReplayAllowed(
+  state: ProductOnboardingState,
+  session: OnboardingSessionState
+) {
+  return isProductOnboardingComplete(state) && session.active && session.replay;
+}
+
+export function normalizeOnboardingSession(
+  state: ProductOnboardingState,
+  session: OnboardingSessionState
+): OnboardingSessionState {
+  return isOnboardingReplayAllowed(state, session) ? session : INACTIVE_ONBOARDING_SESSION;
+}
+
+export function isOnboardingRouteAdmitted(
+  state: ProductOnboardingState,
+  session: OnboardingSessionState,
+  routeId: OnboardingRouteId | null
+) {
+  if (routeId === null) return isProductOnboardingComplete(state);
+  if (isOnboardingReplayAllowed(state, session)) return true;
+  if (isProductOnboardingComplete(state)) return false;
+  if (routeId === "intro") return state.status !== "in_progress";
+  return state.status === "in_progress" && requiredOnboardingRoute(state) === routeId;
+}
+
+export function canMoveOnboardingToStep(current: OnboardingStep, next: OnboardingStep) {
+  if (current === next) return true;
+  const transitions: Record<OnboardingStep, readonly OnboardingStep[]> = {
+    objectives: ["google"],
+    google: ["objectives", "contacts"],
+    contacts: ["google", "contact", "final"],
+    contact: ["contacts", "final"],
+    final: ["contacts", "contact"]
+  };
+  return transitions[current].includes(next);
 }
 
 export function isOnboardingTestResetAvailable(environment = process.env.NODE_ENV) {
   return environment === "development";
-}
-
-export function markOnboardingIntroSeen(state: ProductOnboardingState): ProductOnboardingState {
-  return { ...state, introSeen: true };
 }
 
 export function beginOnboarding(_state: ProductOnboardingState): ProductOnboardingState {
@@ -103,27 +135,6 @@ export function beginOnboarding(_state: ProductOnboardingState): ProductOnboardi
     status: "in_progress",
     introSeen: true,
     lastStep: "objectives"
-  };
-}
-
-export function deferOnboarding(): ProductOnboardingState {
-  return {
-    version: 1,
-    status: "not_started",
-    introSeen: true
-  };
-}
-
-export function dismissOnboarding(
-  state: ProductOnboardingState,
-  lastStep: OnboardingStep | undefined = state.lastStep
-): ProductOnboardingState {
-  if (state.status === "completed") return state;
-  return {
-    version: 1,
-    status: "dismissed",
-    introSeen: true,
-    ...(lastStep ? { lastStep } : {})
   };
 }
 
@@ -155,17 +166,6 @@ export function beginOnboardingReplay(state: ProductOnboardingState) {
     session: { active: true, replay: true } satisfies OnboardingSessionState,
     route: "/onboarding" as const
   };
-}
-
-export function shouldClearOnboardingSessionOnNormalRoute(session: OnboardingSessionState) {
-  return session.active && !session.replay;
-}
-
-export function shouldRedirectOnboardingIntroToProduct(
-  state: ProductOnboardingState,
-  session: OnboardingSessionState
-) {
-  return (state.status === "dismissed" || state.status === "completed") && !session.replay;
 }
 
 export function onboardingRouteFor(routeId: OnboardingRouteId) {

@@ -9,22 +9,22 @@ import {
   ONBOARDING_STEPS,
   beginOnboarding,
   beginOnboardingReplay,
+  canMoveOnboardingToStep,
   completeOnboarding,
-  deferOnboarding,
-  dismissOnboarding,
-  markOnboardingIntroSeen,
+  isOnboardingReplayAllowed,
+  isOnboardingRouteAdmitted,
+  isProductOnboardingComplete,
   moveOnboardingToStep,
+  normalizeOnboardingSession,
   onboardingRouteFor,
   onboardingRouteIdFromPathname,
   onboardingRouteNavigation,
   onboardingStepFromPathname,
   isOnboardingTestResetAvailable,
   parseProductOnboardingState,
+  requiredOnboardingRoute,
   resolveStoredOnboardingState,
-  serializeProductOnboardingState,
-  shouldClearOnboardingSessionOnNormalRoute,
-  shouldRedirectOnboardingIntroToProduct,
-  shouldShowAutomaticOnboardingIntro
+  serializeProductOnboardingState
 } from "../lib/onboarding.ts";
 
 test("parser conserva payloads v1 previos, acepta dismissed y rechaza payloads inválidos", () => {
@@ -34,7 +34,12 @@ test("parser conserva payloads v1 previos, acepta dismissed y rechaza payloads i
     introSeen: true,
     lastStep: "contacts" as const
   };
-  const dismissedState = dismissOnboarding(previousState, "contact");
+  const dismissedState = {
+    version: 1 as const,
+    status: "dismissed" as const,
+    introSeen: true,
+    lastStep: "contact" as const
+  };
 
   assert.deepEqual(parseProductOnboardingState(serializeProductOnboardingState(previousState)), previousState);
   assert.deepEqual(parseProductOnboardingState(serializeProductOnboardingState(dismissedState)), dismissedState);
@@ -46,30 +51,45 @@ test("parser conserva payloads v1 previos, acepta dismissed y rechaza payloads i
   assert.equal(parseProductOnboardingState('{"version":1,"status":"in_progress","introSeen":true,"lastStep":"other"}'), null);
 });
 
-test("ausencia real del setting abre la intro una sola vez", () => {
+test("missing e inválido normalizan al estado inicial obligatorio", () => {
   const missing = resolveStoredOnboardingState({ exists: false, value: null });
-  const seen = markOnboardingIntroSeen(missing);
   const invalid = resolveStoredOnboardingState({ exists: true, value: "invalid" });
+  const invalidLastStep = resolveStoredOnboardingState({
+    exists: true,
+    value: '{"version":1,"status":"in_progress","introSeen":true,"lastStep":"other"}'
+  });
 
   assert.deepEqual(missing, INITIAL_ONBOARDING_STATE);
-  assert.equal(shouldShowAutomaticOnboardingIntro({ exists: false, state: missing }), true);
+  assert.deepEqual(invalid, INITIAL_ONBOARDING_STATE);
+  assert.deepEqual(invalidLastStep, INITIAL_ONBOARDING_STATE);
+  assert.equal(requiredOnboardingRoute(invalidLastStep), "intro");
   assert.equal(onboardingRouteFor("intro"), "/onboarding");
-  assert.equal(shouldShowAutomaticOnboardingIntro({ exists: true, state: seen }), false);
-  assert.equal(invalid.introSeen, true);
-  assert.equal(shouldShowAutomaticOnboardingIntro({ exists: true, state: invalid }), false);
 });
 
-test("Ahora no conserva not_started y registra introSeen", () => {
-  const deferred = deferOnboarding();
-  assert.deepEqual(deferred, {
-    version: 1,
-    status: "not_started",
-    introSeen: true
-  });
+test("solo completed admite producto y los estados incompletos tienen ruta obligatoria", () => {
+  const notStarted = INITIAL_ONBOARDING_STATE;
+  const inProgress = { ...beginOnboarding(notStarted), lastStep: "contacts" as const };
+  const dismissed = { version: 1 as const, status: "dismissed" as const, introSeen: true };
+  const completed = completeOnboarding();
+
+  for (const state of [notStarted, inProgress, dismissed]) {
+    assert.equal(isProductOnboardingComplete(state), false);
+    assert.equal(isOnboardingRouteAdmitted(state, { active: false, replay: false }, null), false);
+  }
+  assert.equal(requiredOnboardingRoute(notStarted), "intro");
+  assert.equal(requiredOnboardingRoute(dismissed), "intro");
+  assert.equal(requiredOnboardingRoute(inProgress), "contacts");
+  assert.equal(requiredOnboardingRoute({ ...inProgress, lastStep: undefined }), "objectives");
+  assert.equal(isOnboardingRouteAdmitted(notStarted, { active: false, replay: false }, "intro"), true);
+  assert.equal(isOnboardingRouteAdmitted(dismissed, { active: false, replay: false }, "intro"), true);
+  assert.equal(isProductOnboardingComplete(completed), true);
+  assert.equal(isOnboardingRouteAdmitted(completed, { active: false, replay: false }, null), true);
+  assert.equal(isOnboardingRouteAdmitted(completed, { active: false, replay: false }, "intro"), false);
+  assert.equal(isOnboardingRouteAdmitted(completed, { active: false, replay: false }, "final"), false);
 });
 
-test("Comenzar recorrido inicia en objectives", () => {
-  const started = beginOnboarding(deferOnboarding());
+test("Empecemos inicia en objectives", () => {
+  const started = beginOnboarding(INITIAL_ONBOARDING_STATE);
   assert.deepEqual(started, {
     version: 1,
     status: "in_progress",
@@ -79,20 +99,37 @@ test("Comenzar recorrido inicia en objectives", () => {
   assert.equal(onboardingRouteFor(started.lastStep), "/onboarding/objetivos");
 });
 
-test("Salir deja dismissed y conserva el último paso", () => {
-  const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contacts");
-  assert.equal(dismissed.status, "dismissed");
-  assert.equal(dismissed.lastStep, "contacts");
+test("una ruta guiada solo se admite cuando coincide con lastStep", () => {
+  const started = moveOnboardingToStep(beginOnboarding(INITIAL_ONBOARDING_STATE), "contacts");
+  const session = { active: true, replay: false };
+
+  assert.equal(isOnboardingRouteAdmitted(started, session, "contacts"), true);
+  assert.equal(isOnboardingRouteAdmitted(started, session, "google"), false);
+  assert.equal(isOnboardingRouteAdmitted(started, session, "final"), false);
+  assert.equal(isOnboardingRouteAdmitted(started, session, null), false);
 });
 
-test("replay no cambia dismissed ni completed", () => {
-  const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "google");
+test("replay solo es válido para completed y no cambia su estado persistente", () => {
+  const incomplete = moveOnboardingToStep(beginOnboarding(INITIAL_ONBOARDING_STATE), "google");
   const completed = completeOnboarding();
+  const completedReplay = beginOnboardingReplay(completed);
+  const staleReplay = beginOnboardingReplay(incomplete);
 
-  assert.deepEqual(beginOnboardingReplay(dismissed).state, dismissed);
-  assert.deepEqual(beginOnboardingReplay(completed).state, completed);
-  assert.deepEqual(beginOnboardingReplay(completed).session, { active: true, replay: true });
-  assert.equal(beginOnboardingReplay(completed).route, "/onboarding");
+  assert.deepEqual(completedReplay.state, completed);
+  assert.deepEqual(completedReplay.session, { active: true, replay: true });
+  assert.equal(completedReplay.route, "/onboarding");
+  assert.equal(isOnboardingReplayAllowed(completed, completedReplay.session), true);
+  assert.equal(isOnboardingReplayAllowed(incomplete, staleReplay.session), false);
+  assert.deepEqual(normalizeOnboardingSession(incomplete, staleReplay.session), { active: false, replay: false });
+});
+
+test("las transiciones legítimas no permiten adelantar el recorrido", () => {
+  assert.equal(canMoveOnboardingToStep("objectives", "google"), true);
+  assert.equal(canMoveOnboardingToStep("objectives", "final"), false);
+  assert.equal(canMoveOnboardingToStep("google", "contacts"), true);
+  assert.equal(canMoveOnboardingToStep("contacts", "contact"), true);
+  assert.equal(canMoveOnboardingToStep("contacts", "final"), true);
+  assert.equal(canMoveOnboardingToStep("contact", "final"), true);
 });
 
 test("la secuencia y Atrás/Siguiente derivan de una sola fuente de verdad", () => {
@@ -135,15 +172,11 @@ test("Ver tutorial abre el replay permanente desde el header", () => {
 
 test("replay iniciado en una ruta normal conserva la sesión hasta mostrar la intro", () => {
   const completed = completeOnboarding();
-  const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contact");
   const completedReplay = beginOnboardingReplay(completed);
-  const dismissedReplay = beginOnboardingReplay(dismissed);
 
-  assert.equal(shouldClearOnboardingSessionOnNormalRoute(completedReplay.session), false);
-  assert.equal(shouldRedirectOnboardingIntroToProduct(completedReplay.state, completedReplay.session), false);
-  assert.equal(shouldRedirectOnboardingIntroToProduct(dismissedReplay.state, dismissedReplay.session), false);
+  assert.equal(isOnboardingRouteAdmitted(completedReplay.state, completedReplay.session, null), true);
+  assert.equal(isOnboardingRouteAdmitted(completedReplay.state, completedReplay.session, "intro"), true);
   assert.equal(completedReplay.route, "/onboarding");
-  assert.equal(shouldClearOnboardingSessionOnNormalRoute({ active: true, replay: false }), true);
 });
 
 test("la intro es privada pero no monta Shell ni Coach", () => {
@@ -163,8 +196,8 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   assert.match(styles, /url\("\/brand\/coffeecito-onboarding-bg\.webp"\)/);
   assert.match(styles, /\.onboarding-intro-layout \{[\s\S]*grid-template-columns: minmax\(0, 2fr\) minmax\(0, 3fr\)/);
   assert.match(styles, /@media \(max-width: 920px\) \{[\s\S]*\.onboarding-intro-layout \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(introSource, /<OnboardingIntroSlides \/>/);
-  assert.equal(slideCount, 3);
+  assert.match(introSource, /<OnboardingIntroSlides/);
+  assert.equal(slideCount, 4);
   assert.match(slidesSource, /pagination=\{\{ type: "progressbar" \}\}/);
   assert.match(slidesSource, />\s*Anterior\s*</);
   assert.match(slidesSource, />\s*Siguiente\s*</);
@@ -181,18 +214,21 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   assert.match(slidesSource, /Gestionar tu red no debería convertirse en otro trabajo\./);
   assert.match(slidesSource, /también crecen los contactos, conversaciones y pendientes\./);
   assert.match(slidesSource, /Coffeecito se encarga de la gestión\. Tú del café y la conversación\./);
+  assert.match(slidesSource, /onboarding-intro-slide-final-content/);
+  assert.equal(slidesSource.match(/Coffeecito se encarga de la gestión\. Tú del café y la conversación\./g)?.length, 1);
   assert.doesNotMatch(slidesSource, /52% vs 35%|5,2% vs 3,1%|Ashby|Pinpoint|job boards|Para eso está Coffeecito/);
   assert.doesNotMatch(slidesSource, /autoplay/i);
   assert.doesNotMatch(routeComponent, /onboarding-flow|Define tus objetivos|Activa tus próximas conversaciones/);
-  assert.ok(introSource.indexOf("<OnboardingIntroSlides />") < introSource.indexOf("Ahora no"));
-  assert.match(introSource, /onboarding\.replaying \? onboarding\.exit\(\) : onboarding\.defer\(\)/);
-  assert.match(introSource, /onboarding\.start\(\)/);
-  assert.match(introSource, /Empecemos/);
+  assert.match(introSource, /<OnboardingIntroSlides[\s\S]*onExit=\{onboarding\.replaying[\s\S]*onStart=\{\(\) => void onboarding\.start\(\)\}/);
+  assert.match(slidesSource, /onStart/);
+  assert.match(slidesSource, /Empecemos/);
+  assert.doesNotMatch(introSource, /Ahora no|onboarding\.defer|onboarding-intro-actions/);
   assert.doesNotMatch(introSource, /Comenzar recorrido/);
   assert.match(styles, /--onboarding-intro-title-size: clamp\(24px, 2\.1vw, 32px\)/);
   assert.match(styles, /--onboarding-intro-body-size: 15px/);
-  assert.match(styles, /\.onboarding-intro-actions \.button\.onboarding-intro-start \{[\s\S]*background: var\(--brand-espresso\)[\s\S]*color: var\(--brand-warm-white\)/);
-  assert.match(styles, /\.onboarding-intro-actions \.button\.onboarding-intro-defer \{[\s\S]*border-color: transparent/);
+  assert.match(styles, /\.onboarding-intro-slide-final-content \{[\s\S]*place-items: center[\s\S]*text-align: center/);
+  assert.match(styles, /\.onboarding-intro-slide-navigation \.button\.onboarding-intro-start \{[\s\S]*background: var\(--brand-espresso\)[\s\S]*color: var\(--brand-warm-white\)/);
+  assert.doesNotMatch(styles, /onboarding-intro-actions|onboarding-intro-defer|onboarding-intro-closing/);
   assert.doesNotMatch(introSource, /<Shell|<CoachModule|Introducción/);
 });
 
@@ -219,15 +255,45 @@ test("Ver tutorial no se renderiza dentro de rutas onboarding", () => {
   assert.match(shellSource, /!isOnboarding \? \([\s\S]*Ver tutorial/);
 });
 
-test("cualquier setting existente mantiene la ruta normal, incluso in_progress", () => {
+test("rutas privadas quedan cerradas hasta completed y Shell evita el flash privado", () => {
   const providerSource = source("../components/OnboardingProvider.tsx");
+  const shellSource = source("../components/Shell.tsx");
   const normalRouteStart = providerSource.indexOf("if (!routeId)");
   const normalRouteEnd = providerSource.indexOf("if (routeId === \"intro\")", normalRouteStart);
   const normalRouteSource = providerSource.slice(normalRouteStart, normalRouteEnd);
 
   assert.ok(normalRouteStart >= 0 && normalRouteEnd > normalRouteStart);
-  assert.doesNotMatch(normalRouteSource, /state\.status|router\.replace/);
-  assert.match(normalRouteSource, /shouldClearOnboardingSessionOnNormalRoute\(session\)/);
+  assert.match(normalRouteSource, /!isProductOnboardingComplete\(state\)[\s\S]*router\.replace\(onboardingRouteFor\(requiredOnboardingRoute\(state\)\)\)/);
+  assert.match(providerSource, /isOnboardingRouteAdmitted\(state, session, routeId\)/);
+  assert.match(shellSource, /if \(onboarding\.loading \|\| !onboarding\.routeReady\)[\s\S]*Preparando recorrido/);
+  assert.ok(shellSource.indexOf("if (onboarding.loading || !onboarding.routeReady)") < shellSource.indexOf("<header"));
+});
+
+test("errores de carga y escritura quedan fail-closed", () => {
+  const providerSource = source("../components/OnboardingProvider.tsx");
+  const routeSource = source("../components/OnboardingRoutePage.tsx");
+  const shellSource = source("../components/Shell.tsx");
+
+  assert.match(providerSource, /setLoadFailed\(true\)[\s\S]*No pudimos comprobar el avance de la guía/);
+  assert.match(providerSource, /const routeReady = !loading && !loadFailed && isOnboardingRouteAdmitted/);
+  assert.match(providerSource, /await saveProductOnboardingState\(nextState\)[\s\S]*setState\(nextState\)[\s\S]*catch/);
+  assert.match(providerSource, /if \(completionPending\.current\) return;[\s\S]*completionPending\.current = true/);
+  assert.match(providerSource, /if \(!\(await persist\(completeOnboarding\(\)\)\)\) \{[\s\S]*completionPending\.current = false;[\s\S]*setCompleting\(false\);[\s\S]*return;/);
+  assert.equal(providerSource.match(/persist\(completeOnboarding\(\)\)/g)?.length, 1);
+  assert.match(providerSource, /clearOnboardingSession\(\);[\s\S]*setSession\(INACTIVE_ONBOARDING_SESSION\);[\s\S]*if \(replayAllowed\) router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+  assert.match(providerSource, /state\.status !== "in_progress" \|\| !routeStep[\s\S]*isProductOnboardingComplete\(state\)[\s\S]*ONBOARDING_PRODUCT_DESTINATION/);
+  assert.match(routeSource, /nextDisabled=\{nextDisabled \|\| \(routeId === "final" && onboarding\.completing\)\}/);
+  assert.match(shellSource, /onboarding\.loadFailed[\s\S]*onboarding\.retry/);
+  assert.doesNotMatch(providerSource, /Puedes seguir usando Coffeecito normalmente/);
+});
+
+test("URL arbitraria no reemplaza lastStep ni permite final prematuro", () => {
+  const providerSource = source("../components/OnboardingProvider.tsx");
+
+  assert.match(providerSource, /requiredOnboardingRoute\(state\) !== routeStep[\s\S]*router\.replace\(onboardingRouteFor\(requiredOnboardingRoute\(state\)\)\)/);
+  assert.doesNotMatch(providerSource, /moveOnboardingToStep\(state, routeStep\)/);
+  assert.match(providerSource, /canMoveOnboardingToStep\(currentStep, step\)/);
+  assert.match(providerSource, /state\.lastStep !== "final"[\s\S]*Completa los pasos anteriores/);
 });
 
 test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido", () => {
@@ -339,15 +405,19 @@ test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
   assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
 });
 
-test("las salidas visibles del onboarding navegan a Contactos", () => {
+test("mandatory no ofrece salida y replay completed conserva salida descartable", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
+  const coachSource = source("../components/CoachPreview.tsx");
 
   assert.match(routeSource, /nextLabel="Fin del tutorial"/);
   assert.match(routeSource, /Coach seguirá acompañándote con sugerencias/);
   assert.equal(ONBOARDING_PRODUCT_DESTINATION, "/contactos");
-  assert.match(providerSource, /function defer\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
-  assert.match(providerSource, /function exit\([\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+  assert.doesNotMatch(routeSource, /Ahora no|onboarding\.defer/);
+  assert.match(routeSource, /onExit=\{onboarding\.replaying \? \(\) => void onboarding\.exit\(routeId\) : undefined\}/);
+  assert.match(coachSource, /onExit\?: \(\) => void/);
+  assert.match(coachSource, /\{onExit \? <Button onClick=\{onExit\}/);
+  assert.match(providerSource, /if \(!isOnboardingReplayAllowed\(state, session\)\) return;[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
   assert.match(providerSource, /function complete\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
 });
 
@@ -363,18 +433,17 @@ test("Dashboard queda fuera de la navegación pero su ruta sigue disponible", ()
   assert.match(dashboardRoute, /<ReadOnlyDashboard \/>/);
 });
 
-test("el replay preserva dismissed y completed, y Cuenta no ofrece navegación de producto", () => {
+test("el replay preserva completed, stale replay se limpia y Cuenta no ofrece navegación de producto", () => {
   const accountSource = source("../components/AccountPage.tsx");
   const providerSource = source("../components/OnboardingProvider.tsx");
-  const dismissed = dismissOnboarding(beginOnboarding(INITIAL_ONBOARDING_STATE), "contact");
   const completed = completeOnboarding();
+  const incomplete = beginOnboarding(INITIAL_ONBOARDING_STATE);
 
   assert.doesNotMatch(accountSource, /Cómo usar Coffeecito|onboarding\.replay/);
-  assert.match(providerSource, /function replay\(\)[\s\S]*router\.push\(transition\.route\)/);
-  assert.match(providerSource, /session\.active && !session\.replay/);
-  assert.match(source("../components/OnboardingRoutePage.tsx"), /onboarding\.replaying \? onboarding\.exit\(\) : onboarding\.defer\(\)/);
-  assert.deepEqual(beginOnboardingReplay(dismissed).state, dismissed);
+  assert.match(providerSource, /function replay\(\)[\s\S]*if \(!isProductOnboardingComplete\(state\)\) return[\s\S]*router\.push\(transition\.route\)/);
+  assert.match(providerSource, /normalizeOnboardingSession\(stored\.state, storedSession\)[\s\S]*clearOnboardingSession\(\)/);
   assert.deepEqual(beginOnboardingReplay(completed).state, completed);
+  assert.deepEqual(normalizeOnboardingSession(incomplete, { active: true, replay: true }), { active: false, replay: false });
 });
 
 test("Coach onboarding ocupa una sola franja superior y conserva una única mascota", () => {
@@ -424,7 +493,6 @@ test("reset de prueba solo se renderiza en development y elimina el setting real
   assert.match(storeSource, /\.from\("user_settings"\)[\s\S]*\.delete\(\)[\s\S]*PRODUCT_ONBOARDING_SETTING_KEY/);
   assert.equal(isOnboardingTestResetAvailable("production"), false);
   assert.equal(isOnboardingTestResetAvailable("development"), true);
-  assert.equal(shouldShowAutomaticOnboardingIntro({ exists: false, state: INITIAL_ONBOARDING_STATE }), true);
 });
 
 test("onboarding no agrega datos dummy, fixtures ni screenshots", () => {
@@ -447,7 +515,7 @@ test("modo onboarding del Coach no monta acciones ni diálogos de sugerencias", 
 test("no quedan CTA ni animaciones dinámicas de onboarding en el header", () => {
   const shellSource = source("../components/Shell.tsx");
   const css = source("../styles/components.css");
-  assert.doesNotMatch(shellSource, /Empezar|Continuar|onboarding\.state|onboarding\.loading/);
+  assert.doesNotMatch(shellSource, /Empezar|Continuar|onboarding\.state/);
   assert.doesNotMatch(css, /onboarding-start-link|onboarding-start-pulse/);
   assert.match(css, /\.nav-tutorial-link[\s\S]*border: 0/);
 });

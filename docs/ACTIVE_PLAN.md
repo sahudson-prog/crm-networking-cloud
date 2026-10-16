@@ -57,13 +57,23 @@ Prompt de recuperación copy/paste-safe:
   - Vercel Production success y smoke funcional `N/A — docs-only`;
   - post-release canonical sync PASS;
   - worktree y branch de ONB-01 creados;
-  - checkpoint de ONB-01 publicado en origin.
+  - checkpoint de ONB-01 publicado en origin;
+  - auditoría y plan mínimo cerrados sin necesidad de schema nuevo;
+  - implementación local del first-run obligatorio y replay opcional completada;
+  - mandatory first-run enforcement implementado;
+  - carreras de doble activación y doble navegación en completion corregidas, preservando fail-closed;
+  - `test:onboarding`, `test:legal`, `test:system-access`, typecheck y build PASS;
+  - smoke manual previo confirmó enforcement first-run, bloqueo por URL y replay completed dismissible;
+  - escenario A-completed → B-incompleto: automated coverage PASS / manual NOT RUN;
+  - FINAL POST-FIX TESTER VALIDATION: PENDING.
 - Still pending:
-  - auditoría actual del repositorio;
-  - plan mínimo de implementación;
-  - implementación;
-  - tests;
-  - PR/release.
+  - commit y push;
+  - PR;
+  - tester validation de la versión final y aprobación del tester gate;
+  - merge y Production deployment;
+  - smoke PROD;
+  - post-release canonical sync;
+  - cierre ONB-01.
 - Blockers: None confirmed.
 - Manual/remote actions already executed:
   - fetch read-only de `origin/main`;
@@ -71,12 +81,13 @@ Prompt de recuperación copy/paste-safe:
   - worktree de ONB-01 creado;
   - branch `codex/onboarding-mandatory-first-run` publicada.
 - Immediate next action:
-  - auditar la implementación actual de onboarding;
-  - proponer el plan mínimo sin modificar código.
+  - publicar la implementación de ONB-01 para PR y tester validation.
 - Stop boundary:
-  - no implementar ONB-01 antes de cerrar la auditoría;
-  - STOP ante necesidad demostrada de schema o persistencia nueva;
-  - no modificar aceptación legal ni crear una segunda máquina de estado.
+  - no crear PR ni mergear sin autorización;
+  - no modificar schema, aceptación legal ni crear una segunda máquina de estado.
+- Deuda UX fuera de alcance:
+  - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
+  - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
 

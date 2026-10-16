@@ -41,7 +41,7 @@ type CoachOnboardingProps = {
   nextDisabled?: boolean;
   nextLabel?: string;
   onBack?: () => void;
-  onExit: () => void;
+  onExit?: () => void;
   onNext: () => void;
   progress: string;
   title: string;
@@ -323,7 +323,7 @@ function CoachOnboardingContent({
         <div className="coach-onboarding-actions">
           <div>{onBack ? <Button icon="arrowLeft" onClick={onBack}>Atrás</Button> : null}</div>
           <div>
-            <Button onClick={onExit} tone="ghost">{exitLabel}</Button>
+            {onExit ? <Button onClick={onExit} tone="ghost">{exitLabel}</Button> : null}
             <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button>
           </div>
         </div>

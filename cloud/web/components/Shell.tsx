@@ -7,6 +7,7 @@ import { ActivitySyncButton } from "./ActivitySyncButton";
 import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
+import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 import { canRenderSystemSurface } from "../lib/systemAccess";
 
@@ -43,6 +44,19 @@ function ShellContent({ children }: { children: ReactNode }) {
     || pathname === "/onboarding/contactos"
     || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
+
+  if (onboarding.loadFailed) {
+    return (
+      <main className="app-shell onboarding-route-gate" role="alert">
+        <p>{onboarding.error}</p>
+        <Button onClick={onboarding.retry}>Reintentar</Button>
+      </main>
+    );
+  }
+
+  if (onboarding.loading || !onboarding.routeReady) {
+    return <main className="app-shell onboarding-route-loading" role="status">Preparando recorrido...</main>;
+  }
 
   return (
     <main className="app-shell">
