@@ -34,22 +34,56 @@ Prompt de recuperación copy/paste-safe:
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
-- Fase activa: `OPS-LOCAL-01 — Canonical local Git cutover`.
-- Estado de la fase activa: `NOT STARTED`.
+- Fase activa: `REL-01 — Release runbook`.
+- Estado de la fase activa: `IN PROGRESS`.
 - Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
+
+## Deuda / pre-Early-Access gate
+
+- Pendiente una revisión explícita de seguridad de dependencias antes de abrir Early Access.
+- El `npm audit` del clone limpio detectó 1 vulnerabilidad critical y 4 high; `next` es una dependencia productiva directa afectada.
+- No existe evidencia suficiente para declarar explotabilidad en PROD. Esta deuda no bloquea REL-01 ni ONB-01.
+- Esta nota no autoriza `npm audit fix` ni una actualización de dependencias; cualquier corrección requiere una tarea aprobada por separado.
 
 ## Checkpoint de tarea activa
 
-- Current phase: `OPS-LOCAL-01 — Canonical local Git cutover`.
-- Status: `NOT STARTED`.
-- Baseline: `UNASSIGNED — resolve and verify origin/main when execution starts.`
-- Current branch/worktree: None.
-- Completed in current task: diagnóstico del setup local Git/worktrees; causa raíz de `origin/main` stale confirmada; causa raíz de SQL ausentes del checkout OneDrive confirmada; decisión de no reparar el checkout viejo como canonical; decisión de migrar a un clone limpio fuera de OneDrive.
-- Still pending: ejecutar el cutover limpio; validar el nuevo clone; comparar el estado único del checkout viejo; declarar el nuevo canonical local repo; luego ejecutar REL-01.
+- Current phase: `REL-01 — Release runbook`.
+- Status: `IN PROGRESS`.
+- Baseline: `e5b46db8d486d7038481212bb24e3bfc01c81366`.
+- Current branch/worktree: `codex/release-runbook-v1`.
+- Completed in current task:
+  - OPS-LOCAL-01 cerrado;
+  - reconciliación documental completada;
+  - GitHub elegido como base documental;
+  - ENVIRONMENTS recuperado;
+  - RELEASE_RUNBOOK creado y revisado;
+  - AGENTS/README/ACTIVE_PLAN ajustados;
+  - commit inicial de REL-01 creado;
+  - branch publicada en origin.
+- Still pending:
+  - aplicar estas correcciones finales;
+  - crear PR manual;
+  - revisar checks;
+  - merge manual;
+  - verificar SHA integrado;
+  - verificar deployment;
+  - ejecutar smoke si corresponde o justificar `N/A`;
+  - sincronizar canonical main;
+  - cerrar REL-01.
 - Blockers: None confirmed.
-- Manual/remote actions already executed: diagnóstico read-only y actualización read-only de la referencia `origin/main`; ningún cutover ejecutado.
-- Immediate next action: Diseñar y ejecutar el cutover controlado descrito en OPS-LOCAL-01.
-- Stop boundary: No borrar, resetear, limpiar ni modificar destructivamente el repo viejo de OneDrive. No recuperar archivos antiguos automáticamente. No avanzar a REL-01 hasta validar el nuevo canonical repo.
+- Manual/remote actions already executed:
+  - fetch read-only de `origin/main`;
+  - canonical clone validado;
+  - worktree de REL-01 creado;
+  - branch `codex/release-runbook-v1` publicada.
+- Immediate next action:
+  - finalizar diff documental;
+  - commit/push;
+  - abrir PR manual.
+- Stop boundary:
+  - no merge;
+  - no cambios de servicios;
+  - no modificar repositorios históricos.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
 
@@ -59,80 +93,20 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED`
 
-**Objetivo**
+**Resultado estable**
 
-Eliminar OneDrive del flujo Git activo y establecer un checkout canónico limpio y reproducible fuera de carpetas sincronizadas, preservando el checkout viejo como fuente temporal de recuperación.
-
-**Decisiones cerradas**
-
-- GitHub es la fuente durable de verdad.
-- El repo activo ya no debe vivir dentro de OneDrive.
-- El checkout viejo de OneDrive no se corrige in-place ni se destruye durante el cutover.
-- Se crea un clone fresco desde GitHub fuera de OneDrive.
-- Debe existir una sola raíz local de proyecto para mantener una experiencia ordenada.
-- Dentro de esa raíz existe un checkout canónico dedicado a `main` y una carpeta separada para worktrees de features.
-- El checkout canónico de `main` no se usa para implementar features.
-- Las features se desarrollan exclusivamente en worktrees.
-- Los worktrees son recreables y no requieren backup independiente.
-- No se copian migrations ni SQL manualmente desde worktrees.
-- Los archivos merged aparecen en el repositorio canónico mediante Git.
-- El checkout viejo de OneDrive queda congelado como recovery source hasta auditar sus diferencias.
-- No se elimina el repo viejo hasta confirmar que no contiene trabajo vigente único.
-- No se mueven secretos al repo ni se versionan `.env.local` o credenciales.
-
-**Topología objetivo conceptual**
-
-```text
-<local Coffeecito root>/
-  main/
-  worktrees/
-```
-
-La ruta local concreta se define durante el cutover. Los owner docs no deben persistir una ruta absoluta dependiente de un usuario o máquina.
-
-**Estado diagnosticado que justifica la fase**
-
-- El checkout OneDrive local de `main` estaba 26 commits detrás de `origin/main`.
-- `origin/main` quedaba stale por falta de un fetch estándar.
-- El checkout OneDrive estaba sucio.
-- Migrations y verifiers recientes existían en Git remoto, pero no físicamente en ese checkout.
-- Los worktrees de features estaban aislados correctamente.
-- Algunos worktrees o branches heredaron upstream `origin/main` y generaban una lectura operacional confusa.
-
-**Criterios de aceptación**
-
-- Nuevo clone canónico creado desde GitHub.
-- `HEAD`, `main` y `origin/main` coinciden al finalizar.
-- Canonical `main` limpio.
-- `AGENTS.md` y `docs/ACTIVE_PLAN.md` presentes.
-- Migrations y verifiers merged presentes.
-- `cloud/web` y `cloud/supabase` presentes.
-- Typecheck, build o validación proporcional del clone pasan.
-- Ningún secreto fue copiado o versionado.
-- El repo viejo OneDrive sigue intacto.
-- Las diferencias únicas del repo viejo quedan inventariadas, no restauradas automáticamente.
-- La siguiente feature puede crearse desde `origin/main` recién fetched sin depender de OneDrive.
-
-**Out of scope**
-
-- Limpiar todos los worktrees históricos.
-- Borrar el repo viejo.
-- Recuperar automáticamente cambios stale.
-- Resolver la deuda DEV de `app_capabilities`.
-- Implementar ONB-01.
-- Modificar servicios cloud.
-
-**Gates manuales y remotos**
-
-- Clone y fetch GitHub read-only están permitidos dentro del cutover autorizado.
-- Cualquier push requiere autorización separada.
-- Eliminar el repo viejo o worktrees requiere autorización separada.
+- Nuevo canonical clone limpio fuera de carpetas sincronizadas.
+- Canonical `main` y raíz de worktrees separados.
+- `HEAD`, `main` y `origin/main` alineados al cierre.
+- `npm ci`, typecheck y build completados correctamente.
+- Repositorios históricos preservados únicamente como fuentes de recovery.
+- GitHub confirmado como fuente durable de verdad.
 
 ### REL-01 - Release runbook
 
-**Status:** `BLOCKED BY OPS-LOCAL-01`
+**Status:** `IN PROGRESS`
 
 **Objetivo**
 

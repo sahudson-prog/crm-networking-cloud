@@ -28,7 +28,7 @@ Los estados se distinguen así:
 
 Confirmado operativamente:
 
-- GitHub: `sahudson-prog/crm-networking-cloud`.
+- Repositorio GitHub conectado: `sahudson-prog/crm-networking-cloud`.
 - Rama productiva aprobada: `main`.
 - Desarrollo: branches y pull requests hacia `main`.
 - No existe un repositorio DEV separado.
@@ -120,14 +120,19 @@ Sin `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, el fallback por email queda deshabilitado 
 Confirmado operativamente:
 
 - Vercel project: `coffeecito-prod`.
+- Repositorio conectado: `sahudson-prog/crm-networking-cloud`.
 - Root Directory: `cloud/web`.
-- Production Branch: `main`.
+- Production Branch: `main`; cada commit integrado a `main` dispara un Production Deployment.
+- Auto-assign Custom Production Domains: habilitado; los dominios productivos se asignan al deployment productivo.
 - Dominio canónico: `https://coffeecito.cl`.
+- Dominio de Production alternativo: `https://coffeecito-prod.vercel.app`.
 - `https://www.coffeecito.cl` redirige a `https://coffeecito.cl`.
 - Dominio y HTTPS: operativos.
 - NIC.cl es el registrador y Cloudflare administra DNS de `coffeecito.cl`.
 
 Las variables públicas Supabase de Vercel están scoped solamente a Production. Preview Deployments no son un ambiente funcional soportado y no deben recibir variables ni secrets PROD.
+
+El repositorio conectado, la production branch, las reglas de Production/Preview, el auto-assign y los dominios son configuración estable; no requieren revalidación manual en cada release salvo evidencia de cambio. El SHA integrado en `main`, el deployment correspondiente, el SHA realmente desplegado y el smoke PROD son estado dinámico y deben comprobarse en cada release. Un merge Git no demuestra por sí solo un deployment exitoso.
 
 ### Supabase PROD
 
@@ -236,7 +241,9 @@ Estas variables pertenecen al harness de bootstrap, no al runtime web ni a Verce
 
 No existe actualmente un ambiente staging.
 
-Preview Deployments no son un ambiente soportado. No deben recibir variables públicas, secrets ni credenciales PROD, y no deben usarse como una ruta funcional hacia Supabase, Google o Turnstile hasta que exista una política explícita de aislamiento.
+El Preview Environment sigue las branches Git que no estén asignadas a otro environment; una branch de Pull Request puede generar un Preview Deployment. Un Preview exitoso no demuestra que PROD haya cambiado.
+
+Preview Deployments no son un ambiente funcional soportado. No deben recibir variables públicas, secrets ni credenciales PROD, y no deben usarse como una ruta funcional hacia Supabase, Google o Turnstile hasta que exista una política explícita de aislamiento.
 
 ## Fronteras entre ambientes
 
