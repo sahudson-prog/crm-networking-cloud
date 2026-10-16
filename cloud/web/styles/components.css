@@ -7075,6 +7075,10 @@ textarea::placeholder {
   line-height: 1.55;
 }
 
+.onboarding-intro-slideshow-area {
+  min-width: 0;
+}
+
 .onboarding-intro-slideshow {
   display: grid;
   align-content: stretch;
@@ -7265,11 +7269,6 @@ textarea::placeholder {
   padding: 12px 18px;
 }
 
-.onboarding-intro-slide-navigation > div {
-  display: flex;
-  gap: 8px;
-}
-
 .onboarding-intro-slide-navigation .button {
   min-height: 32px;
   border-color: transparent;
@@ -7303,6 +7302,34 @@ textarea::placeholder {
   border-color: var(--brand-coffee);
   background: var(--brand-coffee);
   color: var(--brand-warm-white);
+}
+
+.onboarding-intro-replay-exit {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.onboarding-intro-replay-exit .button {
+  min-height: 28px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--brand-coffee);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.onboarding-intro-replay-exit .button:not(:disabled):hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--brand-espresso);
+  transform: none;
+}
+
+.onboarding-intro-replay-exit .button:focus-visible {
+  outline: 2px solid var(--brand-terracotta);
+  outline-offset: 2px;
 }
 
 .onboarding-objectives-page {
@@ -8445,10 +8472,6 @@ textarea::placeholder {
 
   .onboarding-intro-slide-navigation {
     align-items: stretch;
-    flex-direction: column;
-  }
-
-  .onboarding-intro-slide-navigation > div {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

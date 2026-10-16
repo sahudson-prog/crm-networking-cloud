@@ -13,8 +13,9 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
-    <section className="onboarding-intro-slideshow" aria-label="Introducción a Coffeecito">
-      <Swiper
+    <section className="onboarding-intro-slideshow-area" aria-label="Introducción a Coffeecito">
+      <div className="onboarding-intro-slideshow">
+        <Swiper
         a11y={{
           enabled: true,
           firstSlideMessage: "Esta es la primera diapositiva",
@@ -103,11 +104,9 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
             </div>
           </OnboardingIntroSlide>
         </SwiperSlide>
-      </Swiper>
+        </Swiper>
 
-      <div className="onboarding-intro-slide-navigation">
-        <div>
-          {onExit ? <Button onClick={onExit} tone="ghost">Salir</Button> : null}
+        <div className="onboarding-intro-slide-navigation">
           <Button
             disabled={activeIndex === 0}
             icon="arrowLeft"
@@ -126,6 +125,11 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
           )}
         </div>
       </div>
+      {onExit ? (
+        <div className="onboarding-intro-replay-exit">
+          <Button onClick={onExit} tone="ghost">Salir</Button>
+        </div>
+      ) : null}
     </section>
   );
 }

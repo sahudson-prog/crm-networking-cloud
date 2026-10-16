@@ -49,31 +49,18 @@ Prompt de recuperación copy/paste-safe:
 
 - Current phase: `ONB-01 — Mandatory first-run onboarding`.
 - Status: `IN PROGRESS`.
-- Baseline: `c1bee9d5672bcf38f1fd58bfbc7b19d770365bf0`.
-- Current branch/worktree: `codex/onboarding-mandatory-first-run`.
+- Baseline: `26ec207818609f8e8732d1431538c38fca5b42c7`.
+- Current branch/worktree: `codex/onboarding-intro-nav-fix`.
 - Completed in current task:
-  - REL-01 cerrado;
-  - implementación ONB-01 completada;
-  - mandatory first-run enforcement implementado;
-  - replay opcional para usuarios `completed` preservado;
-  - carreras de completion corregidas manteniendo fail-closed;
-  - `test:onboarding` 37/37 PASS;
-  - `test:legal` 15/15 PASS;
-  - `test:system-access` 11/11 PASS;
-  - typecheck PASS;
-  - build PASS;
-  - `git diff --check` PASS;
-  - smoke manual previo confirmó enforcement first-run, bloqueo por URL y replay completed dismissible;
-  - escenario A-completed → B-incompleto: automated coverage PASS / manual NOT RUN;
-  - implementación publicada en `d5209167bdb20710bc253e2fd1404c420f52928b`;
-  - FINAL POST-FIX TESTER VALIDATION: PENDING — POST-DEPLOY PROD GATE.
+  - PR #27 merged;
+  - SHA integrado: `26ec207818609f8e8732d1431538c38fca5b42c7`;
+  - Production deployment alcanzado;
+  - mandatory first-run enforcement y replay dismissible no reportan defectos funcionales;
+  - tester validation PROD: FAIL parcial por layout de navegación intro mobile;
+  - fix UX focal en progreso.
 - Still pending:
-  - PR manual;
-  - review/checks;
-  - merge manual;
-  - verificar SHA integrado en main;
-  - verificar Production deployment real y SHA desplegado;
-  - tester validation en PROD de la versión final;
+  - validar y publicar el fix UX focal;
+  - repetir tester validation PROD después del deploy;
   - aprobación del tester/PROD smoke gate;
   - post-release canonical sync;
   - cierre ONB-01.
@@ -88,10 +75,7 @@ Prompt de recuperación copy/paste-safe:
   - worktree de ONB-01 creado;
   - branch `codex/onboarding-mandatory-first-run` publicada.
 - Immediate next action:
-  - abrir PR manual;
-  - revisar checks;
-  - autorizar merge;
-  - después del deployment ejecutar tester validation en PROD.
+  - finalizar el fix UX focal y publicar su PR para repetir tester validation PROD.
 - Stop boundary:
   - no crear PR desde Codex;
   - no mergear;
