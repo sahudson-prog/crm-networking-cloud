@@ -36,6 +36,9 @@ Este archivo contiene solo instrucciones transversales para trabajar en este rep
 
 ## Git y archivos
 
+- Antes de validar un baseline basado en `main`, ejecutar `git fetch origin main --prune` desde el clone canónico y comprobar el SHA real de `origin/main`; este fetch no autoriza otras operaciones remotas.
+- Mantener un único clone local canónico activo, con canonical `main` limpio y las features en worktrees, no en clones independientes. Si aparecen varios repositorios aparentemente activos, detenerse hasta identificar el canónico; los repos históricos no se usan para planificar ni implementar.
+- Para promoción y releases seguir `docs/RELEASE_RUNBOOK.md`.
 - No revertir cambios del usuario salvo solicitud explícita.
 - No usar comandos destructivos como reset, clean o borrados masivos sin autorización clara.
 - Antes de editar archivos, entender el contexto cercano y mantener los cambios limitados al objetivo.

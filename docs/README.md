@@ -15,17 +15,20 @@ Usa esta guía como mapa rápido. No es necesario leer todos los documentos para
 - `ACTIONS.md`: modelo vigente de acciones internas, ejecución, confirmación y trazabilidad.
 - `COACH_RULES.md`: reglas Coach vigentes, prelación, gatilladores y límites.
 - `SECURITY_ACCESS.md`: autenticación, RLS, roles, planes, capabilities y operaciones privilegiadas.
+- `PROD_CONTRACTS.md`: compatibilidad persistente, clasificación de cambios y gates para evoluciones de PROD.
 - `ENVIRONMENTS.md`: ambientes, despliegue, servicios externos y configuración por ambiente.
+- `RELEASE_RUNBOOK.md`: proceso operativo desde feature y DEV hasta PR, PROD y sincronización local post-release.
 - `PRIVACY_COMPLIANCE.md`: privacidad, datos personales, controles del usuario, minimización y límites de cumplimiento.
 - `UI_SYSTEM.md`: sistema visual, componentes, patrones de UI y responsive.
 - `TESTING.md`: herramientas reales de validación, cobertura observada y gaps.
 
 ## Planificación
 
+- `ACTIVE_PLAN.md`: pipeline confirmado y checkpoint dinámico de ejecución.
 - `planning/NOW.md`: foco activo y trabajo inmediato.
 - `planning/BACKLOG.md`: pendientes vigentes priorizables.
 
-La planificación no debe duplicar diseño técnico. Cuando un item requiera detalle, debe apuntar al documento especializado correspondiente.
+La planificación no reemplaza los owner docs ni debe duplicar diseño técnico. Cuando un item requiera detalle, debe apuntar al documento especializado correspondiente.
 
 ## Herramientas legacy
 
