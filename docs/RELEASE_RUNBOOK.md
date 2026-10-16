@@ -91,7 +91,7 @@ No ejecutar SQL PROD sin autorización explícita.
 
 ## Sincronización local post-release
 
-Después de merge, deployment y smoke aprobados, desde canonical `main` limpio:
+Después de merge, deployment y smoke requerido —o `N/A` explícitamente justificado—, desde canonical `main` limpio:
 
 ```text
 git fetch origin main --prune

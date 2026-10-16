@@ -26,7 +26,7 @@ Usa esta guía como mapa rápido. No es necesario leer todos los documentos para
 
 - `ACTIVE_PLAN.md`: pipeline confirmado y checkpoint dinámico de ejecución.
 - `planning/NOW.md`: foco activo y trabajo inmediato.
-- `planning/BACKLOG.md`: pendientes vigentes priorizables.
+- `planning/BACKLOG.md`: inventario no autoritativo de deudas, ideas, mejoras y trabajo potencial; un ítem no entra al pipeline hasta ser promovido explícitamente a `ACTIVE_PLAN.md`.
 
 La planificación no reemplaza los owner docs ni debe duplicar diseño técnico. Cuando un item requiera detalle, debe apuntar al documento especializado correspondiente.
 

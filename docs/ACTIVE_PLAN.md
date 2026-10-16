@@ -51,12 +51,39 @@ Prompt de recuperación copy/paste-safe:
 - Status: `IN PROGRESS`.
 - Baseline: `e5b46db8d486d7038481212bb24e3bfc01c81366`.
 - Current branch/worktree: `codex/release-runbook-v1`.
-- Completed in current task: OPS-LOCAL-01 cerrado; reconciliación documental completada; GitHub elegido como base documental; excepción estable de `ENVIRONMENTS.md` identificada.
-- Still pending: review de `RELEASE_RUNBOOK.md`, `AGENTS.md` y `ENVIRONMENTS.md`; commit/push/PR; merge; sincronización post-merge; cierre de REL-01.
+- Completed in current task:
+  - OPS-LOCAL-01 cerrado;
+  - reconciliación documental completada;
+  - GitHub elegido como base documental;
+  - ENVIRONMENTS recuperado;
+  - RELEASE_RUNBOOK creado y revisado;
+  - AGENTS/README/ACTIVE_PLAN ajustados;
+  - commit inicial de REL-01 creado;
+  - branch publicada en origin.
+- Still pending:
+  - aplicar estas correcciones finales;
+  - crear PR manual;
+  - revisar checks;
+  - merge manual;
+  - verificar SHA integrado;
+  - verificar deployment;
+  - ejecutar smoke si corresponde o justificar `N/A`;
+  - sincronizar canonical main;
+  - cerrar REL-01.
 - Blockers: None confirmed.
-- Manual/remote actions already executed: fetch read-only de `origin/main`; canonical clone validado; worktree local de REL-01 creado. No hubo cambios en servicios ni datos remotos.
-- Immediate next action: revisar el runbook y los cambios documentales de REL-01 antes de autorizar commit y publicación.
-- Stop boundary: no commit, push, PR, merge ni cambios en servicios sin autorización separada. No modificar repositorios históricos.
+- Manual/remote actions already executed:
+  - fetch read-only de `origin/main`;
+  - canonical clone validado;
+  - worktree de REL-01 creado;
+  - branch `codex/release-runbook-v1` publicada.
+- Immediate next action:
+  - finalizar diff documental;
+  - commit/push;
+  - abrir PR manual.
+- Stop boundary:
+  - no merge;
+  - no cambios de servicios;
+  - no modificar repositorios históricos.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
 
