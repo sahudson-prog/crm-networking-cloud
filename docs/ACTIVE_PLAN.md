@@ -284,6 +284,7 @@ El trabajo siguiente está sustentado por planificación u owner docs actuales, 
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
 - Objetivo: reservar explícitamente una evolución relevante del sistema de Objetivos.
+- Especificación funcional durable: `docs/planning/OBJ-02.md`.
 - Decisiones cerradas: es una iniciativa separada y potencialmente de alto impacto de producto.
 - Decisiones pendientes: todo el contrato funcional, UX, modelo de datos, métricas, comportamiento, compatibilidad y alcance técnico. El owner entregará posteriormente la explicación y detalle.
 - Criterios de aceptación: no contratados.
