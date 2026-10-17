@@ -29,15 +29,16 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release integrada: PR #28, hotfix de navegación mobile de ONB-01.
-- Last completed product release SHA: `14c11c37d1e1fcf10517c6d55416e25a2f939ca6`.
+- Última release integrada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
+- Last completed product release SHA: `bdf69151a0711cd638db6846c05e84f5a8c8e823`.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
 - Fase activa: `ONB-01 — Mandatory first-run onboarding`.
 - Estado de la fase activa: `IN PROGRESS`.
 - ONB-01 queda pendiente únicamente de tester validation final y cierre operativo.
-- Incidente funcional activo: `SYNC-INC-01 — Functional interaction sync failure`; causa raíz confirmada en browser PROD y fix local en progreso.
+- `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
+- Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
 - Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
 
 ## Deuda / pre-Early-Access gate
@@ -49,33 +50,26 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `SYNC-INC-01 — Functional interaction sync failure`.
+- Current phase: `ONB-01 — Mandatory first-run onboarding`.
 - Status: `IN PROGRESS`.
-- Baseline: `6ec6506661753ddb26c19375ea2d5f9426b7d71f`.
-- Current branch/worktree: `codex/sync-rolling-date-fix` en worktree aislado.
+- Baseline: `bdf69151a0711cd638db6846c05e84f5a8c8e823`.
+- Current branch/worktree: None; pendiente de tester validation final y cierre operativo.
 - Completed in current task:
-  - causa raíz reproducida y confirmada en browser PROD antes de Gmail/Calendar;
-  - el sync periódico usaba indebidamente el límite histórico de 12 meses de `Fecha_Inicio_Networking`;
-  - fix focal local en progreso, separado de `OPS-SYNC-01`.
+  - SYNC-INC-01 cerrado mediante PR #29;
+  - SHA integrado: `bdf69151a0711cd638db6846c05e84f5a8c8e823`;
+  - Vercel Production success y smoke funcional PROD PASS;
+  - mandatory first-run enforcement y replay dismissible publicados.
 - Still pending:
-  - completar validaciones locales;
-  - revisión, commit, PR y merge por el flujo normal;
-  - deployment y smoke PROD;
-  - cierre de SYNC-INC-01;
   - tester validation final y cierre operativo de ONB-01.
 - Blockers: None confirmed.
 - Manual/remote actions already executed:
-  - reproducción en browser PROD por el owner;
-  - fetch read-only de `origin/main`.
-- Immediate next action: terminar tests y revisión del fix local sin ejecutar operaciones remotas.
-- Post-release smoke requerido:
-  - Gmail solo, Calendar solo y ambos servicios habilitados;
-  - botón global y ficha de un contacto Foco;
-  - fecha de networking antigua no bloquea y las ventanas permanecen acotadas;
-  - freshness y cursor avanzan únicamente después de éxito.
+  - PR #29 merged;
+  - Vercel Production success;
+  - smoke funcional PROD PASS de SYNC-INC-01.
+- Immediate next action: coordinar tester validation final de ONB-01 y cerrar operacionalmente la fase solo después de ese resultado.
 - Stop boundary:
-  - no cerrar SYNC-INC-01 antes del smoke PROD;
-  - no mezclarlo con `OPS-SYNC-01` ni modificar servicios desde esta tarea.
+  - no declarar ONB-01 `COMPLETED` antes de tester validation final;
+  - no mezclar la deuda de UX ni candidatos no contratados con el cierre operacional.
 - Deuda UX de ONB-01 fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
@@ -274,6 +268,38 @@ El trabajo siguiente está sustentado por planificación u owner docs actuales, 
 - Owner docs: `docs/PRODUCT.md`, `docs/DOMAIN_MODEL.md`, `docs/INGESTION_SYNC.md`, `docs/ACTIONS.md`, `docs/COACH_RULES.md`.
 - Gates manuales/remotos: decisión de producto y checkpoint propio de implementación/release si se selecciona trabajo.
 - Relación: sin orden comprometido después de ONB-01.
+
+### INV-01 - Invitar a alguien a Coffeecito
+
+- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Objetivo: permitir que un usuario beta pueda invitar a otras personas a Coffeecito.
+- Decisiones cerradas: la acción visible se expresa como "Invitar a alguien a Coffeecito"; cada usuario beta dispone de un máximo de 5 invitaciones; mantener un flujo simple; no diseñar un gestor complejo de estados o edición salvo necesidad técnica posterior demostrada.
+- Decisiones pendientes: modelo persistente exacto; enforcement server-side del límite de 5; relación con `app_access_allowlist` y el Before User Created Hook; momento de consumo del cupo; tratamiento de email ya autorizado, usuario existente o invitación repetida; mecanismo de compartir/enviar; interacción con Google OAuth mientras PROD permanezca en Testing; criterios de aceptación y rollout.
+- Criterios de aceptación: no contratados; deben definirse al cerrar las decisiones pendientes.
+- Out of scope: gestor avanzado de estados o edición de invitaciones sin necesidad demostrada.
+- Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.
+- Relación: sin orden comprometido respecto de los candidatos existentes.
+
+### OBJ-02 - Nuevos Objetivos
+
+- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Objetivo: reservar explícitamente una evolución relevante del sistema de Objetivos.
+- Decisiones cerradas: es una iniciativa separada y potencialmente de alto impacto de producto.
+- Decisiones pendientes: todo el contrato funcional, UX, modelo de datos, métricas, comportamiento, compatibilidad y alcance técnico. El owner entregará posteriormente la explicación y detalle.
+- Criterios de aceptación: no contratados.
+- Out of scope: inferir, diseñar o completar requisitos faltantes; confundirlo con `PRODUCT-EVAL-01` o absorberlo en el item genérico de métricas por objetivo.
+- Relación: sin orden comprometido respecto de los candidatos existentes.
+
+### UX-NAV-01 - Transiciones de navegación
+
+- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Objetivo: corregir la repetición visible de estados intermedios durante navegación entre vistas: "Preparando recorrido" -> "Cargando" -> "Preparando recorrido".
+- Contexto conocido: es deuda UX independiente de ONB-01; probablemente requiere revisar persistencia/montaje de Shell, Coach y loading states; no hay causa raíz confirmada.
+- Decisiones pendientes: reproducción exacta, causa raíz, estados de carga necesarios, contrato UX final y alcance de la corrección.
+- Criterios de aceptación: no contratados.
+- Out of scope: implementar o especular sobre la solución en ausencia de auditoría.
+- Owner docs: `docs/UI_SYSTEM.md`, `docs/PRODUCT.md`, `docs/TESTING.md`.
+- Relación: independiente de ONB-01 y sin orden comprometido respecto de los demás candidatos.
 
 ### Iniciativas diferidas
 
