@@ -273,11 +273,30 @@ El trabajo siguiente está sustentado por planificación u owner docs actuales, 
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
 - Objetivo: permitir que un usuario beta pueda invitar a otras personas a Coffeecito.
-- Decisiones cerradas: la acción visible se expresa como "Invitar a alguien a Coffeecito"; cada usuario beta dispone de un máximo de 5 invitaciones; mantener un flujo simple; no diseñar un gestor complejo de estados o edición salvo necesidad técnica posterior demostrada.
-- Decisiones pendientes: modelo persistente exacto; enforcement server-side del límite de 5; relación con `app_access_allowlist` y el Before User Created Hook; momento de consumo del cupo; tratamiento de email ya autorizado, usuario existente o invitación repetida; mecanismo de compartir/enviar; interacción con Google OAuth mientras PROD permanezca en Testing; criterios de aceptación y rollout.
+- Especificación funcional durable: `docs/planning/INV-01.md`.
+- Decisiones cerradas: invitaciones en cadena con 5 cupos por usuario; autorización por email y compartir manual mediante `mailto`; vigencia exacta de 5 días y restitución única de reserva/cupo al vencer sin registro; capacidad global editable de 500 que considera registros por invitación y autorizaciones pendientes vigentes; al alcanzar el máximo se bloquean nuevas invitaciones sin invalidar pendientes ni accesos registrados; controles globales de pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta cerrada existente preserva `beta_tester`; Google import/sync solo para `beta_tester` en esta etapa.
+- Decisiones pendientes: modelo persistente exacto; enforcement server-side y atómico; relación con `app_access_allowlist` y el Before User Created Hook; tratamiento de email ya autorizado, usuario existente o invitación repetida; capabilities, auditoría, límites efectivos de Free, criterios de aceptación y rollout.
 - Criterios de aceptación: no contratados; deben definirse al cerrar las decisiones pendientes.
 - Out of scope: gestor avanzado de estados o edición de invitaciones sin necesidad demostrada.
 - Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.
+- Relación: sin orden comprometido respecto de los candidatos existentes.
+
+### OBS-BETA-01 - Monitoreo de beta
+
+- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Objetivo: diseñar una vista operativa `/sistema/monitoreo`, separada de Mantención, con métricas propias de beta, tablas y filtros sin exponer contenido privado.
+- Especificación funcional durable: `docs/planning/OBS-BETA-01.md`.
+- Decisiones cerradas: pestañas Resumen, Usuarios, Invitaciones e Incidentes; filtros de fechas, cohorte, plan, roles, estados y usuario; permisos de consulta separados de administración; no replicar métricas de Supabase, Google Cloud o Vercel; preservar límites que gobiernan el runtime.
+- Decisiones pendientes: fuentes y semántica de métricas, agregaciones seguras, capabilities, relación con diagnósticos/logs, indicadores redundantes y criterios de aceptación.
+- Relación: sin orden comprometido respecto de los candidatos existentes.
+
+### BRAND-BETA-01 - Variante de marca beta
+
+- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Objetivo: definir una variante temporal BETA para comunicar acceso anticipado sin reemplazar los recursos originales de Coffeecito.
+- Especificación funcional durable: `docs/planning/BRAND-BETA-01.md`.
+- Decisiones cerradas: preservar assets originales en Git; añadir una variante sin sobrescribir isotipo ni composiciones; aplicarla en landing, onboarding y cabecera; comunicar posibles restricciones o planes pagados futuros.
+- Decisiones pendientes: composición y assets derivados, copy final, activación y retirada, accesibilidad, pruebas visuales y compatibilidad con la identidad vigente.
 - Relación: sin orden comprometido respecto de los candidatos existentes.
 
 ### OBJ-02 - Nuevos Objetivos
