@@ -34,9 +34,8 @@ Prompt de recuperación copy/paste-safe:
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
-- Fase activa: `ONB-01 — Mandatory first-run onboarding`.
-- Estado de la fase activa: `IN PROGRESS`.
-- ONB-01 queda pendiente únicamente de tester validation final y cierre operativo.
+- No existe una fase activa contratada.
+- ONB-01 cerrado: PR #27 y PR #28 integrados, Vercel success reportado y validación funcional PROD PASS confirmada por el owner el 20-10-2026.
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
 - Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
@@ -50,26 +49,24 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `ONB-01 — Mandatory first-run onboarding`.
-- Status: `IN PROGRESS`.
-- Baseline: `bdf69151a0711cd638db6846c05e84f5a8c8e823`.
-- Current branch/worktree: None; pendiente de tester validation final y cierre operativo.
-- Completed in current task:
-  - SYNC-INC-01 cerrado mediante PR #29;
-  - SHA integrado: `bdf69151a0711cd638db6846c05e84f5a8c8e823`;
-  - Vercel Production success y smoke funcional PROD PASS;
-  - mandatory first-run enforcement y replay dismissible publicados.
-- Still pending:
-  - tester validation final y cierre operativo de ONB-01.
+- Current phase: None.
+- Status: `NO ACTIVE CONTRACTED PHASE`.
+- Baseline: `UNASSIGNED — resolve and verify origin/main when a new phase is explicitly contracted`.
+- Current branch/worktree: None.
+- Completed:
+  - PR #27 merged: mandatory first-run onboarding, integrado en `26ec207818609f8e8732d1431538c38fca5b42c7`;
+  - PR #28 merged: corrección de navegación mobile/replay, integrada en `6ec6506661753ddb26c19375ea2d5f9426b7d71f`;
+  - Vercel reportó success para ambas entregas;
+  - owner confirmó validación funcional PROD PASS el 20-10-2026 en primer ingreso, cuatro slides, ausencia de bypass, finalización, persistencia y replay opcional.
+- Pending: ninguna fase nueva se inicia sin contratación explícita.
 - Blockers: None confirmed.
 - Manual/remote actions already executed:
-  - PR #29 merged;
-  - Vercel Production success;
-  - smoke funcional PROD PASS de SYNC-INC-01.
-- Immediate next action: coordinar tester validation final de ONB-01 y cerrar operacionalmente la fase solo después de ese resultado.
+  - PR #27 y PR #28 merged;
+  - Vercel success reportado para ambas entregas;
+  - validación funcional PROD 6/6 PASS confirmada por el owner el 20-10-2026.
+- Immediate next action: esperar contratación explícita de una nueva fase; los candidatos futuros no se inician por su sola presencia en este documento.
 - Stop boundary:
-  - no declarar ONB-01 `COMPLETED` antes de tester validation final;
-  - no mezclar la deuda de UX ni candidatos no contratados con el cierre operacional.
+- no iniciar candidatos no contratados ni mezclar la deuda de UX con una fase futura sin aprobación explícita.
 - Deuda UX de ONB-01 fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
@@ -109,83 +106,21 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 
 ### ONB-01 - Mandatory first-run onboarding
 
-**Status:** `IN PROGRESS`
+**Status:** `COMPLETED`
 
-**Objetivo**
+**Resultado estable implementado**
 
-Hacer obligatorio el onboarding inicial sin alterar el comportamiento dismissible del tutorial reproducido posteriormente desde "Ver tutorial".
-
-**Dependencias**
-
-- OPS-LOCAL-01 completado.
-- REL-01 completado.
-- Aceptación legal V1.1 cerrada y desplegada.
-- Preservar la secuencia privada: auth -> beta/app access -> legal acceptance -> mandatory onboarding -> app.
-- Reutilizar la persistencia y arquitectura de estado actuales si permiten cumplir el contrato.
-
-**Decisiones cerradas**
-
-- Mantener el lenguaje visual actual del onboarding.
-- El intro pasa de tres a cuatro slides.
-- Slides 1 y 2 conservan su contenido actual.
-- Slide 3 conserva el contenido sobre gestionar la red y sus preguntas, pero elimina: "Coffeecito se encarga de la gestión. Tú del café y la conversación."
-- Slide 4 es un cierre limpio y centrado con: "Coffeecito se encarga de la gestión. Tú del café y la conversación."
-- CTA de slide 4: "Empecemos".
-- Eliminar la barra global inferior de acciones del intro.
-- Slides 1-3 mantienen navegación Previous/Next.
-- El mandatory first-run no tiene "Ahora no", defer ni bypass equivalente.
-- El tutorial guiado no puede cerrarse durante mandatory first-run.
-- Un replay posterior iniciado desde "Ver tutorial" sigue siendo opcional y se puede cerrar.
-- No modificar la aceptación legal.
-- No se espera cambio de schema.
-
-**Decisiones pendientes**
-
-- Cambios mínimos exactos para distinguir mandatory first-run de replay, pendientes de auditoría del repositorio.
-- Ubicación exacta del redirect/guard para impedir acceso a rutas privadas antes de completar, pendiente de verificar el provider y routing actuales.
-- Cualquier persistencia nueva: `NOT CONTRACTED / DECISION REQUIRED`. Si el repositorio demuestra esa necesidad, detenerse antes de implementar.
-
-**Criterios de aceptación**
-
-- Un usuario first-run no puede llegar a la app antes de completar onboarding.
-- No existe "Ahora no" ni bypass equivalente en mandatory mode.
-- Completar onboarding permite entrar normalmente a la app.
-- El replay posterior sigue siendo opcional y dismissible.
-- El legal gate sigue inmediatamente antes de onboarding.
-- Tests focales, typecheck, build y smoke pasan.
-
-**In scope**
-
-- Composición y navegación del intro requeridas por las decisiones anteriores.
-- Comportamiento first-run versus replay.
-- Enforcement de rutas/gates necesario para volver obligatorio el first-run.
-- Cobertura focal de regresión.
-
-**Out of scope**
-
-- Cambiar aceptación legal o su contrato.
-- Agregar contenido de producto fuera de las cuatro slides definidas.
-- Crear una segunda máquina de estado si la arquitectura actual puede extenderse.
-- Cambiar schema o persistencia sin una decisión separada.
-- Limpiezas no relacionadas de producto, sync, seguridad o UI.
-
-**Owner docs relevantes**
-
-- `docs/SECURITY_ACCESS.md` solo si cambia la secuencia AuthGate/acceso.
-- `docs/DATA_MODEL.md` solo si cambia persistencia o una invariante de datos.
-- `docs/UI_SYSTEM.md` solo para restricciones vigentes del sistema visual.
-- `docs/TESTING.md` para validación proporcional.
-
-**Gates manuales y remotos**
-
-- Diseño e implementación local no requieren cambios remotos.
-- Antes del merge: aprobar diff, ejecutar tests focales/typecheck/build y revisar checks. Después del deployment PROD: ejecutar tester validation / smoke funcional obligatorio; ONB-01 se cierra solo después de ese PASS.
-- Cualquier cambio de contrato persistente PROD debe seguir `docs/PROD_CONTRACTS.md` y no está preautorizado por esta fase.
+- PR #27 merged: mandatory first-run onboarding, integrado en `26ec207818609f8e8732d1431538c38fca5b42c7`.
+- PR #28 merged: corrección focal de navegación mobile/replay, integrada en `6ec6506661753ddb26c19375ea2d5f9426b7d71f`.
+- La implementación actual conserva la secuencia privada: auth -> beta/app access -> legal acceptance -> mandatory onboarding -> app.
+- El primer ingreso queda cerrado hasta `completed`; el intro tiene cuatro slides y no ofrece bypass; completar persiste antes de admitir producto; el replay desde "Ver tutorial" sigue siendo opcional y dismissible.
+- Vercel reportó success para ambas entregas, confirmando deployment exitoso reportado.
+- El owner confirmó validación funcional PROD PASS el 20-10-2026 en seis criterios: primer ingreso, cuatro slides, ausencia de bypass, finalización, persistencia y replay opcional.
 
 **Relación con otras fases**
 
-- ONB-01 es la tercera fase del pipeline confirmado: OPS-LOCAL-01 → REL-01 → ONB-01.
-- Ningún candidato futuro tiene orden comprometido respecto de este pipeline salvo que un checkpoint posterior lo establezca.
+- ONB-01 no activa una fase nueva al cerrarse. INV-01 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
+- Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Candidatos futuros no contratados
 
