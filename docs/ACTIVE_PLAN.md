@@ -272,12 +272,13 @@ El trabajo siguiente está sustentado por planificación u owner docs actuales, 
 ### INV-01 - Invitar a alguien a Coffeecito
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
-- Objetivo: permitir que un usuario beta pueda invitar a otras personas a Coffeecito.
+- Objetivo: permitir que usuarios elegibles, incluidos quienes se registraron mediante invitación, puedan invitar a otras personas a Coffeecito.
 - Especificación funcional durable: `docs/planning/INV-01.md`.
-- Decisiones cerradas: invitaciones en cadena con 5 cupos por usuario; autorización por email y compartir manual mediante `mailto`; vigencia exacta de 5 días y restitución única de reserva/cupo al vencer sin registro; capacidad global editable de 500 que considera registros por invitación y autorizaciones pendientes vigentes; al alcanzar el máximo se bloquean nuevas invitaciones sin invalidar pendientes ni accesos registrados; controles globales de pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta cerrada existente preserva `beta_tester`; Google import/sync solo para `beta_tester` en esta etapa.
-- Decisiones pendientes: modelo persistente exacto; enforcement server-side y atómico; relación con `app_access_allowlist` y el Before User Created Hook; tratamiento de email ya autorizado, usuario existente o invitación repetida; capabilities, auditoría, límites efectivos de Free, criterios de aceptación y rollout.
-- Criterios de aceptación: no contratados; deben definirse al cerrar las decisiones pendientes.
-- Out of scope: gestor avanzado de estados o edición de invitaciones sin necesidad demostrada.
+- Decisiones cerradas: invitaciones en cadena para usuarios elegibles; autorización temporal por email alternativa a la allowlist legacy, sin Auth paralelo; bootstrap autenticado y transaccional antes de legal/onboarding; 5 cupos por usuario y capacidad global editable de 500 calculados desde pendientes vigentes más registros; expiración exacta a las 120 horas sin cron ni contadores; bloqueos administrativos prevalecen; cancelación de pendientes solo con `admin.manage_access`; controles separados para pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta legacy preserva `beta_tester`; Google import/sync solo para `beta_tester`; UX V1 acotada con cabecera, diálogo, lista simple y `mailto` sin afirmar envío.
+- Diseño técnico V1 recomendado: persistencia autoritativa de lifecycle y configuración global, RPCs estrechas, RLS sin DML cliente, Before User Created Hook compatible y bootstrap idempotente que deriva identidad desde Auth; secuencia propuesta de migrations, verifiers, PRs y rollout documentada en la especificación.
+- Decisiones pendientes: nombres finales de objetos/capabilities; auditoría y enforcement real de límites Free/Google; semántica de reautorización; retención/auditoría; validación local del momento de verificación de email; preflight de beta legacy y aprobación formal del `PROD CONTRACT CHANGE`.
+- Criterios de aceptación: funcionales y técnicos propuestos en la especificación, todavía no contratados ni autorizados para implementación.
+- Out of scope: dashboards, gestor avanzado, edición de invitaciones, correo gestionado, cron de expiración y contadores persistidos.
 - Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.
 - Relación: sin orden comprometido respecto de los candidatos existentes.
 
