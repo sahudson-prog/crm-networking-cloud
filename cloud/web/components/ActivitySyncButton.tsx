@@ -40,7 +40,6 @@ import {
   actionableInteractionPreviewChanges,
   externalIdsFromInteractionPreview
 } from "../lib/interactionSyncPreview";
-import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
 import { invalidateActiveGoogleDataAuthorization, readGoogleDataConnectionReturn } from "../lib/googleAuthSession";
 import {
@@ -48,6 +47,7 @@ import {
   clearPendingActivitySyncAuthorization,
   readPendingActivitySyncAuthorization
 } from "../lib/activitySyncAuthorization";
+import { requireGoogleConnectedSyncOperations } from "../lib/googleSyncAuthorization";
 import type { ContactRow } from "../lib/readModel";
 import {
   calendarRollingWindowIso,
@@ -292,7 +292,10 @@ export function ActivitySyncButton({
         }
 
         try {
-          await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
+          await requireGoogleConnectedSyncOperations(
+            googleConnection.account?.id,
+            requestedServices.map((service) => service === "mail" ? "email" : "calendar")
+          );
           if (!active) return;
           resumeAuthorizationRef.current = true;
           clearPendingActivitySyncAuthorization();
@@ -419,19 +422,6 @@ export function ActivitySyncButton({
       await reviewGlobalSync();
       return;
     }
-    try {
-      await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        applying: false,
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
-        loading: false,
-        message: ""
-      }));
-      return;
-    }
-
     setState((current) => ({
       ...current,
       error: "",
@@ -486,6 +476,14 @@ export function ActivitySyncButton({
         return;
       }
 
+      await requireGoogleConnectedSyncOperations(
+        googleConnection.account?.id,
+        [
+          ...(currentSelection.includeMail ? ["email" as const] : []),
+          ...(currentSelection.includeCalendar ? ["calendar" as const] : [])
+        ]
+      );
+
       await runContactSync({
         accessToken: googleConnection.accessToken,
         connectedAccountId: googleConnection.account?.id ?? null,
@@ -516,7 +514,6 @@ export function ActivitySyncButton({
       serviceReauthorizationRequired: { calendar: false, mail: false }
     }));
     await startGlobalActivitySync(async () => {
-      await requireCurrentUserCapability("interactions.import_google", "actualizar interacciones desde Google");
       const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
       const currentSelection = resolveActivitySyncSelection({
         calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
@@ -537,6 +534,13 @@ export function ActivitySyncButton({
       if (!googleConnection.userEmail) {
         throw new Error("No pude identificar el correo del usuario conectado.");
       }
+      await requireGoogleConnectedSyncOperations(
+        googleConnection.account?.id,
+        [
+          ...(currentSelection.includeMail ? ["email" as const] : []),
+          ...(currentSelection.includeCalendar ? ["calendar" as const] : [])
+        ]
+      );
       return runGlobalSync({
         accessToken: googleConnection.accessToken,
         connectedAccountId: googleConnection.account?.id ?? null,

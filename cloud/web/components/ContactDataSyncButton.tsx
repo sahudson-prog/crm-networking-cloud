@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { applyContactSyncPreview, type ApplyContactSyncPreviewResult, type ApplyContactSyncProgress } from "../lib/contactSyncApply";
 import { buildContactSyncPreview } from "../lib/contactSyncPreview";
-import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
 import { invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import { GOOGLE_CONTACTS_READONLY_SCOPE, GoogleContactsClientError, readGoogleContact } from "../lib/googleContactsClient";
+import { requireGoogleConnectedSyncAuthorization, requireGoogleOAuthRolloutEligibility } from "../lib/googleSyncAuthorization";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
@@ -80,25 +80,11 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
   }, [onNoticeChange]);
 
   async function connectGoogle() {
+    await requireGoogleOAuthRolloutEligibility();
     await reconnectGoogle([GOOGLE_CONTACTS_READONLY_SCOPE]);
   }
 
   async function reviewContactData() {
-    try {
-      await requireCurrentUserCapability("contacts.import_google", "actualizar datos de contacto desde Google");
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        applying: false,
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
-        loading: false,
-        message: "",
-        previewOpen: true,
-        progress: null
-      }));
-      return;
-    }
-
     setState((current) => ({
       ...current,
       applying: false,
@@ -116,6 +102,20 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
     if (!googleConnection.connected || !googleConnection.accessToken || !googleConnectionHasCapability(googleConnection, "contacts_read")) {
       setState((current) => ({ ...current, accessToken: "", error: "", loading: true, message: "Reconectando Google..." }));
       await connectGoogle();
+      return;
+    }
+    try {
+      await requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "contacts");
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        applying: false,
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        loading: false,
+        message: "",
+        previewOpen: true,
+        progress: null
+      }));
       return;
     }
 
@@ -208,7 +208,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
 
   async function applyContactData(selectedChanges: SyncPreviewChange[]) {
     try {
-      await requireCurrentUserCapability("contacts.import_google", "actualizar datos de contacto desde Google");
+      await requireGoogleConnectedSyncAuthorization(state.connectedAccountId, "contacts");
     } catch (error) {
       setState((current) => ({
         ...current,

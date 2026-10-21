@@ -54,6 +54,18 @@ export async function POST(request: NextRequest) {
     return jsonError("access_denied", "No tienes acceso activo a Coffeecito.", 403);
   }
 
+  const { data: rolloutAllowed, error: rolloutError } = await userClient.rpc(
+    "current_user_can_start_connected_oauth_v1",
+    { p_provider: "google" }
+  );
+  if (rolloutError || rolloutAllowed !== true) {
+    return jsonError(
+      "google_rollout_denied",
+      "Tu cuenta no está habilitada para conectar datos de Google en esta etapa.",
+      403
+    );
+  }
+
   const googleEvidence = await readGoogleEvidence(providerToken);
   if (!googleEvidence.ok) {
     return jsonError("google_verification_failed", "No pudimos verificar Google.", 403);
@@ -85,7 +97,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (finalizeError) {
-    return jsonError("finalize_failed", "No pudimos guardar la autorizacion Google.", 500);
+    const rolloutDenied = finalizeError.code === "42501"
+      || String(finalizeError.message ?? "").includes("GOOGLE_CONNECTED_ACCOUNT_ROLLOUT_DENIED");
+    return rolloutDenied
+      ? jsonError("google_rollout_denied", "Tu cuenta no está habilitada para conectar datos de Google en esta etapa.", 403)
+      : jsonError("finalize_failed", "No pudimos guardar la autorizacion Google.", 500);
   }
 
   return NextResponse.json({

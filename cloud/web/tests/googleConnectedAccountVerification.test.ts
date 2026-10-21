@@ -312,6 +312,54 @@ test("server finalize no acepta identidad ni permisos efectivos declarados por b
   assert.equal(/body\?\.(user_id|account_email|effectiveScopes|capabilities|status)/.test(routeSource), false);
 });
 
+test("OAuth de datos consulta rollout server-side antes de guardar intención", () => {
+  const dataAuthorization = readFileSync(new URL("../lib/googleDataAuthorizationIntent.ts", import.meta.url), "utf8");
+  const activityAuthorization = readFileSync(new URL("../lib/activitySyncAuthorization.ts", import.meta.url), "utf8");
+
+  assert.ok(
+    dataAuthorization.indexOf("await requireGoogleOAuthRolloutEligibility()")
+      < dataAuthorization.indexOf("rememberPendingGoogleDataAction(intent)")
+  );
+  assert.ok(
+    activityAuthorization.indexOf("await requireGoogleOAuthRolloutEligibility()")
+      < activityAuthorization.indexOf("rememberPendingActivitySyncAuthorization(normalizedRequestedServices)")
+  );
+});
+
+test("finalize revalida rollout antes de consultar Google y antes de persistir", () => {
+  const routeSource = readFileSync(new URL("../app/api/google/connected-account/finalize/route.ts", import.meta.url), "utf8");
+  const rolloutCheck = routeSource.indexOf("current_user_can_start_connected_oauth_v1");
+  const googleEvidence = routeSource.indexOf("readGoogleEvidence(providerToken)");
+  const finalize = routeSource.indexOf("finalize_google_connected_account_verified");
+
+  assert.ok(rolloutCheck > 0);
+  assert.ok(rolloutCheck < googleEvidence);
+  assert.ok(googleEvidence < finalize);
+  assert.match(routeSource, /google_rollout_denied/);
+});
+
+test("writers Google usan RPCs transaccionales con cuenta conectada", () => {
+  const contactWriter = readFileSync(new URL("../lib/contactSyncApply.ts", import.meta.url), "utf8");
+  const interactionWriter = readFileSync(new URL("../lib/externalInteractionSync.ts", import.meta.url), "utf8");
+
+  assert.match(contactWriter, /apply_google_contact_sync_change_v1/);
+  assert.match(contactWriter, /if \(context\.provider === "google"\)/);
+  assert.match(interactionWriter, /apply_google_interaction_sync_v1/);
+  assert.match(interactionWriter, /if \(normalized\.provider === "google"\)/);
+});
+
+test("runtime Google deja capabilities legacy solo como tipos compatibles", () => {
+  const runtimeSources = [
+    "../components/ActivitySyncButton.tsx",
+    "../components/ContactDataSyncButton.tsx",
+    "../components/GoogleContactsSyncPanel.tsx",
+    "../components/GoogleInteractionsSyncPanel.tsx"
+  ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+
+  assert.doesNotMatch(runtimeSources, /contacts\.import_google|interactions\.import_google/);
+  assert.match(runtimeSources, /requireGoogleConnectedSync/);
+});
+
 test("AccountPage no selecciona cualquier Google activa como cuenta actual", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
 

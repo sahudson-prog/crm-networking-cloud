@@ -12,6 +12,7 @@ const migrations = [
   readSql('../migrations/202610150001_contact_requests_v1.sql'),
   readSql('../migrations/202610150002_legal_acceptance_v1.sql'),
   readSql('../migrations/202610150003_legal_acceptance_v1_1.sql'),
+  readSql('../migrations/202610210001_google_sync_capability_enforcement_v1.sql'),
 ];
 
 function expectedNames(listName) {

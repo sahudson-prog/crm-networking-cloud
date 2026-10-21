@@ -102,10 +102,14 @@ begin
       ('coach.automate', 'coach'),
       ('coach.use', 'coach'),
       ('contacts.import_google', 'contacts'),
+      ('contacts.sync_external', 'contacts'),
       ('contacts.manage', 'contacts'),
       ('data.delete_account', 'data'),
       ('data.export', 'data'),
-      ('interactions.import_google', 'interactions')
+      ('interactions.import_google', 'interactions'),
+      ('interactions.sync_email', 'interactions'),
+      ('interactions.sync_calendar', 'interactions'),
+      ('connectors.google.use', 'connectors')
     )
     select 1 from (
       (select capability_code, capability_area from public.app_capabilities where is_active
@@ -114,7 +118,7 @@ begin
       (select capability_code, capability_area from expected
        except select capability_code, capability_area from public.app_capabilities where is_active)
     ) differences
-  ) or (select count(*) from public.app_capabilities) <> 11 then
+  ) or (select count(*) from public.app_capabilities) <> 15 then
     raise exception 'Canonical capability keys or areas differ from the approved seed';
   end if;
 
@@ -137,8 +141,12 @@ begin
     with expected(role_code, capability_code) as (values
       ('beta_tester', 'coach.use'),
       ('beta_tester', 'contacts.import_google'),
+      ('beta_tester', 'contacts.sync_external'),
+      ('beta_tester', 'connectors.google.use'),
       ('beta_tester', 'contacts.manage'),
       ('beta_tester', 'interactions.import_google'),
+      ('beta_tester', 'interactions.sync_email'),
+      ('beta_tester', 'interactions.sync_calendar'),
       ('sponsor_admin', 'admin.view_diagnostics'),
       ('support_admin', 'admin.view_diagnostics'),
       ('system_admin', 'admin.manage_access'),

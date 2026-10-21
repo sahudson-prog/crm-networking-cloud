@@ -4,6 +4,7 @@ import {
   GOOGLE_GMAIL_READONLY_SCOPE
 } from "./googleInteractionClient";
 import { reconnectGoogle } from "./googleAuthSession";
+import { requireGoogleOAuthRolloutEligibility } from "./googleSyncAuthorization";
 
 export const PENDING_GOOGLE_DATA_ACTION_KEY = "coffeecito_pending_google_data_action_v1";
 
@@ -51,6 +52,7 @@ export async function beginGoogleDataAuthorization(
   intent: GoogleDataAuthorizationIntent,
   redirectTo: string
 ) {
+  await requireGoogleOAuthRolloutEligibility();
   rememberPendingGoogleDataAction(intent);
   try {
     await reconnectGoogle(googleDataAuthorizationScopes(intent), redirectTo);
