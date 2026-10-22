@@ -4,7 +4,7 @@ import {
   GOOGLE_GMAIL_READONLY_SCOPE
 } from "./googleInteractionClient";
 import { reconnectGoogle } from "./googleAuthSession";
-import { requireGoogleOAuthRolloutEligibility } from "./googleSyncAuthorization";
+import { requireGoogleOAuthRolloutOperations } from "./googleSyncAuthorization";
 
 export const PENDING_ACTIVITY_SYNC_AUTHORIZATION_KEY = "coffeecito_pending_activity_sync_authorization_v1";
 
@@ -23,7 +23,9 @@ export async function beginActivitySyncAuthorization(
   const normalizedRequestedServices = normalizeServices(requestedServices);
   const normalizedMissingServices = normalizeServices(missingServices);
   if (!normalizedRequestedServices.length || !normalizedMissingServices.length) return;
-  await requireGoogleOAuthRolloutEligibility();
+  await requireGoogleOAuthRolloutOperations(normalizedMissingServices.map((service) => (
+    service === "mail" ? "email" : "calendar"
+  )));
   rememberPendingActivitySyncAuthorization(normalizedRequestedServices);
   try {
     await reconnectGoogle(activitySyncAuthorizationScopes(normalizedMissingServices), redirectTo);

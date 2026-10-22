@@ -10,6 +10,20 @@ import {
 const GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 
+type GoogleSyncOperation = "contacts" | "email" | "calendar";
+
+const GOOGLE_OPERATION_CAPABILITIES: Record<GoogleSyncOperation, string> = {
+  calendar: "interactions.sync_calendar",
+  contacts: "contacts.sync_external",
+  email: "interactions.sync_email"
+};
+
+const GOOGLE_OPERATION_SCOPES: Record<GoogleSyncOperation, string> = {
+  calendar: "https://www.googleapis.com/auth/calendar.readonly",
+  contacts: "https://www.googleapis.com/auth/contacts.readonly",
+  email: "https://www.googleapis.com/auth/gmail.readonly"
+};
+
 export async function POST(request: NextRequest) {
   const config = readServerConfig();
   if (!config.ok) {
@@ -21,10 +35,11 @@ export async function POST(request: NextRequest) {
     return jsonError("missing_session", "Necesitas iniciar sesion.", 401);
   }
 
-  const providerToken = await readProviderToken(request);
-  if (!providerToken) {
+  const finalizeRequest = await readFinalizeRequest(request);
+  if (!finalizeRequest) {
     return jsonError("missing_google_token", "No pudimos verificar Google.", 400);
   }
+  const { providerToken, requestedOperations } = finalizeRequest;
 
   const userClient = createClient(config.supabaseUrl, config.supabasePublicKey, {
     auth: {
@@ -66,6 +81,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  for (const operation of requestedOperations) {
+    const { data: operationAllowed, error: operationError } = await userClient.rpc(
+      "current_user_has_capability",
+      { p_capability_code: GOOGLE_OPERATION_CAPABILITIES[operation] }
+    );
+    if (operationError || operationAllowed !== true) {
+      return jsonError(
+        "google_operation_denied",
+        "Esta integración de Google no está disponible para tu cuenta.",
+        403
+      );
+    }
+  }
+
   const googleEvidence = await readGoogleEvidence(providerToken);
   if (!googleEvidence.ok) {
     return jsonError("google_verification_failed", "No pudimos verificar Google.", 403);
@@ -79,6 +108,11 @@ export async function POST(request: NextRequest) {
   });
   if (verification.status === "error") {
     return jsonError(verification.code, verification.message, 403);
+  }
+  if (requestedOperations.some((operation) => (
+    !verification.effectiveScopes.includes(GOOGLE_OPERATION_SCOPES[operation])
+  ))) {
+    return jsonError("google_scope_missing", "Google no confirmó el permiso solicitado.", 403);
   }
 
   const adminClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
@@ -103,11 +137,14 @@ export async function POST(request: NextRequest) {
       ? jsonError("google_rollout_denied", "Tu cuenta no está habilitada para conectar datos de Google en esta etapa.", 403)
       : jsonError("finalize_failed", "No pudimos guardar la autorizacion Google.", 500);
   }
+  if (!isFinalizedGoogleAccount(account)) {
+    return jsonError("finalize_failed", "No pudimos guardar la autorizacion Google.", 500);
+  }
 
   return NextResponse.json({
     account,
-    capabilities: verification.capabilities,
-    effectiveScopes: verification.effectiveScopes
+    capabilities: account.capabilities,
+    effectiveScopes: account.scopes
   });
 }
 
@@ -138,13 +175,37 @@ function bearerToken(value: string | null) {
   return match?.[1]?.trim() ?? "";
 }
 
-async function readProviderToken(request: NextRequest) {
+async function readFinalizeRequest(request: NextRequest): Promise<{
+  providerToken: string;
+  requestedOperations: GoogleSyncOperation[];
+} | null> {
   try {
     const body = await request.json();
-    return typeof body?.providerToken === "string" ? body.providerToken.trim() : "";
+    const providerToken = typeof body?.providerToken === "string" ? body.providerToken.trim() : "";
+    const rawOperations: unknown[] = Array.isArray(body?.requestedOperations) ? body.requestedOperations : [];
+    if (!rawOperations.length || !rawOperations.every(isGoogleSyncOperation)) return null;
+    const requestedOperations = Array.from(new Set(rawOperations as GoogleSyncOperation[]));
+    if (!providerToken || !requestedOperations.length) return null;
+    return { providerToken, requestedOperations };
   } catch {
-    return "";
+    return null;
   }
+}
+
+function isGoogleSyncOperation(value: unknown): value is GoogleSyncOperation {
+  return value === "contacts" || value === "email" || value === "calendar";
+}
+
+function isFinalizedGoogleAccount(value: unknown): value is {
+  capabilities: Record<string, unknown>;
+  scopes: string[];
+} {
+  if (!value || typeof value !== "object") return false;
+  const account = value as Record<string, unknown>;
+  return Array.isArray(account.scopes)
+    && account.scopes.every((scope) => typeof scope === "string")
+    && Boolean(account.capabilities)
+    && typeof account.capabilities === "object";
 }
 
 async function readGoogleEvidence(providerToken: string): Promise<

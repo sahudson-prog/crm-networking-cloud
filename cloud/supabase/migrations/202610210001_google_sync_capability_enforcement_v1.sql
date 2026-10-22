@@ -117,7 +117,12 @@ stable
 security definer
 set search_path = ''
 as $$
-  select public.user_has_provider_rollout_for_user_v1(auth.uid(), p_provider);
+  select public.user_has_provider_rollout_for_user_v1(auth.uid(), p_provider)
+    and (
+      public.user_has_capability_for_user(auth.uid(), 'contacts.sync_external')
+      or public.user_has_capability_for_user(auth.uid(), 'interactions.sync_email')
+      or public.user_has_capability_for_user(auth.uid(), 'interactions.sync_calendar')
+    );
 $$;
 
 create or replace function public.current_user_can_sync_connected_account_v1(
@@ -214,7 +219,15 @@ begin
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/calendar.readonly'
-  );
+  )
+    and public.user_has_capability_for_user(
+      p_user_id,
+      case scope_value
+        when 'https://www.googleapis.com/auth/contacts.readonly' then 'contacts.sync_external'
+        when 'https://www.googleapis.com/auth/gmail.readonly' then 'interactions.sync_email'
+        when 'https://www.googleapis.com/auth/calendar.readonly' then 'interactions.sync_calendar'
+      end
+    );
 
   if cardinality(v_effective_scopes) = 0 then
     raise exception 'at least one verified Google data scope is required';

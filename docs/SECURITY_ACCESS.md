@@ -102,7 +102,7 @@ El contrato SEC-GOOGLE-01 se publica mediante un cutover `expand -> runtime -> c
 
 Algunas operaciones hacen check explícito de capability antes de actuar:
 
-- iniciar o finalizar autorización Google de datos: rollout `connectors.google.use`;
+- iniciar o finalizar autorización Google de datos: rollout `connectors.google.use` y la capability operativa de cada servicio solicitado, sin exigir todavía scopes de una cuenta conectada inexistente;
 - leer y persistir contactos de una cuenta conectada: `contacts.sync_external`;
 - leer y persistir Gmail de una cuenta conectada: `interactions.sync_email`;
 - leer y persistir Calendar de una cuenta conectada: `interactions.sync_calendar`;
@@ -137,7 +137,7 @@ Google login y Google Connected Account son intents distintos. El login autentic
 
 La integración Google para datos usa el `provider_token` de la sesión Supabase para llamar APIs de Google desde el runtime actual, pero solo si existe una cuenta conectada activa y el token actual fue aceptado por la finalización server-side de datos. Los scopes recordados en `sessionStorage` son solo intención temporal de OAuth; no se persisten como permisos concedidos.
 
-El inicio/finalización OAuth y el uso posterior de una cuenta ya conectada son decisiones separadas. La primera exige rollout Google; la segunda vuelve a exigir rollout, capability operativa del servicio, ownership de la cuenta, estado activo y capability derivada del scope verificado. Una conexión que pierde elegibilidad se conserva, pero queda inoperativa.
+El inicio/finalización OAuth y el uso posterior de una cuenta ya conectada son decisiones separadas. La primera exige rollout Google y la capability operativa de cada servicio solicitado, pero no scopes persistidos antes de que exista la conexión. La segunda vuelve a exigir rollout, capability operativa del servicio, ownership de la cuenta, estado activo y capability derivada del scope verificado. Una conexión que pierde elegibilidad se conserva, pero queda inoperativa.
 
 `connected_accounts` mantiene SELECT para que el usuario vea su conexión, pero la escritura directa de INSERT/UPDATE/DELETE desde roles cliente queda cerrada. La creación o actualización de Google Connected Account ocurre mediante una RPC interna invocable solo por `service_role`; la desvinculación self-service ocurre mediante una RPC estrecha para usuarios autenticados.
 

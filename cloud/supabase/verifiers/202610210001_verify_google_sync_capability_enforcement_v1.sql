@@ -53,6 +53,11 @@ begin
   )) = 0 then
     raise exception 'Google authorization does not honor inactive capability catalog entries';
   end if;
+  if position('user_has_capability_for_user' in pg_get_functiondef(
+    'public.current_user_can_start_connected_oauth_v1(text)'::regprocedure
+  )) = 0 then
+    raise exception 'Google OAuth start does not require an effective operational capability';
+  end if;
   if position('explicit_grant' in pg_get_functiondef(
     'public.user_has_provider_rollout_for_user_v1(uuid,text)'::regprocedure
   )) > 0 then
@@ -148,8 +153,10 @@ begin
 
   if position('user_has_provider_rollout_for_user_v1' in pg_get_functiondef(
     'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure
+  )) = 0 or position('user_has_capability_for_user' in pg_get_functiondef(
+    'public.finalize_google_connected_account_verified(uuid,text,text[])'::regprocedure
   )) = 0 then
-    raise exception 'Google Connected Account finalization does not enforce rollout eligibility';
+    raise exception 'Google Connected Account finalization does not enforce rollout and operation eligibility';
   end if;
 
   if not exists (select 1 from public.app_capabilities where capability_code = 'contacts.import_google')

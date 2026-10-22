@@ -206,7 +206,11 @@ export function GoogleInteractionsSyncPanel({
       gmailLabelsError: "",
       gmailLabelsLoading: true
     }));
-    void listGoogleGmailUserLabels({ accessToken })
+    void (async () => {
+      const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: false });
+      await requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "email");
+      return listGoogleGmailUserLabels({ accessToken });
+    })()
       .then((gmailLabels) => {
         if (!active) return;
         const sortedLabels = gmailLabels.sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
@@ -255,7 +259,7 @@ export function GoogleInteractionsSyncPanel({
       if (resource === "mail") {
         await beginGoogleDataAuthorization("import_gmail_history", redirectTo);
       } else {
-        await requireGoogleOAuthRolloutEligibility();
+        await requireGoogleOAuthRolloutEligibility("calendar");
         await reconnectGoogle([GOOGLE_CALENDAR_READONLY_SCOPE], redirectTo);
       }
     } catch (error) {
@@ -888,7 +892,7 @@ function gmailLabelPlaceholder(state: GoogleInteractionsState, hasAccessToken: b
 }
 
 function gmailLabelsErrorMessage(error: unknown) {
-  const detail = error instanceof Error ? error.message.trim() : "";
+  const detail = error instanceof GoogleInteractionClientError ? error.message.trim() : "";
   return detail
     ? `No pude cargar las etiquetas de Gmail. ${detail}`
     : "No pude cargar las etiquetas de Gmail. Reintenta la lectura.";

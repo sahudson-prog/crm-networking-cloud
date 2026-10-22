@@ -80,7 +80,7 @@ export function ContactDataSyncButton({ contact, onNoticeChange, onSynced }: Con
   }, [onNoticeChange]);
 
   async function connectGoogle() {
-    await requireGoogleOAuthRolloutEligibility();
+    await requireGoogleOAuthRolloutEligibility("contacts");
     await reconnectGoogle([GOOGLE_CONTACTS_READONLY_SCOPE]);
   }
 

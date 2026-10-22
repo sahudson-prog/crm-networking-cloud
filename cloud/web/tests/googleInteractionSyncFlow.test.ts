@@ -69,6 +69,43 @@ test("bootstrap Gmail exige etiqueta antes de revisar", () => {
   assert.equal(requireHistoricalBootstrapLabelId(" Label_1 "), "Label_1");
 });
 
+test("bootstrap Gmail revalida autorización antes de leer o aplicar", async () => {
+  let mailReads = 0;
+  let applies = 0;
+  const authorizationDenied = async () => {
+    throw new Error("Google sync denied");
+  };
+
+  await assert.rejects(reviewGoogleGmailHistoricalBootstrap({
+    accessToken: "token",
+    connectedAccountId: "account-1",
+    label: { id: "Label_networking", name: "Networking" },
+    userEmail: "sergio@crm.cl"
+  }, {
+    authorizeConnectedSync: authorizationDenied,
+    readMail: async () => {
+      mailReads += 1;
+      return gmailRead();
+    }
+  }), /Google sync denied/);
+
+  const reviewed = await bootstrapReviewFixture();
+  await assert.rejects(applyGoogleGmailHistoricalBootstrap({
+    connectedAccountId: "account-1",
+    externalIds: [],
+    snapshot: reviewed.snapshot
+  }, {
+    authorizeConnectedSync: authorizationDenied,
+    syncMail: async (input) => {
+      applies += 1;
+      return syncResult({ ...input, resourceType: "mail" as const }, "unexpected");
+    }
+  }), /Google sync denied/);
+
+  assert.equal(mailReads, 0);
+  assert.equal(applies, 0);
+});
+
 test("bootstrap Gmail captura baseline antes del scan y conserva mensajes sin contacto", async () => {
   const order: string[] = [];
   let receivedLabelIds: readonly string[] | undefined;
@@ -82,6 +119,7 @@ test("bootstrap Gmail captura baseline antes del scan y conserva mensajes sin co
     since: "2026-08-01T00:00:00.000Z",
     userEmail: "sergio@crm.cl"
   }, {
+    authorizeConnectedSync: async () => {},
     readAppContacts: async () => contacts,
     readMailProfileHistoryId: async () => {
       order.push("profile");
@@ -134,6 +172,7 @@ test("apply Gmail usa el snapshot, aplica solo seleccionados y guarda cursor glo
     externalIds: ["GMAIL_mail-linked"],
     snapshot: reviewed.snapshot
   }, {
+    authorizeConnectedSync: async () => {},
     readMail: async () => {
       throw new Error("Apply no debe volver a leer mensajes Gmail.");
     },
@@ -174,6 +213,7 @@ test("apply Gmail rechaza IDs fuera del snapshot sin aplicar ni avanzar cursor",
       externalIds: ["GMAIL_missing"],
       snapshot: reviewed.snapshot
     }, {
+      authorizeConnectedSync: async () => {},
       syncMail: async (input) => {
         syncCalls += 1;
         return syncResult({ ...input, resourceType: "mail" as const }, "unexpected");
@@ -196,6 +236,7 @@ test("bootstrap Gmail no avanza cursor si la lectura esta truncada o Apply falla
     externalIds: ["GMAIL_mail-linked"],
     snapshot
   }, {
+    authorizeConnectedSync: async () => {},
     syncMail: async (input) => {
       const result = syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-apply");
       if (fail) {
@@ -226,6 +267,7 @@ test("bootstrap Gmail no avanza cursor si Apply lanza un error", async () => {
       externalIds: ["GMAIL_mail-linked"],
       snapshot: reviewed.snapshot
     }, {
+      authorizeConnectedSync: async () => {},
       syncMail: async () => {
         throw new Error("Persistencia no disponible.");
       },
@@ -245,6 +287,7 @@ test("bootstrap Gmail permite deseleccionar items y completar los seleccionados"
     externalIds: [],
     snapshot: reviewed.snapshot
   }, {
+    authorizeConnectedSync: async () => {},
     syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-selected"),
     writeCursor: async () => {
       cursorWrites += 1;
@@ -268,6 +311,7 @@ test("syncGoogleInteractions mapea Gmail y Calendar a lotes agnosticos y guarda 
     maxMailMessages: 5,
     maxCalendarEvents: 5
   }, {
+    authorizeConnectedSync: async () => {},
     readAppContacts: async () => contacts,
     readCursor: async ({ resourceType }) => resourceType === "mail" ? "100" : "calendar-prev",
     readMail: async ({ historyId, query }) => {
@@ -2766,12 +2810,14 @@ function gmailRead(input: {
 async function bootstrapReviewFixture(complete = true) {
   return reviewGoogleGmailHistoricalBootstrap({
     accessToken: "token",
+    connectedAccountId: "account-1",
     label: { id: "Label_networking", name: "Networking" },
     maxMailMessages: 25,
     maxPages: 2,
     since: "2026-08-01T00:00:00.000Z",
     userEmail: "sergio@crm.cl"
   }, {
+    authorizeConnectedSync: async () => {},
     readAppContacts: async () => contacts,
     readMailProfileHistoryId: async () => "500",
     readMail: async () => ({

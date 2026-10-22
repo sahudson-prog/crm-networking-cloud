@@ -107,6 +107,52 @@ begin
     raise exception 'Cross-user connected account was accepted';
   end if;
 
+  insert into public.user_capability_overrides (
+    user_id, capability_code, override_mode, override_reason
+  ) values
+    (v_beta_user, 'contacts.sync_external', 'deny', 'SEC-GOOGLE-01 verifier'),
+    (v_beta_user, 'interactions.sync_email', 'deny', 'SEC-GOOGLE-01 verifier'),
+    (v_beta_user, 'interactions.sync_calendar', 'deny', 'SEC-GOOGLE-01 verifier');
+  if public.current_user_can_start_connected_oauth_v1('google') then
+    raise exception 'Google OAuth remained available while every operation was denied';
+  end if;
+  delete from public.user_capability_overrides
+  where user_id = v_beta_user
+    and capability_code in (
+      'contacts.sync_external',
+      'interactions.sync_email',
+      'interactions.sync_calendar'
+    );
+
+  insert into public.user_capability_overrides (
+    user_id, capability_code, override_mode, override_reason
+  ) values (
+    v_beta_user, 'interactions.sync_email', 'deny', 'SEC-GOOGLE-01 verifier'
+  );
+  perform public.finalize_google_connected_account_verified(
+    v_beta_user,
+    'sec-google-beta-' || v_beta_user::text || '@example.invalid',
+    array[
+      'https://www.googleapis.com/auth/contacts.readonly',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/calendar.readonly'
+    ]
+  );
+  if exists (
+    select 1
+    from public.connected_accounts account
+    where account.id = v_beta_account
+      and (
+        'https://www.googleapis.com/auth/gmail.readonly' = any(account.scopes)
+        or coalesce((account.capabilities ->> 'gmail_read')::boolean, false)
+      )
+  ) then
+    raise exception 'Finalization persisted a scope for a denied Google operation';
+  end if;
+  delete from public.user_capability_overrides
+  where user_id = v_beta_user
+    and capability_code = 'interactions.sync_email';
+
   update public.app_capabilities
   set is_active = false
   where capability_code = 'connectors.google.use';

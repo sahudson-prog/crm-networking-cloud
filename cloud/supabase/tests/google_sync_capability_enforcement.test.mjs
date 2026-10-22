@@ -38,6 +38,22 @@ test('operaciones y scopes permanecen separados por contacto email y calendario'
   assert.match(migration, /when 'email' then 'gmail_read'/);
   assert.match(migration, /when 'calendar' then 'calendar_read'/);
   assert.match(migration, /capability\.is_active = true/);
+  const oauthStart = migration.match(/create or replace function public\.current_user_can_start_connected_oauth_v1[\s\S]*?\n\$\$;/i);
+  assert.ok(oauthStart);
+  assert.match(oauthStart[0], /contacts\.sync_external/);
+  assert.match(oauthStart[0], /interactions\.sync_email/);
+  assert.match(oauthStart[0], /interactions\.sync_calendar/);
+  assert.match(oauthStart[0], /user_has_capability_for_user/);
+});
+
+test('finalizacion conserva solo scopes de operaciones efectivamente permitidas', () => {
+  const finalize = migration.match(/create or replace function public\.finalize_google_connected_account_verified[\s\S]*?\n\$\$;/i);
+  assert.ok(finalize);
+  assert.match(finalize[0], /user_has_provider_rollout_for_user_v1/);
+  assert.match(finalize[0], /user_has_capability_for_user/);
+  assert.match(finalize[0], /contacts\.sync_external/);
+  assert.match(finalize[0], /interactions\.sync_email/);
+  assert.match(finalize[0], /interactions\.sync_calendar/);
 });
 
 test('writers Google hardcodean provider y revalidan autorizacion por item', () => {

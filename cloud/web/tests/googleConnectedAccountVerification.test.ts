@@ -22,6 +22,7 @@ import {
   googleDataConnectionPrincipalsMatch,
   googleDataSessionEligibility
 } from "../lib/googleDataSessionGuard.ts";
+import { googleSyncOperationsForScopes } from "../lib/googleSyncAuthorization.ts";
 
 const EXPECTED_CLIENT_ID = "expected-client.apps.googleusercontent.com";
 
@@ -312,30 +313,45 @@ test("server finalize no acepta identidad ni permisos efectivos declarados por b
   assert.equal(/body\?\.(user_id|account_email|effectiveScopes|capabilities|status)/.test(routeSource), false);
 });
 
-test("OAuth de datos consulta rollout server-side antes de guardar intención", () => {
+test("OAuth de datos consulta rollout y capability operativa antes de guardar intención", () => {
   const dataAuthorization = readFileSync(new URL("../lib/googleDataAuthorizationIntent.ts", import.meta.url), "utf8");
   const activityAuthorization = readFileSync(new URL("../lib/activitySyncAuthorization.ts", import.meta.url), "utf8");
 
   assert.ok(
-    dataAuthorization.indexOf("await requireGoogleOAuthRolloutEligibility()")
+    dataAuthorization.indexOf("await requireGoogleOAuthRolloutEligibility(googleDataAuthorizationOperation(intent))")
       < dataAuthorization.indexOf("rememberPendingGoogleDataAction(intent)")
   );
   assert.ok(
-    activityAuthorization.indexOf("await requireGoogleOAuthRolloutEligibility()")
+    activityAuthorization.indexOf("await requireGoogleOAuthRolloutOperations(")
       < activityAuthorization.indexOf("rememberPendingActivitySyncAuthorization(normalizedRequestedServices)")
   );
 });
 
-test("finalize revalida rollout antes de consultar Google y antes de persistir", () => {
+test("finalize revalida rollout y operaciones antes de consultar Google y persistir", () => {
   const routeSource = readFileSync(new URL("../app/api/google/connected-account/finalize/route.ts", import.meta.url), "utf8");
   const rolloutCheck = routeSource.indexOf("current_user_can_start_connected_oauth_v1");
+  const operationCheck = routeSource.indexOf("current_user_has_capability");
   const googleEvidence = routeSource.indexOf("readGoogleEvidence(providerToken)");
   const finalize = routeSource.indexOf("finalize_google_connected_account_verified");
 
   assert.ok(rolloutCheck > 0);
+  assert.ok(operationCheck > rolloutCheck);
+  assert.ok(operationCheck < googleEvidence);
   assert.ok(rolloutCheck < googleEvidence);
   assert.ok(googleEvidence < finalize);
   assert.match(routeSource, /google_rollout_denied/);
+  assert.match(routeSource, /google_operation_denied/);
+  assert.match(routeSource, /requestedOperations\.some[\s\S]*verification\.effectiveScopes\.includes/);
+  assert.match(routeSource, /capabilities: account\.capabilities/);
+  assert.match(routeSource, /effectiveScopes: account\.scopes/);
+});
+
+test("callback deriva operaciones únicamente de scopes de datos solicitados", () => {
+  assert.deepEqual(googleSyncOperationsForScopes([
+    GOOGLE_CONTACTS_READONLY_SCOPE,
+    GOOGLE_GMAIL_READONLY_SCOPE,
+    "openid"
+  ]), ["contacts", "email"]);
 });
 
 test("writers Google usan RPCs transaccionales con cuenta conectada", () => {
@@ -386,6 +402,20 @@ test("Cuenta concentra integraciones en importacion y elimina el resumen de acce
   assert.match(source, /Microsoft/);
   assert.match(source, /Apple/);
   assert.match(source, /Próximamente/);
+});
+
+test("Cuenta muestra Próximamente para Google no elegible y conserva controles para operaciones habilitadas", () => {
+  const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /readGoogleOAuthOperationEligibility\("contacts"\)/);
+  assert.match(source, /readGoogleOAuthOperationEligibility\("email"\)/);
+  assert.match(source, /readGoogleOAuthOperationEligibility\("calendar"\)/);
+  assert.match(source, /contactsEligibility === "enabled"[\s\S]*GoogleContactsSyncPanel[\s\S]*SourcePlaceholder[\s\S]*title="Google Contacts"/);
+  assert.match(source, /emailEligibility === "enabled"[\s\S]*GoogleInteractionsSyncPanel[\s\S]*SourcePlaceholder[\s\S]*provider="gmail"[\s\S]*title="Gmail"/);
+  assert.match(source, /calendarEligibility === "enabled"[\s\S]*InteractionSyncPreferenceToggle[\s\S]*SourcePlaceholder[\s\S]*provider="googleCalendar"[\s\S]*title="Google Calendar"/);
+  assert.match(source, /status = "Próximamente"/);
+  assert.match(source, /availability === "loading" \? "Revisando\.\.\."/);
+  assert.doesNotMatch(source, /capability_code|contacts\.sync_external|interactions\.sync_(email|calendar)/);
 });
 
 test("Cuenta usa autorizacion por accion sin CTA Google global ni copy tecnico", () => {
@@ -495,6 +525,10 @@ test("labels Gmail se recargan con el token actualizado despues de renovar autor
 
   assert.match(accountSource, /googleAccessToken=\{account\.googleAccessToken\}/);
   assert.match(interactionsSource, /listGoogleGmailUserLabels\(\{ accessToken \}\)/);
+  assert.ok(
+    interactionsSource.indexOf('requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "email")')
+      < interactionsSource.indexOf("listGoogleGmailUserLabels({ accessToken })")
+  );
   assert.match(interactionsSource, /\[effectiveAccessToken, gmailLabelsReloadKey, googleMailAvailable\]/);
   assert.match(interactionsSource, /if \(!active\) return/);
 });
@@ -524,12 +558,24 @@ test("Gmail sin capability no carga labels y puede reautorizar solo gmail readon
   const intentSource = readFileSync(new URL("../lib/googleDataAuthorizationIntent.ts", import.meta.url), "utf8");
 
   assert.match(interactionsSource, /if \(!accessToken \|\| !googleMailAvailable\)[\s\S]*gmailLabels: \[\][\s\S]*gmailLabelsLoading: false/);
+  assert.match(interactionsSource, /readCurrentGoogleConnectionState\(\{ registerRememberedScopes: false \}\)[\s\S]*requireGoogleConnectedSyncAuthorization\(googleConnection\.account\?\.id, "email"\)[\s\S]*listGoogleGmailUserLabels/);
   assert.match(interactionsSource, /beginGoogleDataAuthorization\("import_gmail_history", redirectTo\)/);
   assert.match(intentSource, /import_gmail_history:[\s\S]*scopes: \[GOOGLE_GMAIL_READONLY_SCOPE\]/);
   assert.match(accountSource, /oauthReturn\.status === "invalid"[\s\S]*pendingAction === "import_gmail_history"[\s\S]*setResumeAction\(pendingAction\)/);
   assert.match(accountSource, /!capabilityAvailable[\s\S]*pendingAction === "import_gmail_history"[\s\S]*setResumeAction\(pendingAction\)/);
   assert.match(interactionsSource, /if \(!resumeMailImport \|\| googleConnectionLoading\) return[\s\S]*setHistoricalImportOpen\(true\)/);
   assert.doesNotMatch(interactionsSource, /setServiceEnabled/);
+});
+
+test("Gmail histórico revalida capability en lectura preview y apply", () => {
+  const flowSource = readFileSync(new URL("../lib/googleInteractionSyncFlow.ts", import.meta.url), "utf8");
+  const review = flowSource.match(/export async function reviewGoogleGmailHistoricalBootstrap[\s\S]*?\n\}/);
+  const apply = flowSource.match(/export async function applyGoogleGmailHistoricalBootstrap[\s\S]*?\n\}/);
+
+  assert.ok(review);
+  assert.ok(apply);
+  assert.match(review[0], /authorizeConnectedSync\(input\.connectedAccountId, "email"\)[\s\S]*readMailProfileHistoryId[\s\S]*readMail/);
+  assert.match(apply[0], /authorizeConnectedSync\(input\.connectedAccountId, "email"\)[\s\S]*syncMail/);
 });
 
 test("Contactos no se bloquea por fecha de inicio pero correos y calendario si", () => {
@@ -568,7 +614,7 @@ test("Cuenta presenta vCard antes de Google y conserva proveedores futuros", () 
   assert.match(source, /<VCardImportPanel[\s\S]*actionLabel="Importar archivo vCard"[\s\S]*sourceLabel="vCard \(\.vcf\)"/);
   assert.ok(source.indexOf('title="Apple Contacts"') > source.indexOf("<GoogleContactsSyncPanel"));
   assert.ok(source.indexOf('title="Microsoft Contacts"') > source.indexOf('title="Apple Contacts"'));
-  assert.match(source, /account-source-status">Próximamente/);
+  assert.match(source, /status = "Próximamente"[\s\S]*account-source-status">\{status\}/);
 });
 
 test("AccountPage protege contra lecturas stale y logout durante finalize", () => {
