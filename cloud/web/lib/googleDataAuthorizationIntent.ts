@@ -4,6 +4,10 @@ import {
   GOOGLE_GMAIL_READONLY_SCOPE
 } from "./googleInteractionClient";
 import { reconnectGoogle } from "./googleAuthSession";
+import {
+  requireGoogleOAuthRolloutEligibility,
+  type ConnectedSyncOperation
+} from "./googleSyncAuthorization";
 
 export const PENDING_GOOGLE_DATA_ACTION_KEY = "coffeecito_pending_google_data_action_v1";
 
@@ -47,10 +51,16 @@ export function googleDataAuthorizationCapability(intent: GoogleDataAuthorizatio
   return INTENT_CONFIG[intent].capability;
 }
 
+export function googleDataAuthorizationOperation(intent: GoogleDataAuthorizationIntent): ConnectedSyncOperation {
+  const capability = googleDataAuthorizationCapability(intent);
+  return capability === "gmail" ? "email" : capability;
+}
+
 export async function beginGoogleDataAuthorization(
   intent: GoogleDataAuthorizationIntent,
   redirectTo: string
 ) {
+  await requireGoogleOAuthRolloutEligibility(googleDataAuthorizationOperation(intent));
   rememberPendingGoogleDataAction(intent);
   try {
     await reconnectGoogle(googleDataAuthorizationScopes(intent), redirectTo);

@@ -7,10 +7,10 @@ import type { ContactMergeResult, ContactMergeSource } from "../lib/contactMerge
 import { GoogleContactsClientError } from "../lib/googleContactsClient";
 import { prepareGoogleContactSyncPreview, type GoogleContactSyncCheckpoint, type PrepareGoogleContactSyncResult } from "../lib/googleContactSyncFlow";
 import { readAllActiveContacts } from "../lib/cloudData";
-import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
 import { invalidateActiveGoogleDataAuthorization } from "../lib/googleAuthSession";
 import { beginGoogleDataAuthorization } from "../lib/googleDataAuthorizationIntent";
+import { requireGoogleConnectedSyncAuthorization } from "../lib/googleSyncAuthorization";
 import { ACTIVITY_SYNC_MAX_CONTACT_PAGES } from "../lib/interactionSyncLimits";
 import type { ContactRow } from "../lib/readModel";
 import { supabase } from "../lib/supabaseClient";
@@ -143,19 +143,6 @@ export function GoogleContactsSyncPanel({
   }
 
   async function preparePreview(forceFullSync = false) {
-    try {
-      await requireCurrentUserCapability("contacts.import_google", "importar contactos desde Google");
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
-        loading: false,
-        progress: null
-      }));
-      setOpen(true);
-      return;
-    }
-
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
     setState((current) => ({
       ...current,
@@ -170,6 +157,18 @@ export function GoogleContactsSyncPanel({
         message: "Reconectando Google..."
       }));
       await connectGoogle();
+      return;
+    }
+    try {
+      await requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "contacts");
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        loading: false,
+        progress: null
+      }));
+      setOpen(true);
       return;
     }
 
@@ -259,7 +258,7 @@ export function GoogleContactsSyncPanel({
 
   async function applyPreview(selectedChanges: SyncPreviewChange[]) {
     try {
-      await requireCurrentUserCapability("contacts.import_google", "importar contactos desde Google");
+      await requireGoogleConnectedSyncAuthorization(state.connectedAccountId, "contacts");
     } catch (error) {
       setState((current) => ({
         ...current,

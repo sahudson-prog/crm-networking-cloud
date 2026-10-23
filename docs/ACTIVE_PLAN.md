@@ -34,7 +34,7 @@ Prompt de recuperación copy/paste-safe:
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
-- `SEC-DEV-01` está en cierre operativo después de ejecutar y verificar la remediación exclusivamente en DEV.
+- Publicación operacional `SEC-DEV-01` completada: PR #37 integrado en `cd6eb1014b64ed4f2fb21e23733dbd93ac57c3f7`; Vercel Production confirmado por el owner. La remediación SQL se ejecutó solo en DEV.
 - ONB-01 cerrado: PR #27 y PR #28 integrados, Vercel success reportado y validación funcional PROD PASS confirmada por el owner el 20-10-2026.
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
@@ -49,26 +49,30 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `SEC-DEV-01 — reconciliación de seguridad DEV`.
-- Status: `IN PROGRESS — DEV REMEDIATED; END-TO-END GATES PENDING`.
-- Baseline: verificar `origin/main` al preparar publicación; la operación DEV no cambia PROD ni el baseline compartido.
-- Current branch/worktree: `codex/sec-dev-01-remediation` en su worktree aislado.
+- Current phase: `SEC-GOOGLE-01 — validación expand/pre-contract y preparación del cutover`.
+- Status: `IN PROGRESS — PR #36 PENDING; E2E AND CUTOVER GATES PENDING`.
+- Baseline de esta reconciliación: main remoto verificado en `cd6eb1014b64ed4f2fb21e23733dbd93ac57c3f7` y branch Google en `24df913ba7eecb1c56a184e6ffe5f9b48926377b`; volver a verificar al retomar.
+- Current branch/worktree: `codex/sec-google-01` en su worktree aislado.
 - Completed:
-  - remediación nominal de grants ejecutada y verificada exclusivamente en DEV;
-  - las dos funciones de validación desviadas fueron reparadas y verificadas en DEV;
-  - verificadores focales y canónicos expand/pre-contract PASS;
-  - smoke DEV de lectura PASS;
-  - no hubo cambios PROD.
+  - SEC-DEV-01 publicado e integrado: remediación nominal de grants y reparación de las dos funciones de validación exclusivamente en DEV; verificadores focales y canónicos expand/pre-contract y smoke de lectura PASS; no cambios SQL PROD;
+  - expand SEC-GOOGLE-01 aplicado y verificado en DEV según evidencia aportada;
+  - paquete corregido y decisión de diferimiento publicados en `24df913ba7eecb1c56a184e6ffe5f9b48926377b`; PR #36 continúa Draft;
+  - composición de verifier/tests expand separada de los cinco archivos contract locales reservados; candidato autónomo e integración temporal con main: 14/14 tests focales PASS en cada copia limpia;
+  - PostgreSQL 17.11 local: verifier de acceso expand/pre-contract, verifier estructural expand y Merge/Reset PASS; cinco pruebas negativas de EXECUTE sobre helper interno rechazadas;
+  - concurrencia real Contacts e Interactions/Calendar: espera confirmada con pg_locks/pg_blocking_pids, deny confirmado antes de liberar lock; Apply en vuelo persistió completo y llamada nueva fue denegada sin escrituras parciales;
+  - decisión del owner: diferir la revalidación posterior a los advisory locks y aceptar este riesgo residual para la salida inicial bajo la cohorte prevista. El hallazgo no bloquea por sí mismo esa salida y queda registrado en `docs/planning/BACKLOG.md`; no está corregido ni autoriza cambios de enforcement.
 - Pending:
-  - prueba end-to-end de envío y procesamiento de solicitudes de contacto;
-  - prueba end-to-end de Google Connected Account con autorización existente, lectura y persistencia;
-  - revisión/publicación de los artefactos locales y cierre operativo posterior.
+  - completar y publicar esta reconciliación con main; revisión del paquete en PR #36;
+  - E2E Google y envío/procesamiento de solicitudes de contacto: PENDING, no sustituidos por smoke de lectura;
+  - preparación y recuperación PROD (preflight vigente, backup, recuperación y autorización de expand);
+  - aceptación explícita de la ventana pre-contract; merge manual, deployment efectivo y smoke PROD como gates separados;
+  - contract en entrega y autorización posteriores; no aplicar junto con expand.
 - Blockers:
-  - el flujo Google end-to-end requiere configuración server-only local coherente con DEV y autorización explícita para producir efectos remotos;
-  - las pruebas end-to-end pendientes no quedan sustituidas por el smoke de lectura.
-- Manual/remote actions already executed: remediación y reparación DEV, verificadores SQL y smoke de lectura; ninguna operación PROD.
-- Immediate next action: publicar los artefactos revisados y ejecutar los dos gates end-to-end únicamente con autorización y configuración segura separadas.
-- Stop boundary: no ejecutar contract, no modificar PROD y no iniciar efectos remotos end-to-end sin autorización explícita.
+  - Google E2E requiere configuración server-side local completa y coherente con DEV, más autorización de efectos;
+  - no declarar listo para cutover hasta completar los gates end-to-end, preparación/recuperación PROD, aceptación de la ventana pre-contract, merge manual, deployment efectivo, smoke y contract separado.
+- Manual/remote actions already executed: PR #37 integrado y deployment confirmado por el owner; remediación, reparación, verificadores y smoke de lectura DEV acreditados; paquete Google publicado en la branch; referencias remotas verificadas para esta reconciliación. Ninguna operación SQL PROD.
+- Immediate next action: validar y publicar la reconciliación autorizada; después completar E2E DEV (Google Connected Account con autorización existente, lectura y persistencia; envío/procesamiento de solicitudes de contacto) y los gates PROD por separado.
+- Stop boundary: publicación de la reconciliación únicamente si PASS; sin cambios de enforcement ni migrations aplicadas, SQL remoto, OAuth, merge del PR o cutover; los cinco archivos contract permanecen reservados.
 - Deuda UX de ONB-01 fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.

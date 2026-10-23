@@ -37,6 +37,7 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 - Mantener Google OAuth PROD en Testing y administrar los Google test users de la beta mientras esa sea la configuración vigente.
 - Preparar la verificación Google y evaluar el eventual security assessment solo cuando branding, políticas y scopes finales estén estables.
 - Revisar el uso de tokeninfo antes de un lanzamiento público.
+- Revalidar autorización Google después de adquirir los advisory locks en las RPC de persistencia. Estado: diferido y no corregido; el owner acepta el riesgo residual para la salida inicial. Evidencia local: en Contacts y Calendar, una llamada autorizada que espera un lock puede persistir después de confirmar un deny durante la espera, mientras que las llamadas posteriores son rechazadas; no existe garantía de cancelación hasta `COMMIT` ni se demostró un límite de una sola escritura pendiente. Gmail y otras modalidades de revocación no fueron certificadas concurrentemente. El alcance se limita a las RPC de persistencia Google y no debe cambiar vCard/ICS. En el rollout previsto, Google no estará disponible para el rol base `user`; la cohorte `beta_tester` habilitada conserva este riesgo. Reevaluar antes de habilitar Google para `user`, ampliar la cohorte o ante un incidente relacionado. Una solución futura posible es revalidar completamente después de los locks y probar la visibilidad de cambios concurrentes; su implementación no está autorizada.
 
 ## UX / permissions
 

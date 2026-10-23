@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const readSql = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const verifier = readSql('../verifiers/202609090002_verify_access.sql');
+const verifier = readSql('../verifiers/202610210001_verify_access_expand_pre_contract.sql');
+const phaseFunctions = {
+  internal_functions: ['user_has_provider_rollout_for_user_v1(uuid,text)'],
+  authenticated_functions: [
+    'current_user_can_start_connected_oauth_v1(text)',
+    'current_user_can_sync_connected_account_v1(uuid,text)',
+    'apply_google_contact_sync_change_v1(uuid,jsonb)',
+    'apply_google_interaction_sync_v1(uuid,jsonb)',
+  ],
+};
 const migrations = [
   readSql('../migrations/202609090003_access_functions.sql'),
   readSql('../migrations/202609090004_application_rpcs.sql'),
@@ -12,6 +22,7 @@ const migrations = [
   readSql('../migrations/202610150001_contact_requests_v1.sql'),
   readSql('../migrations/202610150002_legal_acceptance_v1.sql'),
   readSql('../migrations/202610150003_legal_acceptance_v1_1.sql'),
+  readSql('../migrations/202610210001_google_sync_capability_enforcement_v1.sql'),
 ];
 
 function expectedNames(listName) {
@@ -30,6 +41,38 @@ function migrationDefinerNames(sql) {
     })
     .map((definition) => definition[1]);
 }
+
+test('expand verifier preserves every canonical check without reading reserved contract files', () => {
+  let canonical = verifier.replace(/\r\n?/g, '\n');
+  canonical = canonical.slice(canonical.indexOf('-- Fails unless'));
+  canonical = canonical.replace('begin transaction read only;\n\n', '').replace(/\nrollback;\s*$/, '');
+  for (const signatures of Object.values(phaseFunctions)) {
+    for (const signature of signatures) {
+      const line = `    'public.${signature}'::regprocedure,\n`;
+      assert.equal(canonical.split(line).length, 2);
+      canonical = canonical.replace(line, '');
+    }
+  }
+  // Canonical 202609090002 at 88b6ad3, LF-normalized and trimmed. A phase
+  // change may add classifications, never silently remove canonical controls.
+  assert.equal(createHash('sha256').update(canonical.trim()).digest('hex'),
+    '100c04fe67df99a44d540a9a998dd12d1a4722a83c9f35ef589eaf56d29d5de8');
+  assert.match(verifier, /begin transaction read only;/i);
+  assert.match(verifier, /rollback;\s*$/i);
+});
+
+test('expand classifies exact signatures and keeps internal helper inaccessible to clients', () => {
+  for (const [listName, signatures] of Object.entries(phaseFunctions)) {
+    const list = verifier.match(new RegExp(`${listName} regprocedure\\[\\] := array\\[([\\s\\S]*?)\\];`));
+    for (const signature of signatures) assert.ok(list[1].includes(`'public.${signature}'::regprocedure`));
+  }
+  assert.match(verifier, /acl\.grantee = 0/);
+  for (const role of ['anon', 'authenticated', 'service_role', 'supabase_auth_admin']) {
+    assert.ok(verifier.includes(`has_function_privilege('${role}', app_function, 'EXECUTE')`));
+  }
+  assert.equal(expectedNames('service_role_functions').includes('user_has_provider_rollout_for_user_v1'), false);
+  assert.equal(expectedNames('authenticated_functions').includes('user_has_provider_rollout_for_user_v1'), false);
+});
 
 test('every Coffeecito SECURITY DEFINER function is in the scoped verifier inventory', () => {
   const internal = expectedNames('internal_functions')

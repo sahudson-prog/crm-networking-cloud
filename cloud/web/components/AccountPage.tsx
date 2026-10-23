@@ -15,6 +15,7 @@ import {
   beginGoogleDataAuthorization,
   clearPendingGoogleDataAction,
   googleDataAuthorizationCapability,
+  googleDataAuthorizationOperation,
   readPendingGoogleDataAction,
   type GoogleDataAuthorizationIntent
 } from "../lib/googleDataAuthorizationIntent";
@@ -26,6 +27,10 @@ import { isIcsImportEnabled } from "../lib/icsImportFeature";
 import { readNetworkingStartIso } from "../lib/syncDate";
 import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
+import {
+  readGoogleOAuthOperationEligibility,
+  type ConnectedSyncOperation
+} from "../lib/googleSyncAuthorization";
 import {
   interactionSyncToggleAction,
   type InteractionSyncService
@@ -54,6 +59,8 @@ type AccountState = {
   googleAuthorizationVerifying: boolean;
   googleDataAuthorizationAllowed: boolean;
   googlePermissionActive: boolean;
+  googleSyncEligibility: Record<ConnectedSyncOperation, boolean>;
+  googleSyncEligibilityKnown: boolean;
   message: string;
   networkingStartReady: boolean;
   resettingData: boolean;
@@ -266,6 +273,9 @@ function GoogleImportSection({
   setAccount: Dispatch<SetStateAction<AccountState>>;
 }) {
   const googleServices = googleServiceAvailability(account);
+  const contactsEligibility = googleIntegrationAvailability(account, "contacts");
+  const emailEligibility = googleIntegrationAvailability(account, "email");
+  const calendarEligibility = googleIntegrationAvailability(account, "calendar");
   const syncPreferences = useInteractionSyncPreferences();
   const [resumeAction, setResumeAction] = useState<GoogleDataAuthorizationIntent | null>(null);
 
@@ -288,6 +298,17 @@ function GoogleImportSection({
       return;
     }
     if (account.googleConnectionLoading || account.googleAuthorizationVerifying) return;
+    if (!account.googleSyncEligibilityKnown) return;
+    const operation = googleDataAuthorizationOperation(pendingAction);
+    if (!account.googleSyncEligibility[operation]) {
+      clearPendingGoogleDataAction();
+      setResumeAction(null);
+      setAccount((current) => ({
+        ...current,
+        message: "Esta integración de Google todavía no está disponible para tu cuenta."
+      }));
+      return;
+    }
     const capability = googleDataAuthorizationCapability(pendingAction);
     const capabilityAvailable = capability === "gmail" ? googleServices.mail : googleServices[capability];
     if (!capabilityAvailable) {
@@ -327,6 +348,8 @@ function GoogleImportSection({
     account.googleAuthorizationVerifying,
     account.googleConnectionKnown,
     account.googleConnectionLoading,
+    account.googleSyncEligibility,
+    account.googleSyncEligibilityKnown,
     googleServices.calendar,
     googleServices.contacts,
     googleServices.mail,
@@ -336,6 +359,14 @@ function GoogleImportSection({
   ]);
 
   async function changeSyncPreference(service: InteractionSyncService, enabled: boolean) {
+    const operation = service === "gmail" ? "email" : "calendar";
+    if (enabled && !account.googleSyncEligibility[operation]) {
+      setAccount((current) => ({
+        ...current,
+        message: "Esta integración de Google todavía no está disponible para tu cuenta."
+      }));
+      return;
+    }
     if (enabled && !account.googleDataAuthorizationAllowed) {
       setAccount((current) => ({ ...current, message: GOOGLE_DATA_SESSION_REQUIRED_MESSAGE }));
       return;
@@ -387,18 +418,26 @@ function GoogleImportSection({
                   sourceLabel="vCard (.vcf)"
                 />
               ) : null}
-              <GoogleContactsSyncPanel
-                authorizationRedirectPath={redirectPath}
-                compact
-                googleAccessToken={account.googleAccessToken}
-                googleCapabilityAvailable={googleServices.contacts}
-                googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                googleDisabledReason={googleImportDisabledReason(account, "contacts")}
-                iconOnlyActions={includeOtherSources}
-                onResumeImportHandled={() => setResumeAction(null)}
-                registerRememberedScopes={false}
-                resumeImport={resumeAction === "import_contacts"}
-              />
+              {contactsEligibility === "enabled" ? (
+                <GoogleContactsSyncPanel
+                  authorizationRedirectPath={redirectPath}
+                  compact
+                  googleAccessToken={account.googleAccessToken}
+                  googleCapabilityAvailable={googleServices.contacts}
+                  googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+                  googleDisabledReason={googleImportDisabledReason(account, "contacts")}
+                  iconOnlyActions={includeOtherSources}
+                  onResumeImportHandled={() => setResumeAction(null)}
+                  registerRememberedScopes={false}
+                  resumeImport={resumeAction === "import_contacts"}
+                />
+              ) : (
+                <SourcePlaceholder
+                  provider="google"
+                  status={googlePlaceholderStatus(contactsEligibility)}
+                  title="Google Contacts"
+                />
+              )}
               {includeOtherSources ? (
                 <>
                   <SourcePlaceholder provider="apple" title="Apple Contacts" />
@@ -418,22 +457,30 @@ function GoogleImportSection({
 
           {includeOtherSources ? (
             <AccountDataBlock title="Correos">
-              <GoogleInteractionsSyncPanel
-                authorizationRedirectPath={redirectPath}
-                compact
-                googleAccessToken={account.googleAccessToken}
-                googleCalendarAvailable={googleServices.calendar}
-                googleConnected={account.googleConnected}
-                googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                googleMailAvailable={googleServices.mail}
-                onResumeMailImportHandled={() => setResumeAction(null)}
-                registerRememberedScopes={false}
-                calendarDisabledReason={googleImportDisabledReason(account, "calendar")}
-                mailDisabledReason={googleImportDisabledReason(account, "mail")}
-                networkingStartReady={account.networkingStartReady}
-                resumeMailImport={resumeAction === "import_gmail_history"}
-                showCalendarAction={false}
-              />
+              {emailEligibility === "enabled" ? (
+                <GoogleInteractionsSyncPanel
+                  authorizationRedirectPath={redirectPath}
+                  compact
+                  googleAccessToken={account.googleAccessToken}
+                  googleCalendarAvailable={googleServices.calendar}
+                  googleConnected={account.googleConnected}
+                  googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+                  googleMailAvailable={googleServices.mail}
+                  onResumeMailImportHandled={() => setResumeAction(null)}
+                  registerRememberedScopes={false}
+                  calendarDisabledReason={googleImportDisabledReason(account, "calendar")}
+                  mailDisabledReason={googleImportDisabledReason(account, "mail")}
+                  networkingStartReady={account.networkingStartReady}
+                  resumeMailImport={resumeAction === "import_gmail_history"}
+                  showCalendarAction={false}
+                />
+              ) : (
+                <SourcePlaceholder
+                  provider="gmail"
+                  status={googlePlaceholderStatus(emailEligibility)}
+                  title="Gmail"
+                />
+              )}
             </AccountDataBlock>
           ) : null}
         </div>
@@ -449,26 +496,42 @@ function GoogleImportSection({
                 <strong>Google</strong>
               </div>
               <div className="account-provider-sync-options">
-                <InteractionSyncPreferenceToggle
-                  checked={syncPreferences.preferences.calendarEnabled}
-                  description={!account.googleDataAuthorizationAllowed
-                    ? "No disponible para esta sesión"
-                    : googleServices.calendar ? "Autorizado" : "Requiere autorización"}
-                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
-                  icon="calendar"
-                  label="Citas de Google Calendar"
-                  onChange={(enabled) => void changeSyncPreference("calendar", enabled)}
-                />
-                <InteractionSyncPreferenceToggle
-                  checked={syncPreferences.preferences.gmailEnabled}
-                  description={!account.googleDataAuthorizationAllowed
-                    ? "No disponible para esta sesión"
-                    : googleServices.mail ? "Autorizado" : "Requiere autorización"}
-                  disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
-                  icon="mail"
-                  label="Correos de Gmail"
-                  onChange={(enabled) => void changeSyncPreference("gmail", enabled)}
-                />
+                {calendarEligibility === "enabled" ? (
+                  <InteractionSyncPreferenceToggle
+                    checked={syncPreferences.preferences.calendarEnabled}
+                    description={!account.googleDataAuthorizationAllowed
+                      ? "No disponible para esta sesión"
+                      : googleServices.calendar ? "Autorizado" : "Requiere autorización"}
+                    disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
+                    icon="calendar"
+                    label="Citas de Google Calendar"
+                    onChange={(enabled) => void changeSyncPreference("calendar", enabled)}
+                  />
+                ) : (
+                  <SourcePlaceholder
+                    provider="googleCalendar"
+                    status={googlePlaceholderStatus(calendarEligibility)}
+                    title="Google Calendar"
+                  />
+                )}
+                {emailEligibility === "enabled" ? (
+                  <InteractionSyncPreferenceToggle
+                    checked={syncPreferences.preferences.gmailEnabled}
+                    description={!account.googleDataAuthorizationAllowed
+                      ? "No disponible para esta sesión"
+                      : googleServices.mail ? "Autorizado" : "Requiere autorización"}
+                    disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
+                    icon="mail"
+                    label="Correos de Gmail"
+                    onChange={(enabled) => void changeSyncPreference("gmail", enabled)}
+                  />
+                ) : (
+                  <SourcePlaceholder
+                    provider="gmail"
+                    status={googlePlaceholderStatus(emailEligibility)}
+                    title="Gmail"
+                  />
+                )}
               </div>
             </section>
           </div>
@@ -532,10 +595,12 @@ function InteractionSyncPreferenceToggle({
 function SourcePlaceholder({
   icon,
   provider,
+  status = "Próximamente",
   title
 }: {
   icon?: IconName;
   provider?: ProviderIconName;
+  status?: string;
   title: string;
 }) {
   return (
@@ -548,7 +613,7 @@ function SourcePlaceholder({
           <strong>{title}</strong>
         </div>
       </div>
-      <span className="account-source-status">Próximamente</span>
+      <span className="account-source-status">{status}</span>
     </div>
   );
 }
@@ -581,6 +646,8 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
   let message = "";
 
   let googleConnection: GoogleConnectionState | null = null;
+  let googleSyncEligibility = emptyGoogleSyncEligibility();
+  let googleSyncEligibilityKnown = false;
   let networkingStartReady = false;
   try {
     const [nextGoogleConnection, networkingStart] = await Promise.all([
@@ -595,6 +662,18 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
     message = error instanceof Error ? error.message : "No pude leer cuentas conectadas.";
   }
 
+  try {
+    const [contacts, email, calendar] = await Promise.all([
+      readGoogleOAuthOperationEligibility("contacts"),
+      readGoogleOAuthOperationEligibility("email"),
+      readGoogleOAuthOperationEligibility("calendar")
+    ]);
+    googleSyncEligibility = { calendar, contacts, email };
+    googleSyncEligibilityKnown = true;
+  } catch {
+    message = message || "No pudimos verificar la disponibilidad de las integraciones de Google.";
+  }
+
   const activeGoogle = googleConnection?.account ?? null;
   return {
     email,
@@ -606,6 +685,8 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
     googleDataAuthorizationAllowed,
     googleConnectionLoading: false,
     googlePermissionActive: Boolean(activeGoogle && googleConnection?.permissionActive),
+    googleSyncEligibility,
+    googleSyncEligibilityKnown,
     message,
     networkingStartReady,
     resettingData: false
@@ -623,10 +704,32 @@ function createInitialAccountState(googleConnectionLoading: boolean): AccountSta
     googleDataAuthorizationAllowed: false,
     googleConnectionLoading,
     googlePermissionActive: false,
+    googleSyncEligibility: emptyGoogleSyncEligibility(),
+    googleSyncEligibilityKnown: false,
     message: "",
     networkingStartReady: false,
     resettingData: false
   };
+}
+
+type GoogleIntegrationAvailability = "enabled" | "loading" | "unavailable";
+
+function googleIntegrationAvailability(
+  account: AccountState,
+  operation: ConnectedSyncOperation
+): GoogleIntegrationAvailability {
+  if (!account.googleSyncEligibilityKnown) {
+    return account.googleConnectionLoading ? "loading" : "unavailable";
+  }
+  return account.googleSyncEligibility[operation] ? "enabled" : "unavailable";
+}
+
+function googlePlaceholderStatus(availability: GoogleIntegrationAvailability) {
+  return availability === "loading" ? "Revisando..." : availability === "unavailable" ? "Próximamente" : "";
+}
+
+function emptyGoogleSyncEligibility(): Record<ConnectedSyncOperation, boolean> {
+  return { calendar: false, contacts: false, email: false };
 }
 
 function isGoogleDataConnectionReturn() {

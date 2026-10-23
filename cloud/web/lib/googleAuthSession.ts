@@ -13,6 +13,10 @@ import {
 } from "./googleDataSessionGuard";
 import type { GoogleDataConnectionPrincipal } from "./googleDataSessionGuard";
 import { clearAuthCallbackReturnTo, prepareAuthCallback } from "./authCallback";
+import {
+  googleSyncOperationsForScopes,
+  type ConnectedSyncOperation
+} from "./googleSyncAuthorization";
 
 export {
   buildGoogleAuthLoginRequest,
@@ -166,6 +170,7 @@ export async function finalizeRememberedGoogleDataConnection(
   const invalidationGenerationBeforeFinalize = readGoogleDataAuthorizationInvalidationGeneration();
   const finalized = await finalizeImpl({
     providerToken,
+    requestedOperations: googleSyncOperationsForScopes(intent.scopes),
     supabaseAccessToken
   });
   if (!finalized) {
@@ -229,10 +234,14 @@ export function clearPendingGoogleDataConnection() {
 
 async function finalizeGoogleDataConnectionOnServer(input: {
   providerToken: string;
+  requestedOperations: ConnectedSyncOperation[];
   supabaseAccessToken: string;
 }): Promise<FinalizedGoogleDataConnection | null> {
   const response = await fetch("/api/google/connected-account/finalize", {
-    body: JSON.stringify({ providerToken: input.providerToken }),
+    body: JSON.stringify({
+      providerToken: input.providerToken,
+      requestedOperations: input.requestedOperations
+    }),
     headers: {
       Authorization: `Bearer ${input.supabaseAccessToken}`,
       "Content-Type": "application/json"

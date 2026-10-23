@@ -17,17 +17,21 @@ El uso del conector también está sujeto a autorización interna de la app.
 ## OAuth y cuenta conectada
 Google login y Google Connected Account son intents distintos.
 
+El contrato SEC-GOOGLE-01 se promueve por fases `expand -> runtime -> contract`. Las reglas de rollout y persistencia descritas a continuación representan el estado objetivo del repositorio; el estado efectivo de cada ambiente debe verificarse durante su release.
+
 Los OAuth clients, callbacks, redirects y su separación por ambiente se documentan en [ENVIRONMENTS.md](../ENVIRONMENTS.md).
 
 El login Google se inicia desde `AuthGate` usando Supabase Auth con provider `google` y scopes mínimos de identidad: `openid`, `email` y `profile`. Usa PKCE y vuelve a `/auth/callback`, donde el SDK intercambia el código antes de entrar a la app. Este login no registra ni actualiza `connected_accounts`, no solicita Contacts, Gmail ni Calendar, y no sirve por sí solo como consentimiento para leer datos Google.
 
-La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, PKCE, callback explícito y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios. Cuenta inicia este OAuth desde la acción concreta de Contacts, Gmail o Calendar y solicita únicamente el scope readonly de ese servicio. Las ampliaciones usan consentimiento incremental de Google (`include_granted_scopes=true`) para que el token efectivo nuevo conserve los grants anteriores.
+La conexión de datos con Google también usa `supabase.auth.signInWithOAuth`, con provider `google`, PKCE, callback explícito y scopes de datos normalizados, deduplicados y unidos en un string separado por espacios. Cuenta inicia este OAuth desde la acción concreta de Contacts, Gmail o Calendar y solicita únicamente el scope readonly de ese servicio. Las ampliaciones usan consentimiento incremental de Google (`include_granted_scopes=true`) para que el token efectivo nuevo conserve los grants anteriores. Iniciar y finalizar este OAuth exige la elegibilidad de rollout `connectors.google.use` y la capability operativa de cada servicio solicitado; esta decisión no depende de scopes persistidos antes de crear la cuenta conectada. Google Login básico permanece independiente.
 Antes de iniciar OAuth de datos, la app recuerda temporalmente los scopes solicitados y un intent de conexión de datos en `sessionStorage`. Esos scopes son intención de OAuth, no evidencia de permisos concedidos.
 Al volver desde Google, si el intent, nonce y fingerprint del token son coherentes, el navegador llama `POST /api/google/connected-account/finalize` con el `provider_token` temporal y el access token Supabase de la sesión.
-La ruta server-side valida sesión Supabase, acceso efectivo de Coffeecito, Google UserInfo, tokeninfo, audience/client binding, expiración y scopes efectivos. Solo después de esa verificación persiste la conexión local.
+La ruta server-side valida sesión Supabase, acceso efectivo de Coffeecito, elegibilidad de rollout, capabilities operativas solicitadas, Google UserInfo, tokeninfo, audience/client binding, expiración y scopes efectivos. La RPC de persistencia vuelve a comprobar rollout y filtra cada scope por su capability operativa antes de crear o actualizar la conexión local.
 La conexión local se guarda en `connected_accounts` con proveedor, email Google verificado, últimos scopes efectivos verificados, capacidades derivadas, estado `active`, `revoked_at` vacío y metadata de verificación de scopes.
 Para operar, la app exige una fila activa de `connected_accounts`, un `session.provider_token` disponible en la sesión actual y un fingerprint de token marcado como autorización de datos aceptada en esa sesión.
 Una cuenta puede estar vinculada, pero sin permiso activo si la sesión actual no trae token utilizable o si el login Google normal posterior no pasó por autorización explícita de datos.
+
+Una cuenta también puede permanecer vinculada pero inoperativa si pierde rollout o la capability interna del servicio. Contacts exige `contacts.sync_external`, Gmail exige `interactions.sync_email` y Calendar exige `interactions.sync_calendar`; cada operación combina esa capability con el scope efectivo persistido de la cuenta. El rollout inicial se concede a `beta_tester` y puede ampliarse más adelante mediante grants de rol o plan, sin cambiar los guards. Un override positivo no habilita rollout y un `deny` activo prevalece.
 
 ### Conectar y reconectar
 Conectar y reconectar usan el mismo mecanismo OAuth.
@@ -175,10 +179,10 @@ Un evento solo se convierte en interacción si puede vincularse con al menos un 
 La UI de Cuenta no ofrece la importación Calendar histórica legacy: presenta `.ics` como opción futura y mantiene Google Calendar únicamente como preferencia de sync periódico. La implementación legacy puede permanecer internamente mientras no sea necesaria para la ruta principal.
 
 ## Mapping hacia estructuras internas
-Contacts produce contactos externos normalizados que luego entran al flujo genérico de contactos.
-Gmail y Calendar producen interacciones externas normalizadas que luego entran al flujo genérico de interacciones.
+Contacts produce contactos externos normalizados que luego entran al flujo genérico de revisión de contactos.
+Gmail y Calendar producen interacciones externas normalizadas que luego entran al flujo genérico de revisión de interacciones.
 Las interacciones externas conservan proveedor, servicio de origen, tipo de objeto externo, identidad externa, hilo externo, URL externa, fecha, asunto, detalle, participantes, metadata y hash de contenido.
-La persistencia final mantiene la interacción local y su fuente externa asociada, para actualizar datos llegados desde Google sin perder datos internos de CRM Networking.
+La persistencia final Google usa RPCs transaccionales específicas que revalidan rollout, capability operativa, ownership, estado de la cuenta y scope antes de cada elemento. Las RPCs fijan el proveedor en servidor y mantienen el contacto o interacción local junto con su fuente externa; una revocación efectiva detiene elementos posteriores sin confiar en provenance enviado por el cliente. vCard, iCalendar y ediciones manuales siguen rutas independientes.
 
 ## Incrementalidad y cursores Google
 
