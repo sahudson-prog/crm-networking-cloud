@@ -34,11 +34,11 @@ Prompt de recuperación copy/paste-safe:
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
-- No existe una fase activa contratada.
+- `SEC-DEV-01` está en cierre operativo después de ejecutar y verificar la remediación exclusivamente en DEV.
 - ONB-01 cerrado: PR #27 y PR #28 integrados, Vercel success reportado y validación funcional PROD PASS confirmada por el owner el 20-10-2026.
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
-- Deuda conocida fuera de alcance: DEV mantiene el grant directo preexistente de `anon` sobre `public.app_capabilities`. No corregirlo oportunistamente en features no relacionadas.
+- `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
 
 ## Deuda / pre-Early-Access gate
 
@@ -49,24 +49,26 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: None.
-- Status: `NO ACTIVE CONTRACTED PHASE`.
-- Baseline: `UNASSIGNED — resolve and verify origin/main when a new phase is explicitly contracted`.
-- Current branch/worktree: None.
+- Current phase: `SEC-DEV-01 — reconciliación de seguridad DEV`.
+- Status: `IN PROGRESS — DEV REMEDIATED; END-TO-END GATES PENDING`.
+- Baseline: verificar `origin/main` al preparar publicación; la operación DEV no cambia PROD ni el baseline compartido.
+- Current branch/worktree: `codex/sec-dev-01-remediation` en su worktree aislado.
 - Completed:
-  - PR #27 merged: mandatory first-run onboarding, integrado en `26ec207818609f8e8732d1431538c38fca5b42c7`;
-  - PR #28 merged: corrección de navegación mobile/replay, integrada en `6ec6506661753ddb26c19375ea2d5f9426b7d71f`;
-  - Vercel reportó success para ambas entregas;
-  - owner confirmó validación funcional PROD PASS el 20-10-2026 en primer ingreso, cuatro slides, ausencia de bypass, finalización, persistencia y replay opcional.
-- Pending: ninguna fase nueva se inicia sin contratación explícita.
-- Blockers: None confirmed.
-- Manual/remote actions already executed:
-  - PR #27 y PR #28 merged;
-  - Vercel success reportado para ambas entregas;
-  - validación funcional PROD 6/6 PASS confirmada por el owner el 20-10-2026.
-- Immediate next action: esperar contratación explícita de una nueva fase; los candidatos futuros no se inician por su sola presencia en este documento.
-- Stop boundary:
-- no iniciar candidatos no contratados ni mezclar la deuda de UX con una fase futura sin aprobación explícita.
+  - remediación nominal de grants ejecutada y verificada exclusivamente en DEV;
+  - las dos funciones de validación desviadas fueron reparadas y verificadas en DEV;
+  - verificadores focales y canónicos expand/pre-contract PASS;
+  - smoke DEV de lectura PASS;
+  - no hubo cambios PROD.
+- Pending:
+  - prueba end-to-end de envío y procesamiento de solicitudes de contacto;
+  - prueba end-to-end de Google Connected Account con autorización existente, lectura y persistencia;
+  - revisión/publicación de los artefactos locales y cierre operativo posterior.
+- Blockers:
+  - el flujo Google end-to-end requiere configuración server-only local coherente con DEV y autorización explícita para producir efectos remotos;
+  - las pruebas end-to-end pendientes no quedan sustituidas por el smoke de lectura.
+- Manual/remote actions already executed: remediación y reparación DEV, verificadores SQL y smoke de lectura; ninguna operación PROD.
+- Immediate next action: publicar los artefactos revisados y ejecutar los dos gates end-to-end únicamente con autorización y configuración segura separadas.
+- Stop boundary: no ejecutar contract, no modificar PROD y no iniciar efectos remotos end-to-end sin autorización explícita.
 - Deuda UX de ONB-01 fuera de alcance:
   - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
   - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
@@ -125,19 +127,6 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 ## Candidatos futuros no contratados
 
 El trabajo siguiente está sustentado por planificación u owner docs actuales, pero todavía no forma una secuencia aprobada. Cada candidato permanece `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlo solo porque aparece aquí.
-
-### SEC-DEV-01 - Resolver drift amplio de grants DEV
-
-- Status: `NOT CONTRACTED / DECISION REQUIRED`.
-- Objetivo: auditar y decidir la corrección del drift preexistente de grants DEV, incluido el privilegio directo conocido de `anon` sobre `public.app_capabilities`.
-- Dependencias: contrato canónico de seguridad, inventario DEV fresco y aprobación explícita de cualquier cambio persistente.
-- Decisiones cerradas: no mezclar esta deuda con features no relacionadas ni usar revokes globales como arreglo oportunista.
-- Decisiones pendientes: objetos afectados, matriz canónica, alcance de migration y estrategia de promoción.
-- Criterios de aceptación: no contratados; deben definirse desde una auditoría fresca.
-- Out of scope: releases de producto y rediseño general de autorización.
-- Owner docs: `docs/SECURITY_ACCESS.md`, `docs/PROD_CONTRACTS.md`.
-- Gates manuales/remotos: preflight read-only DEV/PROD, aprobación de migration, verifiers y smoke.
-- Relación: independiente de ONB-01 salvo dependencia directa demostrada.
 
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
