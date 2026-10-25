@@ -110,7 +110,7 @@ La operación exige sesión activa, capability `data.delete_account` y confirmac
 
 La función borra datos user-owned como contactos, correos y teléfonos, identidades externas, snapshots, interacciones, participantes, fuentes externas, diagnósticos, referidos, objetivos, ToDos, cursores, logs, límites/eventos de uso, export records, import batches, configuraciones personales, cuentas conectadas, invocaciones de acciones y auditoría.
 
-La función conserva `auth.users`, `profiles`, roles, planes, organizaciones, patrocinios, memberships y maestros globales.
+La función conserva `auth.users`, `profiles`, roles, planes, organizaciones, patrocinios, memberships, maestros globales y la evidencia autoritativa de invitaciones. Por ello, un reset no recupera cupos consumidos ni altera la capacidad global del programa.
 
 La operación no elimina la cuenta de autenticación ni implementa anonimización posterior observada.
 
@@ -124,7 +124,7 @@ El Before User Created Auth Hook de Supabase, cuando se active, usará la allowl
 
 Las páginas públicas \`/terminos\` y \`/privacidad\` publican la versión vigente 1.1, de 15 de octubre de 2026, y conservan V1.0 como contenido histórico reconstruible. \`/contacto\` es el canal público operativo para consultas, soporte y solicitudes de privacidad. El acceso privado exige aceptación contractual explícita de Términos y reconocimiento de lectura de la Política vigente. La evidencia persistida incluye usuario, timestamp server-side, método \`explicit_web\`, versiones y hashes SHA-256 exactos; no incluye IP, User-Agent ni fingerprint. El reconocimiento de la Política no se modela como consentimiento general para todos los tratamientos.
 
-No se observó una política automática de retención, expiración o limpieza por antigüedad para contactos, interacciones, logs, diagnósticos o auditoría.
+No existe una política automática general de retención, expiración o limpieza por antigüedad para contactos, interacciones, logs, diagnósticos o auditoría. INV-01 incluye una depuración administrativa idempotente que, después de 90 días, elimina email y texto libre prescindible de invitaciones vencidas o canceladas, incluida la justificación temporal de un levantamiento de bloqueo; conserva únicamente el fingerprint necesario mientras un bloqueo de reinvitación siga activo. El evento conserva actor, fecha y tipo después de retirar su justificación. No existe cron ni garantía operacional del plazo hasta aprobar y ejecutar ese gate de rollout.
 
 Existe un canal público para recibir y clasificar solicitudes de acceso, rectificación, supresión, portabilidad, oposición y bloqueo. Este intake no constituye por sí solo un portal de seguimiento, respuesta automatizada, exportación, anonimización ni eliminación total de cuenta.
 
@@ -148,7 +148,7 @@ No existe exportación funcional verificada.
 
 No existe revocación real contra Google al desvincular desde la app.
 
-No existe retención automática observada.
+No existe retención automática general observada; la depuración manual preparada para invitaciones no equivale a una política automática ni demuestra cumplimiento del plazo por ambiente.
 
 No existe todavía un modelo separado de consentimientos opcionales por finalidad; el registro vigente cubre aceptación contractual y reconocimiento de lectura de la Política publicada.
 

@@ -39,6 +39,7 @@ Prompt de recuperación copy/paste-safe:
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
 - `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
+- `SEC-GOOGLE-01`: expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. Calendar PROD continúa con persistencia no declarada PASS y diagnóstico diferido. El contract permanece separado en `NO-GO`, sin autorización nueva en INV-01.
 
 ## Deuda / pre-Early-Access gate
 
@@ -49,38 +50,28 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `SEC-GOOGLE-01 — checkpoint post-cutover y decisión Calendar PROD`.
-- Status: `IN PROGRESS — expand desplegado; diagnóstico Calendar y contract pendientes de decisión separada`.
-- Baseline de este checkpoint: `main` integrado en `088582ccd4930d6211ba8d691a685fdf355adc69`; volver a verificar al retomar.
-- Current branch/worktree: `codex/sec-google-01-post-merge-calendar-checkpoint` en su worktree aislado, solo documental.
+- Current phase: `INV-01 — PR 1 backend inerte y seguro`.
+- Status: `IN PROGRESS — implementación local y correcciones arquitectónicas preparadas; no publicadas ni desplegadas`.
+- Verified baseline: `95cf9fcdabfd09955683dd4c517c26dbc0088d55`.
+- Current branch/worktree: `codex/inv-01-backend-v1` en worktree aislado.
 - Completed:
-  - SEC-DEV-01 publicado e integrado: remediación nominal de grants y reparación de las dos funciones de validación exclusivamente en DEV; verificadores focales y canónicos expand/pre-contract y smoke de lectura PASS; no cambios SQL PROD;
-  - expand SEC-GOOGLE-01 aplicado y verificado en DEV según evidencia aportada;
-  - PR #36 integrado en `088582ccd4930d6211ba8d691a685fdf355adc69`; expand PROD aplicado y sus 3/3 verificadores focales PASS;
-  - composición de verifier/tests expand separada de los cinco archivos contract locales reservados; candidato autónomo e integración temporal con main: 14/14 tests focales PASS en cada copia limpia;
-  - PostgreSQL 17.11 local: verifier de acceso expand/pre-contract, verifier estructural expand y Merge/Reset PASS; cinco pruebas negativas de EXECUTE sobre helper interno rechazadas;
-  - concurrencia real Contacts e Interactions/Calendar: espera confirmada con pg_locks/pg_blocking_pids, deny confirmado antes de liberar lock; Apply en vuelo persistió completo y llamada nueva fue denegada sin escrituras parciales;
-  - decisión del owner: diferir la revalidación posterior a los advisory locks y aceptar este riesgo residual para la salida inicial bajo la cohorte prevista. El hallazgo no bloquea por sí mismo esa salida y queda registrado en `docs/planning/BACKLOG.md`; no está corregido ni autoriza cambios de enforcement;
-  - smoke manual Google DEV satisfactorio para Contacts, Gmail por etiquetas y Calendar;
-  - preflight y captura read-only PROD PASS; backup lógico PROD creado y restaurado localmente. Esa restauración no certifica roles/ACL globales ni sustituye PITR;
-  - recovery draft validado con guardas de catálogo, ACL y RLS; permanece no aprobado y no ejecutable;
-  - ventana temporal pre-contract aceptada expresamente por el owner para la cohorte `beta_tester` inicial; no autoriza ampliar Google al rol base `user`.
-  - Vercel Production Ready confirmado para el SHA integrado y dominio productivo; smoke PROD de navegación y Gmail satisfactorio;
-  - Google restringido visualmente para el rol `user`: PASS; vCard disponible e iCalendar en estado “Próximamente”: PASS visual;
-  - Contacts sin problemas reportados en el smoke PROD;
-  - Calendar PROD: la sincronización de citas mostró “No pude guardar algunas citas. Intenta nuevamente.” La persistencia Calendar no queda declarada PASS; causa desconocida, sin regresión demostrada.
+  - foundation persistente, lifecycle, configuración global cerrada, RLS y RPCs estrechas implementados localmente;
+  - Auth Hook compatible con allowlist e invitación, bootstrap autenticado/idempotente y resolver dual preparados sin activar invitaciones;
+  - plan `free`/rol `user` para nuevos registros y preservación de beta legacy; Google operativo continúa reservado a `beta_tester`;
+  - auditoría de `data.delete_account` completada y reset propio habilitado para `free` sin borrar autoridad de invitaciones;
+  - verifier estructural, verifier funcional, SECURITY DEFINER/Merge-Reset y carreras PostgreSQL 17 locales PASS.
+  - auditoría arquitectónica completada; bootstrap, instante de expiración, composición de verifiers, auditoría de desbloqueos y resolución de cupo corregidos localmente.
 - Pending:
-  - diagnóstico y eventual reparación del hallazgo Calendar PROD, diferidos expresamente por el owner;
-  - evaluar el impacto Calendar antes de promover contract;
-  - contract en entrega y autorización posteriores; no aplicar ni autorizar junto con expand.
-- Blockers:
-  - contract no puede promoverse sin evaluar primero el impacto del hallazgo Calendar; el diagnóstico/reparación no está contratado ni autorizado ahora.
-- Manual/remote actions already executed: PR #37 integrado y deployment confirmado por el owner; remediación, reparación y verificadores DEV acreditados; smoke manual Google DEV PASS; preflight/captura PROD PASS; backup lógico PROD restaurado localmente; expand PROD y sus 3/3 verificadores focales PASS; PR #36 integrado, Vercel Production Ready y smoke PROD parcial ejecutados. No se ejecutó contract ni recovery en PROD.
-- Immediate next action: mantener el hallazgo Calendar PROD diferido y contratar por separado su diagnóstico cuando corresponda; antes de contract, evaluar su impacto y obtener autorización explícita.
-- Stop boundary: sin cambios de enforcement, migrations, SQL remoto, OAuth ni contract; los cinco archivos contract permanecen reservados.
-- Deuda UX de ONB-01 fuera de alcance:
-  - las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...”;
-  - requiere una auditoría separada de persistencia de Shell/Coach y loading states.
+  - revisión/publicación de PR 1 tras el commit local autorizado;
+  - validación Auth real de Google login y magic link en DEV, sin simular `email_confirmed_at` como evidencia remota;
+  - preflight de beta legacy, backup, verificadores y rollout DEV/PROD en gates separados;
+  - autorizar una operación programada para la depuración de PII a 90 días o mantener el rollout cerrado;
+  - PR 2 de UX y cualquier activación de los dos controles globales.
+- Blockers: ninguno para revisión local; publicación y activación remota permanecen bloqueadas por sus autorizaciones y gates pendientes.
+- Manual/remote actions already executed: ninguna para INV-01.
+- Immediate next action: revisar el paquete corregido y decidir autorización de publicación de PR 1; no habilitar controles.
+- Stop boundary: sin SQL remoto, OAuth, activación, Google contract, Calendar, PR 2 ni rollout.
+- Deuda UX de ONB-01 fuera de alcance: las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
 
@@ -133,9 +124,9 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 - ONB-01 no activa una fase nueva al cerrarse. INV-01 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
-## Candidatos futuros no contratados
+## Iniciativa activa y candidatos futuros
 
-El trabajo siguiente está sustentado por planificación u owner docs actuales, pero todavía no forma una secuencia aprobada. Cada candidato permanece `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlo solo porque aparece aquí.
+INV-01 tiene únicamente su PR 1 de backend contratado. Las demás iniciativas de esta sección permanecen `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlas solo porque aparecen aquí.
 
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
@@ -204,13 +195,13 @@ El trabajo siguiente está sustentado por planificación u owner docs actuales, 
 
 ### INV-01 - Invitar a alguien a Coffeecito
 
-- Status: `NOT CONTRACTED / DECISION REQUIRED`.
+- Status: `PR 1 BACKEND CONTRACTED / IN PROGRESS`; UX, activación y rollout permanecen `DECISION REQUIRED`.
 - Objetivo: permitir que usuarios elegibles, incluidos quienes se registraron mediante invitación, puedan invitar a otras personas a Coffeecito.
 - Especificación funcional durable: `docs/planning/INV-01.md`.
 - Decisiones cerradas: invitaciones en cadena para usuarios elegibles; autorización temporal por email alternativa a la allowlist legacy, sin Auth paralelo; bootstrap autenticado y transaccional antes de legal/onboarding; 5 cupos por usuario y capacidad global editable de 500 calculados desde pendientes vigentes más registros; expiración exacta a las 120 horas sin cron ni contadores; bloqueos administrativos prevalecen; cancelación de pendientes solo con `admin.manage_access`; controles separados para pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta legacy preserva `beta_tester`; Google import/sync solo para `beta_tester`; UX V1 acotada con cabecera, diálogo, lista simple y `mailto` sin afirmar envío.
-- Diseño técnico V1 recomendado: persistencia autoritativa de lifecycle y configuración global, RPCs estrechas, RLS sin DML cliente, Before User Created Hook compatible y bootstrap idempotente que deriva identidad desde Auth; secuencia propuesta de migrations, verifiers, PRs y rollout documentada en la especificación.
-- Decisiones pendientes: nombres finales de objetos/capabilities; auditoría y enforcement real de límites Free/Google; semántica de reautorización; retención/auditoría; validación local del momento de verificación de email; preflight de beta legacy y aprobación formal del `PROD CONTRACT CHANGE`.
-- Criterios de aceptación: funcionales y técnicos propuestos en la especificación, todavía no contratados ni autorizados para implementación.
+- Diseño técnico V1 contratado para PR 1: persistencia autoritativa de lifecycle y configuración global, RPCs estrechas, RLS sin DML cliente, Before User Created Hook compatible y bootstrap idempotente que deriva identidad desde Auth; controles globales cerrados por defecto.
+- Decisiones pendientes: UX/PR 2; ejecución operacional de la depuración de PII; validación Auth real en DEV; preflight de beta legacy; backup, promoción y activación por ambiente.
+- Criterios de aceptación de PR 1: backend inerte, compatibilidad legacy, controles cerrados, seguridad estructural y concurrencia PostgreSQL certificadas localmente; ningún despliegue queda autorizado por este estado.
 - Out of scope: dashboards, gestor avanzado, edición de invitaciones, correo gestionado, cron de expiración y contadores persistidos.
 - Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.
 - Relación: sin orden comprometido respecto de los candidatos existentes.

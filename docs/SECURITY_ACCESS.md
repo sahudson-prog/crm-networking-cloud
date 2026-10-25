@@ -28,9 +28,9 @@ Después de confirmar sesión, `AuthGate` consulta `current_user_app_access_stat
 
 La relación entre usuario Auth y datos de aplicación se materializa en `profiles`. La migración de acceso agrega `handle_new_auth_user_profile`, un trigger `SECURITY DEFINER` sobre `auth.users` que crea o actualiza `profiles`.
 
-La beta cerrada incorpora `app_access_allowlist`, una allowlist por email normalizado que existe antes del signup y no modela roles, planes ni capabilities. El Before User Created Auth Hook preparado en SQL permite bloquear altas no autorizadas antes de que exista `auth.users`, una vez configurado en Supabase.
+La beta cerrada incorpora `app_access_allowlist`, una allowlist por email normalizado que existe antes del signup y no modela roles, planes ni capabilities. INV-01 agrega una segunda fuente de admisión: una invitación `pending` vigente por email. Los dos controles globales de invitaciones se crean cerrados, por lo que instalar el schema no habilita altas nuevas. El Before User Created Auth Hook permite una identidad si pertenece a la allowlist legacy activa o, cuando el rollout lo autorice, si tiene una invitación pendiente vigente; el Hook nunca convierte la invitación.
 
-El trigger de creación de perfil queda fail-closed: si el email está autorizado en allowlist, crea o actualiza `user_access_profiles` como `active`/`approved` y asigna el rol base `user`; si no está autorizado, crea perfil y access profile pendiente, sin aprobar acceso efectivo ni asignar rol base automático.
+El trigger de creación de perfil queda fail-closed: si el email está autorizado en allowlist, crea o actualiza `user_access_profiles` como `active`/`approved` y asigna el rol base `user`; si no está autorizado, crea perfil y access profile pendiente, sin aprobar acceso efectivo ni asignar rol base automático. Para una invitación, un bootstrap autenticado separado exige email verificado, deriva identidad desde `auth.uid()`, vuelve a validar vigencia, controles y bloqueos, y convierte transaccionalmente `pending` en `registered` con plan `free` y rol `user`. Una revocación legacy o un perfil `paused`, `closed` o `blocked` prevalecen; la beta legacy no se degrada. Para identidades ya registradas o allowlisted solo devuelve acceso si el perfil está `active`/`approved`; al asegurar el rol base considera `is_active`, `starts_at` y `expires_at`.
 
 La Cuenta conectada Google es otra cosa. Se registra en `connected_accounts` y sirve para lectura/importación/sincronización de datos del proveedor. Login Google no equivale a cuenta conectada para datos; conectar Google tampoco equivale por sí solo a tener permisos internos de la app. Las operaciones relevantes siguen validando sesión, RLS y/o capabilities.
 
@@ -88,6 +88,8 @@ En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capabilit
 
 La administración de acceso beta se realiza mediante RPCs estrechas, no como CRUD genérico desde la UI. Las operaciones administrativas verifican `admin.manage_access` en SQL, usan `SECURITY DEFINER` con `search_path` fijo cuando necesitan consultar `auth.users`, y no exponen metadata Auth completa, tokens, identidades crudas ni datos de contraseña.
 
+Las invitaciones usan el mismo modelo de capabilities. `invitations.authorize` se concede a `user` y `beta_tester`; cada RPC deriva al actor desde `auth.uid()` y vuelve a comprobar acceso efectivo. Las tablas de configuración, lifecycle y eventos tienen RLS habilitado y ningún rol cliente recibe DML directo. La consulta y autorización propias, el bootstrap y las operaciones administrativas se exponen mediante RPCs estrechas; la cancelación, los controles globales, el levantamiento de bloqueos y la depuración de PII requieren `admin.manage_access`.
+
 La evidencia legal se conserva en `legal_acceptances`, sin grants directos para roles cliente. Las RPCs de consulta y registro no reciben `user_id`, versiones ni hashes: derivan identidad desde `auth.uid()`, exigen acceso efectivo y fijan server-side el contrato legal vigente. Solo `authenticated` puede ejecutarlas.
 
 Las operaciones disponibles son listar allowlist con estado seguro, autorizar o reautorizar un email, revocar autorización y diagnosticar acceso de un usuario registrado. Autorizar un email no crea `auth.users`. Revocar no borra usuario, datos, roles ni cuentas conectadas; el bloqueo ocurre porque la decisión central de acceso deja de permitir entrada.
@@ -109,6 +111,7 @@ Algunas operaciones hacen check explícito de capability antes de actuar:
 - `contacts.import_google` e `interactions.import_google` permanecen temporalmente en catálogo por compatibilidad, pero no son el enforcement operativo nuevo;
 - administrar accesos: `admin.manage_access`;
 - administrar maestro de empresas headhunter: `admin.manage_global_masters`;
+- autorizar y consultar invitaciones propias: `invitations.authorize`, además de los controles globales del programa;
 - reiniciar datos propios: `data.delete_account`.
 
 Otras operaciones dependen principalmente de sesión, filtros `user_id` y RLS. Esto incluye muchas lecturas y escrituras de contactos, interacciones, referidos, objetivos y sugerencias. En `sync_run_logs`, RLS separa el `INSERT` propio de la lectura administrativa por capability.
@@ -128,6 +131,8 @@ Sí existen funciones SQL con `SECURITY DEFINER`:
 `current_user_legal_acceptance_status_v1` y `record_current_user_legal_acceptance_v1` son fronteras estrechas para el gate legal. Ambas exigen `auth.uid()` y acceso efectivo; la segunda inserta de forma idempotente el contrato vigente sin aceptar identidad o versiones desde el navegador.
 
 `reset_current_user_app_data_v0_1` y `merge_contacts_deep` son funciones `SECURITY DEFINER` estrechas: exigen `auth.uid()`, verifican la capability correspondiente y limitan cada operación al `user_id` autenticado. Su owner esperado es `postgres`, los roles cliente no pueden alterarlas y solo `authenticated` recibe `EXECUTE`.
+
+Las RPCs INV-01 mantienen una frontera equivalente. La autorización serializa el cupo personal y la capacidad global; el bootstrap no acepta `user_id` ni email del cliente; y las acciones admin vuelven a comprobar `admin.manage_access` después de adquirir sus locks. El reset propio está disponible para el plan `free`, pero no borra invitaciones ni eventos autoritativos y no recupera cupos consumidos por registros.
 
 El bootstrap del primer `system_admin` está en SQL manual. Requiere ejecución controlada desde Supabase o un contexto con privilegios suficientes; no existe ruta de auto-promoción admin desde la app.
 
