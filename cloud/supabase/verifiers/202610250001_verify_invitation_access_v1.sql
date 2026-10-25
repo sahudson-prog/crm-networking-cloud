@@ -11,6 +11,9 @@ declare
   v_settings record;
   v_internal regprocedure[] := array[
     'public.invitation_email_fingerprint_v1(text)'::regprocedure,
+    'public.invitation_personal_limit_for_user_v1(uuid)'::regprocedure,
+    'public.invitation_expires_at_v1(timestamptz)'::regprocedure,
+    'public.ensure_invitation_user_role_v1(uuid,timestamptz)'::regprocedure,
     'public.materialize_expired_invitations_v1(timestamptz)'::regprocedure,
     'public.invitation_program_state_for_user_v1(uuid,timestamptz)'::regprocedure,
     'public.is_email_authorized_for_invitation_registration_v1(text)'::regprocedure
@@ -81,9 +84,16 @@ begin
   end if;
 
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'app_invitations_exact_expiry'
-      and conrelid = 'public.app_invitations'::regclass
+    select 1
+    from pg_catalog.pg_attribute attribute
+    join pg_catalog.pg_attrdef attribute_default
+      on attribute_default.adrelid = attribute.attrelid
+      and attribute_default.adnum = attribute.attnum
+    where attribute.attrelid = 'public.app_invitations'::regclass
+      and attribute.attname = 'expires_at'
+      and attribute.attgenerated = 's'
+      and pg_catalog.pg_get_expr(attribute_default.adbin, attribute_default.adrelid)
+        like '%invitation_expires_at_v1(authorized_at)%'
   ) or not exists (
     select 1 from pg_catalog.pg_indexes
     where schemaname = 'public' and indexname = 'uq_app_invitations_active_email'
@@ -92,6 +102,21 @@ begin
     where schemaname = 'public' and indexname = 'uq_app_invitations_registered_user'
   ) then
     raise exception 'INV-01 lifecycle constraints or unique indexes are missing';
+  end if;
+
+  if public.invitation_personal_limit_for_user_v1(gen_random_uuid()) <> 5 then
+    raise exception 'INV-01 V1 personal limit resolver must return five';
+  end if;
+
+  if public.invitation_expires_at_v1('2026-01-01 00:00:00+00'::timestamptz)
+      <> '2026-01-06 00:00:00+00'::timestamptz
+    or not exists (
+      select 1 from pg_catalog.pg_proc procedure
+      where procedure.oid = 'public.invitation_expires_at_v1(timestamptz)'::regprocedure
+        and procedure.provolatile = 'i'
+        and procedure.proparallel = 's'
+    ) then
+    raise exception 'INV-01 expiry resolver must enforce an immutable exact 120-hour interval';
   end if;
 
   if exists (
@@ -194,10 +219,8 @@ begin
       select 1 from pg_catalog.pg_proc procedure
       where procedure.oid = v_function
         and pg_catalog.pg_get_userbyid(procedure.proowner) = 'postgres'
-        and (
-          procedure.proname = 'invitation_email_fingerprint_v1'
-          or procedure.prosecdef
-        )
+        and (procedure.proname in ('invitation_email_fingerprint_v1', 'invitation_expires_at_v1')
+          or procedure.prosecdef)
         and exists (
           select 1 from unnest(coalesce(procedure.proconfig, array[]::text[])) config
           where config in ('search_path=', 'search_path=""')

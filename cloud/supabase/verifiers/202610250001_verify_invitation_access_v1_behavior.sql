@@ -126,6 +126,15 @@ begin
     '{"provider":"email","providers":["email"]}', '{}', now(), now()
   );
 
+  -- An active flag alone is insufficient: bootstrap must make the base role
+  -- effective when an existing assignment starts in the future.
+  insert into public.user_role_assignments (
+    user_id, role_code, assignment_reason, is_active, starts_at, expires_at
+  ) values (
+    v_invited, 'user', 'synthetic future assignment', true,
+    now() + interval '1 day', now() + interval '2 days'
+  );
+
   perform set_config('request.jwt.claim.sub', v_invited::text, true);
   select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
   into v_allowed, v_reason, v_source
@@ -140,7 +149,9 @@ begin
       and access_profile.account_status = 'active' and access_profile.beta_access_status = 'approved'
   ) or not exists (
     select 1 from public.user_role_assignments assignment
-    where assignment.user_id = v_invited and assignment.role_code = 'user' and assignment.is_active
+    where assignment.user_id = v_invited and assignment.role_code = 'user'
+      and assignment.is_active and assignment.starts_at <= clock_timestamp()
+      and (assignment.expires_at is null or assignment.expires_at > clock_timestamp())
   ) then raise exception 'Invitation bootstrap did not assign free/user'; end if;
 
   if not exists (
@@ -155,6 +166,28 @@ begin
   if (select count(*) from public.app_invitations where registered_user_id = v_invited) <> 1 then
     raise exception 'Bootstrap retry duplicated registration';
   end if;
+
+  update public.user_role_assignments
+  set starts_at = now() - interval '2 days', expires_at = now() - interval '1 day'
+  where user_id = v_invited and role_code = 'user' and is_active;
+  select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
+  into v_allowed, v_reason, v_source
+  from public.bootstrap_current_user_invitation_v1() bootstrap;
+  if not v_allowed or not exists (
+    select 1 from public.user_role_assignments assignment
+    where assignment.user_id = v_invited and assignment.role_code = 'user'
+      and assignment.is_active and assignment.starts_at <= clock_timestamp()
+      and (assignment.expires_at is null or assignment.expires_at > clock_timestamp())
+  ) then raise exception 'Registered bootstrap did not restore an effective base role'; end if;
+
+  update public.user_access_profiles set account_status = 'paused' where user_id = v_invited;
+  select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
+  into v_allowed, v_reason, v_source
+  from public.bootstrap_current_user_invitation_v1() bootstrap;
+  if v_allowed or v_reason <> 'administratively_blocked' then
+    raise exception 'Registered invitation bypassed a paused account';
+  end if;
+  update public.user_access_profiles set account_status = 'active' where user_id = v_invited;
 
   if not public.current_user_has_capability('data.delete_account') then
     raise exception 'Free invited user cannot reset own data';
@@ -186,7 +219,7 @@ begin
   perform set_config('request.jwt.claim.sub', v_inviter::text, true);
   -- One registered slot and four pending slots are still consumed; expire one fixture first.
   update public.app_invitations
-  set authorized_at = now() - interval '121 hours', expires_at = now() - interval '1 hour'
+  set authorized_at = now() - interval '121 hours'
   where inviter_user_id = v_inviter and invitation_status = 'pending'
     and email_normalized <> v_unverified_email
     and id <> v_invitation_id
@@ -210,10 +243,30 @@ begin
   from public.bootstrap_current_user_invitation_v1() bootstrap;
   if v_allowed or v_reason <> 'email_not_verified' then raise exception 'Unverified email bootstrap did not fail closed'; end if;
 
-  -- An explicit profile block must prevail even after the email becomes verified.
+  -- Paused, closed and blocked profiles must never be reactivated by bootstrap.
   update auth.users set email_confirmed_at = now() where id = v_unverified;
   update public.user_access_profiles
-  set beta_access_status = 'blocked'
+  set account_status = 'paused', beta_access_status = 'pending'
+  where user_id = v_unverified;
+  select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
+  into v_allowed, v_reason, v_source
+  from public.bootstrap_current_user_invitation_v1() bootstrap;
+  if v_allowed or v_reason <> 'administratively_blocked' then
+    raise exception 'Paused profile was reactivated by invitation bootstrap';
+  end if;
+
+  update public.user_access_profiles
+  set account_status = 'closed', beta_access_status = 'pending'
+  where user_id = v_unverified;
+  select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
+  into v_allowed, v_reason, v_source
+  from public.bootstrap_current_user_invitation_v1() bootstrap;
+  if v_allowed or v_reason <> 'administratively_blocked' then
+    raise exception 'Closed profile was reactivated by invitation bootstrap';
+  end if;
+
+  update public.user_access_profiles
+  set account_status = 'beta_pending', beta_access_status = 'blocked'
   where user_id = v_unverified;
   select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
   into v_allowed, v_reason, v_source
@@ -243,6 +296,12 @@ begin
   end;
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
   perform public.admin_lift_invitation_email_block_v1(v_blocked_email, 'synthetic reviewed lift');
+  if not exists (
+    select 1 from public.app_invitation_events invitation_event
+    where invitation_event.invitation_id = v_blocked_invitation_id
+      and invitation_event.event_type = 'reinvite_unblocked'
+      and invitation_event.event_details->>'reason' = 'synthetic reviewed lift'
+  ) then raise exception 'Administrative unblock reason was not retained'; end if;
   perform set_config('request.jwt.claim.sub', v_inviter::text, true);
   v_result := public.authorize_current_user_invitation_v1(v_blocked_email);
   if v_result->>'result' <> 'authorized' then
@@ -274,11 +333,32 @@ begin
     select 1 from public.app_invitations
     where id = v_active_block_id and email_fingerprint is not null
   ) then raise exception 'Lifted post-purge block retained an unnecessary fingerprint'; end if;
+  if not exists (
+    select 1 from public.app_invitation_events invitation_event
+    where invitation_event.invitation_id = v_active_block_id
+      and invitation_event.event_type = 'reinvite_unblocked'
+      and invitation_event.event_details->>'reason' = 'synthetic post-purge lift'
+  ) then raise exception 'Post-purge unblock reason was not retained'; end if;
+  update public.app_invitation_events
+  set event_at = now() - interval '91 days'
+  where event_type = 'reinvite_unblocked';
+  perform public.admin_purge_invitation_pii_v1();
+  if exists (
+    select 1 from public.app_invitation_events
+    where event_type = 'reinvite_unblocked' and event_details ? 'reason'
+  ) then raise exception 'Expired unblock reasons were not purged'; end if;
 
   -- A revoked legacy allowlist decision overrides otherwise durable invitation access.
   insert into public.app_access_allowlist (
     email_normalized, authorized_at, authorized_by_user_id, revoked_at, revoked_by_user_id
   ) values (v_invited_email, now(), v_admin, now(), v_admin);
+  perform set_config('request.jwt.claim.sub', v_invited::text, true);
+  select bootstrap.allowed, bootstrap.reason, bootstrap.access_source
+  into v_allowed, v_reason, v_source
+  from public.bootstrap_current_user_invitation_v1() bootstrap;
+  if v_allowed or v_reason <> 'revoked' then
+    raise exception 'Registered invitation bypassed explicit allowlist revocation';
+  end if;
   if not exists (
     select 1 from public.app_access_status_for_user(v_invited) access_status
     where not access_status.allowed and access_status.reason = 'revoked'
@@ -288,11 +368,11 @@ begin
   -- Exact boundary: expires_at is not valid at equality and materializes once.
   insert into public.app_invitations (
     inviter_user_id, email_normalized, email_fingerprint,
-    authorized_at, expires_at, invitation_status
+    authorized_at, invitation_status
   ) values (
     v_admin, v_boundary_email,
     public.invitation_email_fingerprint_v1(v_boundary_email),
-    v_boundary_start, v_boundary_start + interval '120 hours', 'pending'
+    v_boundary_start, 'pending'
   ) returning id into v_boundary_id;
   if public.materialize_expired_invitations_v1(v_boundary_start + interval '120 hours') < 1 then
     raise exception '120-hour boundary did not expire at equality';

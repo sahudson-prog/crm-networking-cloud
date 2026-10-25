@@ -103,32 +103,36 @@ try {
   }
 
   sql(readFileSync(join(sqlRoot, 'bootstrap/preflight_empty.sql'), 'utf8'));
-  for (const folder of ['migrations', 'seeds']) {
-    for (const file of readdirSync(join(sqlRoot, folder)).filter((entry) => entry.endsWith('.sql')).sort()) {
-      const source = readFileSync(join(sqlRoot, folder, file), 'utf8');
-      if (folder === 'migrations' && file === '202610250001_invitation_access_v1.sql') {
-        const hookBefore = sql(`select md5(pg_get_functiondef(
-          'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure));`);
-        const rollbackProbe = source.replace(
-          /\ncommit;\s*$/i,
-          () => "\ndo $$ begin raise exception 'deliberate INV-01 migration rollback probe'; end $$;\ncommit;",
-        );
-        assert.throws(() => sql(rollbackProbe), /deliberate INV-01 migration rollback probe/);
-        assert.equal(sql("select to_regclass('public.app_invitations') is null;"), 't');
-        assert.equal(sql(`select md5(pg_get_functiondef(
-          'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure));`), hookBefore);
-        assert.equal(sql(`select count(*) from public.app_capabilities
-          where capability_code='invitations.authorize';`), '0');
-        console.log('Migration transaction rollback and prior runtime preservation: PASS');
-      }
-      sql(source);
-    }
+  const invitationMigrationFile = '202610250001_invitation_access_v1.sql';
+  const invitationMigration = readFileSync(join(sqlRoot, 'migrations', invitationMigrationFile), 'utf8');
+  for (const file of readdirSync(join(sqlRoot, 'migrations')).filter((entry) => entry.endsWith('.sql')).sort()) {
+    if (file !== invitationMigrationFile) sql(readFileSync(join(sqlRoot, 'migrations', file), 'utf8'));
+  }
+  sql(readFileSync(join(sqlRoot, 'verifiers/202610210001_verify_access_expand_pre_contract.sql'), 'utf8'));
+  console.log('Google expand without INV-01 composed objects: PASS');
+
+  const hookBefore = sql(`select md5(pg_get_functiondef(
+    'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure));`);
+  const rollbackProbe = invitationMigration.replace(
+    /\ncommit;\s*$/i,
+    () => "\ndo $$ begin raise exception 'deliberate INV-01 migration rollback probe'; end $$;\ncommit;",
+  );
+  assert.throws(() => sql(rollbackProbe), /deliberate INV-01 migration rollback probe/);
+  assert.equal(sql("select to_regclass('public.app_invitations') is null;"), 't');
+  assert.equal(sql(`select md5(pg_get_functiondef(
+    'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure));`), hookBefore);
+  assert.equal(sql(`select count(*) from public.app_capabilities
+    where capability_code='invitations.authorize';`), '0');
+  console.log('Migration transaction rollback and prior runtime preservation: PASS');
+  sql(invitationMigration);
+  for (const file of readdirSync(join(sqlRoot, 'seeds')).filter((entry) => entry.endsWith('.sql')).sort()) {
+    sql(readFileSync(join(sqlRoot, 'seeds', file), 'utf8'));
   }
 
   for (const file of [
     '202610250001_verify_invitation_access_v1.sql',
     '202610250001_verify_invitation_access_v1_behavior.sql',
-    '202610210001_verify_access_expand_pre_contract.sql',
+    '202610250001_verify_access_invitation_composed.sql',
     '202609290002_verify_merge_reset_grants.sql',
   ]) {
     sql(readFileSync(join(sqlRoot, 'verifiers', file), 'utf8'));
@@ -199,10 +203,10 @@ try {
   const expiryEmail = `expiry-${run}@example.invalid`;
   const expiryId = sql(`insert into public.app_invitations (
       inviter_user_id, email_normalized, email_fingerprint,
-      authorized_at, expires_at, invitation_status
+      authorized_at, invitation_status
     ) values (
       '${inviterA}', '${expiryEmail}', public.invitation_email_fingerprint_v1('${expiryEmail}'),
-      '2026-10-25 12:00:00+00', '2026-10-30 12:00:00+00', 'pending'
+      '2026-10-25 12:00:00+00', 'pending'
     ) returning id;`);
   const expiryBlocker = session('inv01-expiry-blocker', `begin;
     select id from public.app_invitations where id='${expiryId}' for update;
@@ -223,6 +227,41 @@ try {
   assert.equal(sql(`select count(*) from public.app_invitation_events
     where invitation_id='${expiryId}' and event_type='expired';`), '1');
   console.log('Concurrent exact 120-hour expiration: PASS');
+
+  // Bootstrap waits on the access profile until after expiry, then must use a
+  // fresh clock_timestamp and reject conversion.
+  sql('begin; delete from public.app_invitation_events; delete from public.app_invitations; commit;');
+  const delayedUser = randomUUID();
+  const delayedEmail = `delayed-${run}@example.invalid`;
+  const delayedInvitation = JSON.parse(sql(`begin; ${jwt(inviterA)}
+    select public.authorize_current_user_invitation_v1('${delayedEmail}'); commit;`));
+  sql(`update public.app_invitations
+    set authorized_at = clock_timestamp() - interval '120 hours' + interval '3 seconds'
+    where id='${delayedInvitation.invitation_id}';`);
+  sql(authInsert(delayedUser, delayedEmail));
+  const delayedBlocker = session('inv01-delayed-bootstrap-blocker', `begin;
+    select user_id from public.user_access_profiles where user_id='${delayedUser}' for update;
+    select 'LOCKED';\n`, true);
+  await until(() => delayedBlocker.output().includes('LOCKED'), 'delayed bootstrap blocker lock');
+  const delayedBootstrap = session('inv01-delayed-bootstrap', `begin; ${jwt(delayedUser)}
+    select allowed, reason, coalesce(access_source,'')
+    from public.bootstrap_current_user_invitation_v1(); commit;`);
+  await until(() => Number(sql(`select count(*) from pg_stat_activity
+    where application_name='inv01-delayed-bootstrap' and wait_event_type='Lock';`)) === 1,
+  'bootstrap waiting on access profile lock');
+  await until(() => sql(`select clock_timestamp() >= expires_at
+    from public.app_invitations where id='${delayedInvitation.invitation_id}';`) === 't',
+  'invitation exact expiry while bootstrap waits');
+  delayedBlocker.child.stdin.end('commit;\n');
+  await delayedBlocker.done;
+  const delayedResult = await delayedBootstrap.done;
+  assert.equal(delayedResult.code, 0);
+  assert.match(delayedResult.output, /f\|invitation_expired\|/);
+  assert.equal(sql(`select invitation_status || '|' || coalesce(registered_user_id::text,'')
+    from public.app_invitations where id='${delayedInvitation.invitation_id}';`), 'expired|');
+  assert.equal(sql(`select account_status || '|' || beta_access_status
+    from public.user_access_profiles where user_id='${delayedUser}';`), 'beta_pending|pending');
+  console.log('Bootstrap expiry after real lock wait: PASS');
 
   async function conversionRace(order) {
     sql('begin; delete from public.app_invitation_events; delete from public.app_invitations; commit;');

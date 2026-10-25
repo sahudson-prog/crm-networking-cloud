@@ -18,6 +18,64 @@ as $$
   end;
 $$;
 
+create or replace function public.invitation_personal_limit_for_user_v1(p_user_id uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  -- V1 is intentionally uniform. This is the single extension point for a
+  -- future plan/profile-specific limit without duplicating quota enforcement.
+  select case when p_user_id is null then 0 else 5 end;
+$$;
+
+create or replace function public.invitation_expires_at_v1(p_authorized_at timestamptz)
+returns timestamptz
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  -- A fixed hour interval is independent of the session time zone. Keeping the
+  -- calculation here makes the generated column the single 120-hour contract.
+  select p_authorized_at + interval '120 hours';
+$$;
+
+create or replace function public.ensure_invitation_user_role_v1(
+  p_user_id uuid,
+  p_now timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.user_role_assignments assignment
+  set starts_at = p_now,
+      expires_at = null,
+      assignment_reason = 'INV-01 invitation registration'
+  where assignment.user_id = p_user_id
+    and assignment.role_code = 'user'
+    and assignment.is_active = true
+    and (assignment.starts_at > p_now
+      or (assignment.expires_at is not null and assignment.expires_at <= p_now));
+
+  insert into public.user_role_assignments (
+    user_id, role_code, assignment_reason, is_active, starts_at
+  )
+  select p_user_id, 'user', 'INV-01 invitation registration', true, p_now
+  where not exists (
+    select 1 from public.user_role_assignments assignment
+    where assignment.user_id = p_user_id and assignment.role_code = 'user'
+      and assignment.is_active = true
+      and assignment.starts_at <= p_now
+      and (assignment.expires_at is null or assignment.expires_at > p_now)
+  );
+end;
+$$;
+
 create table if not exists public.app_invitation_program_settings (
   singleton boolean primary key default true check (singleton),
   invitations_enabled boolean not null default false,
@@ -35,7 +93,9 @@ create table if not exists public.app_invitations (
   invitation_status text not null default 'pending'
     check (invitation_status in ('pending', 'registered', 'expired', 'cancelled')),
   authorized_at timestamptz not null,
-  expires_at timestamptz not null,
+  expires_at timestamptz generated always as (
+    public.invitation_expires_at_v1(authorized_at)
+  ) stored,
   registered_user_id uuid references public.profiles(id) on delete restrict,
   registered_at timestamptz,
   cancelled_at timestamptz,
@@ -48,7 +108,6 @@ create table if not exists public.app_invitations (
   pii_purged_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint app_invitations_exact_expiry check (expires_at = authorized_at + interval '120 hours'),
   constraint app_invitations_email_shape check (
     email_normalized is null or (
       email_normalized = public.normalize_app_access_email(email_normalized)
@@ -212,6 +271,8 @@ as $$
     select program.invitations_enabled, program.registrations_enabled, program.global_capacity
     from public.app_invitation_program_settings program
     where program.singleton = true
+  ), effective_limit as (
+    select public.invitation_personal_limit_for_user_v1(p_user_id) as personal_limit
   ), personal_counts as (
     select count(*)::integer as used_slots,
       min(invitation.expires_at) filter (
@@ -242,9 +303,9 @@ as $$
       and invitation.invitation_status in ('pending', 'registered')
   )
   select jsonb_build_object(
-    'personal_limit', 5,
+    'personal_limit', effective_limit.personal_limit,
     'used_slots', personal_counts.used_slots,
-    'available_slots', greatest(0, 5 - personal_counts.used_slots),
+    'available_slots', greatest(0, effective_limit.personal_limit - personal_counts.used_slots),
     'next_expiry_at', personal_counts.next_expiry_at,
     'global_capacity', settings.global_capacity,
     'used_capacity', capacity.used_capacity,
@@ -252,7 +313,7 @@ as $$
     'registrations_enabled', settings.registrations_enabled,
     'invitations', invitation_rows.rows
   )
-  from settings, personal_counts, capacity, invitation_rows;
+  from settings, effective_limit, personal_counts, capacity, invitation_rows;
 $$;
 
 create or replace function public.is_email_authorized_for_invitation_registration_v1(p_email text)
@@ -440,6 +501,7 @@ declare
   v_now timestamptz;
   v_invitation_id uuid;
   v_personal_count integer;
+  v_personal_limit integer;
   v_capacity_count integer;
   v_settings public.app_invitation_program_settings%rowtype;
   v_result jsonb;
@@ -515,7 +577,8 @@ begin
   where invitation.inviter_user_id = v_user_id
     and (invitation.invitation_status = 'registered'
       or (invitation.invitation_status = 'pending' and invitation.expires_at > v_now));
-  if v_personal_count >= 5 then raise exception 'personal_invitation_limit_reached'; end if;
+  v_personal_limit := public.invitation_personal_limit_for_user_v1(v_user_id);
+  if v_personal_count >= v_personal_limit then raise exception 'personal_invitation_limit_reached'; end if;
 
   select count(*)::integer into v_capacity_count
   from public.app_invitations invitation
@@ -525,10 +588,10 @@ begin
 
   insert into public.app_invitations (
     inviter_user_id, email_normalized, email_fingerprint,
-    authorized_at, expires_at, invitation_status
+    authorized_at, invitation_status
   ) values (
     v_user_id, v_email, v_fingerprint,
-    v_now, v_now + interval '120 hours', 'pending'
+    v_now, 'pending'
   ) returning id into v_invitation_id;
 
   insert into public.app_invitation_events (
@@ -555,7 +618,6 @@ declare
   v_invitation public.app_invitations%rowtype;
   v_account_status text;
   v_beta_access_status text;
-  v_plan_code text;
   v_registrations_enabled boolean;
 begin
   if v_user_id is null then return query select false, 'not_authenticated', null::text; return; end if;
@@ -570,17 +632,16 @@ begin
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('invitation-email:' || coalesce(v_email, ''), 0));
   perform 1 from public.profiles where id = v_user_id for update;
-  v_now := clock_timestamp();
   v_fingerprint := public.invitation_email_fingerprint_v1(v_email);
 
-  select access_profile.account_status, access_profile.beta_access_status, access_profile.plan_code
-  into v_account_status, v_beta_access_status, v_plan_code
+  select access_profile.account_status, access_profile.beta_access_status
+  into v_account_status, v_beta_access_status
   from public.user_access_profiles access_profile
   where access_profile.user_id = v_user_id
   for update;
 
   if not found then return query select false, 'access_profile_missing', null::text; return; end if;
-  if v_account_status = 'closed' or v_beta_access_status = 'blocked' then
+  if v_account_status in ('paused', 'closed') or v_beta_access_status = 'blocked' then
     return query select false, 'administratively_blocked', null::text; return;
   end if;
 
@@ -590,14 +651,29 @@ begin
   ) then return query select false, 'revoked', null::text; return; end if;
 
   if public.is_email_authorized_for_app_access(v_email) then
-    return query select true, 'allowed', 'legacy_allowlist'; return;
+    if v_account_status = 'active' and v_beta_access_status = 'approved' then
+      return query select true, 'allowed', 'legacy_allowlist';
+    else
+      return query select false, 'access_not_active', null::text;
+    end if;
+    return;
   end if;
 
-  if exists (
-    select 1 from public.app_invitations invitation
+  select * into v_invitation
+  from public.app_invitations invitation
     where invitation.registered_user_id = v_user_id
       and invitation.invitation_status = 'registered'
-  ) then return query select true, 'allowed', 'invitation'; return; end if;
+  for update;
+  if found then
+    v_now := clock_timestamp();
+    if v_account_status = 'active' and v_beta_access_status = 'approved' then
+      perform public.ensure_invitation_user_role_v1(v_user_id, v_now);
+      return query select true, 'allowed', 'invitation';
+    else
+      return query select false, 'access_not_active', null::text;
+    end if;
+    return;
+  end if;
 
   if v_email_confirmed_at is null then
     return query select false, 'email_not_verified', null::text; return;
@@ -620,6 +696,10 @@ begin
   for update;
 
   if not found then return query select false, 'invitation_missing', null::text; return; end if;
+
+  -- clock_timestamp(), unlike now(), reflects time spent waiting on every
+  -- lock that participates in the expiration and conversion decision.
+  v_now := clock_timestamp();
 
   if v_invitation.expires_at <= v_now then
     update public.app_invitations set invitation_status = 'expired'
@@ -650,15 +730,7 @@ begin
       beta_access_status = 'approved'
   where access_profile.user_id = v_user_id;
 
-  insert into public.user_role_assignments (
-    user_id, role_code, assignment_reason, is_active, starts_at
-  )
-  select v_user_id, 'user', 'INV-01 invitation registration', true, v_now
-  where not exists (
-    select 1 from public.user_role_assignments assignment
-    where assignment.user_id = v_user_id and assignment.role_code = 'user'
-      and assignment.is_active = true
-  );
+  perform public.ensure_invitation_user_role_v1(v_user_id, v_now);
 
   insert into public.app_invitation_events (
     invitation_id, event_type, actor_user_id, subject_user_id, event_at, event_details
@@ -830,8 +902,8 @@ begin
   insert into public.app_invitation_events (
     invitation_id, event_type, actor_user_id, event_at, event_details
   )
-  select id, 'reinvite_unblocked', v_user_id, v_now,
-    jsonb_build_object('reason_recorded', true)
+    select id, 'reinvite_unblocked', v_user_id, v_now,
+      jsonb_build_object('reason', btrim(p_reason))
   from unnest(v_ids) id;
 
   return jsonb_build_object('result', 'unblocked', 'affected_invitations', cardinality(v_ids));
@@ -848,6 +920,7 @@ declare
   v_user_id uuid := auth.uid();
   v_now timestamptz;
   v_ids uuid[];
+  v_purged_event_details integer;
 begin
   if v_user_id is null or not public.current_user_has_capability('admin.manage_access') then
     raise exception 'admin_manage_access_required';
@@ -882,6 +955,13 @@ begin
     returning invitation.id
   ) select array_agg(id) into v_ids from purged;
 
+  update public.app_invitation_events invitation_event
+  set event_details = invitation_event.event_details - 'reason'
+  where invitation_event.event_type = 'reinvite_unblocked'
+    and invitation_event.event_at <= v_now - interval '90 days'
+    and invitation_event.event_details ? 'reason';
+  get diagnostics v_purged_event_details = row_count;
+
   insert into public.app_invitation_events (
     invitation_id, event_type, actor_user_id, event_at, event_details
   )
@@ -889,7 +969,7 @@ begin
   from unnest(coalesce(v_ids, array[]::uuid[])) id
   on conflict do nothing;
 
-  return coalesce(cardinality(v_ids), 0);
+  return coalesce(cardinality(v_ids), 0) + v_purged_event_details;
 end;
 $$;
 
@@ -919,6 +999,9 @@ revoke all on table public.app_invitations from public, anon, authenticated, ser
 revoke all on table public.app_invitation_events from public, anon, authenticated, service_role, supabase_auth_admin;
 
 alter function public.invitation_email_fingerprint_v1(text) owner to postgres;
+alter function public.invitation_personal_limit_for_user_v1(uuid) owner to postgres;
+alter function public.invitation_expires_at_v1(timestamptz) owner to postgres;
+alter function public.ensure_invitation_user_role_v1(uuid, timestamptz) owner to postgres;
 alter function public.materialize_expired_invitations_v1(timestamptz) owner to postgres;
 alter function public.invitation_program_state_for_user_v1(uuid, timestamptz) owner to postgres;
 alter function public.is_email_authorized_for_invitation_registration_v1(text) owner to postgres;
@@ -933,6 +1016,9 @@ alter function public.admin_lift_invitation_email_block_v1(text, text) owner to 
 alter function public.admin_purge_invitation_pii_v1() owner to postgres;
 
 revoke all on function public.invitation_email_fingerprint_v1(text) from public, anon, authenticated, service_role, supabase_auth_admin;
+revoke all on function public.invitation_personal_limit_for_user_v1(uuid) from public, anon, authenticated, service_role, supabase_auth_admin;
+revoke all on function public.invitation_expires_at_v1(timestamptz) from public, anon, authenticated, service_role, supabase_auth_admin;
+revoke all on function public.ensure_invitation_user_role_v1(uuid, timestamptz) from public, anon, authenticated, service_role, supabase_auth_admin;
 revoke all on function public.materialize_expired_invitations_v1(timestamptz) from public, anon, authenticated, service_role, supabase_auth_admin;
 revoke all on function public.invitation_program_state_for_user_v1(uuid, timestamptz) from public, anon, authenticated, service_role, supabase_auth_admin;
 revoke all on function public.is_email_authorized_for_invitation_registration_v1(text) from public, anon, authenticated, service_role, supabase_auth_admin;
@@ -958,7 +1044,7 @@ grant execute on function public.admin_purge_invitation_pii_v1() to authenticate
 
 comment on table public.app_invitation_program_settings is 'Singleton rollout controls and capacity for INV-01. Both switches default closed.';
 comment on table public.app_invitations is 'Authoritative invitation lifecycle. Not deleted by own-data reset.';
-comment on table public.app_invitation_events is 'Append-only invitation lifecycle audit without email payloads.';
+comment on table public.app_invitation_events is 'Invitation lifecycle audit without email payloads; transition rows remain while temporary reason text may be minimized after 90 days.';
 comment on function public.current_user_invitation_state_v1() is 'Stable PR 2 boundary for invitation quota, controls and own pending/registered invitations.';
 comment on function public.authorize_current_user_invitation_v1(text) is 'Atomically reserves one personal slot and global capacity without sending a message.';
 comment on function public.bootstrap_current_user_invitation_v1() is 'Authenticated idempotent bootstrap: converts a verified pending invitation and assigns free/user.';

@@ -39,7 +39,7 @@ Prompt de recuperación copy/paste-safe:
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
 - `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
-- `SEC-GOOGLE-01`: expand/runtime integrados y desplegados; Calendar PROD y contract permanecen diferidos, sin autorización nueva en INV-01.
+- `SEC-GOOGLE-01`: expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. Calendar PROD continúa con persistencia no declarada PASS y diagnóstico diferido. El contract permanece separado en `NO-GO`, sin autorización nueva en INV-01.
 
 ## Deuda / pre-Early-Access gate
 
@@ -51,7 +51,7 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: `INV-01 — PR 1 backend inerte y seguro`.
-- Status: `IN PROGRESS — implementación local validada; no publicada ni desplegada`.
+- Status: `IN PROGRESS — implementación local y correcciones arquitectónicas preparadas; no publicadas ni desplegadas`.
 - Verified baseline: `95cf9fcdabfd09955683dd4c517c26dbc0088d55`.
 - Current branch/worktree: `codex/inv-01-backend-v1` en worktree aislado.
 - Completed:
@@ -60,15 +60,16 @@ Prompt de recuperación copy/paste-safe:
   - plan `free`/rol `user` para nuevos registros y preservación de beta legacy; Google operativo continúa reservado a `beta_tester`;
   - auditoría de `data.delete_account` completada y reset propio habilitado para `free` sin borrar autoridad de invitaciones;
   - verifier estructural, verifier funcional, SECURITY DEFINER/Merge-Reset y carreras PostgreSQL 17 locales PASS.
+  - auditoría arquitectónica completada; bootstrap, instante de expiración, composición de verifiers, auditoría de desbloqueos y resolución de cupo corregidos localmente.
 - Pending:
-  - revisión del diff y, tras autorización, commit local/publicación de PR 1;
+  - revisión/publicación de PR 1 tras el commit local autorizado;
   - validación Auth real de Google login y magic link en DEV, sin simular `email_confirmed_at` como evidencia remota;
   - preflight de beta legacy, backup, verificadores y rollout DEV/PROD en gates separados;
   - autorizar una operación programada para la depuración de PII a 90 días o mantener el rollout cerrado;
   - PR 2 de UX y cualquier activación de los dos controles globales.
-- Blockers: ninguno para revisar/publicar PR 1; activación remota permanece bloqueada por los gates pendientes.
+- Blockers: ninguno para revisión local; publicación y activación remota permanecen bloqueadas por sus autorizaciones y gates pendientes.
 - Manual/remote actions already executed: ninguna para INV-01.
-- Immediate next action: revisar el paquete local y decidir autorización de commit/publicación de PR 1; no habilitar controles.
+- Immediate next action: revisar el paquete corregido y decidir autorización de publicación de PR 1; no habilitar controles.
 - Stop boundary: sin SQL remoto, OAuth, activación, Google contract, Calendar, PR 2 ni rollout.
 - Deuda UX de ONB-01 fuera de alcance: las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada.
 
@@ -123,9 +124,9 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 - ONB-01 no activa una fase nueva al cerrarse. INV-01 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
-## Candidatos futuros no contratados
+## Iniciativa activa y candidatos futuros
 
-El trabajo siguiente está sustentado por planificación u owner docs actuales, pero todavía no forma una secuencia aprobada. Cada candidato permanece `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlo solo porque aparece aquí.
+INV-01 tiene únicamente su PR 1 de backend contratado. Las demás iniciativas de esta sección permanecen `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlas solo porque aparecen aquí.
 
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
