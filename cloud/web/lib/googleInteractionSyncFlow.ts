@@ -28,6 +28,7 @@ import {
 } from "./syncOrchestrator.ts";
 import type { ExternalInteractionInput } from "./externalInteractionSync.ts";
 import type { ContactRow } from "./readModel.ts";
+import { requireGoogleConnectedSyncAuthorization } from "./googleSyncAuthorization.ts";
 import { latestIsoInstant } from "./syncDate.ts";
 import { supabase } from "./supabaseClient.ts";
 
@@ -203,6 +204,7 @@ type GoogleGmailReadDependencyResult = Omit<GoogleGmailReadResult, "complete" | 
 };
 
 type SyncGoogleInteractionsDependencies = {
+  authorizeConnectedSync: typeof requireGoogleConnectedSyncAuthorization;
   createMailRequestGovernor: () => GoogleGmailRequestGovernor;
   readAppContacts: () => Promise<ContactRow[]>;
   readCursor: (input: { cursorLabel?: string; resourceType: "mail" | "calendar" }) => Promise<string | null>;
@@ -545,6 +547,7 @@ export async function reviewGoogleGmailHistoricalBootstrap(
   dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
 ): Promise<{ result: SyncGoogleInteractionsResult; snapshot: GoogleGmailHistoricalBootstrapSnapshot }> {
   const deps = defaultDependencies(dependencies);
+  await deps.authorizeConnectedSync(input.connectedAccountId, "email");
   const labelId = requireHistoricalBootstrapLabelId(input.label.id);
   const labelName = input.label.name.trim() || "Etiqueta Gmail";
   const requestGovernor = deps.createMailRequestGovernor();
@@ -618,6 +621,7 @@ export async function applyGoogleGmailHistoricalBootstrap(
   dependencies: Partial<SyncGoogleInteractionsDependencies> = {}
 ): Promise<SyncGoogleInteractionsResult> {
   const deps = defaultDependencies(dependencies);
+  await deps.authorizeConnectedSync(input.connectedAccountId, "email");
   const selectedIds = Array.from(new Set(input.externalIds.map((id) => id.trim()).filter(Boolean)));
   const itemsByExternalId = new Map(input.snapshot.items.map((item) => [item.externalId.toLowerCase(), item]));
   const missingIds = selectedIds.filter((id) => !itemsByExternalId.has(id.toLowerCase()));
@@ -1527,6 +1531,7 @@ async function readMailForQueries(
 
 function defaultDependencies(overrides: Partial<SyncGoogleInteractionsDependencies>): SyncGoogleInteractionsDependencies {
   return {
+    authorizeConnectedSync: requireGoogleConnectedSyncAuthorization,
     createMailRequestGovernor: createGoogleGmailRequestGovernor,
     markCursorExpired: async (input) => {
       await markSyncCursorExpired({

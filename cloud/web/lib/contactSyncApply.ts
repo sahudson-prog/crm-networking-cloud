@@ -209,11 +209,117 @@ async function assertContactSyncStorageReady() {
 }
 
 async function applyContactSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
+  if (context.provider === "google") return applyGoogleContactSyncChange(change, context);
   if (change.type === "new" || change.type === "duplicate_complex") return createContactFromSyncChange(change, context);
   if (change.type === "modified") return updateContactFromSyncChange(change, context);
   if (change.type === "consolidation") return consolidateContactFromSyncChange(change, context);
   if (change.type === "deleted" || change.type === "deactivated") return deactivateContactFromSyncChange(change, context);
   throw new Error(`Tipo de cambio no soportado: ${change.type}`);
+}
+
+async function applyGoogleContactSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
+  if (!context.connectedAccountId) throw new Error("La sincronizacion Google requiere una cuenta conectada.");
+  const db = requireSupabase();
+  const { data, error } = await db.rpc("apply_google_contact_sync_change_v1", {
+    p_connected_account_id: context.connectedAccountId,
+    p_change: googleContactSyncMutationFromPreviewChange(change, context)
+  });
+  if (error) throw error;
+  if (typeof data !== "string" || !data.trim()) {
+    throw new Error("La base no devolvio el contacto aplicado.");
+  }
+  return data;
+}
+
+export function googleContactSyncMutationFromPreviewChange(
+  change: SyncPreviewChange,
+  context: ApplyContactSyncContext
+) {
+  const mergeDecision = contactMergeDecisionFromPreviewChange(change);
+  const targetContactId = change.type === "consolidation"
+    ? requiredMetadata(change, "consolidationTargetContactId")
+    : metadataString(change, "appContactId") || null;
+  const mergePlan = change.type === "consolidation" && targetContactId
+    ? contactAppMergePlanFromPreviewChange(change, targetContactId)
+    : { sourceContactIds: [], sources: [] };
+  const fieldPatch = fieldsToContactPayload(change.fields);
+  const contact = mergeDecision ? {
+    company: mergeDecision.company.trim(),
+    displayName: mergeDecision.name.trim(),
+    isHeadhunter: mergeDecision.headhunter,
+    networkingFocus: mergeDecision.focus,
+    networkingStatus: mergeDecision.networkingStatus,
+    role: mergeDecision.role.trim()
+  } : {
+    ...(fieldPatch.company !== undefined ? { company: fieldPatch.company } : {}),
+    ...(fieldPatch.display_name !== undefined ? { displayName: fieldPatch.display_name } : {}),
+    ...(fieldPatch.role !== undefined ? { role: fieldPatch.role } : {}),
+    ...((change.type === "new" || change.type === "duplicate_complex") ? {
+      displayName: fieldPatch.display_name || change.title,
+      networkingFocus: DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS,
+      networkingStatus: "Pendiente"
+    } : {})
+  };
+  const identityValues = mergeDecision
+    ? {
+        emails: mergeDecision.emails.map((value) => ({ operation: "add", value })),
+        phones: mergeDecision.phones.map((value) => ({ operation: "add", value }))
+      }
+    : contactIdentityOperations(change.fields);
+
+  return {
+    changeId: change.id,
+    changeType: change.type,
+    contact,
+    contactId: targetContactId,
+    emails: identityValues.emails,
+    externalIds: externalIdsFromChange(change).map((externalId) => ({
+      externalId,
+      metadata: externalMetadataForChange(change, externalId)
+    })),
+    mergeResult: mergeDecision,
+    mergeSourceContactIds: mergePlan.sourceContactIds,
+    phones: identityValues.phones,
+    snapshots: externalContactSnapshotsFromPreviewChange(change).map((entry) => {
+      const payload = externalContactSnapshotDbPayload({
+        connectedAccountId: context.connectedAccountId,
+        externalId: entry.externalId,
+        provider: "google",
+        snapshot: entry.snapshot,
+        userId: context.userId
+      });
+      return {
+        birthdays: payload.birthdays,
+        company: payload.company,
+        contentHash: payload.content_hash,
+        displayName: payload.display_name,
+        emails: payload.emails,
+        externalId: payload.external_id,
+        lastSeenAt: payload.last_seen_at,
+        metadata: payload.metadata,
+        phones: payload.phones,
+        role: payload.role
+      };
+    })
+  };
+}
+
+function contactIdentityOperations(fields: SyncPreviewFieldChange[]) {
+  const emails: Array<{ operation: "add" | "remove"; value: string }> = [];
+  const phones: Array<{ operation: "add" | "remove"; value: string }> = [];
+  for (const field of fields) {
+    if (field.apply === false) continue;
+    const operation = field.operation === "remove" ? "remove" : "add";
+    if (field.label === "Correo") {
+      const value = operation === "remove" ? field.before : field.after;
+      if (value?.trim()) emails.push({ operation, value });
+    }
+    if (field.label === "Telefono") {
+      const value = operation === "remove" ? field.before : field.after;
+      if (value?.trim()) phones.push({ operation, value });
+    }
+  }
+  return { emails, phones };
 }
 
 async function createContactFromSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {

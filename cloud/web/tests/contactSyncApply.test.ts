@@ -5,7 +5,8 @@ import {
   applyContactSyncPreview,
   contactAppMergePlanFromPreviewChange,
   contactIdentityValuesForCreate,
-  DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS
+  DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS,
+  googleContactSyncMutationFromPreviewChange
 } from "../lib/contactSyncApply.ts";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator.ts";
 
@@ -20,6 +21,58 @@ const baseChange: SyncPreviewChange = {
   title: "Josefina Camus",
   type: "modified"
 };
+
+test("Google contact apply construye una mutacion RPC sin confiar en provider del preview", () => {
+  const mutation = googleContactSyncMutationFromPreviewChange(baseChange, {
+    connectedAccountId: "account-1",
+    provider: "google",
+    userId: "user-1"
+  });
+
+  assert.equal(mutation.changeType, "modified");
+  assert.equal(mutation.contactId, "contact-1");
+  assert.deepEqual(mutation.contact, { company: "Seminarium" });
+  assert.deepEqual(mutation.externalIds, [{ externalId: "people/1", metadata: {} }]);
+  assert.equal(Object.hasOwn(mutation, "provider"), false);
+  assert.equal(Object.hasOwn(mutation, "userId"), false);
+});
+
+test("Google contact apply preserva el plan de consolidacion para la RPC atomica", () => {
+  const change: SyncPreviewChange = {
+    defaultSelected: true,
+    fields: [],
+    id: "google:consolidation:target:source:people/1",
+    metadata: {
+      consolidationTargetContactId: "target",
+      externalId: "people/1",
+      contactMergeDecision: {
+        company: "Empresa",
+        emails: ["ana@example.com"],
+        focus: true,
+        headhunter: false,
+        name: "Ana",
+        networkingStatus: "Contactado",
+        phones: [],
+        role: "CEO"
+      },
+      mergeSources: [
+        { company: "", emails: [], focus: true, headhunter: false, id: "target", kind: "Guardado", name: "Ana", networkingStatus: "Contactado", phones: [], role: "" },
+        { company: "", emails: [], focus: false, headhunter: false, id: "source", kind: "Guardado", name: "Ana", networkingStatus: "Pendiente", phones: [], role: "" }
+      ]
+    },
+    title: "Ana",
+    type: "consolidation"
+  };
+
+  const mutation = googleContactSyncMutationFromPreviewChange(change, {
+    connectedAccountId: "account-1",
+    provider: "google",
+    userId: "user-1"
+  });
+
+  assert.deepEqual(mutation.mergeSourceContactIds, ["source"]);
+  assert.equal(mutation.contactId, "target");
+});
 
 test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", async () => {
   const applied: string[] = [];

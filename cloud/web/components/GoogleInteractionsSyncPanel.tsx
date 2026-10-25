@@ -20,10 +20,13 @@ import {
   externalIdsFromInteractionPreview,
   interactionPreviewChanges
 } from "../lib/interactionSyncPreview";
-import { requireCurrentUserCapability } from "../lib/accessControl";
 import { googleConnectionHasCapability, readCurrentGoogleConnectionState } from "../lib/connectedAccounts";
 import { invalidateActiveGoogleDataAuthorization, reconnectGoogle } from "../lib/googleAuthSession";
 import { beginGoogleDataAuthorization } from "../lib/googleDataAuthorizationIntent";
+import {
+  requireGoogleConnectedSyncAuthorization,
+  requireGoogleOAuthRolloutEligibility
+} from "../lib/googleSyncAuthorization";
 import {
   ACTIVITY_SYNC_MAX_CALENDAR_EVENTS,
   ACTIVITY_SYNC_MAX_CALENDAR_PAGES,
@@ -203,7 +206,11 @@ export function GoogleInteractionsSyncPanel({
       gmailLabelsError: "",
       gmailLabelsLoading: true
     }));
-    void listGoogleGmailUserLabels({ accessToken })
+    void (async () => {
+      const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: false });
+      await requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "email");
+      return listGoogleGmailUserLabels({ accessToken });
+    })()
       .then((gmailLabels) => {
         if (!active) return;
         const sortedLabels = gmailLabels.sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
@@ -252,6 +259,7 @@ export function GoogleInteractionsSyncPanel({
       if (resource === "mail") {
         await beginGoogleDataAuthorization("import_gmail_history", redirectTo);
       } else {
+        await requireGoogleOAuthRolloutEligibility("calendar");
         await reconnectGoogle([GOOGLE_CALENDAR_READONLY_SCOPE], redirectTo);
       }
     } catch (error) {
@@ -291,18 +299,6 @@ export function GoogleInteractionsSyncPanel({
   }
 
   async function runMailBootstrapReview() {
-    try {
-      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        activeResource: "mail",
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
-        loading: false,
-        previewOpen: false
-      }));
-      return;
-    }
     if (mailActionDisabledReason) {
       setState((current) => ({
         ...current,
@@ -334,6 +330,7 @@ export function GoogleInteractionsSyncPanel({
         await connectGoogle("mail");
         return;
       }
+      await requireGoogleConnectedSyncAuthorization(googleConnection.account?.id, "email");
       if (!googleConnection.userEmail) throw new Error("No pude identificar el correo del usuario conectado.");
       const selectedLabel = state.gmailLabels.find((label) => label.id === state.selectedGmailLabelId);
       if (!selectedLabel) throw new Error("La etiqueta Gmail seleccionada ya no esta disponible.");
@@ -413,7 +410,7 @@ export function GoogleInteractionsSyncPanel({
       return;
     }
     try {
-      await requireCurrentUserCapability("interactions.import_google", "importar correos desde Google");
+      await requireGoogleConnectedSyncAuthorization(state.connectedAccountId, "email");
       setState((current) => ({
         ...current,
         applying: true,
@@ -506,21 +503,6 @@ export function GoogleInteractionsSyncPanel({
       return;
     }
 
-    try {
-      await requireCurrentUserCapability("interactions.import_google", "importar correos y citas desde Google");
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        activeResource: resource,
-        applying: false,
-        error: error instanceof Error ? error.message : "No pude validar permisos.",
-        loading: false,
-        message: "",
-        previewOpen: true
-      }));
-      return;
-    }
-
     const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
     setState((current) => ({
       ...current,
@@ -537,6 +519,23 @@ export function GoogleInteractionsSyncPanel({
         message: "Reconectando Google..."
       }));
       await connectGoogle(resource);
+      return;
+    }
+    try {
+      await requireGoogleConnectedSyncAuthorization(
+        googleConnection.account?.id,
+        resource === "mail" ? "email" : "calendar"
+      );
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        activeResource: resource,
+        applying: false,
+        error: error instanceof Error ? error.message : "No pude validar permisos.",
+        loading: false,
+        message: "",
+        previewOpen: true
+      }));
       return;
     }
 
@@ -893,7 +892,7 @@ function gmailLabelPlaceholder(state: GoogleInteractionsState, hasAccessToken: b
 }
 
 function gmailLabelsErrorMessage(error: unknown) {
-  const detail = error instanceof Error ? error.message.trim() : "";
+  const detail = error instanceof GoogleInteractionClientError ? error.message.trim() : "";
   return detail
     ? `No pude cargar las etiquetas de Gmail. ${detail}`
     : "No pude cargar las etiquetas de Gmail. Reintenta la lectura.";

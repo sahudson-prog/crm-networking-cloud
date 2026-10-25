@@ -80,6 +80,8 @@ La regla efectiva observada es:
 - un rol activo puede concederla;
 - un plan activo puede concederla si la cuenta está `active` y la beta `approved`.
 
+La elegibilidad de rollout de un proveedor es una excepción deliberadamente más estrecha. Para Google, `connectors.google.use` solo puede provenir de un grant vigente de rol o plan; un override positivo no habilita el rollout y un override `deny` activo sí lo bloquea. Esta regla permite ampliar el rollout mediante catálogos sin reescribir los guards del conector.
+
 La RPC mínima `current_user_app_access_status()` devuelve solo `allowed` y `reason` para el usuario actual. `AuthGate` usa esa decisión efectiva sin consultar manualmente allowlist, profiles, roles, planes o capabilities. La razón puede servir para diagnóstico interno, pero no se expone como detalle técnico al usuario final.
 
 En el frontend, `checkCurrentUserCapability` llama a `current_user_has_capability` y `requireCurrentUserCapability` detiene operaciones cuando la capacidad falta. Las capacidades tipadas en código incluyen administración, importación Google, gestión de contactos, uso/automatización de Coach, exportación y borrado/reset de datos. La navegación y las rutas de Sistema resuelven las capacidades administrativas efectivas, sin depender de nombres de roles: diagnóstico protege Guía y Logs, administración de acceso protege Mantención, administración de maestros protege HeadHunter y `admin.manage_contact_requests` protege la bandeja de solicitudes. Cuenta permanece disponible para todo usuario con acceso efectivo a la aplicación.
@@ -96,10 +98,15 @@ Cuando un usuario ya registrado quedó solamente en el estado inicial `beta_pend
 
 La autorización está distribuida.
 
+El contrato SEC-GOOGLE-01 se publica mediante un cutover `expand -> runtime -> contract`. Las reglas siguientes describen el estado objetivo versionado y no demuestran por sí solas que un ambiente haya completado las tres fases; ese estado debe verificarse durante cada release.
+
 Algunas operaciones hacen check explícito de capability antes de actuar:
 
-- importar o actualizar contactos Google: `contacts.import_google`;
-- importar o actualizar interacciones Google: `interactions.import_google`;
+- iniciar o finalizar autorización Google de datos: rollout `connectors.google.use` y la capability operativa de cada servicio solicitado, sin exigir todavía scopes de una cuenta conectada inexistente;
+- leer y persistir contactos de una cuenta conectada: `contacts.sync_external`;
+- leer y persistir Gmail de una cuenta conectada: `interactions.sync_email`;
+- leer y persistir Calendar de una cuenta conectada: `interactions.sync_calendar`;
+- `contacts.import_google` e `interactions.import_google` permanecen temporalmente en catálogo por compatibilidad, pero no son el enforcement operativo nuevo;
 - administrar accesos: `admin.manage_access`;
 - administrar maestro de empresas headhunter: `admin.manage_global_masters`;
 - reiniciar datos propios: `data.delete_account`.
@@ -130,7 +137,11 @@ Google login y Google Connected Account son intents distintos. El login autentic
 
 La integración Google para datos usa el `provider_token` de la sesión Supabase para llamar APIs de Google desde el runtime actual, pero solo si existe una cuenta conectada activa y el token actual fue aceptado por la finalización server-side de datos. Los scopes recordados en `sessionStorage` son solo intención temporal de OAuth; no se persisten como permisos concedidos.
 
+El inicio/finalización OAuth y el uso posterior de una cuenta ya conectada son decisiones separadas. La primera exige rollout Google y la capability operativa de cada servicio solicitado, pero no scopes persistidos antes de que exista la conexión. La segunda vuelve a exigir rollout, capability operativa del servicio, ownership de la cuenta, estado activo y capability derivada del scope verificado. Una conexión que pierde elegibilidad se conserva, pero queda inoperativa.
+
 `connected_accounts` mantiene SELECT para que el usuario vea su conexión, pero la escritura directa de INSERT/UPDATE/DELETE desde roles cliente queda cerrada. La creación o actualización de Google Connected Account ocurre mediante una RPC interna invocable solo por `service_role`; la desvinculación self-service ocurre mediante una RPC estrecha para usuarios autenticados.
+
+La persistencia de resultados Google se realiza por RPCs `SECURITY DEFINER` estrechas que derivan usuario desde `auth.uid()`, fijan `provider='google'`, verifican cuenta y operación en cada elemento y escriben la fuente externa de forma transaccional. La fase `contract` retira INSERT/UPDATE directo de roles cliente sobre `external_contact_ids`, `external_contact_snapshots` y `external_interaction_sources`; las operaciones manuales y las importaciones locales vCard/ICS no dependen de esas capabilities Google.
 
 La tabla tiene una columna `oauth_refresh_token_encrypted`, pero este flujo no escribe ni lee refresh tokens persistentes. En la práctica vigente, si no hay `provider_token` utilizable o si el token actual no corresponde a una autorización de datos verificada, la UI pide reconectar Google.
 
@@ -152,7 +163,7 @@ El modelo de roles, planes y capabilities existe, pero la app no aplica capabili
 
 La foundation de allowlist y el enforcement de acceso se preparan en dos pasos para evitar lockout: primero se instala la allowlist y el hook preparado; luego, tras autorizar al admin existente, se activa `current_user_has_app_access()`, capabilities fail-closed, trigger fail-closed y RLS reforzado.
 
-No hay backend privilegiado general para encapsular todas las operaciones sensibles. Las fronteras server-side privilegiadas implementadas son flujos estrechos: la finalización verificada de Google Connected Account y la recepción validada de solicitudes públicas de contacto.
+No hay backend privilegiado general para encapsular todas las operaciones sensibles. Las fronteras privilegiadas implementadas son flujos estrechos: finalización verificada de Google Connected Account, persistencia transaccional de resultados Google y recepción validada de solicitudes públicas de contacto.
 
 Las organizations y sponsorships existen en schema, pero no se observa que otorguen acceso automático a datos privados de otros usuarios.
 

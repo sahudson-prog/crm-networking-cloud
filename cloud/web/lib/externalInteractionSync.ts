@@ -49,6 +49,9 @@ export async function syncExternalInteraction(input: ExternalInteractionInput): 
   if (!supabase) throw new Error("Supabase no esta configurado.");
 
   const normalized = await normalizeExternalInteractionInput(input);
+  if (normalized.provider === "google") {
+    return syncGoogleInteraction(normalized);
+  }
   const userId = await currentUserId();
   const now = new Date().toISOString();
   const existingSource = await readExternalSource(userId, normalized);
@@ -81,6 +84,31 @@ export async function syncExternalInteraction(input: ExternalInteractionInput): 
     interactionId,
     externalSourceId,
     participantsInserted
+  };
+}
+
+async function syncGoogleInteraction(
+  input: Awaited<ReturnType<typeof normalizeExternalInteractionInput>>
+): Promise<ExternalInteractionSyncResult> {
+  if (!supabase) throw new Error("Supabase no esta configurado.");
+  if (!input.connectedAccountId) throw new Error("La sincronizacion Google requiere una cuenta conectada.");
+  const { data, error } = await supabase.rpc("apply_google_interaction_sync_v1", {
+    p_connected_account_id: input.connectedAccountId,
+    p_item: input
+  });
+  if (error) throw error;
+  const result = (data ?? {}) as Record<string, unknown>;
+  const status = result.status;
+  if (status !== "created" && status !== "updated" && status !== "skipped_prevent_reimport") {
+    throw new Error("La base no devolvio un resultado valido para la sincronizacion Google.");
+  }
+  return {
+    status,
+    interactionId: optionalString(result.interaction_id),
+    externalSourceId: optionalString(result.external_source_id),
+    participantsInserted: typeof result.participants_inserted === "number"
+      ? result.participants_inserted
+      : 0
   };
 }
 
@@ -365,6 +393,10 @@ function normalizeRequired(value: string | null | undefined, label: string) {
 
 function cleanOptional(value: string | null | undefined) {
   return value?.trim() || null;
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function normalizeDateTime(value: string | null | undefined) {
