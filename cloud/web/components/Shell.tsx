@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
 import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
+import { InvitationButton } from "./InvitationButton";
 import { canRenderSystemSurface } from "../lib/systemAccess";
 
 const ShellActionsContext = createContext<{ onSignOut?: () => void }>({});
@@ -32,6 +33,7 @@ export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?
 }
 
 function ShellContent({ children }: { children: ReactNode }) {
+  const utilities = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
   const onboarding = useOnboarding();
   const systemAccess = useSystemAccess();
@@ -44,6 +46,14 @@ function ShellContent({ children }: { children: ReactNode }) {
     || pathname === "/onboarding/contactos"
     || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
+  const headerReady = !onboarding.loading && onboarding.routeReady && !onboarding.loadFailed;
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 780px)");
+    const arrange = () => { if (utilities.current) utilities.current.open = !media.matches; };
+    arrange();
+    media.addEventListener("change", arrange);
+    return () => media.removeEventListener("change", arrange);
+  }, [headerReady]);
 
   if (onboarding.loadFailed) {
     return (
@@ -76,6 +86,15 @@ function ShellContent({ children }: { children: ReactNode }) {
           </Link>
         </nav>
         <div className="nav-utility">
+          {!isOnboarding ? <InvitationButton /> : null}
+          <details ref={utilities} className="shell-utility-overflow" onKeyDown={(event) => {
+            if (event.key === "Escape" && window.matchMedia("(max-width: 780px)").matches) {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}>
+            <summary className="nav-link nav-link-icon" aria-label="Más acciones" title="Más acciones"><Icon name="more" /></summary>
+            <div className="shell-utility-items">
           {!isOnboarding ? (
             <button aria-label="Ver tutorial" className="nav-tutorial-link" onClick={onboarding.replay} type="button">
               <span className="nav-tutorial-label-full">Ver tutorial</span>
@@ -94,6 +113,8 @@ function ShellContent({ children }: { children: ReactNode }) {
             </Link>
           ) : null}
           <ActivitySyncButton variant="focus_incremental" square />
+            </div>
+          </details>
           <Link
             aria-label="Cuenta"
             className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}

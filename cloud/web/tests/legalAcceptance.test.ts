@@ -92,7 +92,7 @@ test("una aceptación vigente omite el gate y limpia intención residual", async
 
 test("AuthGate exige checkbox antes de Google/email y aplica legal después del acceso beta", () => {
   const authGate = source("../components/AuthGate.tsx");
-  const accessCheck = authGate.indexOf("resolveAppAccessForSession(currentSession, supabase)");
+  const accessCheck = authGate.indexOf("resolveBootstrappedAppAccessForSession(currentSession, supabase)");
   const legalCheck = authGate.indexOf("resolveLegalAcceptanceForSession(supabase, window.sessionStorage)");
   const privateRender = authGate.lastIndexOf("cloneElement(children");
 

@@ -105,8 +105,12 @@ try {
   sql(readFileSync(join(sqlRoot, 'bootstrap/preflight_empty.sql'), 'utf8'));
   const invitationMigrationFile = '202610250001_invitation_access_v1.sql';
   const invitationMigration = readFileSync(join(sqlRoot, 'migrations', invitationMigrationFile), 'utf8');
+  const adminStateMigrationFile = '202610250002_invitation_admin_state_v1.sql';
+  const adminStateMigration = readFileSync(join(sqlRoot, 'migrations', adminStateMigrationFile), 'utf8');
   for (const file of readdirSync(join(sqlRoot, 'migrations')).filter((entry) => entry.endsWith('.sql')).sort()) {
-    if (file !== invitationMigrationFile) sql(readFileSync(join(sqlRoot, 'migrations', file), 'utf8'));
+    if (![invitationMigrationFile, adminStateMigrationFile].includes(file)) {
+      sql(readFileSync(join(sqlRoot, 'migrations', file), 'utf8'));
+    }
   }
   sql(readFileSync(join(sqlRoot, 'verifiers/202610210001_verify_access_expand_pre_contract.sql'), 'utf8'));
   console.log('Google expand without INV-01 composed objects: PASS');
@@ -125,6 +129,7 @@ try {
     where capability_code='invitations.authorize';`), '0');
   console.log('Migration transaction rollback and prior runtime preservation: PASS');
   sql(invitationMigration);
+  sql(adminStateMigration);
   for (const file of readdirSync(join(sqlRoot, 'seeds')).filter((entry) => entry.endsWith('.sql')).sort()) {
     sql(readFileSync(join(sqlRoot, 'seeds', file), 'utf8'));
   }
@@ -132,6 +137,8 @@ try {
   for (const file of [
     '202610250001_verify_invitation_access_v1.sql',
     '202610250001_verify_invitation_access_v1_behavior.sql',
+    '202610250002_verify_invitation_admin_state_v1.sql',
+    '202610250002_verify_invitation_admin_state_v1_behavior.sql',
     '202610250001_verify_access_invitation_composed.sql',
     '202609290002_verify_merge_reset_grants.sql',
   ]) {

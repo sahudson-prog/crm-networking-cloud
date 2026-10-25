@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.ts";
 
 export type CapabilityCode =
+  | "invitations.authorize"
   | "admin.manage_access"
   | "admin.manage_contact_requests"
   | "admin.view_diagnostics"
