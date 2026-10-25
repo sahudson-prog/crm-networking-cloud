@@ -266,6 +266,7 @@ El modelo de acceso existe como estructura persistente, pero su resolución deta
 Familias principales:
 
 - allowlist de beta cerrada: `app_access_allowlist`.
+- programa de invitaciones: `app_invitation_program_settings`, `app_invitations` y `app_invitation_events`.
 - catálogos globales de capacidades, roles y planes: `app_capabilities`, `app_roles`, `subscription_plans`.
 - relaciones globales entre roles, planes y capacidades: `app_role_capabilities`, `subscription_plan_capabilities`.
 - perfil de acceso por usuario: `user_access_profiles`.
@@ -288,6 +289,14 @@ La función SQL real para consultar capacidades es `current_user_has_capability(
 La administración operativa de la allowlist se expone mediante RPCs específicas: `admin_list_app_access_allowlist`, `admin_authorize_app_access_email`, `admin_revoke_app_access_email` y `admin_get_app_access_diagnostic`. Estas funciones no agregan una entidad nueva; son contrato administrativo sobre `app_access_allowlist`, `auth.users`, `user_access_profiles`, roles, capabilities y `audit_log`.
 
 Las mutaciones administrativas de allowlist registran auditoría en `audit_log` con actor `admin` y acciones como `app_access_authorize`, `app_access_reauthorize` y `app_access_revoke`.
+
+`app_invitation_program_settings` es un singleton con capacidad global y controles independientes para nuevas autorizaciones y nuevos registros. Ambos controles nacen en `false` y la capacidad inicial es 500.
+
+`app_invitations` conserva el lifecycle autoritativo `pending`, `registered`, `expired` o `cancelled`. Cada fila vincula al invitador, el email normalizado y su fingerprint, `authorized_at`, `expires_at`, conversión a usuario y evidencia de cancelación o bloqueo. La vigencia exacta se protege con `expires_at = authorized_at + interval '120 hours'`. Los índices parciales impiden más de una invitación activa por email y más de una conversión por usuario registrado.
+
+Los cupos no se guardan como contadores: se calculan desde invitaciones `pending` aún vigentes más invitaciones `registered`. El reset de datos propios no borra estas filas ni altera la capacidad. `app_invitation_events` registra transiciones sin guardar columnas de email; no reemplaza el resto de la auditoría administrativa.
+
+La expiración se materializa de forma idempotente al consultar o mutar el estado. Una RPC admin puede eliminar email y texto libre prescindible de invitaciones vencidas o canceladas después de 90 días; conserva el fingerprint solo mientras exista un bloqueo de reinvitación activo. No existe cron: ejecutar esa depuración dentro del plazo sigue siendo un gate operacional del rollout.
 
 ## Maestros globales
 

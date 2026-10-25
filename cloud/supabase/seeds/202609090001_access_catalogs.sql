@@ -19,7 +19,8 @@ values
   ('coach.use', 'Usar Coach', 'coach', 'Ver sugerencias y ejecutar acciones permitidas.'),
   ('coach.automate', 'Automatizar Coach', 'coach', 'Permitir que ciertas reglas ejecuten acciones sin confirmacion manual.'),
   ('data.export', 'Exportar datos', 'data', 'Generar respaldo o exportacion de datos propios segun plan.'),
-  ('data.delete_account', 'Eliminar cuenta', 'data', 'Solicitar cierre, borrado o anonimizado de cuenta segun politica vigente.')
+  ('data.delete_account', 'Eliminar cuenta', 'data', 'Solicitar cierre, borrado o anonimizado de cuenta segun politica vigente.'),
+  ('invitations.authorize', 'Autorizar invitaciones', 'invitations', 'Autorizar y consultar invitaciones propias cuando el programa esta habilitado.')
 on conflict (capability_code) do update
 set display_name = excluded.display_name,
     capability_area = excluded.capability_area,
@@ -53,6 +54,8 @@ values
   ('beta_tester', 'interactions.sync_email'),
   ('beta_tester', 'interactions.sync_calendar'),
   ('beta_tester', 'coach.use'),
+  ('beta_tester', 'invitations.authorize'),
+  ('user', 'invitations.authorize'),
   ('support_admin', 'admin.view_diagnostics'),
   ('system_admin', 'admin.manage_access'),
   ('system_admin', 'admin.manage_contact_requests'),
@@ -85,6 +88,7 @@ values
   ('beta_personal', 'data.delete_account', '{}'::jsonb),
   ('free', 'contacts.manage', '{"max_contacts": 200}'::jsonb),
   ('free', 'coach.use', '{"automation_allowed": false}'::jsonb),
+  ('free', 'data.delete_account', '{}'::jsonb),
   ('pro', 'contacts.manage', '{}'::jsonb),
   ('pro', 'contacts.import_google', '{}'::jsonb),
   ('pro', 'interactions.import_google', '{}'::jsonb),

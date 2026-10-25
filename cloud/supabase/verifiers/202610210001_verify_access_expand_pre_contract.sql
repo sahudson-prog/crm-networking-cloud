@@ -59,7 +59,8 @@ declare
     'contact_objective_assignments'
   ];
   no_authenticated_table_privileges text[] := array[
-    'app_access_allowlist', 'contact_requests', 'legal_acceptances'
+    'app_access_allowlist', 'contact_requests', 'legal_acceptances',
+    'app_invitation_program_settings', 'app_invitations', 'app_invitation_events'
   ];
   internal_functions regprocedure[] := array[
     'public.set_updated_at()'::regprocedure,
@@ -68,6 +69,10 @@ declare
     'public.app_access_status_for_user(uuid)'::regprocedure,
     'public.user_has_capability_for_user(uuid,text)'::regprocedure,
     'public.user_has_provider_rollout_for_user_v1(uuid,text)'::regprocedure,
+    'public.invitation_email_fingerprint_v1(text)'::regprocedure,
+    'public.materialize_expired_invitations_v1(timestamptz)'::regprocedure,
+    'public.invitation_program_state_for_user_v1(uuid,timestamptz)'::regprocedure,
+    'public.is_email_authorized_for_invitation_registration_v1(text)'::regprocedure,
     'public.handle_new_auth_user_profile()'::regprocedure,
     'public.validate_headhunter_company_master_v0_1()'::regprocedure
   ];
@@ -79,6 +84,13 @@ declare
     'public.current_user_can_sync_connected_account_v1(uuid,text)'::regprocedure,
     'public.apply_google_contact_sync_change_v1(uuid,jsonb)'::regprocedure,
     'public.apply_google_interaction_sync_v1(uuid,jsonb)'::regprocedure,
+    'public.current_user_invitation_state_v1()'::regprocedure,
+    'public.authorize_current_user_invitation_v1(text)'::regprocedure,
+    'public.bootstrap_current_user_invitation_v1()'::regprocedure,
+    'public.admin_update_invitation_program_v1(boolean,boolean,integer)'::regprocedure,
+    'public.admin_cancel_invitation_v1(uuid,text)'::regprocedure,
+    'public.admin_lift_invitation_email_block_v1(text,text)'::regprocedure,
+    'public.admin_purge_invitation_pii_v1()'::regprocedure,
     'public.admin_list_app_access_allowlist()'::regprocedure,
     'public.admin_authorize_app_access_email(text,text)'::regprocedure,
     'public.admin_revoke_app_access_email(text)'::regprocedure,
@@ -183,8 +195,11 @@ begin
   end loop;
 
   security_definer_functions := array_remove(
-    array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),
-    'public.normalize_app_access_email(text)'::regprocedure
+    array_remove(
+      array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),
+      'public.normalize_app_access_email(text)'::regprocedure
+    ),
+    'public.invitation_email_fingerprint_v1(text)'::regprocedure
   ) || authenticated_functions || service_role_functions || array[
     'public.hook_enforce_app_access_allowlist(jsonb)'::regprocedure
   ];

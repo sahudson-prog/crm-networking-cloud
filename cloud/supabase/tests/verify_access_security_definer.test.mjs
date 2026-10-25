@@ -6,12 +6,25 @@ import { test } from 'node:test';
 const readSql = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const verifier = readSql('../verifiers/202610210001_verify_access_expand_pre_contract.sql');
 const phaseFunctions = {
-  internal_functions: ['user_has_provider_rollout_for_user_v1(uuid,text)'],
+  internal_functions: [
+    'user_has_provider_rollout_for_user_v1(uuid,text)',
+    'invitation_email_fingerprint_v1(text)',
+    'materialize_expired_invitations_v1(timestamptz)',
+    'invitation_program_state_for_user_v1(uuid,timestamptz)',
+    'is_email_authorized_for_invitation_registration_v1(text)',
+  ],
   authenticated_functions: [
     'current_user_can_start_connected_oauth_v1(text)',
     'current_user_can_sync_connected_account_v1(uuid,text)',
     'apply_google_contact_sync_change_v1(uuid,jsonb)',
     'apply_google_interaction_sync_v1(uuid,jsonb)',
+    'current_user_invitation_state_v1()',
+    'authorize_current_user_invitation_v1(text)',
+    'bootstrap_current_user_invitation_v1()',
+    'admin_update_invitation_program_v1(boolean,boolean,integer)',
+    'admin_cancel_invitation_v1(uuid,text)',
+    'admin_lift_invitation_email_block_v1(text,text)',
+    'admin_purge_invitation_pii_v1()',
   ],
 };
 const migrations = [
@@ -23,6 +36,7 @@ const migrations = [
   readSql('../migrations/202610150002_legal_acceptance_v1.sql'),
   readSql('../migrations/202610150003_legal_acceptance_v1_1.sql'),
   readSql('../migrations/202610210001_google_sync_capability_enforcement_v1.sql'),
+  readSql('../migrations/202610250001_invitation_access_v1.sql'),
 ];
 
 function expectedNames(listName) {
@@ -53,6 +67,14 @@ test('expand verifier preserves every canonical check without reading reserved c
       canonical = canonical.replace(line, '');
     }
   }
+  canonical = canonical.replace(
+    ",\n    'app_invitation_program_settings', 'app_invitations', 'app_invitation_events'",
+    '',
+  );
+  canonical = canonical.replace(
+    /security_definer_functions := array_remove\(\n    array_remove\(\n      array_remove\(internal_functions, 'public\.set_updated_at\(\)'::regprocedure\),\n      'public\.normalize_app_access_email\(text\)'::regprocedure\n    \),\n    'public\.invitation_email_fingerprint_v1\(text\)'::regprocedure\n  \)/,
+    "security_definer_functions := array_remove(\n    array_remove(internal_functions, 'public.set_updated_at()'::regprocedure),\n    'public.normalize_app_access_email(text)'::regprocedure\n  )",
+  );
   // Canonical 202609090002 at 88b6ad3, LF-normalized and trimmed. A phase
   // change may add classifications, never silently remove canonical controls.
   assert.equal(createHash('sha256').update(canonical.trim()).digest('hex'),
@@ -76,7 +98,9 @@ test('expand classifies exact signatures and keeps internal helper inaccessible 
 
 test('every Coffeecito SECURITY DEFINER function is in the scoped verifier inventory', () => {
   const internal = expectedNames('internal_functions')
-    .filter((name) => !['set_updated_at', 'normalize_app_access_email'].includes(name));
+    .filter((name) => ![
+      'set_updated_at', 'normalize_app_access_email', 'invitation_email_fingerprint_v1',
+    ].includes(name));
   const authenticated = expectedNames('authenticated_functions');
   const scoped = [
     ...internal,
