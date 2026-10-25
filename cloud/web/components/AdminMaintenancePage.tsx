@@ -23,6 +23,7 @@ import {
 import { saveUserSetting } from "../lib/userSettingsActions";
 import { Button } from "./ui/Button";
 import { AccessAdminPanel } from "./AccessAdminPanel";
+import { InvitationAdminPanel } from "./InvitationAdminPanel";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { ProgressBar } from "./ui/ProgressBar";
 import { useSystemAccess } from "./SystemAccess";
@@ -179,6 +180,7 @@ export function AdminMaintenancePage() {
 
       <div className="maintenance-service-list">
         <AccessAdminPanel />
+        <InvitationAdminPanel />
         <DataDiagnosticsPanel />
 
         {groupedDefinitions.map((group) => (

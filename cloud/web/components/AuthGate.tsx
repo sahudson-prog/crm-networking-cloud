@@ -10,7 +10,7 @@ import { ProviderIcon } from "./ui/ProviderIcon";
 import {
   applyAccessRevalidationResult,
   resetAppAccessForLogout,
-  resolveAppAccessForSession,
+  resolveBootstrappedAppAccessForSession,
   shouldPreservePrivateUiDuringAccessRevalidation,
   type AppAccessGateState
 } from "../lib/appAccess";
@@ -104,7 +104,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
       if (!preservePrivateUi) commitAccess({ status: "checking" });
       try {
-        const resolution = await resolveAppAccessForSession(currentSession, supabase);
+        const resolution = await resolveBootstrappedAppAccessForSession(currentSession, supabase);
         if (!active || requestId !== accessRequestId.current) return;
         const nextAccess = applyAccessRevalidationResult(accessRef.current, resolution, preservePrivateUi);
         commitAccess(nextAccess);
@@ -290,7 +290,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     accessRequestId.current = requestId;
     commitAccess({ status: "checking" });
     try {
-      const resolution = await resolveAppAccessForSession(session, supabase);
+      const resolution = await resolveBootstrappedAppAccessForSession(session, supabase);
       if (requestId !== accessRequestId.current) return;
       commitAccess(resolution);
       if (resolution.status === "allowed") {
@@ -417,13 +417,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <main className="app-shell">
         <section className="panel" style={{ maxWidth: 520, margin: "64px auto" }}>
           <p className="panel-caption">Coffeecito</p>
-          <h1 className="brand-title">Coffeecito está disponible por invitación</h1>
+          <h1 className="brand-title">No pudimos confirmar tu acceso</h1>
           <p className="brand-subtitle" style={{ marginTop: 8 }}>
-            Esta cuenta todavía no tiene acceso a Coffeecito. Si crees que deberías tener acceso, contacta al
-            administrador.
+            Puedes volver a intentarlo.
           </p>
-          {session.user.email ? <p className="meta" style={{ marginTop: 14 }}>{session.user.email}</p> : null}
           <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+            <Button icon="sync" onClick={retryAccessCheck}>Reintentar</Button>
             <Button icon="close" onClick={signOut}>
               Cerrar sesión
             </Button>

@@ -24,6 +24,25 @@ export type AppAccessResolution =
 
 export type AppAccessGateState = AppAccessResolution | { status: "checking" };
 
+export async function resolveBootstrappedAppAccessForSession(
+  session: AppAccessSession,
+  client: { rpc: (name: "bootstrap_current_user_invitation_v1" | "current_user_app_access_status") => PromiseLike<{ data: unknown; error: unknown }> },
+  timeoutMs = DEFAULT_ACCESS_CHECK_TIMEOUT_MS
+): Promise<AppAccessResolution> {
+  if (!session) return { status: "unauthenticated" };
+  try {
+    const bootstrap = await withTimeout(client.rpc("bootstrap_current_user_invitation_v1"), timeoutMs);
+    if (bootstrap.error) return { status: "error", message: "No pudimos confirmar tu acceso. Intenta nuevamente." };
+    const result = parseAppAccessRpcResponse(bootstrap.data);
+    if (result.status !== "allowed") return result;
+    const access = await withTimeout(client.rpc("current_user_app_access_status"), timeoutMs);
+    if (access.error) return { status: "error", message: "No pudimos confirmar tu acceso. Intenta nuevamente." };
+    return parseAppAccessRpcResponse(access.data);
+  } catch {
+    return { status: "error", message: "No pudimos confirmar tu acceso. Intenta nuevamente." };
+  }
+}
+
 const DEFAULT_ACCESS_CHECK_TIMEOUT_MS = 10000;
 
 export function resetAppAccessForLogout(): AppAccessResolution {

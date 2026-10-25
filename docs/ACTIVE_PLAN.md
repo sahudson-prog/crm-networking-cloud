@@ -50,27 +50,26 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `INV-01 — PR 1 backend inerte y seguro`.
-- Status: `IN PROGRESS — implementación local y correcciones arquitectónicas preparadas; no publicadas ni desplegadas`.
-- Verified baseline: `95cf9fcdabfd09955683dd4c517c26dbc0088d55`.
-- Current branch/worktree: `codex/inv-01-backend-v1` en worktree aislado.
+- Current phase: `INV-01 — PR 2 interfaz e integración`.
+- Status: `IN PROGRESS — revisión local para publicación; sin despliegue ni activación de PR 2`.
+- Verified baseline: `27c60559a725ea3032032dba096c834bc4108215`.
+- Current branch/worktree: `codex/inv-01-interface-v1` en worktree aislado.
 - Completed:
-  - foundation persistente, lifecycle, configuración global cerrada, RLS y RPCs estrechas implementados localmente;
-  - Auth Hook compatible con allowlist e invitación, bootstrap autenticado/idempotente y resolver dual preparados sin activar invitaciones;
-  - plan `free`/rol `user` para nuevos registros y preservación de beta legacy; Google operativo continúa reservado a `beta_tester`;
-  - auditoría de `data.delete_account` completada y reset propio habilitado para `free` sin borrar autoridad de invitaciones;
-  - verifier estructural, verifier funcional, SECURITY DEFINER/Merge-Reset y carreras PostgreSQL 17 locales PASS.
-  - auditoría arquitectónica completada; bootstrap, instante de expiración, composición de verifiers, auditoría de desbloqueos y resolución de cupo corregidos localmente.
+  - PR 1 integrado en el baseline; migration `202610250001` aplicada solo en DEV, cuatro verificadores PASS y ambos controles cerrados, según confirmación del owner;
+  - interfaz aprobada, compartir y bootstrap previo al acceso privado implementados localmente; Google Login es el recorrido funcional V1, sin contratar Magic Link;
+  - lectura administrativa independiente de `invitations.authorize` mediante migration aditiva `202610250002`, preparada y certificada localmente, no aplicada en ningún ambiente;
+  - pruebas focales, PostgreSQL 17, typecheck/build y revisión Edge desktop/320px con datos sintéticos PASS; no equivalen a Auth real ni Web Share nativo;
+  - preservación de beta legacy, Google Sync restringido a `beta_tester` y reset propio sin alterar autoridad de invitaciones.
 - Pending:
-  - revisión/publicación de PR 1 tras el commit local autorizado;
-  - validación Auth real de Google login y magic link en DEV, sin simular `email_confirmed_at` como evidencia remota;
-  - preflight de beta legacy, backup, verificadores y rollout DEV/PROD en gates separados;
+  - publicación/revisión de PR 2 y aplicación autorizada de `202610250002` en DEV antes de su runtime;
+  - validación Auth real de Google Login, multiusuario y compartir nativo en DEV; las fixtures no acreditan esos recorridos;
+  - preflight de beta legacy, captura/recuperación, backup y promoción PROD separados: SQL `001` + `002` cuando falten, verificadores y solo después runtime PR 2;
   - autorizar una operación programada para la depuración de PII a 90 días o mantener el rollout cerrado;
-  - PR 2 de UX y cualquier activación de los dos controles globales.
-- Blockers: ninguno para revisión local; publicación y activación remota permanecen bloqueadas por sus autorizaciones y gates pendientes.
-- Manual/remote actions already executed: ninguna para INV-01.
-- Immediate next action: revisar el paquete corregido y decidir autorización de publicación de PR 1; no habilitar controles.
-- Stop boundary: sin SQL remoto, OAuth, activación, Google contract, Calendar, PR 2 ni rollout.
+  - aprobación separada de cualquier activación de los dos controles globales.
+- Blockers: runtime PR 2 no puede desplegarse antes de instalar y verificar ambas migrations en su ambiente; activación pendiente de gates Auth, retención y rollout.
+- Manual/remote actions already executed: PR 1 integrado y SQL `001` verificado en DEV según el owner; sin SQL INV-01 en PROD ni aplicación de SQL `002`.
+- Immediate next action: publicar el paquete revisado para revisión remota; no habilitar controles ni desplegar runtime antes de sus dependencias SQL.
+- Stop boundary: sin SQL remoto, OAuth, activación, Google contract, Calendar ni rollout durante la publicación.
 - Deuda UX de ONB-01 fuera de alcance: las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada.
 
 Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
@@ -126,7 +125,7 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 
 ## Iniciativa activa y candidatos futuros
 
-INV-01 tiene únicamente su PR 1 de backend contratado. Las demás iniciativas de esta sección permanecen `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlas solo porque aparecen aquí.
+INV-01 tiene PR 1 integrado y PR 2 de interfaz contratado. Las demás iniciativas de esta sección permanecen `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlas solo porque aparecen aquí.
 
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
@@ -195,12 +194,12 @@ INV-01 tiene únicamente su PR 1 de backend contratado. Las demás iniciativas d
 
 ### INV-01 - Invitar a alguien a Coffeecito
 
-- Status: `PR 1 BACKEND CONTRACTED / IN PROGRESS`; UX, activación y rollout permanecen `DECISION REQUIRED`.
+- Status: `PR 1 INTEGRADO / PR 2 IN PROGRESS`; activación y rollout permanecen `DECISION REQUIRED`.
 - Objetivo: permitir que usuarios elegibles, incluidos quienes se registraron mediante invitación, puedan invitar a otras personas a Coffeecito.
 - Especificación funcional durable: `docs/planning/INV-01.md`.
 - Decisiones cerradas: invitaciones en cadena para usuarios elegibles; autorización temporal por email alternativa a la allowlist legacy, sin Auth paralelo; bootstrap autenticado y transaccional antes de legal/onboarding; 5 cupos por usuario y capacidad global editable de 500 calculados desde pendientes vigentes más registros; expiración exacta a las 120 horas sin cron ni contadores; bloqueos administrativos prevalecen; cancelación de pendientes solo con `admin.manage_access`; controles separados para pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta legacy preserva `beta_tester`; Google import/sync solo para `beta_tester`; UX V1 acotada con cabecera, diálogo, lista simple y `mailto` sin afirmar envío.
 - Diseño técnico V1 contratado para PR 1: persistencia autoritativa de lifecycle y configuración global, RPCs estrechas, RLS sin DML cliente, Before User Created Hook compatible y bootstrap idempotente que deriva identidad desde Auth; controles globales cerrados por defecto.
-- Decisiones pendientes: UX/PR 2; ejecución operacional de la depuración de PII; validación Auth real en DEV; preflight de beta legacy; backup, promoción y activación por ambiente.
+- Decisiones pendientes: revisión/publicación de PR 2; ejecución operacional de la depuración de PII; validación Auth real en DEV; preflight de beta legacy; backup, promoción y activación por ambiente.
 - Criterios de aceptación de PR 1: backend inerte, compatibilidad legacy, controles cerrados, seguridad estructural y concurrencia PostgreSQL certificadas localmente; ningún despliegue queda autorizado por este estado.
 - Out of scope: dashboards, gestor avanzado, edición de invitaciones, correo gestionado, cron de expiración y contadores persistidos.
 - Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.

@@ -89,6 +89,7 @@ declare
     'public.current_user_invitation_state_v1()'::regprocedure,
     'public.authorize_current_user_invitation_v1(text)'::regprocedure,
     'public.bootstrap_current_user_invitation_v1()'::regprocedure,
+    'public.admin_invitation_program_state_v1()'::regprocedure,
     'public.admin_update_invitation_program_v1(boolean,boolean,integer)'::regprocedure,
     'public.admin_cancel_invitation_v1(uuid,text)'::regprocedure,
     'public.admin_lift_invitation_email_block_v1(text,text)'::regprocedure,

@@ -1,4 +1,7 @@
 type IconName =
+  | "coffee"
+  | "share"
+  | "more"
   | "arrowLeft"
   | "arrowRight"
   | "check"
@@ -34,6 +37,9 @@ type IconName =
   | "user";
 
 const paths: Record<IconName, string> = {
+  coffee: "M18 8h1a3 3 0 1 1 0 6h-1M3 8h15v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8ZM6 2v3m4-3v3m4-3v3",
+  share: "M12 16V3m-4 4 4-4 4 4M5 12v8h14v-8",
+  more: "M5 11v2m7-2v2m7-2v2",
   arrowLeft: "M19 12H5m0 0 6-6m-6 6 6 6",
   arrowRight: "M5 12h14m0 0-6-6m6 6-6 6",
   check: "m5 12 4 4L19 6",

@@ -24,6 +24,7 @@ const phaseFunctions = {
     'current_user_invitation_state_v1()',
     'authorize_current_user_invitation_v1(text)',
     'bootstrap_current_user_invitation_v1()',
+    'admin_invitation_program_state_v1()',
     'admin_update_invitation_program_v1(boolean,boolean,integer)',
     'admin_cancel_invitation_v1(uuid,text)',
     'admin_lift_invitation_email_block_v1(text,text)',
@@ -40,6 +41,7 @@ const migrations = [
   readSql('../migrations/202610150003_legal_acceptance_v1_1.sql'),
   readSql('../migrations/202610210001_google_sync_capability_enforcement_v1.sql'),
   readSql('../migrations/202610250001_invitation_access_v1.sql'),
+  readSql('../migrations/202610250002_invitation_admin_state_v1.sql'),
 ];
 
 function expectedNames(listName) {

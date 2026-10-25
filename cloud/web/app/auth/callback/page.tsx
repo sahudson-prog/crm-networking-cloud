@@ -76,11 +76,11 @@ export default function AuthCallbackPage() {
     void completionRef.current().then(({ completed, failureMessage: nextFailureMessage, returnTo }) => {
       if (!active) return;
       if (completed) router.replace(returnTo);
-      else setFailureMessage(nextFailureMessage || "El enlace de acceso no es válido o ya expiró. Vuelve a iniciar sesión.");
+      else setFailureMessage(nextFailureMessage || "No pudimos confirmar tu acceso. Puedes volver a intentarlo.");
     }).catch(() => {
       clearPendingGoogleDataConnection();
       clearAuthCallbackReturnTo();
-      if (active) setFailureMessage("El enlace de acceso no es válido o ya expiró. Vuelve a iniciar sesión.");
+      if (active) setFailureMessage("No pudimos confirmar tu acceso. Puedes volver a intentarlo.");
     });
 
     return () => {
