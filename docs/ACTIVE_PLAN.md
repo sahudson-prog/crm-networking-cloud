@@ -64,16 +64,17 @@ Prompt de recuperación copy/paste-safe:
   - auditoría focal de arquitectura, schema y UX de OBJ-02 completada;
   - contrato funcional, recomendaciones técnicas y releases incrementales consolidados en `docs/planning/OBJ-02.md`;
   - decisiones de campos, obligatoriedad y compatibilidad V1 de R1 aprobadas;
-  - candidato local de runtime, migration y verifiers de `Tu punto de partida` preparado.
+  - candidato local de runtime, migration y verifiers de `Tu punto de partida` preparado;
+  - hardening local de cutover preparado: preflight fail-closed, capture estructural read-only, migration protegida frente a contratos incompatibles y matriz PostgreSQL 17 desechable PASS.
 - Pending:
-  - completar certificación local, revisión UX y aprobación del candidato R1;
-  - preparar preflight, backup/recuperación y autorización separada antes de aplicar la migration en DEV;
+  - revisar y publicar el hardening del candidato R1;
+  - ejecutar manualmente en DEV preflight y capture, decidir si existe dato DEV irremplazable que justifique backup adicional y obtener autorización separada antes de aplicar la migration;
   - instalar y verificar el contrato persistente antes de desplegar el runtime en cada ambiente;
   - validar el recorrido autenticado en DEV y luego ejecutar gates PROD separados;
   - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
-- Blockers: la migration R1 es `PROD CONTRACT CHANGE` local y no puede aplicarse ni desplegarse sin preflight, backup/recuperación, verificación y autorización por ambiente.
+- Blockers: la migration R1 es `PROD CONTRACT CHANGE` local y no puede aplicarse ni desplegarse sin preflight, capture, verificación y autorización por ambiente. Un backup DEV adicional depende de confirmar si existen datos irremplazables; PROD conserva su gate independiente de backup recuperable.
 - Manual/remote actions already executed: INV-01 cerrado operacionalmente; no hay acción remota autorizada para OBJ-02.
-- Immediate next action: cerrar validaciones locales y revisar el candidato R1 antes de preparar su rollout DEV.
+- Immediate next action: revisar el hardening local y, tras publicación separada, autorizar el preflight/capture DEV antes de cualquier migration remota.
 - Stop boundary: no aplicar SQL remoto, desplegar R1 ni implementar releases posteriores sin autorización separada.
 ## Pipeline confirmado
 

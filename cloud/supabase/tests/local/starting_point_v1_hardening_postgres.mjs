@@ -15,6 +15,7 @@ const image = 'public.ecr.aws/supabase/postgres:17.11.0.004';
 const migrationFile = '202610260001_starting_point_v1.sql';
 const migration = readFileSync(join(sqlRoot, 'migrations', migrationFile), 'utf8');
 const preflight = readFileSync(join(sqlRoot, 'preflight/202610260001_preflight_starting_point_v1.sql'), 'utf8');
+const capture = readFileSync(join(sqlRoot, 'operations/dev/202610260001_capture_starting_point_v1.sql'), 'utf8');
 const verifier = readFileSync(join(sqlRoot, 'verifiers/202610260001_verify_starting_point_v1.sql'), 'utf8');
 const docker = (args, options = {}) => execFileSync('docker', args, {
   encoding: 'utf8', maxBuffer: 32e6, timeout: 120000,
@@ -80,10 +81,11 @@ async function waitForLock(appName) {
   throw new Error(`Pending RPC ${appName} never reached a database lock wait`);
 }
 
-function assertCleanPreflight(database = 'postgres') {
+function assertCleanPreflight(database = 'postgres', expectedState = undefined) {
   const result = JSON.parse(sql(preflight, database));
   assert.equal(result.incompatible_networking_start_rows, 0);
   assert.deepEqual(result.stop_reasons, {});
+  if (expectedState) assert.equal(result.installation_state, expectedState);
   return result;
 }
 
@@ -144,7 +146,7 @@ try {
       '{"provider":"google","providers":["google"]}','{"full_name":"Hardening fixture"}',clock_timestamp(),clock_timestamp()
     );`);
 
-  assertCleanPreflight();
+  assertCleanPreflight('postgres', 'clean_install');
   sql(`update public.user_settings set setting_value='not-a-date'
     where user_id='${userId}' and setting_key='Fecha_Inicio_Networking';`);
   const stoppedPreflight = JSON.parse(sql(preflight));
@@ -156,7 +158,7 @@ try {
   assert.equal(sql("select to_regprocedure('public.current_user_starting_point_v1()') is null;"), 't');
   sql(`update public.user_settings set setting_value='5/4/2021'
     where user_id='${userId}' and setting_key='Fecha_Inicio_Networking';`);
-  assertCleanPreflight();
+  assertCleanPreflight('postgres', 'clean_install');
   console.log('Legacy-date preflight and fail-closed migration: PASS');
 
   sql(`alter database postgres with allow_connections false;
@@ -164,9 +166,13 @@ try {
     where datname = 'postgres' and pid <> pg_backend_pid();`, 'template1', 'supabase_admin');
   sql(`create database obj02_r1_compatible template postgres;
     create database obj02_r1_incompatible template postgres;
+    create database obj02_r1_bad_column template postgres;
+    create database obj02_r1_bad_objects template postgres;
     alter database postgres with allow_connections true;`, 'template1', 'supabase_admin');
   sql('grant all on schema public to postgres;', 'obj02_r1_compatible', 'supabase_admin');
   sql('grant all on schema public to postgres;', 'obj02_r1_incompatible', 'supabase_admin');
+  sql('grant all on schema public to postgres;', 'obj02_r1_bad_column', 'supabase_admin');
+  sql('grant all on schema public to postgres;', 'obj02_r1_bad_objects', 'supabase_admin');
 
   sql(`alter table public.profiles add column professional_situation_code text;
     alter table public.profiles add constraint profiles_professional_situation_code_valid check (
@@ -174,9 +180,11 @@ try {
         'employed','unemployed','independent','studying','other','prefer_not_to_say'
       )
     );`, 'obj02_r1_compatible');
-  assertCleanPreflight('obj02_r1_compatible');
+  assertCleanPreflight('obj02_r1_compatible', 'compatible_partial');
   sql(migration, 'obj02_r1_compatible');
   sql(verifier, 'obj02_r1_compatible');
+  assertCleanPreflight('obj02_r1_compatible', 'compatible_contract');
+  sql(migration, 'obj02_r1_compatible');
   console.log('Pre-existing compatible professional-situation contract: PASS');
 
   sql(`alter table public.profiles add column professional_situation_code text;
@@ -186,7 +194,7 @@ try {
   const incompatibleDefinition = sql(`select pg_get_constraintdef(oid, true) from pg_constraint
     where conrelid='public.profiles'::regclass and conname='profiles_professional_situation_code_valid';`, 'obj02_r1_incompatible');
   const incompatiblePreflight = JSON.parse(sql(preflight, 'obj02_r1_incompatible'));
-  assert.equal(incompatiblePreflight.stop_reasons.incompatible_professional_situation_contract, true);
+  assert.equal(incompatiblePreflight.stop_reasons.incompatible_professional_situation_constraint, true);
   assert.throws(() => sql(migration, 'obj02_r1_incompatible'), /has an incompatible definition/);
   assert.equal(sql(`select pg_get_constraintdef(oid, true) from pg_constraint
     where conrelid='public.profiles'::regclass and conname='profiles_professional_situation_code_valid';`, 'obj02_r1_incompatible'), incompatibleDefinition);
@@ -194,6 +202,37 @@ try {
   assert.equal(sql(`select count(*) from pg_trigger where tgrelid='public.user_settings'::regclass
     and tgname='validate_networking_start_setting_v1';`, 'obj02_r1_incompatible'), '0');
   console.log('Incompatible homonymous constraint aborts before candidate DDL: PASS');
+
+  sql('alter table public.profiles add column professional_situation_code integer;', 'obj02_r1_bad_column');
+  const badColumnPreflight = JSON.parse(sql(preflight, 'obj02_r1_bad_column'));
+  assert.equal(badColumnPreflight.installation_state, 'incompatible');
+  assert.equal(badColumnPreflight.stop_reasons.incompatible_professional_situation_column, true);
+  assert.throws(() => sql(migration, 'obj02_r1_bad_column'), /professional_situation_code has an incompatible definition/);
+  assert.equal(sql(`select data_type from information_schema.columns where table_schema='public'
+    and table_name='profiles' and column_name='professional_situation_code';`, 'obj02_r1_bad_column'), 'integer');
+  assert.equal(sql("select to_regprocedure('public.current_user_starting_point_v1()') is null;", 'obj02_r1_bad_column'), 't');
+  console.log('Incompatible column without constraint aborts before candidate DDL: PASS');
+
+  sql(`create function public.validate_networking_start_setting_v1() returns trigger
+      language plpgsql as $$ begin return new; end $$;
+    create trigger validate_networking_start_setting_v1 after insert on public.user_settings
+      for each row execute function public.validate_networking_start_setting_v1();
+    create function public.current_user_starting_point_v1() returns jsonb
+      language sql as $$ select '{}'::jsonb $$;`, 'obj02_r1_bad_objects');
+  const badFunctionDefinition = sql(`select pg_get_functiondef('public.current_user_starting_point_v1()'::regprocedure);`, 'obj02_r1_bad_objects');
+  const badTriggerDefinition = sql(`select pg_get_triggerdef(oid, true) from pg_trigger
+    where tgrelid='public.user_settings'::regclass and tgname='validate_networking_start_setting_v1';`, 'obj02_r1_bad_objects');
+  const badObjectsPreflight = JSON.parse(sql(preflight, 'obj02_r1_bad_objects'));
+  assert.equal(badObjectsPreflight.installation_state, 'incompatible');
+  assert.ok(badObjectsPreflight.stop_reasons.incompatible_functions >= 1);
+  assert.equal(badObjectsPreflight.stop_reasons.incompatible_networking_start_trigger, true);
+  assert.throws(() => sql(migration, 'obj02_r1_bad_objects'), /incompatible definition or security configuration/);
+  assert.equal(sql(`select pg_get_functiondef('public.current_user_starting_point_v1()'::regprocedure);`, 'obj02_r1_bad_objects'), badFunctionDefinition);
+  assert.equal(sql(`select pg_get_triggerdef(oid, true) from pg_trigger
+    where tgrelid='public.user_settings'::regclass and tgname='validate_networking_start_setting_v1';`, 'obj02_r1_bad_objects'), badTriggerDefinition);
+  assert.equal(sql(`select count(*) from information_schema.columns where table_schema='public'
+    and table_name='profiles' and column_name='professional_situation_code';`, 'obj02_r1_bad_objects'), '0');
+  console.log('Incompatible pre-existing functions and trigger abort before candidate DDL: PASS');
 
   sql(migration);
   for (const verifierFile of [
@@ -205,7 +244,35 @@ try {
     sql(readFileSync(join(sqlRoot, 'verifiers', verifierFile), 'utf8'));
     console.log(`${verifierFile}: PASS`);
   }
-  assertCleanPreflight();
+  assertCleanPreflight('postgres', 'compatible_contract');
+  sql(migration);
+  const structuralCapture = JSON.parse(sql(capture));
+  assert.equal(structuralCapture.snapshot_version, 1);
+  assert.equal(structuralCapture.integrity_algorithm, 'md5-jsonb-text-v1');
+  assert.match(structuralCapture.payload_md5, /^[0-9a-f]{32}$/);
+  assert.equal(structuralCapture.payload.scope, 'OBJ-02-R1-starting-point-v1');
+  assert.equal(structuralCapture.payload.r1_functions.length, 3);
+  assert.equal(structuralCapture.payload.networking_start_trigger.exists, true);
+  assert.equal(structuralCapture.payload.profiles_professional_situation_column.exists, true);
+  console.log('Compatible full contract and structural capture: PASS');
+
+  sql('grant execute on function public.current_user_starting_point_v1() to anon;');
+  const aclDriftPreflight = JSON.parse(sql(preflight));
+  assert.ok(aclDriftPreflight.stop_reasons.incompatible_functions >= 1);
+  assert.throws(() => sql(migration), /incompatible EXECUTE privileges/);
+  assert.throws(() => sql(verifier), /incompatible EXECUTE privileges/);
+  sql('revoke execute on function public.current_user_starting_point_v1() from anon;');
+  assertCleanPreflight('postgres', 'compatible_contract');
+
+  sql(`create view public.obj02_r1_test_dependency as
+    select public.current_user_starting_point_v1() as starting_point;`);
+  const dependencyDriftPreflight = JSON.parse(sql(preflight));
+  assert.ok(dependencyDriftPreflight.stop_reasons.unexpected_function_dependencies >= 1);
+  assert.throws(() => sql(migration), /unexpected dependent objects/);
+  assert.throws(() => sql(verifier), /unexpected dependent objects/);
+  sql('drop view public.obj02_r1_test_dependency;');
+  assertCleanPreflight('postgres', 'compatible_contract');
+  console.log('Function ACL and dependency drift fail closed before candidate DDL: PASS');
 
   const beforeName = sql(`select full_name from public.profiles where id='${userId}';`);
   sql(`update public.user_access_profiles set account_status='paused' where user_id='${userId}';`);

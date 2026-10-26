@@ -7,6 +7,10 @@ do $preconditions$
 declare
   v_constraint record;
   v_expected_constraint text := 'check (professional_situation_code is null or (professional_situation_code = any (array[''employed''::text, ''unemployed''::text, ''independent''::text, ''studying''::text, ''other''::text, ''prefer_not_to_say''::text])))';
+  v_expected_function record;
+  v_function record;
+  v_trigger record;
+  v_trigger_columns text[];
   v_invalid_networking_dates bigint := 0;
   v_networking_date date;
   v_networking_value text;
@@ -24,7 +28,13 @@ begin
     where table_schema = 'public'
       and table_name = 'profiles'
       and column_name = 'professional_situation_code'
-      and (data_type <> 'text' or is_nullable <> 'YES')
+      and (
+        data_type <> 'text'
+        or is_nullable <> 'YES'
+        or column_default is not null
+        or is_generated <> 'NEVER'
+        or is_identity <> 'NO'
+      )
   ) then
     raise exception 'profiles.professional_situation_code has an incompatible definition';
   end if;
@@ -47,6 +57,172 @@ begin
     or v_constraint.normalized_definition <> v_expected_constraint
   ) then
     raise exception 'profiles_professional_situation_code_valid has an incompatible definition';
+  end if;
+
+  for v_expected_function in
+    select *
+    from (values
+      (
+        'validate_networking_start_setting_v1',
+        'public.validate_networking_start_setting_v1()',
+        'trigger', false, 'v', false,
+        'c9e2538021d503c7abf05907369a8b72'
+      ),
+      (
+        'current_user_starting_point_v1',
+        'public.current_user_starting_point_v1()',
+        'jsonb', true, 's', true,
+        '72323c779de84fd3616cfae8cefa32a4'
+      ),
+      (
+        'save_current_user_starting_point_v1',
+        'public.save_current_user_starting_point_v1(text,text,date)',
+        'jsonb', true, 'v', true,
+        '60068fb7758ba91461551807ae34a422'
+      )
+    ) as expected(
+      function_name, function_signature, return_type, security_definer,
+      volatility, authenticated_execute, normalized_body_md5
+    )
+  loop
+    if exists (
+      select 1
+      from pg_catalog.pg_proc procedure
+      join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
+      where namespace.nspname = 'public'
+        and procedure.proname = v_expected_function.function_name
+        and procedure.oid <> coalesce(
+          pg_catalog.to_regprocedure(v_expected_function.function_signature), 0::oid
+        )
+    ) then
+      raise exception 'Unexpected overload exists for %', v_expected_function.function_name;
+    end if;
+
+    select
+      procedure.oid,
+      procedure.proowner,
+      procedure.proacl,
+      procedure.prosecdef,
+      procedure.provolatile,
+      procedure.proconfig,
+      procedure.prorettype,
+      procedure.prolang,
+      procedure.prokind,
+      procedure.proisstrict,
+      procedure.proleakproof,
+      procedure.proparallel,
+      pg_catalog.md5(
+        pg_catalog.replace(
+          pg_catalog.replace(procedure.prosrc, pg_catalog.chr(13) || pg_catalog.chr(10), pg_catalog.chr(10)),
+          pg_catalog.chr(13), pg_catalog.chr(10)
+        )
+      ) as normalized_body_md5
+    into v_function
+    from pg_catalog.pg_proc procedure
+    where procedure.oid = pg_catalog.to_regprocedure(v_expected_function.function_signature);
+
+    if v_function.oid is null then
+      continue;
+    end if;
+
+    if pg_catalog.pg_get_userbyid(v_function.proowner) <> 'postgres'
+      or (select language.lanname from pg_catalog.pg_language language where language.oid = v_function.prolang) <> 'plpgsql'
+      or v_function.prorettype <> v_expected_function.return_type::pg_catalog.regtype
+      or v_function.prosecdef <> v_expected_function.security_definer
+      or v_function.provolatile <> v_expected_function.volatility
+      or v_function.prokind <> 'f'
+      or v_function.proisstrict
+      or v_function.proleakproof
+      or v_function.proparallel <> 'u'
+      or coalesce(pg_catalog.array_length(v_function.proconfig, 1), 0) <> 1
+      or v_function.proconfig[1] not in ('search_path=', 'search_path=""')
+      or v_function.normalized_body_md5 <> v_expected_function.normalized_body_md5 then
+      raise exception 'Function % has an incompatible definition or security configuration',
+        v_expected_function.function_signature;
+    end if;
+
+    if not pg_catalog.has_function_privilege('postgres', v_function.oid, 'EXECUTE WITH GRANT OPTION')
+      or pg_catalog.has_function_privilege('public', v_function.oid, 'EXECUTE')
+      or pg_catalog.has_function_privilege('anon', v_function.oid, 'EXECUTE')
+      or pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE')
+      or pg_catalog.has_function_privilege('supabase_auth_admin', v_function.oid, 'EXECUTE')
+      or pg_catalog.has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
+        <> v_expected_function.authenticated_execute
+      or exists (
+        select 1
+        from pg_catalog.aclexplode(
+          coalesce(v_function.proacl, pg_catalog.acldefault('f', v_function.proowner))
+        ) acl
+        left join pg_catalog.pg_roles grantee on grantee.oid = acl.grantee
+        where acl.privilege_type = 'EXECUTE'
+          and acl.grantee <> v_function.proowner
+          and not (
+            v_expected_function.authenticated_execute
+            and grantee.rolname = 'authenticated'
+            and not acl.is_grantable
+          )
+      ) then
+      raise exception 'Function % has incompatible EXECUTE privileges',
+        v_expected_function.function_signature;
+    end if;
+
+    if exists (
+      select 1
+      from pg_catalog.pg_depend dependency
+      where dependency.refclassid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+        and dependency.refobjid = v_function.oid
+        and not (
+          v_expected_function.function_name = 'validate_networking_start_setting_v1'
+          and dependency.classid = 'pg_catalog.pg_trigger'::pg_catalog.regclass
+          and exists (
+            select 1
+            from pg_catalog.pg_trigger trigger_row
+            where trigger_row.oid = dependency.objid
+              and trigger_row.tgrelid = 'public.user_settings'::pg_catalog.regclass
+              and trigger_row.tgname = 'validate_networking_start_setting_v1'
+          )
+        )
+    ) then
+      raise exception 'Function % has unexpected dependent objects',
+        v_expected_function.function_signature;
+    end if;
+  end loop;
+
+  select
+    trigger_row.oid,
+    trigger_row.tgfoid,
+    trigger_row.tgtype,
+    trigger_row.tgenabled,
+    trigger_row.tgisinternal,
+    trigger_row.tgqual,
+    trigger_row.tgnargs,
+    pg_catalog.pg_get_triggerdef(trigger_row.oid, true) as definition
+  into v_trigger
+  from pg_catalog.pg_trigger trigger_row
+  where trigger_row.tgrelid = 'public.user_settings'::pg_catalog.regclass
+    and trigger_row.tgname = 'validate_networking_start_setting_v1';
+
+  if v_trigger.oid is not null then
+    select pg_catalog.array_agg(attribute.attname::text order by attribute.attname)
+    into v_trigger_columns
+    from pg_catalog.pg_trigger trigger_row
+    cross join lateral pg_catalog.unnest(trigger_row.tgattr::smallint[]) attribute_number
+    join pg_catalog.pg_attribute attribute
+      on attribute.attrelid = trigger_row.tgrelid
+     and attribute.attnum = attribute_number
+    where trigger_row.oid = v_trigger.oid;
+
+    if v_trigger.tgfoid <> coalesce(
+        pg_catalog.to_regprocedure('public.validate_networking_start_setting_v1()'), 0::oid
+      )
+      or v_trigger.tgtype <> 23
+      or v_trigger.tgenabled <> 'O'
+      or v_trigger.tgisinternal
+      or v_trigger.tgqual is not null
+      or v_trigger.tgnargs <> 0
+      or v_trigger_columns is distinct from array['setting_key', 'setting_value']::text[] then
+      raise exception 'Trigger validate_networking_start_setting_v1 has an incompatible definition';
+    end if;
   end if;
 
   for v_networking_value in
@@ -153,10 +329,20 @@ alter function public.validate_networking_start_setting_v1() owner to postgres;
 revoke all on function public.validate_networking_start_setting_v1()
   from public, anon, authenticated, service_role, supabase_auth_admin;
 
-drop trigger if exists validate_networking_start_setting_v1 on public.user_settings;
-create trigger validate_networking_start_setting_v1
-before insert or update of setting_key, setting_value on public.user_settings
-for each row execute function public.validate_networking_start_setting_v1();
+do $trigger$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_trigger trigger_row
+    where trigger_row.tgrelid = 'public.user_settings'::pg_catalog.regclass
+      and trigger_row.tgname = 'validate_networking_start_setting_v1'
+  ) then
+    create trigger validate_networking_start_setting_v1
+    before insert or update of setting_key, setting_value on public.user_settings
+    for each row execute function public.validate_networking_start_setting_v1();
+  end if;
+end;
+$trigger$;
 
 create or replace function public.current_user_starting_point_v1()
 returns jsonb
