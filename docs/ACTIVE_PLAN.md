@@ -29,8 +29,9 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release integrada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
-- Last completed product release SHA: `bdf69151a0711cd638db6846c05e84f5a8c8e823`.
+- Última release integrada: PR #40, Invitaciones V1.
+- Last completed product release SHA: `b5f37cf78254de556bfe5f66d50c2fce5f515676`.
+- Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
 - Secuencia privada: auth -> beta/app access -> legal acceptance -> onboarding -> app.
@@ -41,6 +42,8 @@ Prompt de recuperación copy/paste-safe:
 - `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
 - `SEC-GOOGLE-01`: expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. Calendar PROD continúa con persistencia no declarada PASS y diagnóstico diferido. El contract permanece separado en `NO-GO`, sin autorización nueva en INV-01.
 
+- INV-01 cerrado: PR #39 y PR #40 integrados; release b5f37cf78254de556bfe5f66d50c2fce5f515676; SQL 202610250001 y 202610250002 aplicadas y verificadas en PROD; smoke real de invitación y registro PASS. El invitado queda free/user sin Google Sync. PROD conserva ambos controles en false y capacidad 10; DEV conserva ambos controles en false. La retención operacional de PII sigue pendiente.
+
 ## Deuda / pre-Early-Access gate
 
 - Pendiente una revisión explícita de seguridad de dependencias antes de abrir Early Access.
@@ -50,33 +53,25 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: `INV-01 — PR 2 interfaz e integración`.
-- Status: `IN PROGRESS — revisión local para publicación; sin despliegue ni activación de PR 2`.
-- Verified baseline: `27c60559a725ea3032032dba096c834bc4108215`.
-- Current branch/worktree: `codex/inv-01-interface-v1` en worktree aislado.
+- Current phase: OBJ-02 - Nuevos Objetivos.
+- Status: NEXT - AUDITORÍA FOCAL DE ARQUITECTURA Y SCHEMA; IMPLEMENTACIÓN NO CONTRATADA.
+- Verified baseline: b5f37cf78254de556bfe5f66d50c2fce5f515676.
+- Current branch/worktree: ninguno para implementación; la siguiente tarea es solo auditoría.
 - Completed:
-  - PR 1 integrado en el baseline; migration `202610250001` aplicada solo en DEV, cuatro verificadores PASS y ambos controles cerrados, según confirmación del owner;
-  - interfaz aprobada, compartir y bootstrap previo al acceso privado implementados localmente; Google Login es el recorrido funcional V1, sin contratar Magic Link;
-  - lectura administrativa independiente de `invitations.authorize` mediante migration aditiva `202610250002`, preparada y certificada localmente, no aplicada en ningún ambiente;
-  - pruebas focales, PostgreSQL 17, typecheck/build y revisión Edge desktop/320px con datos sintéticos PASS; no equivalen a Auth real ni Web Share nativo;
-  - preservación de beta legacy, Google Sync restringido a `beta_tester` y reset propio sin alterar autoridad de invitaciones.
+  - INV-01 integrado, desplegado y validado en PROD mediante PR #39 y PR #40;
+  - SQL 001 + 002 y verificadores PROD PASS;
+  - smoke real de invitación y registro PASS con controles cerrados.
 - Pending:
-  - publicación/revisión de PR 2 y aplicación autorizada de `202610250002` en DEV antes de su runtime;
-  - validación Auth real de Google Login, multiusuario y compartir nativo en DEV; las fixtures no acreditan esos recorridos;
-  - preflight de beta legacy, captura/recuperación, backup y promoción PROD separados: SQL `001` + `002` cuando falten, verificadores y solo después runtime PR 2;
-  - autorizar una operación programada para la depuración de PII a 90 días o mantener el rollout cerrado;
-  - aprobación separada de cualquier activación de los dos controles globales.
-- Blockers: runtime PR 2 no puede desplegarse antes de instalar y verificar ambas migrations en su ambiente; activación pendiente de gates Auth, retención y rollout.
-- Manual/remote actions already executed: PR 1 integrado y SQL `001` verificado en DEV según el owner; sin SQL INV-01 en PROD ni aplicación de SQL `002`.
-- Immediate next action: publicar el paquete revisado para revisión remota; no habilitar controles ni desplegar runtime antes de sus dependencias SQL.
-- Stop boundary: sin SQL remoto, OAuth, activación, Google contract, Calendar ni rollout durante la publicación.
-- Deuda UX de ONB-01 fuera de alcance: las transiciones entre rutas pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada.
-
-Actualizar este bloque durante una tarea en curso cuando cambie materialmente su checkpoint.
-
+  - auditar objectives, asignaciones, contactos, interacciones, referidos, onboarding, user settings, RLS y contratos de escritura contra OBJ-02;
+  - proponer un contrato mínimo compatible para ciclos, Prioridades, Oportunidades, relaciones e historial, sin implementar;
+  - resolver las decisiones abiertas de OBJ-02 antes de contratar releases de implementación.
+- Blockers: ninguno confirmado para la auditoría. Cualquier schema, migration, cambio de Auth o contrato persistente requiere una decisión separada.
+- Manual/remote actions already executed: INV-01 cerrado operacionalmente; no hay acción remota autorizada para OBJ-02.
+- Immediate next action: realizar la auditoría focal de arquitectura y schema descrita en docs/planning/OBJ-02.md.
+- Stop boundary: no implementar OBJ-02, no crear schema ni migrations, y no actualizar owner docs estables antes de aprobar el contrato de implementación.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01`
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (NEXT: auditoría focal)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -120,13 +115,12 @@ Actualizar este bloque durante una tarea en curso cuando cambie materialmente su
 
 **Relación con otras fases**
 
-- ONB-01 no activa una fase nueva al cerrarse. INV-01 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
+- ONB-01 no activa una fase de implementación nueva al cerrarse. INV-01 está cerrada; OBJ-02 es la siguiente auditoría focal y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Iniciativa activa y candidatos futuros
 
-INV-01 tiene PR 1 integrado y PR 2 de interfaz contratado. Las demás iniciativas de esta sección permanecen `NOT CONTRACTED / DECISION REQUIRED`; no iniciarlas solo porque aparecen aquí.
-
+OBJ-02 es la próxima iniciativa, limitada por ahora a auditoría focal. Las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -194,17 +188,15 @@ INV-01 tiene PR 1 integrado y PR 2 de interfaz contratado. Las demás iniciativa
 
 ### INV-01 - Invitar a alguien a Coffeecito
 
-- Status: `PR 1 INTEGRADO / PR 2 IN PROGRESS`; activación y rollout permanecen `DECISION REQUIRED`.
+- Status: COMPLETED.
 - Objetivo: permitir que usuarios elegibles, incluidos quienes se registraron mediante invitación, puedan invitar a otras personas a Coffeecito.
-- Especificación funcional durable: `docs/planning/INV-01.md`.
-- Decisiones cerradas: invitaciones en cadena para usuarios elegibles; autorización temporal por email alternativa a la allowlist legacy, sin Auth paralelo; bootstrap autenticado y transaccional antes de legal/onboarding; 5 cupos por usuario y capacidad global editable de 500 calculados desde pendientes vigentes más registros; expiración exacta a las 120 horas sin cron ni contadores; bloqueos administrativos prevalecen; cancelación de pendientes solo con `admin.manage_access`; controles separados para pausar invitaciones y suspender registros; nuevos invitados `free`/`user`, beta legacy preserva `beta_tester`; Google import/sync solo para `beta_tester`; UX V1 acotada con cabecera, diálogo, lista simple y `mailto` sin afirmar envío.
-- Diseño técnico V1 contratado para PR 1: persistencia autoritativa de lifecycle y configuración global, RPCs estrechas, RLS sin DML cliente, Before User Created Hook compatible y bootstrap idempotente que deriva identidad desde Auth; controles globales cerrados por defecto.
-- Decisiones pendientes: revisión/publicación de PR 2; ejecución operacional de la depuración de PII; validación Auth real en DEV; preflight de beta legacy; backup, promoción y activación por ambiente.
-- Criterios de aceptación de PR 1: backend inerte, compatibilidad legacy, controles cerrados, seguridad estructural y concurrencia PostgreSQL certificadas localmente; ningún despliegue queda autorizado por este estado.
+- Especificación funcional durable: docs/planning/INV-01.md.
+- Decisiones cerradas: invitaciones en cadena para usuarios elegibles; autorización temporal por email alternativa a la allowlist legacy, sin Auth paralelo; bootstrap autenticado y transaccional antes de legal/onboarding; 5 cupos por usuario y capacidad global editable de 500 calculados desde pendientes vigentes más registros; expiración exacta a las 120 horas sin cron ni contadores; bloqueos administrativos prevalecen; cancelación de pendientes solo con admin.manage_access; controles separados para pausar invitaciones y suspender registros; nuevos invitados free/user, beta legacy preserva beta_tester; Google import/sync solo para beta_tester; UX V1 acotada con cabecera, diálogo, lista simple y mailto sin afirmar envío.
+- Resultado estable: PR #39 y PR #40 integrados en b5f37cf78254de556bfe5f66d50c2fce5f515676; SQL 001 + 002 y verificadores PROD PASS; smoke real de invitación y registro PASS; invitado free/user sin Google Sync; PROD mantiene ambos controles en false y capacidad 10, y DEV ambos controles en false.
+- Pendiente operacional diferido: automatizar la retención de PII conforme a la política de 90 días. No reabre la implementación ni habilita controles.
 - Out of scope: dashboards, gestor avanzado, edición de invitaciones, correo gestionado, cron de expiración y contadores persistidos.
-- Owner docs: `docs/SECURITY_ACCESS.md`, `docs/DATA_MODEL.md`, `docs/PRODUCT.md`, `docs/PROD_CONTRACTS.md` si requiere schema o migration.
-- Relación: sin orden comprometido respecto de los candidatos existentes.
-
+- Owner docs: docs/SECURITY_ACCESS.md, docs/DATA_MODEL.md, docs/PRODUCT.md, docs/PROD_CONTRACTS.md si requiere schema o migration.
+- Relación: fase cerrada; los refinamientos posteriores requieren contratación explícita.
 ### OBS-BETA-01 - Monitoreo de beta
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -225,15 +217,14 @@ INV-01 tiene PR 1 integrado y PR 2 de interfaz contratado. Las demás iniciativa
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: `NOT CONTRACTED / DECISION REQUIRED`.
-- Objetivo: reservar explícitamente una evolución relevante del sistema de Objetivos.
-- Especificación funcional durable: `docs/planning/OBJ-02.md`.
-- Decisiones cerradas: es una iniciativa separada y potencialmente de alto impacto de producto.
-- Decisiones pendientes: todo el contrato funcional, UX, modelo de datos, métricas, comportamiento, compatibilidad y alcance técnico. El owner entregará posteriormente la explicación y detalle.
-- Criterios de aceptación: no contratados.
-- Out of scope: inferir, diseñar o completar requisitos faltantes; confundirlo con `PRODUCT-EVAL-01` o absorberlo en el item genérico de métricas por objetivo.
-- Relación: sin orden comprometido respecto de los candidatos existentes.
-
+- Status: NEXT - AUDITORÍA FOCAL AUTORIZADA; IMPLEMENTACIÓN NO CONTRATADA.
+- Objetivo: auditar arquitectura y schema reales antes de proponer el contrato de implementación de la evolución de Objetivos.
+- Especificación funcional durable: docs/planning/OBJ-02.md.
+- Decisiones cerradas: el diseño funcional durable ya distingue ciclos, Prioridades, Oportunidades, relaciones e historial; la primera versión habilita solo Búsqueda de nuevo trabajo.
+- Decisiones pendientes: contrato técnico compatible, estrategia de evolución de objectives, máquina de estados, relaciones y lifecycle detallado.
+- Criterio de aceptación de la siguiente tarea: auditoría sin implementación que compare el diseño con schema, runtime, RLS y contratos de escritura reales.
+- Out of scope: crear schema, migrations, runtime, UX o contratos persistentes; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.

@@ -2,18 +2,18 @@
 
 ## Estado y autoridad
 
-- Status: `PR 1 INTEGRADO; PR 2 INTERFAZ CONTRATADA PARA DESARROLLO LOCAL`. La activación y promoción requieren gates separados.
+- Status: COMPLETED. PR #39 y PR #40 están integrados en la release b5f37cf78254de556bfe5f66d50c2fce5f515676; la activación futura sigue requiriendo una decisión separada.
 - Este documento conserva el contrato funcional V1 aprobado y el diseño técnico mínimo recomendado para invitaciones.
-- PR 1 está integrado y aplicado en DEV según confirmación del owner, con cuatro verificadores PASS y ambos controles desactivados. PR 2 consume esas RPCs; este documento no autoriza configuración remota ni rollout.
-- Antes de implementar, cualquier cambio persistente o de acceso debe tratarse como `PROD CONTRACT CHANGE` según `docs/PROD_CONTRACTS.md`.
-
+- SQL 202610250001 y 202610250002 están aplicadas y verificadas en DEV y PROD. El smoke real de invitación y registro en PROD fue PASS. PROD mantiene ambos controles en false y capacidad 10; DEV mantiene ambos controles en false. Los invitados quedan free/user sin Google Sync.
+- El smoke real de Magic Link en PROD fue PASS como modalidad existente de acceso; no es un requisito de INV-01 V1. Google Login de un invitado y Web Share nativo no quedaron certificados por ese smoke.
+- Antes de implementar, cualquier cambio persistente o de acceso debe tratarse como PROD CONTRACT CHANGE según docs/PROD_CONTRACTS.md.
 ## Contrato funcional V1 aprobado
 
 ### Acceso e identidad
 
 - Una invitación es una autorización temporal por email alternativa a la allowlist administrativa existente.
 - No existe un rol temporal de invitado ni un sistema Auth paralelo.
-- La autenticación funcional de Invitaciones V1 utiliza Google Login existente. Magic Link no se implementa ni se exige para INV-01; la alternativa de email preexistente no se amplía en PR 2. Google Login no concede autorización para Google Sync.
+- La autenticación funcional de Invitaciones V1 utiliza Google Login existente. Magic Link no se implementa ni se exige para INV-01; la alternativa de email preexistente no se amplía por este contrato. Google Login no concede autorización para Google Sync.
 - La invitación solo se convierte de `pending` a `registered` después de una primera autenticación válida del email invitado y con email verificado.
 - La conversión ocurre mediante un bootstrap autenticado y transaccional, antes de los gates de aceptación legal y onboarding.
 - Una identidad Auth creada pero nunca autenticada y verificada no consume definitivamente un cupo ni convierte la invitación en registro.
@@ -89,7 +89,7 @@
 
 ## Diseño técnico mínimo recomendado
 
-Este diseño cierra la dirección técnica V1, pero sus nombres finales y SQL deben validarse durante una tarea de implementación contratada.
+Este diseño documenta la dirección técnica V1 implementada. Cualquier cambio posterior de nombres, SQL o comportamiento requiere una tarea contratada y su gate de contrato persistente correspondiente.
 
 ### Persistencia autoritativa
 
@@ -136,7 +136,7 @@ Este diseño cierra la dirección técnica V1, pero sus nombres finales y SQL de
 
 ## Migrations y verifiers necesarios
 
-La foundation siguiente fue consolidada en `202610250001_invitation_access_v1.sql` por PR 1. Está aplicada en DEV según confirmación del owner; no se reescribe en PR 2. Su promoción a PROD exige autorización separada.
+La foundation siguiente fue consolidada en 202610250001_invitation_access_v1.sql por PR #39 y complementada por 202610250002_invitation_admin_state_v1.sql en PR #40. Ambas están aplicadas y verificadas en DEV y PROD; no se reescriben.
 
 1. **Fundación de invitaciones, inicialmente inerte**
    - tablas, constraints, índices, configuración global y capability;
@@ -171,46 +171,32 @@ Cada migration requiere verifier estructural para existencia, constraints, owner
 
 La prueba de concurrencia debe usar sesiones PostgreSQL reales; una secuencia de llamadas no certifica carreras.
 
-## Secuencia de implementación por PR
+## Secuencia de implementación completada
 
-1. **PR 1 integrado: backend inerte**: schema, configuración cerrada, RLS, RPCs, Hook, bootstrap y resolver compatibles. Verificadores DEV PASS reportados; ninguna activación.
-2. **PR 2: interfaz e integración**: cabecera, diálogo aprobado, compartir, lista compacta, bootstrap previo al gate y Mantención, consumiendo RPCs existentes. Google Login como recorrido funcional V1; Google Sync mantiene su elegibilidad separada.
-3. **Rollout controlado**: smoke Auth/multiusuario DEV, retención operacional, preflight PROD, captura, backup y promoción autorizada; controles globales separados y cerrados hasta aprobación explícita. Los límites comerciales Free se resuelven en su gate independiente.
-
-Gates obligatorios:
-
-- aprobación explícita del cambio de contrato persistente;
-- PostgreSQL/Supabase local con verifiers y dos sesiones para concurrencia;
-- pruebas reales de Google Login en DEV sin identidades productivas; Magic Link no es gate de V1;
-- inventario y preservación de beta legacy;
-- enforcement Google exclusivo de `beta_tester` en grants, overrides y operaciones server-side, más auditoría separada de Free;
-- compatibilidad de la app anterior con cada migration;
-- rollback de aplicación y apagado inmediato mediante ambos controles;
-- smoke DEV y PROD de invitador, invitado, beta legacy, bloqueado y capacidad completa.
-
-## Riesgos y decisiones pendientes antes de implementar
+1. PR #39 integrado: backend inerte, schema, configuración cerrada, RLS, RPCs, Hook, bootstrap y resolver compatibles.
+2. PR #40 integrado: interfaz, compartir, lista compacta, bootstrap previo al gate y Mantención. Google Login es el recorrido funcional V1; Google Sync mantiene su elegibilidad separada.
+3. Promoción completada: SQL 001 + 002, verificadores y smoke real de invitación/registro PASS en PROD. Los controles globales permanecen cerrados; la capacidad PROD es 10.
+## Riesgos y decisiones operacionales pendientes
 
 - La capability `invitations.authorize` y su enforcement efectivo están implementados en PR 1; verificar asignaciones reales por ambiente antes de activar, sin inferirlas del seed.
 - Auditar y aprobar los límites efectivos de `free`; el catálogo actual no demuestra por sí solo enforcement completo del runtime ni permite asumir que `max_contacts = 200` esté aplicado.
-- Verificar el recorrido real de Google Login y `email_confirmed_at` en DEV; crear `auth.users` no basta como prueba de primera autenticación.
+- Google Login de un invitado y su `email_confirmed_at` no quedaron certificados por el smoke Magic Link; crear `auth.users` no basta como prueba de primera autenticación.
 - PR 1 implementa levantamiento explícito mediante `admin.manage_access`, actor, fecha y justificación; no autoriza una nueva invitación por sí mismo. Validar el recorrido administrativo DEV antes de activar.
-- PR 1 conserva lifecycle y eventos autoritativos fuera del reset y ofrece depuración de PII prescindible a 90 días. Falta autorizar y verificar su operación periódica; no se contrata eliminación de cuenta.
+- PR #39 conserva lifecycle y eventos autoritativos fuera del reset y ofrece depuración de PII prescindible a 90 días. La automatización operacional de retención sigue pendiente; no se contrata eliminación de cuenta.
 - La suspensión no renueva pendientes: pueden vencer mientras los registros están suspendidos. Mantener esa semántica en el smoke DEV.
 - Levantar un preflight de usuarios beta existentes, planes y roles antes de cualquier backfill para evitar degradaciones o reactivaciones.
 
-PR 2 no altera la migration aplicada ni activa los controles. La publicación y activación permanecen sujetas a revisión y autorización separadas.
+La interfaz integrada no activa los controles. Cualquier activación futura permanece sujeta a revisión y autorización separadas.
 
-### Integración de interfaz PR 2
+### Integración de interfaz entregada
 
-- El bootstrap autenticado debe resolver antes de consultar acceso central, aceptación legal y onboarding. Un fallo inicial mantiene el contenido privado desmontado y permite reintentar; los motivos internos no se exponen al invitado.
+- El bootstrap autenticado resuelve antes de consultar acceso central, aceptación legal y onboarding. Un fallo inicial mantiene el contenido privado desmontado y permite reintentar; los motivos internos no se exponen al invitado.
 - Cupos, capacidad, flags y vencimientos provienen de las RPCs. La interfaz no conserva contadores autoritativos ni infiere permisos a partir del rol.
-- Mantención consume `admin_invitation_program_state_v1`, `admin_update_invitation_program_v1`, `admin_cancel_invitation_v1` y `admin_lift_invitation_email_block_v1`, con confirmación explícita y justificación para cancelación/levantamiento. La lectura administrativa expone solo configuración y conteos agregados, depende exclusivamente de `admin.manage_access` y no activa nada al montar la pantalla.
-- La RPC de lectura administrativa se instala mediante la migration aditiva `202610250002_invitation_admin_state_v1.sql`. Debe aplicarse y verificarse en cada ambiente antes de desplegar el runtime PR 2; no reescribe `202610250001` ni modifica los controles cerrados.
-- Orden obligatorio: instalar SQL `202610250001` y `202610250002` cuando falten, ejecutar los verifiers focales y `202610250001_verify_access_invitation_composed.sql` (composición actual con ambas), y solo entonces desplegar PR 2. DEV tiene únicamente `001`; PROD no tiene estas migrations según el estado confirmado. Ningún merge autoriza saltar este gate.
-- `PROD CONTRACT CHANGE` aditivo: `002` agrega una RPC sin modificar datos, flags ni RPCs previas; el runtime anterior sigue compatible. Ante fallo de PR 2, volver al runtime anterior y conservar `001`/`002`; retirar SQL o recuperar datos requiere un procedimiento separado. Captura/backup recuperable y aprobación preceden la promoción de `001` en PROD; no se deduce que un rollback de software restaure la base.
-- La cancelación necesita el ID de pendiente provisto por el operador; no se construye un listado global, no se exponen emails ni invitaciones personales y no se concede SELECT a las tablas.
-- Quedan pendientes smoke Auth real DEV, operación multiusuario, compartir nativo en dispositivo y cualquier activación. Las pruebas sintéticas locales no acreditan esos recorridos remotos.
-
+- Mantención consume admin_invitation_program_state_v1, admin_update_invitation_program_v1, admin_cancel_invitation_v1 y admin_lift_invitation_email_block_v1. La lectura administrativa expone solo configuración y conteos agregados, depende exclusivamente de admin.manage_access y no activa nada al montar la pantalla.
+- La RPC de lectura administrativa se instaló mediante la migration aditiva 202610250002_invitation_admin_state_v1.sql, ya aplicada y verificada en ambos ambientes. No reescribe 202610250001 ni modifica los controles cerrados.
+- La promoción aplicó SQL 202610250001 y 202610250002, verificadores focales y 202610250001_verify_access_invitation_composed.sql antes del runtime PR #40. No se debe reordenar ni reescribir esa secuencia en ambientes futuros.
+- PROD CONTRACT CHANGE: 002 agregó una RPC sin modificar datos, flags ni RPCs previas. Captura, backup y aprobación precedieron la promoción. Un rollback de software no restaura la base; retirar SQL o recuperar datos sigue requiriendo un procedimiento separado.
+- Smoke real de invitación y registro PROD PASS; Magic Link también fue PASS como modalidad existente de acceso. Google Login de un invitado y Web Share nativo no quedaron certificados. La revisión de mensajes para modalidades de acceso queda como pendiente separado; cualquier activación futura requiere sus propios gates.
 ## Owner docs al contratar
 
 - `docs/SECURITY_ACCESS.md`

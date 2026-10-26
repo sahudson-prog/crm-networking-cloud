@@ -2,11 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: `NOT CONTRACTED / DECISION REQUIRED`.
-- Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02 hasta que la iniciativa sea promovida explícitamente al pipeline de ejecución.
+- Status: NEXT - AUDITORÍA FOCAL DE ARQUITECTURA Y SCHEMA; IMPLEMENTACIÓN NO CONTRATADA.
+- Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02. La siguiente fase autorizada es únicamente una auditoría contra el repositorio y schema reales.
 - No autoriza implementación, cambios de schema, migrations ni cambios remotos.
 - Los contratos estables de producto, dominio y datos se actualizarán en sus owner docs solo cuando OBJ-02 sea aprobado para implementación.
-
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -202,9 +201,9 @@ Antes de implementar deben resolverse explícitamente:
 - Monetización o planes, más allá de no impedir un gating futuro.
 - Migrations remotas o cambios PROD sin un gate separado.
 
-## Próximo paso antes de contratar implementación
+## Siguiente fase antes de contratar implementación
 
-Realizar una auditoría focal de arquitectura y schema que revise la implementación real de:
+OBJ-02 está priorizada para realizar una auditoría focal de arquitectura y schema que revise la implementación real de:
 
 - `objectives` y sus asignaciones;
 - contactos e interacciones;
