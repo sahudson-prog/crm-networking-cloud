@@ -8,6 +8,8 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 - Ejecutar beta cerrada por cohortes, incluyendo smoke multiusuario y captura de feedback sobre activación, comprensión, confianza y uso recurrente.
 - Mejorar landing pública, branding, logo, naming visible y primera impresión del producto.
 - Separar claramente importación inicial, actualización incremental global y actualización por contacto en UI y documentación operativa.
+- Confirmación verde: eliminar el mensaje transitorio al cerrar el popup de invitaciones.
+- Magic Link: revisar su funcionamiento y mensajes para todas las modalidades de acceso.
 
 ## Core producto y sincronización
 
@@ -23,6 +25,7 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 - Determinar el cumplimiento aplicable en Chile mediante revisión competente, sin declarar cumplimiento anticipadamente.
 - Preparar Privacy Policy y Terms & Conditions coherentes con el comportamiento efectivo del producto.
 - Planificar los gaps documentados de exportación, eliminación completa de cuenta, retención, consentimiento versionado y revocación real de permisos Google.
+- Retención: automatizar la limpieza de datos personales conforme a la política de 90 días.
 - Completar el smoke DEV de usuario base para `sync_run_logs` cuando se libere el rate limit temporal de Supabase Auth.
 - Promover el hardening de `sync_run_logs` a PROD en un release posterior, con migration y verifier, probablemente junto con onboarding.
 - Auditar por separado el drift preexistente de grants amplios en DEV y decidir su corrección como cambio de contrato; no forma parte del hardening de `sync_run_logs`.
