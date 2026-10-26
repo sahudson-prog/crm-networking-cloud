@@ -7337,6 +7337,63 @@ textarea::placeholder {
   gap: var(--crm-section-gap);
 }
 
+.starting-point-step,
+.starting-point-fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--crm-section-gap);
+}
+
+.starting-point-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.starting-point-field {
+  align-content: start;
+  min-width: 0;
+  border-top: 2px solid var(--brand-terracotta);
+  background: var(--crm-field-soft);
+  padding: 14px;
+}
+
+.starting-point-field input,
+.starting-point-field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.starting-point-help {
+  color: var(--crm-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.starting-point-feedback,
+.starting-point-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.starting-point-feedback {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.starting-point-feedback p {
+  margin: 0;
+}
+
+.starting-point-actions {
+  justify-content: flex-end;
+}
+
+.starting-point-fields.mode-account {
+  padding-top: 4px;
+}
+
 .objectives-onboarding-coach {
   min-width: 0;
 }
@@ -8670,6 +8727,10 @@ code {
 }
 
 @media (max-width: 780px) {
+  .starting-point-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .coach-module,
   .coach-module.bot-mini {
     grid-template-columns: 1fr;

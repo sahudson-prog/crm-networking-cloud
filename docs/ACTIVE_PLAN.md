@@ -54,24 +54,30 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: NEXT - AUDITORÍA FOCAL DE ARQUITECTURA Y SCHEMA; IMPLEMENTACIÓN NO CONTRATADA.
-- Verified baseline: b5f37cf78254de556bfe5f66d50c2fce5f515676.
-- Current branch/worktree: ninguno para implementación; la siguiente tarea es solo auditoría.
+- Status: R1 EN IMPLEMENTACIÓN Y VALIDACIÓN LOCAL; NO DESPLEGADO.
+- Verified local baseline: 661e65ed0005beecff11026e5c7499d373386217.
+- Current branch/worktree: `codex/obj-02-r1-starting-point` en worktree aislado.
 - Completed:
   - INV-01 integrado, desplegado y validado en PROD mediante PR #39 y PR #40;
   - SQL 001 + 002 y verificadores PROD PASS;
-  - smoke real de invitación y registro PASS con controles cerrados.
+  - smoke real de invitación y registro PASS con controles cerrados;
+  - auditoría focal de arquitectura, schema y UX de OBJ-02 completada;
+  - contrato funcional, recomendaciones técnicas y releases incrementales consolidados en `docs/planning/OBJ-02.md`;
+  - decisiones de campos, obligatoriedad y compatibilidad V1 de R1 aprobadas;
+  - candidato local de runtime, migration y verifiers de `Tu punto de partida` preparado.
 - Pending:
-  - auditar objectives, asignaciones, contactos, interacciones, referidos, onboarding, user settings, RLS y contratos de escritura contra OBJ-02;
-  - proponer un contrato mínimo compatible para ciclos, Prioridades, Oportunidades, relaciones e historial, sin implementar;
-  - resolver las decisiones abiertas de OBJ-02 antes de contratar releases de implementación.
-- Blockers: ninguno confirmado para la auditoría. Cualquier schema, migration, cambio de Auth o contrato persistente requiere una decisión separada.
+  - completar certificación local, revisión UX y aprobación del candidato R1;
+  - preparar preflight, backup/recuperación y autorización separada antes de aplicar la migration en DEV;
+  - instalar y verificar el contrato persistente antes de desplegar el runtime en cada ambiente;
+  - validar el recorrido autenticado en DEV y luego ejecutar gates PROD separados;
+  - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
+- Blockers: la migration R1 es `PROD CONTRACT CHANGE` local y no puede aplicarse ni desplegarse sin preflight, backup/recuperación, verificación y autorización por ambiente.
 - Manual/remote actions already executed: INV-01 cerrado operacionalmente; no hay acción remota autorizada para OBJ-02.
-- Immediate next action: realizar la auditoría focal de arquitectura y schema descrita en docs/planning/OBJ-02.md.
-- Stop boundary: no implementar OBJ-02, no crear schema ni migrations, y no actualizar owner docs estables antes de aprobar el contrato de implementación.
+- Immediate next action: cerrar validaciones locales y revisar el candidato R1 antes de preparar su rollout DEV.
+- Stop boundary: no aplicar SQL remoto, desplegar R1 ni implementar releases posteriores sin autorización separada.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (NEXT: auditoría focal)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (IMPLEMENTACIÓN LOCAL; NO DESPLEGADA)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -120,7 +126,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 es la próxima iniciativa, limitada por ahora a auditoría focal. Las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
+OBJ-02 es la iniciativa activa y únicamente R1 está contratada para implementación local. Las demás entregas de OBJ-02 y las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -217,13 +223,14 @@ OBJ-02 es la próxima iniciativa, limitada por ahora a auditoría focal. Las dem
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: NEXT - AUDITORÍA FOCAL AUTORIZADA; IMPLEMENTACIÓN NO CONTRATADA.
-- Objetivo: auditar arquitectura y schema reales antes de proponer el contrato de implementación de la evolución de Objetivos.
+- Status: R1 EN IMPLEMENTACIÓN Y VALIDACIÓN LOCAL; NO DESPLEGADO.
+- Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
-- Decisiones cerradas: el diseño funcional durable ya distingue ciclos, Prioridades, Oportunidades, relaciones e historial; la primera versión habilita solo Búsqueda de nuevo trabajo.
-- Decisiones pendientes: contrato técnico compatible, estrategia de evolución de objectives, máquina de estados, relaciones y lifecycle detallado.
-- Criterio de aceptación de la siguiente tarea: auditoría sin implementación que compare el diseño con schema, runtime, RLS y contratos de escritura reales.
-- Out of scope: crear schema, migrations, runtime, UX o contratos persistentes; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
+- R1 contratado: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
+- Decisiones posteriores: contrato persistente de ciclos/backfill, privacidad de `Avísame`, máquina de estados/resultados, relaciones, lifecycle y semántica temporal de Seguimiento.
+- Criterio de aceptación de R1 local: tests focales, comportamiento SQL real, typecheck, build y revisión responsive/accesible; migration y runtime permanecen sin despliegue hasta gates separados.
+- Out of scope actual: aplicar migrations o desplegar; implementar ciclos, Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 

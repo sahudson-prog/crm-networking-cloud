@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { readContactListRows, readContactProfile } from "../lib/cloudData";
 import {
   ONBOARDING_FLOW,
@@ -18,6 +18,7 @@ import { OnboardingIntroSlides } from "./OnboardingIntroSlides";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { ReadOnlyContacts } from "./ReadOnlyContacts";
 import { Shell } from "./Shell";
+import { StartingPointFields, type StartingPointFieldsHandle } from "./StartingPointFields";
 import { Button } from "./ui/Button";
 
 export function OnboardingRoutePage({ routeId }: { routeId: OnboardingRouteId }) {
@@ -53,11 +54,54 @@ function OnboardingRouteContent({ routeId }: { routeId: OnboardingRouteId }) {
   }
 
   if (routeId === "intro") return <OnboardingIntro />;
+  if (routeId === "starting_point") return <OnboardingStartingPointStep />;
   if (routeId === "objectives") return <OnboardingObjectivesStep />;
   if (routeId === "contacts") return <OnboardingContactsStep />;
   if (routeId === "contact") return <OnboardingContactStep />;
   if (routeId === "google") return <OnboardingGoogleStep />;
   return <OnboardingFinalStep />;
+}
+
+function OnboardingStartingPointStep() {
+  const onboarding = useOnboarding();
+  const fieldsRef = useRef<StartingPointFieldsHandle>(null);
+  const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function continueToObjectives() {
+    if (onboarding.replaying) {
+      await onboarding.moveTo("objectives");
+      return;
+    }
+    if (!(await fieldsRef.current?.save())) return;
+    await onboarding.moveTo("objectives");
+  }
+
+  return (
+    <section className="onboarding-route starting-point-step" aria-labelledby="starting-point-step-title">
+      <OnboardingCoach
+        nextDisabled={!ready || saving}
+        nextLabel={saving ? "Guardando..." : "Siguiente"}
+        onNext={() => void continueToObjectives()}
+        routeId="starting_point"
+        title="Tu punto de partida"
+      >
+        <p id="starting-point-step-title">
+          Antes de empezar, cuéntame un poco sobre ti. Así podré llamarte por tu nombre, adaptar tu experiencia y medir
+          tus avances desde la fecha que elijas. Esa fecha también servirá de referencia para recuperar las
+          interacciones históricas disponibles cuando importemos información.
+        </p>
+      </OnboardingCoach>
+      <StartingPointFields
+        mode="onboarding"
+        onReadyChange={setReady}
+        onSavingChange={setSaving}
+        ref={fieldsRef}
+        requireComplete={!onboarding.replaying}
+        showSaveAction={onboarding.replaying}
+      />
+    </section>
+  );
 }
 
 function OnboardingIntro() {
@@ -304,7 +348,7 @@ function OnboardingCoach({
       mode="onboarding"
       nextDisabled={nextDisabled || (routeId === "final" && onboarding.completing)}
       nextLabel={nextLabel ?? (navigation.next ? "Siguiente" : "Finalizar")}
-      onBack={routeId === "objectives" && !onboarding.replaying ? undefined : goBack}
+      onBack={routeId === "starting_point" && !onboarding.replaying ? undefined : goBack}
       onExit={onboarding.replaying ? () => void onboarding.exit(routeId) : undefined}
       onNext={goNext}
       progress={`Paso ${stepIndex} de ${ONBOARDING_FLOW.length - 1}`}

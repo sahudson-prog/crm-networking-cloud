@@ -34,6 +34,7 @@ Los nombres, tipos, nulabilidad, valores persistidos y unicidad usados por consu
 - `objectives` y `contact_objective_assignments`: preservar IDs, relaciones y unicidad contacto/objetivo.
 - `external_contact_ids`, `external_contact_snapshots`, `external_interaction_sources`, `sync_cursors` y `sync_change_suppressions`: sus claves y referencias sostienen deduplicación y continuidad de sincronización, no son datos descartables de despliegue.
 - `user_settings`, `todos`, `object_review_state` y `action_invocations`: claves y payloads persistidos consumidos por la app requieren compatibilidad de lectura, no solo existencia de tabla.
+- OBJ-02 R1 conserva `profiles.full_name` y `user_settings.Fecha_Inicio_Networking` como fuentes existentes, y expande `profiles` con una situación profesional nullable más RPCs estrechas. La columna, el constraint de catálogo exacto, el trigger estrecho de fecha, las ACL y la composición de verificadores son `PROD CONTRACT CHANGE`; el preflight debe detener el rollout ante fechas legacy incompatibles o un contrato homónimo distinto, y el runtime nuevo requiere instalar y verificar primero la migration del ambiente.
 - `headhunter_companies`/`headhunter_company_domains` y catálogos de acceso: IDs, códigos y relaciones globales deben sobrevivir actualizaciones de semillas.
 
 Esta lista identifica fronteras, no enumera todas las columnas. Para cada cambio, contrastar consultas afectadas con [SQL real](../cloud/supabase) y [modelo de datos](DATA_MODEL.md), incluidas FKs, cascadas y claves usadas por `onConflict`.

@@ -26,6 +26,11 @@ import {
   resolveStoredOnboardingState,
   serializeProductOnboardingState
 } from "../lib/onboarding.ts";
+import {
+  PROFESSIONAL_SITUATION_OPTIONS,
+  startingPointIsComplete,
+  validateStartingPoint
+} from "../lib/startingPoint.ts";
 
 test("parser conserva payloads v1 previos, acepta dismissed y rechaza payloads inválidos", () => {
   const previousState = {
@@ -88,15 +93,15 @@ test("solo completed admite producto y los estados incompletos tienen ruta oblig
   assert.equal(isOnboardingRouteAdmitted(completed, { active: false, replay: false }, "final"), false);
 });
 
-test("Empecemos inicia en objectives", () => {
+test("Empecemos inicia en Tu punto de partida sin cambiar la versión persistida", () => {
   const started = beginOnboarding(INITIAL_ONBOARDING_STATE);
   assert.deepEqual(started, {
     version: 1,
     status: "in_progress",
     introSeen: true,
-    lastStep: "objectives"
+    lastStep: "starting_point"
   });
-  assert.equal(onboardingRouteFor(started.lastStep), "/onboarding/objetivos");
+  assert.equal(onboardingRouteFor(started.lastStep), "/onboarding/punto-de-partida");
 });
 
 test("una ruta guiada solo se admite cuando coincide con lastStep", () => {
@@ -124,6 +129,9 @@ test("replay solo es válido para completed y no cambia su estado persistente", 
 });
 
 test("las transiciones legítimas no permiten adelantar el recorrido", () => {
+  assert.equal(canMoveOnboardingToStep("starting_point", "objectives"), true);
+  assert.equal(canMoveOnboardingToStep("starting_point", "google"), false);
+  assert.equal(canMoveOnboardingToStep("objectives", "starting_point"), true);
   assert.equal(canMoveOnboardingToStep("objectives", "google"), true);
   assert.equal(canMoveOnboardingToStep("objectives", "final"), false);
   assert.equal(canMoveOnboardingToStep("google", "contacts"), true);
@@ -133,16 +141,18 @@ test("las transiciones legítimas no permiten adelantar el recorrido", () => {
 });
 
 test("la secuencia y Atrás/Siguiente derivan de una sola fuente de verdad", () => {
-  assert.deepEqual(ONBOARDING_STEPS, ["objectives", "google", "contacts", "contact", "final"]);
+  assert.deepEqual(ONBOARDING_STEPS, ["starting_point", "objectives", "google", "contacts", "contact", "final"]);
   assert.deepEqual(ONBOARDING_FLOW, [
     { id: "intro", path: "/onboarding" },
+    { id: "starting_point", path: "/onboarding/punto-de-partida" },
     { id: "objectives", path: "/onboarding/objetivos" },
     { id: "google", path: "/onboarding/google" },
     { id: "contacts", path: "/onboarding/contactos" },
     { id: "contact", path: "/onboarding/contacto" },
     { id: "final", path: "/onboarding/final" }
   ]);
-  assert.deepEqual(onboardingRouteNavigation("objectives"), { back: "intro", next: "google" });
+  assert.deepEqual(onboardingRouteNavigation("starting_point"), { back: "intro", next: "objectives" });
+  assert.deepEqual(onboardingRouteNavigation("objectives"), { back: "starting_point", next: "google" });
   assert.deepEqual(onboardingRouteNavigation("google"), { back: "objectives", next: "contacts" });
   assert.deepEqual(onboardingRouteNavigation("contacts"), { back: "google", next: "contact" });
   assert.deepEqual(onboardingRouteNavigation("contact"), { back: "contacts", next: "final" });
@@ -245,6 +255,7 @@ test("los pasos guiados usan AuthGate y Shell antes del contenido real", () => {
   assert.match(routeComponent, /<AuthGate>[\s\S]*<Shell>[\s\S]*<OnboardingRouteContent/);
 
   const routes = [
+    ["../app/onboarding/punto-de-partida/page.tsx", "starting_point"],
     ["../app/onboarding/objetivos/page.tsx", "objectives"],
     ["../app/onboarding/contactos/page.tsx", "contacts"],
     ["../app/onboarding/contacto/page.tsx", "contact"],
@@ -320,6 +331,78 @@ test("Objetivos y Contactos reutilizan las vistas reales sin duplicar páginas",
   assert.match(routeSource, /<ReadOnlyContacts[\s\S]*beforeList=/);
   assert.match(objectivesSource, /onboardingCoach\?: ReactNode/);
   assert.match(contactsSource, /beforeList\?: ReactNode/);
+});
+
+test("Tu punto de partida precede y preserva la pantalla real de Objetivos", () => {
+  const routeSource = source("../components/OnboardingRoutePage.tsx");
+  const providerSource = source("../components/OnboardingProvider.tsx");
+
+  assert.match(routeSource, /routeId === "starting_point"[\s\S]*<OnboardingObjectivesStep/);
+  assert.match(routeSource, /title="Tu punto de partida"/);
+  assert.match(routeSource, /Antes de empezar, cuéntame un poco sobre ti\./);
+  assert.match(routeSource, /<StartingPointFields[\s\S]*mode="onboarding"/);
+  assert.match(routeSource, /fieldsRef\.current\?\.save\(\)[\s\S]*moveTo\("objectives"\)/);
+  assert.match(routeSource, /if \(onboarding\.replaying\)[\s\S]*moveTo\("objectives"\)[\s\S]*return/);
+  assert.match(providerSource, /router\.push\(onboardingRouteFor\("starting_point"\)\)/);
+  assert.match(routeSource, /<ObjectivesPage[\s\S]*onboardingCoach=/);
+});
+
+test("campos aprobados son compartidos con Cuenta y usan una escritura RPC estrecha", () => {
+  const fieldsSource = source("../components/StartingPointFields.tsx");
+  const actionsSource = source("../lib/startingPointActions.ts");
+  const accountSource = source("../components/AccountPage.tsx");
+
+  assert.match(fieldsSource, /¿Cómo te llamamos\?/);
+  assert.match(fieldsSource, /¿Cuál es tu situación profesional\?/);
+  assert.match(fieldsSource, /¿Desde cuándo haces networking\?/);
+  assert.match(fieldsSource, /No amplía las ventanas ni permisos de importación/);
+  for (const label of [
+    "Con empleo", "Sin empleo", "Independiente / emprendiendo", "Estudiando",
+    "Otra situación", "Prefiero no indicar"
+  ]) assert.equal(PROFESSIONAL_SITUATION_OPTIONS.some((option) => option.label === label), true);
+  assert.match(actionsSource, /rpc\("current_user_starting_point_v1"\)/);
+  assert.match(actionsSource, /rpc\("save_current_user_starting_point_v1"/);
+  assert.doesNotMatch(actionsSource, /\.from\("profiles"\)[\s\S]*\.(update|upsert)/);
+  assert.match(accountSource, /<StartingPointFields[\s\S]*mode="account"/);
+  assert.match(accountSource, /networkingStartReady: Boolean\(values\.networkingStartDate\)/);
+  assert.doesNotMatch(accountSource, /<NetworkingStartDateSetting/);
+});
+
+test("un fallo de escritura conserva el borrador y permite reintentar sin recargar", () => {
+  const fieldsSource = source("../components/StartingPointFields.tsx");
+
+  assert.match(fieldsSource, /const \[loadError, setLoadError\]/);
+  assert.match(fieldsSource, /const \[saveError, setSaveError\]/);
+  assert.match(fieldsSource, /catch \(error\)[\s\S]*setSaveError/);
+  assert.doesNotMatch(fieldsSource, /catch \(error\)[\s\S]{0,180}setLoadError/);
+  assert.match(fieldsSource, /if \(loading \|\| saving \|\| loadError\) return false/);
+  assert.doesNotMatch(fieldsSource, /if \(loading \|\| saving \|\| loadError \|\| saveError\)/);
+});
+
+test("Tu punto de partida conserva semántica accesible y una sola columna móvil", () => {
+  const fieldsSource = source("../components/StartingPointFields.tsx");
+  const styles = source("../styles/components.css");
+
+  assert.match(fieldsSource, /aria-busy=\{loading \|\| saving\}/);
+  assert.equal((fieldsSource.match(/aria-invalid=/g) ?? []).length, 3);
+  assert.match(fieldsSource, /role="alert"/);
+  assert.match(fieldsSource, /autoComplete="name"/);
+  assert.match(styles, /\.starting-point-field-grid\s*\{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 780px\)[\s\S]*\.starting-point-field-grid\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+});
+
+test("validación de Tu punto de partida exige campos nuevos sin limitar la fecha a doce meses", () => {
+  const valid = {
+    fullName: "Ada Lovelace",
+    professionalSituationCode: "employed" as const,
+    networkingStartDate: "2001-02-03"
+  };
+  assert.equal(startingPointIsComplete(valid, new Date("2026-10-26T12:00:00Z")), true);
+  assert.deepEqual(validateStartingPoint({ ...valid, fullName: "  " }), {
+    fullName: "Escribe el nombre que quieres que usemos."
+  });
+  assert.equal(Boolean(validateStartingPoint({ ...valid, professionalSituationCode: "" }).professionalSituationCode), true);
+  assert.equal(Boolean(validateStartingPoint({ ...valid, networkingStartDate: "2026-10-27" }, new Date("2026-10-26T12:00:00Z")).networkingStartDate), true);
 });
 
 test("Contactos reutiliza el editor real para crear contactos manualmente", () => {

@@ -7,7 +7,9 @@ import { parseDateSetting } from '../../web/lib/syncDate.ts';
 const readRepoFile = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const migration = readRepoFile('../migrations/202610130002_initialize_networking_start_v1.sql');
 const verifier = readRepoFile('../verifiers/202610130002_verify_networking_start_v1.sql');
-const settingComponent = readRepoFile('../../web/components/NetworkingStartDateSetting.tsx');
+const settingComponent = readRepoFile('../../web/components/StartingPointFields.tsx');
+const settingActions = readRepoFile('../../web/lib/startingPointActions.ts');
+const startingPointMigration = readRepoFile('../migrations/202610260001_starting_point_v1.sql');
 
 test('auth trigger persists the UTC registration date without changing access provisioning', () => {
   assert.match(migration, /create or replace function public\.handle_new_auth_user_profile\(\)[\s\S]*security definer[\s\S]*set search_path = ''/i);
@@ -42,7 +44,12 @@ test('verifier covers invariant, exact uniqueness, permissions and rolled-back t
 
 test('canonical date remains readable and editable through the existing UI', () => {
   assert.equal(parseDateSetting('2024-03-01')?.toISOString(), '2024-03-01T00:00:00.000Z');
+  assert.equal(parseDateSetting('1/3/2024')?.toISOString(), '2024-03-01T00:00:00.000Z');
   assert.match(settingComponent, /type="date"/);
-  assert.match(settingComponent, /saveUserSetting\(NETWORKING_START_SETTING, draftDate\)/);
-  assert.match(settingComponent, /const NETWORKING_START_SETTING = "Fecha_Inicio_Networking"/);
+  assert.match(settingActions, /current_user_starting_point_v1/);
+  assert.match(settingActions, /save_current_user_starting_point_v1/);
+  assert.match(settingActions, /parseDateSetting\(rawNetworkingDate\)/);
+  assert.match(settingActions, /toISOString\(\)\.slice\(0, 10\)/);
+  assert.match(startingPointMigration, /'Fecha_Inicio_Networking'/);
+  assert.match(startingPointMigration, /insert into public\.user_settings\(user_id, setting_key, setting_value\)/);
 });

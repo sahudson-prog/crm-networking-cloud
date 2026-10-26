@@ -163,7 +163,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   async function start() {
     if (isOnboardingReplayAllowed(state, session)) {
-      router.push(onboardingRouteFor("objectives"));
+      router.push(onboardingRouteFor("starting_point"));
       return;
     }
 
@@ -172,7 +172,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     const nextSession = { active: true, replay: false };
     writeOnboardingSession(nextSession);
     setSession(nextSession);
-    router.push(onboardingRouteFor(nextState.lastStep ?? "objectives"));
+    router.push(onboardingRouteFor(nextState.lastStep ?? "starting_point"));
   }
 
   async function exit(_step?: OnboardingStep) {

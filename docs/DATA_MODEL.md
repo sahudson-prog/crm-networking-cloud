@@ -36,9 +36,9 @@ Aceptaciones legales: `legal_acceptances` conserva historial por `user_id` de la
 
 ## Usuarios y configuración
 
-`profiles` representa el perfil interno asociado a un usuario de Supabase Auth. Su identidad principal es `id`, que referencia `auth.users(id)`. Conserva datos básicos como `email` y `full_name`.
+`profiles` representa el perfil interno asociado a un usuario de Supabase Auth. Su identidad principal es `id`, que referencia `auth.users(id)`. Conserva datos básicos como `email` y `full_name`. OBJ-02 R1 añade `professional_situation_code` nullable con catálogo cerrado; la nulabilidad preserva perfiles legacy y no funciona como default implícito.
 
-`user_settings` guarda preferencias por usuario. Usa `user_id`, `setting_key`, `setting_value` y `value_json`. El código actual observado usa `setting_value` para la lectura y escritura funcional; `value_json` permanece disponible en el schema. Existe unicidad por usuario y clave de configuración. Todo perfil debe tener `Fecha_Inicio_Networking`: nace con la fecha UTC de registro de Auth en formato `YYYY-MM-DD` y puede editarse posteriormente desde Cuenta.
+`user_settings` guarda preferencias por usuario. Usa `user_id`, `setting_key`, `setting_value` y `value_json`. El código actual observado usa `setting_value` para la lectura y escritura funcional; `value_json` permanece disponible en el schema. Existe unicidad por usuario y clave de configuración. Todo perfil debe tener `Fecha_Inicio_Networking`: nace con la fecha UTC de registro de Auth en formato `YYYY-MM-DD` y puede editarse posteriormente desde Cuenta o `Tu punto de partida`. R1 conserva esa clave como fuente de verdad y no crea otra fecha de networking. Su contrato DB acepta fechas civiles válidas ISO y valores legacy válidos `DD/MM/YYYY`, rechaza vacíos, formatos inválidos y fechas futuras tanto por RPC como por escritura directa, sin afectar otras claves.
 
 El perfil interno no reemplaza la autenticación. La autenticación vive en Supabase Auth; `profiles` y tablas relacionadas agregan datos propios de la aplicación.
 
