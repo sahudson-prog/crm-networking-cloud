@@ -29,9 +29,9 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Último PR integrado en `main`: PR #41, checkpoint documental de OBJ-02, SHA `661e65ed0005beecff11026e5c7499d373386217`.
-- Última release de producto completada: PR #40, Invitaciones V1.
-- Last completed product release SHA: `b5f37cf78254de556bfe5f66d50c2fce5f515676`.
+- Último PR integrado en `main`: PR #42, OBJ-02 R1 - Tu punto de partida, SHA `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
+- Última release de producto completada: OBJ-02 R1; Vercel PROD Ready / Current y smoke funcional PASS confirmados por el owner.
+- Last completed product release SHA: `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
@@ -55,32 +55,27 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
-- Verified local baseline: 661e65ed0005beecff11026e5c7499d373386217.
-- Current branch/worktree: `codex/obj-02-r1-starting-point` en worktree aislado.
+- Status: R1 COMPLETED; R2 Y RELEASES POSTERIORES PENDIENTES, SIN IMPLEMENTACIÓN AUTORIZADA.
+- Verified local baseline: 56a25e5d241799b2fd6129258b06f7d67d89cad6.
+- Current branch/worktree: `codex/obj-02-r1-closeout`, cierre documental aislado; ninguna implementación nueva en curso.
 - Completed:
-  - INV-01 integrado, desplegado y validado en PROD mediante PR #39 y PR #40;
-  - SQL 001 + 002 y verificadores PROD PASS;
-  - smoke real de invitación y registro PASS con controles cerrados;
-  - auditoría focal de arquitectura, schema y UX de OBJ-02 completada;
-  - contrato funcional, recomendaciones técnicas y releases incrementales consolidados en `docs/planning/OBJ-02.md`;
-  - decisiones de campos, obligatoriedad y compatibilidad V1 de R1 aprobadas;
-  - PR #42 publicado con runtime, migration y verifiers de `Tu punto de partida`;
+  - PR #42 integrado en el baseline indicado y canonical sincronizado por fast-forward, verificados localmente;
+  - R1 implementa `Tu punto de partida` entre introducción y Objetivos, compartido con Cuenta y compatible con onboarding V1;
   - según evidencia operacional confirmada por el owner, DEV: preflight/captura PASS, migration aplicada, tres verifiers PASS y smoke autenticado de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco PASS;
   - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
-  - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas.
+  - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas;
+  - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre.
 - Pending:
-  - revisión y autorización explícita de merge para PR #42;
-  - merge manual, verificación del SHA integrado y deployment efectivo de Vercel Production;
-  - smoke PROD autenticado del runtime R1; el first-run con usuario nuevo permanece diferido con cobertura automatizada;
+  - revisar y publicar por separado este cierre documental;
+  - first-run real con usuario nuevo diferido, con cobertura automatizada; no declarado smoke manual PASS;
   - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
-- Blockers: R1 sigue siendo `PROD CONTRACT CHANGE`; aunque los gates SQL fueron reportados PASS por el owner, no se autoriza merge ni runtime hasta verificar el SHA integrado, deployment Production y smoke PROD. La restauración local del backup no certifica ACL, roles ni configuración externa.
-- Manual/remote actions already executed: según confirmación del owner, gates SQL DEV/PROD de R1 completados; no hay merge, deployment ni smoke PROD de runtime R1.
-- Immediate next action: revisar PR #42 y obtener autorización separada para merge manual; no adelantar deployment ni smoke.
-- Stop boundary: no aplicar SQL remoto, desplegar R1 ni implementar releases posteriores sin autorización separada.
+- Blockers: ninguno para el cierre local de R1 con el first-run real diferido. La restauración local del backup no certifica ACL, roles ni configuración externa.
+- Manual/remote actions already executed: merge de PR #42 verificado en Git; SQL DEV/PROD, deployment y smoke confirmados por el owner.
+- Immediate next action: revisar el cierre documental; R2 requiere definición y autorización separadas antes de implementar.
+- Stop boundary: no commit/push de este cierre, SQL remoto, deployment ni implementación de releases posteriores sin autorización separada.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (SQL DEV/PROD VERIFICADO; RUNTIME NO DESPLEGADO)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2` (PENDIENTE; IMPLEMENTACIÓN NO CONTRATADA)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -124,12 +119,12 @@ Prompt de recuperación copy/paste-safe:
 
 **Relación con otras fases**
 
-- ONB-01 no activa una fase de implementación nueva al cerrarse. INV-01 está cerrada; OBJ-02 es la siguiente auditoría focal y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
+- ONB-01 no activa una fase de implementación nueva al cerrarse. INV-01 y OBJ-02 R1 están cerradas; R2 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 es la iniciativa activa y únicamente R1 está contratada hasta sus gates de runtime pendientes. Las demás entregas de OBJ-02 y las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
+OBJ-02 continúa con R1 completada. R2 y las demás entregas de OBJ-02 permanecen NOT CONTRACTED / DECISION REQUIRED, al igual que los demás candidatos; INV-01 está cerrada. No iniciar implementación solo porque una iniciativa aparece aquí.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -226,13 +221,13 @@ OBJ-02 es la iniciativa activa y únicamente R1 está contratada hasta sus gates
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
+- Status: R1 COMPLETED; R2 Y RELEASES POSTERIORES PENDIENTES.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
-- R1 contratado: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
+- Resultado R1: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
 - Decisiones posteriores: contrato persistente de ciclos/backfill, privacidad de `Avísame`, máquina de estados/resultados, relaciones, lifecycle y semántica temporal de Seguimiento.
-- Estado de R1: según evidencia confirmada por el owner, migration y tres verifiers ya PASS en DEV y PROD; el runtime permanece sin desplegar hasta merge autorizado, deployment verificado y smoke PROD.
+- Estado de R1: PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`; según evidencia confirmada por el owner, SQL y tres verifiers PASS en DEV/PROD, runtime PROD Ready / Current y smoke PASS. First-run real diferido con cobertura automatizada.
 - Out of scope actual: aplicar migrations o desplegar; implementar ciclos, Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
