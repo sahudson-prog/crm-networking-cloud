@@ -2,9 +2,9 @@
 
 ## Estado y autoridad
 
-- Status: R1 EN IMPLEMENTACIÓN LOCAL; MIGRATION Y RUNTIME NO DESPLEGADOS.
+- Status: R1 con SQL verificado en DEV y PROD; runtime no desplegado.
 - Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. La entrega activa se limita a `Tu punto de partida` y su edición compartida entre onboarding y Cuenta.
-- R1 autoriza implementación y validación locales. No autoriza aplicar migrations, desplegar, ni iniciar releases posteriores.
+- Según evidencia operacional confirmada por el owner, la migration y tres verifiers R1 ya PASS en DEV y PROD. PR #42 no autoriza merge, deployment ni releases posteriores.
 - Los contratos estables de producto, dominio y datos se actualizan junto con R1 sin presentar el candidato local como ya desplegado.
 ## Visión de producto
 

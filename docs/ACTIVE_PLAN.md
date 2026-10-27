@@ -29,7 +29,8 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release integrada: PR #40, Invitaciones V1.
+- Último PR integrado en `main`: PR #41, checkpoint documental de OBJ-02, SHA `661e65ed0005beecff11026e5c7499d373386217`.
+- Última release de producto completada: PR #40, Invitaciones V1.
 - Last completed product release SHA: `b5f37cf78254de556bfe5f66d50c2fce5f515676`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
@@ -231,7 +232,7 @@ OBJ-02 es la iniciativa activa y únicamente R1 está contratada hasta sus gates
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
 - R1 contratado: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
 - Decisiones posteriores: contrato persistente de ciclos/backfill, privacidad de `Avísame`, máquina de estados/resultados, relaciones, lifecycle y semántica temporal de Seguimiento.
-- Criterio de aceptación de R1 local: tests focales, comportamiento SQL real, typecheck, build y revisión responsive/accesible; migration y runtime permanecen sin despliegue hasta gates separados.
+- Estado de R1: según evidencia confirmada por el owner, migration y tres verifiers ya PASS en DEV y PROD; el runtime permanece sin desplegar hasta merge autorizado, deployment verificado y smoke PROD.
 - Out of scope actual: aplicar migrations o desplegar; implementar ciclos, Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
