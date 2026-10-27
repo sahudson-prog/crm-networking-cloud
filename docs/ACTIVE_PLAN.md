@@ -55,27 +55,28 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 COMPLETED; R2 Y RELEASES POSTERIORES PENDIENTES, SIN IMPLEMENTACIÓN AUTORIZADA.
-- Verified local baseline: 56a25e5d241799b2fd6129258b06f7d67d89cad6.
-- Current branch/worktree: `codex/obj-02-r1-closeout`, cierre documental aislado; ninguna implementación nueva en curso.
+- Status: R1 COMPLETED; R2-A IMPLEMENTADO, SQL DEV INSTALADO Y VERIFICADO; PROD PENDIENTE.
+- Verified local baseline: 660cca4317c3316bf2fb5030122c3cff24d9a9b0.
+- Current branch/worktree: `codex/obj-02-r2a-cycles-history`, incremento persistente aislado para ciclos e historial mínimo.
 - Completed:
   - PR #42 integrado en el baseline indicado y canonical sincronizado por fast-forward, verificados localmente;
   - R1 implementa `Tu punto de partida` entre introducción y Objetivos, compartido con Cuenta y compatible con onboarding V1;
   - según evidencia operacional confirmada por el owner, DEV: preflight/captura PASS, migration aplicada, tres verifiers PASS y smoke autenticado de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco PASS;
   - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
   - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas;
-  - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre.
+  - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre;
+  - R2-A implementado en el worktree de la branch indicada; según evidencia confirmada por el owner, preflight Supabase DEV `clean_install` PASS, migration R2-A aplicada con SUCCESS y nueve verificadores DEV PASS; no hubo SQL PROD ni deployment de runtime nuevo.
 - Pending:
-  - revisar y publicar por separado este cierre documental;
   - first-run real con usuario nuevo diferido, con cobertura automatizada; no declarado smoke manual PASS;
-  - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
-- Blockers: ninguno para el cierre local de R1 con el first-run real diferido. La restauración local del backup no certifica ACL, roles ni configuración externa.
-- Manual/remote actions already executed: merge de PR #42 verificado en Git; SQL DEV/PROD, deployment y smoke confirmados por el owner.
-- Immediate next action: revisar el cierre documental; R2 requiere definición y autorización separadas antes de implementar.
-- Stop boundary: no commit/push de este cierre, SQL remoto, deployment ni implementación de releases posteriores sin autorización separada.
+  - publicar la branch R2-A y preparar PR manual del owner; preflight, recuperación, migration, verifiers y smoke PROD conservan gate separado;
+  - resolver en R2-B la operación visible de cierre/reinicio configurable; `Avísame`, Oportunidades y Seguimiento permanecen en entregas separadas.
+- Blockers: ninguno para publicar la branch R2-A. SQL PROD y deployment de runtime requieren gates y autorización separados.
+- Manual/remote actions already executed: merge de PR #42 verificado en Git; SQL DEV/PROD, deployment y smoke de R1 confirmados por el owner; preflight, migration y nueve verificadores R2-A confirmados por el owner solo en DEV.
+- Immediate next action: publicar la branch R2-A y entregar SHA y evidencia para que el owner cree el PR manualmente; PROD permanece pendiente.
+- Stop boundary: no crear PR, merge, SQL remoto, deployment ni implementación de R2-B, Oportunidades, `Avísame` o Seguimiento en esta tarea.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2` (PENDIENTE; IMPLEMENTACIÓN NO CONTRATADA)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (SQL DEV VERIFICADO; PROD PENDIENTE)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -119,12 +120,12 @@ Prompt de recuperación copy/paste-safe:
 
 **Relación con otras fases**
 
-- ONB-01 no activa una fase de implementación nueva al cerrarse. INV-01 y OBJ-02 R1 están cerradas; R2 y los demás candidatos permanecen `NOT CONTRACTED / DECISION REQUIRED` hasta contratación explícita.
+- ONB-01 no activa una fase nueva al cerrarse. INV-01 y OBJ-02 R1 están cerradas; R2-A es la única entrega posterior contratada, con SQL DEV verificado y PROD pendiente. R2-B y los demás candidatos siguen `NOT CONTRACTED / DECISION REQUIRED`.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 continúa con R1 completada. R2 y las demás entregas de OBJ-02 permanecen NOT CONTRACTED / DECISION REQUIRED, al igual que los demás candidatos; INV-01 está cerrada. No iniciar implementación solo porque una iniciativa aparece aquí.
+OBJ-02 continúa con R1 completada y R2-A implementada, con SQL DEV verificado y PROD pendiente. R2-B y las demás entregas permanecen `NOT CONTRACTED / DECISION REQUIRED`, al igual que los demás candidatos; INV-01 está cerrada.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -221,14 +222,16 @@ OBJ-02 continúa con R1 completada. R2 y las demás entregas de OBJ-02 permanece
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 COMPLETED; R2 Y RELEASES POSTERIORES PENDIENTES.
+- Status: R1 COMPLETED; R2-A IMPLEMENTADO Y VERIFICADO EN DEV, PROD PENDIENTE; R2-B Y RELEASES POSTERIORES PENDIENTES.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
 - Resultado R1: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
-- Decisiones posteriores: contrato persistente de ciclos/backfill, privacidad de `Avísame`, máquina de estados/resultados, relaciones, lifecycle y semántica temporal de Seguimiento.
+- R2-A contratado: fundación expand-only de ciclos, pertenencia de Prioridades, snapshot/transiciones de situación profesional, ledger mínimo de estado/foco de contactos y atribución temporal interna de interacciones sin `cycle_id`.
+- Resultado R2-A: según el owner, preflight `clean_install`, migration y nueve verificadores PASS en DEV; sin SQL PROD ni deployment de runtime nuevo.
+- Decisiones posteriores: operación visible de cierre/reinicio configurable, privacidad de `Avísame`, máquina de estados/resultados, relaciones y semántica de Seguimiento.
 - Estado de R1: PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`; según evidencia confirmada por el owner, SQL y tres verifiers PASS en DEV/PROD, runtime PROD Ready / Current y smoke PASS. First-run real diferido con cobertura automatizada.
-- Out of scope actual: aplicar migrations o desplegar; implementar ciclos, Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Out of scope actual: aplicar SQL PROD o desplegar runtime; exponer cierre/reinicio; implementar Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 

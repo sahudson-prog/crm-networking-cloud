@@ -109,6 +109,12 @@ Existe unicidad activa por usuario, tipo y nombre normalizado.
 
 Un contacto puede estar asociado a muchos objetivos. Un objetivo puede estar asociado a muchos contactos. La relación es por ID, no por texto libre.
 
+El candidato OBJ-02 R2-A expande este contrato con `networking_cycles` y `objectives.cycle_id`. Cada ciclo pertenece a un usuario, conserva el tipo de plan de networking, estado, inicio opcional, cierre y snapshot de situación profesional. Un índice parcial impide más de un ciclo activo por usuario. El backfill asigna las Prioridades existentes a un ciclo `legacy` sin inventar fecha ni snapshot; un insert del runtime anterior crea ese mismo contexto conservador cuando aún no existe ciclo activo. Una vez asignada, la pertenencia de una Prioridad no se reasigna mediante el CRUD actual.
+
+`professional_situation_transitions` registra únicamente cambios reales posteriores a R2-A, con antes/después, instante DB, actor autenticado cuando existe y ciclo activo opcional. `contact_networking_transitions` registra inicialización y cambios reales de `networking_status` y `networking_focus`, sin duplicar nombre, email, empresa, teléfono ni notas. Ambos ledgers son de escritura interna por trigger y lectura del dueño con acceso efectivo.
+
+`interactions` no incorpora `cycle_id`. La atribución candidata usa `occurred_at` y límites conocidos de ciclos; eventos sin fecha o sin una única coincidencia no se atribuyen. El helper interno interpreta `started_on` al inicio del día UTC, coherente con la validación temporal R1, pero no tiene consumidor de UI; una zona distinta requiere decisión antes de exponer métricas. `created_at` de importación no sustituye la fecha de ocurrencia.
+
 ## Referidos
 
 `referrals` representa una persona recomendada por un contacto dentro del proceso de networking.
