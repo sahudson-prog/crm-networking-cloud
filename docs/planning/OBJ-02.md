@@ -194,7 +194,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 - `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. No existen ciclos ni Oportunidades persistidas.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
-- `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. R1 prepara localmente `profiles.professional_situation_code` nullable y RPCs propias estrechas; esa migration aún no está aplicada en ambientes remotos.
+- `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 continúa pendiente de merge, deployment y smoke PROD.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
 - Las interacciones son objetos globales del usuario con participantes y fuentes externas. Las Oportunidades deben vincularlas sin duplicarlas. Merge de contactos y reset usan perímetros nominales que deberán evolucionar en las entregas correspondientes.
 - `/dashboard` existe detrás de los gates privados, pero está oculto de la navegación, monta el Coach y calcula KPIs en cliente sobre lecturas con límites. Desocultarlo como Seguimiento requiere adaptar navegación, semántica y cobertura; no basta con reactivar código existente.
@@ -217,10 +217,11 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ### R1 - Tu punto de partida
 
-- ejecutar certificación local completa y revisión del candidato;
-- preparar preflight, backup/recuperación y gates DEV/PROD para la migration, mediante autorización separada;
-- validar el recorrido autenticado en DEV después de instalar el contrato persistente;
-- no activar ni desplegar R1 antes de completar esos gates.
+- el owner reportó PASS de preflight/captura, migration y tres verifiers en DEV y PROD; DEV también tiene smoke autenticado PASS de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco;
+- el backup lógico PROD fue restaurado localmente con PASS para schema/datos, sin certificar ACL, roles ni configuración externa;
+- first-run con usuario nuevo permanece diferido con cobertura automatizada;
+- PR #42 permanece abierto: falta revisión/autorización de merge, deployment efectivo de Vercel y smoke PROD del runtime R1;
+- no activar ni declarar R1 desplegado antes de completar esos gates.
 
 ### Planes, ciclos y Avísame
 
@@ -260,6 +261,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está implementándose y validándose localmente. La próxima fase, después de aprobar el candidato, es preparar y autorizar sus gates persistentes DEV; los releases posteriores continúan fuera de alcance.
+R1 tiene su contrato persistente verificado en DEV y PROD según evidencia confirmada por el owner. La próxima fase, si se autoriza, es el merge manual de PR #42, la comprobación del deployment efectivo y el smoke PROD del runtime. Los releases posteriores continúan fuera de alcance.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.

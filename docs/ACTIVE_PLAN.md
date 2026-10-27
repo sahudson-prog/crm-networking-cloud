@@ -54,7 +54,7 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 EN IMPLEMENTACIÓN Y VALIDACIÓN LOCAL; NO DESPLEGADO.
+- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
 - Verified local baseline: 661e65ed0005beecff11026e5c7499d373386217.
 - Current branch/worktree: `codex/obj-02-r1-starting-point` en worktree aislado.
 - Completed:
@@ -64,21 +64,22 @@ Prompt de recuperación copy/paste-safe:
   - auditoría focal de arquitectura, schema y UX de OBJ-02 completada;
   - contrato funcional, recomendaciones técnicas y releases incrementales consolidados en `docs/planning/OBJ-02.md`;
   - decisiones de campos, obligatoriedad y compatibilidad V1 de R1 aprobadas;
-  - candidato local de runtime, migration y verifiers de `Tu punto de partida` preparado;
-  - hardening local de cutover preparado: preflight fail-closed, capture estructural read-only, migration protegida frente a contratos incompatibles y matriz PostgreSQL 17 desechable PASS.
+  - PR #42 publicado con runtime, migration y verifiers de `Tu punto de partida`;
+  - según evidencia operacional confirmada por el owner, DEV: preflight/captura PASS, migration aplicada, tres verifiers PASS y smoke autenticado de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco PASS;
+  - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
+  - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas.
 - Pending:
-  - revisar y publicar el hardening del candidato R1;
-  - ejecutar manualmente en DEV preflight y capture, decidir si existe dato DEV irremplazable que justifique backup adicional y obtener autorización separada antes de aplicar la migration;
-  - instalar y verificar el contrato persistente antes de desplegar el runtime en cada ambiente;
-  - validar el recorrido autenticado en DEV y luego ejecutar gates PROD separados;
+  - revisión y autorización explícita de merge para PR #42;
+  - merge manual, verificación del SHA integrado y deployment efectivo de Vercel Production;
+  - smoke PROD autenticado del runtime R1; el first-run con usuario nuevo permanece diferido con cobertura automatizada;
   - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
-- Blockers: la migration R1 es `PROD CONTRACT CHANGE` local y no puede aplicarse ni desplegarse sin preflight, capture, verificación y autorización por ambiente. Un backup DEV adicional depende de confirmar si existen datos irremplazables; PROD conserva su gate independiente de backup recuperable.
-- Manual/remote actions already executed: INV-01 cerrado operacionalmente; no hay acción remota autorizada para OBJ-02.
-- Immediate next action: revisar el hardening local y, tras publicación separada, autorizar el preflight/capture DEV antes de cualquier migration remota.
+- Blockers: R1 sigue siendo `PROD CONTRACT CHANGE`; aunque los gates SQL fueron reportados PASS por el owner, no se autoriza merge ni runtime hasta verificar el SHA integrado, deployment Production y smoke PROD. La restauración local del backup no certifica ACL, roles ni configuración externa.
+- Manual/remote actions already executed: según confirmación del owner, gates SQL DEV/PROD de R1 completados; no hay merge, deployment ni smoke PROD de runtime R1.
+- Immediate next action: revisar PR #42 y obtener autorización separada para merge manual; no adelantar deployment ni smoke.
 - Stop boundary: no aplicar SQL remoto, desplegar R1 ni implementar releases posteriores sin autorización separada.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (IMPLEMENTACIÓN LOCAL; NO DESPLEGADA)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (SQL DEV/PROD VERIFICADO; RUNTIME NO DESPLEGADO)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -127,7 +128,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 es la iniciativa activa y únicamente R1 está contratada para implementación local. Las demás entregas de OBJ-02 y las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
+OBJ-02 es la iniciativa activa y únicamente R1 está contratada hasta sus gates de runtime pendientes. Las demás entregas de OBJ-02 y las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -224,7 +225,7 @@ OBJ-02 es la iniciativa activa y únicamente R1 está contratada para implementa
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 EN IMPLEMENTACIÓN Y VALIDACIÓN LOCAL; NO DESPLEGADO.
+- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
