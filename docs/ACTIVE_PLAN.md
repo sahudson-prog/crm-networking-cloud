@@ -57,7 +57,7 @@ Prompt de recuperación copy/paste-safe:
 - Current phase: OBJ-02 - Nuevos Objetivos.
 - Status: R1 COMPLETED; R2-A IMPLEMENTADO, SQL DEV INSTALADO Y VERIFICADO; PROD PENDIENTE.
 - Verified local baseline: 660cca4317c3316bf2fb5030122c3cff24d9a9b0.
-- Current branch/worktree: `codex/obj-02-r2a-cycles-history`, incremento persistente aislado para ciclos e historial mínimo.
+- Current branch/worktree: `codex/obj-02-r2a-cycles-history`, branch publicada para el incremento persistente aislado de ciclos e historial mínimo.
 - Completed:
   - PR #42 integrado en el baseline indicado y canonical sincronizado por fast-forward, verificados localmente;
   - R1 implementa `Tu punto de partida` entre introducción y Objetivos, compartido con Cuenta y compatible con onboarding V1;
@@ -65,14 +65,14 @@ Prompt de recuperación copy/paste-safe:
   - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
   - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas;
   - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre;
-  - R2-A implementado en el worktree de la branch indicada; según evidencia confirmada por el owner, preflight Supabase DEV `clean_install` PASS, migration R2-A aplicada con SUCCESS y nueve verificadores DEV PASS; no hubo SQL PROD ni deployment de runtime nuevo.
+  - R2-A implementado y branch publicada en `3681078597ecc6b205d92fc0c985ca94d6ed3f74`; según evidencia confirmada por el owner, preflight Supabase DEV `clean_install` PASS, migration R2-A aplicada con SUCCESS y nueve de nueve verificadores DEV PASS; no hubo SQL PROD ni deployment de runtime nuevo.
 - Pending:
   - first-run real con usuario nuevo diferido, con cobertura automatizada; no declarado smoke manual PASS;
-  - publicar la branch R2-A y preparar PR manual del owner; preflight, recuperación, migration, verifiers y smoke PROD conservan gate separado;
+  - preparar PR manual del owner para la branch R2-A publicada; preflight, recuperación, migration, verifiers y smoke PROD conservan gate separado;
   - resolver en R2-B la operación visible de cierre/reinicio configurable; `Avísame`, Oportunidades y Seguimiento permanecen en entregas separadas.
-- Blockers: ninguno para publicar la branch R2-A. SQL PROD y deployment de runtime requieren gates y autorización separados.
+- Blockers: ninguno para preparar el PR de R2-A. SQL PROD y deployment de runtime requieren gates y autorización separados.
 - Manual/remote actions already executed: merge de PR #42 verificado en Git; SQL DEV/PROD, deployment y smoke de R1 confirmados por el owner; preflight, migration y nueve verificadores R2-A confirmados por el owner solo en DEV.
-- Immediate next action: publicar la branch R2-A y entregar SHA y evidencia para que el owner cree el PR manualmente; PROD permanece pendiente.
+- Immediate next action: el owner crea el PR manualmente desde la branch R2-A publicada; PROD permanece pendiente.
 - Stop boundary: no crear PR, merge, SQL remoto, deployment ni implementación de R2-B, Oportunidades, `Avísame` o Seguimiento en esta tarea.
 ## Pipeline confirmado
 

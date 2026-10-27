@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2-A en implementación local; R2-B y releases posteriores pendientes.
-- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. R1 completó `Tu punto de partida`; R2-A prepara localmente ciclos e historial mínimo, mientras R2-B y las demás entregas siguen siendo futuras.
+- Status: R1 COMPLETED; R2-A implementado, branch publicada y SQL DEV verificado; PROD pendiente; R2-B y releases posteriores pendientes.
+- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. R1 completó `Tu punto de partida`; R2-A implementó ciclos e historial mínimo con SQL instalado solo en DEV, mientras R2-B y las demás entregas siguen siendo futuras.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
-- La autorización actual se limita a R2-A local y no habilita R2-B ni cambios remotos.
+- La branch R2-A está publicada y su SQL fue instalado y verificado solo en DEV; esto no habilita R2-B, SQL PROD ni deployment de runtime nuevo.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -16,7 +16,7 @@ Coffeecito puede servir a tres necesidades de networking:
 
 La experiencia debe evolucionar hacia el concepto superior de un **plan de networking**. Cada uno de los tres grandes objetivos corresponde a un plan distinto y solo puede existir un plan activo por usuario, sin simultaneidad. En la primera versión funcional solo estará disponible `Búsqueda de un nuevo trabajo`. `Generación de negocios` y `Posicionamiento o marca personal` se muestran como `Próximamente`, con la acción `Avísame`, sin selector ni activación.
 
-Los planes de networking son un concepto funcional distinto de los planes comerciales persistidos en `subscription_plans` y `plan_code`. R2-A adopta localmente esta frontera sin cambiar permisos ni capabilities; cualquier dependencia comercial futura sigue pendiente.
+Los planes de networking son un concepto funcional distinto de los planes comerciales persistidos en `subscription_plans` y `plan_code`. R2-A adopta esta frontera sin cambiar permisos ni capabilities; cualquier dependencia comercial futura sigue pendiente.
 
 La sección actual `Objetivos` se divide conceptualmente en dos niveles:
 
@@ -192,7 +192,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ## Realidad actual auditada
 
-- En el estado desplegado, `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. El candidato local R2-A añade ciclos e historial mínimo, pero no está aplicado remotamente. Oportunidades continúa ausente.
+- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A añade ciclos e historial mínimo: su SQL está instalado y verificado en DEV, pero sigue pendiente en PROD y no hay runtime nuevo desplegado. Oportunidades continúa ausente.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
 - `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
@@ -229,7 +229,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ### Planes, ciclos y Avísame
 
-- R2-A prepara localmente tipo de plan + ciclo, un único ciclo activo, backfill conservador y ledgers estrechos; no se ha aplicado en ningún ambiente;
+- R2-A implementó tipo de plan + ciclo, un único ciclo activo, backfill conservador y ledgers estrechos; preflight y nueve de nueve verificadores PASS tras instalar SQL en DEV, PROD pendiente;
 - R2-B debe cerrar la semántica exacta y la UX de cerrar, reiniciar o cambiar de plan, incluidos los campos globales opcionales;
 - antes de exponer métricas temporales, confirmar si el día de inicio usa UTC o una zona del usuario; el helper interno R2-A usa UTC de forma consistente con la validación R1 y no se consume todavía en UI;
 - falta identificar el campo real de calidad de foco/cercanía antes de ofrecer su reinicio;
@@ -258,7 +258,7 @@ Estas decisiones de Seguimiento no bloquean R1.
 ## Releases funcionales previstos
 
 1. **R1 - Tu punto de partida (COMPLETED):** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
-2. **R2-A - Fundación de ciclos e historial mínimo (LOCAL):** persistencia y backfill compatible, un único ciclo activo, pertenencia de Prioridades y ledgers estrechos; sin cierre/reinicio visible.
+2. **R2-A - Fundación de ciclos e historial mínimo (branch publicada; SQL DEV verificado; PROD pendiente):** persistencia y backfill compatible, un único ciclo activo, pertenencia de Prioridades y ledgers estrechos; sin cierre/reinicio visible.
 3. **R2-B - Cierre y reinicio configurable:** operación no destructiva, preview de impacto, opciones por campo y adaptación de consumidores. `Avísame` puede salir como subentrega independiente cuando estén aprobadas privacidad y retención.
 4. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
 5. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
@@ -267,6 +267,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está completada. R2-A está implementada solo como candidato local y requiere revisión y gates separados antes de cualquier ambiente. R2-B, `Avísame`, Oportunidades y Seguimiento conservan sus decisiones abiertas y no se han implementado.
+R1 está completada. La branch R2-A está publicada y su SQL está instalado y verificado en DEV; PROD conserva sus gates separados y no se ha desplegado runtime nuevo. R2-B, `Avísame`, Oportunidades y Seguimiento conservan sus decisiones abiertas y no se han implementado.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.
