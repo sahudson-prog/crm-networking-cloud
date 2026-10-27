@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 con SQL verificado en DEV y PROD; runtime no desplegado.
-- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. La entrega activa se limita a `Tu punto de partida` y su edición compartida entre onboarding y Cuenta.
-- Según evidencia operacional confirmada por el owner, la migration y tres verifiers R1 ya PASS en DEV y PROD. PR #42 no autoriza merge, deployment ni releases posteriores.
-- Los contratos estables de producto, dominio y datos se actualizan junto con R1 sin presentar el candidato local como ya desplegado.
+- Status: R1 COMPLETED; R2 y releases posteriores pendientes, sin implementar.
+- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. R1 completó `Tu punto de partida` y su edición compartida entre onboarding y Cuenta; el resto del diseño sigue siendo futuro.
+- PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
+- El cierre de R1 no autoriza implementación ni cambios persistentes de las entregas posteriores.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -194,7 +194,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 - `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. No existen ciclos ni Oportunidades persistidas.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
-- `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 continúa pendiente de merge, deployment y smoke PROD.
+- `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
 - Las interacciones son objetos globales del usuario con participantes y fuentes externas. Las Oportunidades deben vincularlas sin duplicarlas. Merge de contactos y reset usan perímetros nominales que deberán evolucionar en las entregas correspondientes.
 - `/dashboard` existe detrás de los gates privados, pero está oculto de la navegación, monta el Coach y calcula KPIs en cliente sobre lecturas con límites. Desocultarlo como Seguimiento requiere adaptar navegación, semántica y cobertura; no basta con reactivar código existente.
@@ -213,15 +213,15 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - Calcular Oportunidades abiertas distintas por relación explícita Prioridad/ciclo y no sumar filas como total global.
 - Modelar `Avísame` con unicidad usuario/modalidad, correo canónico server-side y acceso administrativo agregado, sin construir un sistema general de suscripciones.
 
-## Decisiones pendientes por entrega
+## Estado y pendientes por entrega
 
 ### R1 - Tu punto de partida
 
 - el owner reportó PASS de preflight/captura, migration y tres verifiers en DEV y PROD; DEV también tiene smoke autenticado PASS de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco;
 - el backup lógico PROD fue restaurado localmente con PASS para schema/datos, sin certificar ACL, roles ni configuración externa;
 - first-run con usuario nuevo permanece diferido con cobertura automatizada;
-- PR #42 permanece abierto: falta revisión/autorización de merge, deployment efectivo de Vercel y smoke PROD del runtime R1;
-- no activar ni declarar R1 desplegado antes de completar esos gates.
+- PR #42 integrado; deployment PROD Ready / Current y smoke funcional PASS confirmados por el owner, sin repetir esas comprobaciones remotas en este cierre;
+- R1 completada; first-run real diferido no equivale a validación manual de ese escenario.
 
 ### Planes, ciclos y Avísame
 
@@ -252,7 +252,7 @@ Estas decisiones de Seguimiento no bloquean R1.
 
 ## Releases funcionales previstos
 
-1. **R1 - Tu punto de partida:** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
+1. **R1 - Tu punto de partida (COMPLETED):** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
 2. **Planes, ciclos y Prioridades:** persistencia y backfill compatible, un único ciclo activo, archivo histórico y adaptación de consumidores. `Avísame` puede salir como subentrega independiente cuando estén aprobadas privacidad y retención.
 3. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
 4. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
@@ -261,6 +261,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 tiene su contrato persistente verificado en DEV y PROD según evidencia confirmada por el owner. La próxima fase, si se autoriza, es el merge manual de PR #42, la comprobación del deployment efectivo y el smoke PROD del runtime. Los releases posteriores continúan fuera de alcance.
+R1 está completada. R2 (Planes, ciclos y Prioridades) permanece pendiente de definición y autorización de implementación; `Avísame`, Oportunidades y Seguimiento conservan sus decisiones abiertas y no se han implementado. Este cierre no inicia ninguna de esas entregas.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.
