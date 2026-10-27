@@ -29,7 +29,8 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Última release integrada: PR #40, Invitaciones V1.
+- Último PR integrado en `main`: PR #41, checkpoint documental de OBJ-02, SHA `661e65ed0005beecff11026e5c7499d373386217`.
+- Última release de producto completada: PR #40, Invitaciones V1.
 - Last completed product release SHA: `b5f37cf78254de556bfe5f66d50c2fce5f515676`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
@@ -54,24 +55,32 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: NEXT - AUDITORÍA FOCAL DE ARQUITECTURA Y SCHEMA; IMPLEMENTACIÓN NO CONTRATADA.
-- Verified baseline: b5f37cf78254de556bfe5f66d50c2fce5f515676.
-- Current branch/worktree: ninguno para implementación; la siguiente tarea es solo auditoría.
+- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
+- Verified local baseline: 661e65ed0005beecff11026e5c7499d373386217.
+- Current branch/worktree: `codex/obj-02-r1-starting-point` en worktree aislado.
 - Completed:
   - INV-01 integrado, desplegado y validado en PROD mediante PR #39 y PR #40;
   - SQL 001 + 002 y verificadores PROD PASS;
-  - smoke real de invitación y registro PASS con controles cerrados.
+  - smoke real de invitación y registro PASS con controles cerrados;
+  - auditoría focal de arquitectura, schema y UX de OBJ-02 completada;
+  - contrato funcional, recomendaciones técnicas y releases incrementales consolidados en `docs/planning/OBJ-02.md`;
+  - decisiones de campos, obligatoriedad y compatibilidad V1 de R1 aprobadas;
+  - PR #42 publicado con runtime, migration y verifiers de `Tu punto de partida`;
+  - según evidencia operacional confirmada por el owner, DEV: preflight/captura PASS, migration aplicada, tres verifiers PASS y smoke autenticado de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco PASS;
+  - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
+  - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas.
 - Pending:
-  - auditar objectives, asignaciones, contactos, interacciones, referidos, onboarding, user settings, RLS y contratos de escritura contra OBJ-02;
-  - proponer un contrato mínimo compatible para ciclos, Prioridades, Oportunidades, relaciones e historial, sin implementar;
-  - resolver las decisiones abiertas de OBJ-02 antes de contratar releases de implementación.
-- Blockers: ninguno confirmado para la auditoría. Cualquier schema, migration, cambio de Auth o contrato persistente requiere una decisión separada.
-- Manual/remote actions already executed: INV-01 cerrado operacionalmente; no hay acción remota autorizada para OBJ-02.
-- Immediate next action: realizar la auditoría focal de arquitectura y schema descrita en docs/planning/OBJ-02.md.
-- Stop boundary: no implementar OBJ-02, no crear schema ni migrations, y no actualizar owner docs estables antes de aprobar el contrato de implementación.
+  - revisión y autorización explícita de merge para PR #42;
+  - merge manual, verificación del SHA integrado y deployment efectivo de Vercel Production;
+  - smoke PROD autenticado del runtime R1; el first-run con usuario nuevo permanece diferido con cobertura automatizada;
+  - resolver por separado las decisiones abiertas de ciclos, `Avísame`, Oportunidades y Seguimiento antes de sus respectivas releases.
+- Blockers: R1 sigue siendo `PROD CONTRACT CHANGE`; aunque los gates SQL fueron reportados PASS por el owner, no se autoriza merge ni runtime hasta verificar el SHA integrado, deployment Production y smoke PROD. La restauración local del backup no certifica ACL, roles ni configuración externa.
+- Manual/remote actions already executed: según confirmación del owner, gates SQL DEV/PROD de R1 completados; no hay merge, deployment ni smoke PROD de runtime R1.
+- Immediate next action: revisar PR #42 y obtener autorización separada para merge manual; no adelantar deployment ni smoke.
+- Stop boundary: no aplicar SQL remoto, desplegar R1 ni implementar releases posteriores sin autorización separada.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (NEXT: auditoría focal)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (SQL DEV/PROD VERIFICADO; RUNTIME NO DESPLEGADO)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -120,7 +129,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 es la próxima iniciativa, limitada por ahora a auditoría focal. Las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
+OBJ-02 es la iniciativa activa y únicamente R1 está contratada hasta sus gates de runtime pendientes. Las demás entregas de OBJ-02 y las demás iniciativas de esta sección permanecen NOT CONTRACTED / DECISION REQUIRED, salvo INV-01 que está cerrada; no iniciar implementación solo porque una iniciativa aparece aquí.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -217,13 +226,14 @@ OBJ-02 es la próxima iniciativa, limitada por ahora a auditoría focal. Las dem
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: NEXT - AUDITORÍA FOCAL AUTORIZADA; IMPLEMENTACIÓN NO CONTRATADA.
-- Objetivo: auditar arquitectura y schema reales antes de proponer el contrato de implementación de la evolución de Objetivos.
+- Status: R1 SQL VERIFICADO EN DEV Y PROD; RUNTIME PENDIENTE DE MERGE, DEPLOYMENT Y SMOKE PROD.
+- Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
-- Decisiones cerradas: el diseño funcional durable ya distingue ciclos, Prioridades, Oportunidades, relaciones e historial; la primera versión habilita solo Búsqueda de nuevo trabajo.
-- Decisiones pendientes: contrato técnico compatible, estrategia de evolución de objectives, máquina de estados, relaciones y lifecycle detallado.
-- Criterio de aceptación de la siguiente tarea: auditoría sin implementación que compare el diseño con schema, runtime, RLS y contratos de escritura reales.
-- Out of scope: crear schema, migrations, runtime, UX o contratos persistentes; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
+- R1 contratado: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
+- Decisiones posteriores: contrato persistente de ciclos/backfill, privacidad de `Avísame`, máquina de estados/resultados, relaciones, lifecycle y semántica temporal de Seguimiento.
+- Estado de R1: según evidencia confirmada por el owner, migration y tres verifiers ya PASS en DEV y PROD; el runtime permanece sin desplegar hasta merge autorizado, deployment verificado y smoke PROD.
+- Out of scope actual: aplicar migrations o desplegar; implementar ciclos, Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 

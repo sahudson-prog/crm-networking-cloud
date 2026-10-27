@@ -2,6 +2,7 @@ export const PRODUCT_ONBOARDING_SETTING_KEY = "product_onboarding_v1";
 export const ONBOARDING_PRODUCT_DESTINATION = "/contactos";
 
 export const ONBOARDING_STEPS = [
+  "starting_point",
   "objectives",
   "google",
   "contacts",
@@ -11,6 +12,7 @@ export const ONBOARDING_STEPS = [
 
 export const ONBOARDING_FLOW = [
   { id: "intro", path: "/onboarding" },
+  { id: "starting_point", path: "/onboarding/punto-de-partida" },
   { id: "objectives", path: "/onboarding/objetivos" },
   { id: "google", path: "/onboarding/google" },
   { id: "contacts", path: "/onboarding/contactos" },
@@ -116,7 +118,8 @@ export function isOnboardingRouteAdmitted(
 export function canMoveOnboardingToStep(current: OnboardingStep, next: OnboardingStep) {
   if (current === next) return true;
   const transitions: Record<OnboardingStep, readonly OnboardingStep[]> = {
-    objectives: ["google"],
+    starting_point: ["objectives"],
+    objectives: ["starting_point", "google"],
     google: ["objectives", "contacts"],
     contacts: ["google", "contact", "final"],
     contact: ["contacts", "final"],
@@ -134,7 +137,7 @@ export function beginOnboarding(_state: ProductOnboardingState): ProductOnboardi
     version: 1,
     status: "in_progress",
     introSeen: true,
-    lastStep: "objectives"
+    lastStep: "starting_point"
   };
 }
 

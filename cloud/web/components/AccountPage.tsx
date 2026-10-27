@@ -41,7 +41,7 @@ import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { IcsImportPanel } from "./IcsImportPanel";
 import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
-import { NetworkingStartDateSetting } from "./NetworkingStartDateSetting";
+import { StartingPointFields } from "./StartingPointFields";
 import { useShellActions } from "./Shell";
 import { useOnboarding } from "./OnboardingProvider";
 import { VCardImportPanel } from "./VCardImportPanel";
@@ -182,6 +182,13 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
             Cambiar plan
           </Button>
         </div>
+        <StartingPointFields
+          mode="account"
+          onSaved={(values) => setAccount((current) => ({
+            ...current,
+            networkingStartReady: Boolean(values.networkingStartDate)
+          }))}
+        />
       </section>
 
       {isOnboardingTestResetAvailable() ? (
@@ -402,8 +409,6 @@ function GoogleImportSection({
         <h2 id="account-import-title">Importación y sincronización</h2>
         <span>Fuentes desde las que Coffeecito puede leer datos para tu networking.</span>
       </div>
-
-      <NetworkingStartDateSetting onSaved={() => setAccount((current) => ({ ...current, networkingStartReady: true }))} />
 
       <section className="account-data-group" aria-labelledby="account-import-data-title">
         <h3 id="account-import-data-title">Importar datos</h3>
