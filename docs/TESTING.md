@@ -118,6 +118,10 @@ Para cambios en navegación, guards o superficies administrativas de Sistema, ej
 
 Para cambios de SQL, RLS, permisos o funciones Supabase, revisar la migration o script afectado y usar los verificadores SQL existentes cuando apliquen. No hay evidencia de una suite SQL automatizada integrada al flujo npm.
 
+OBJ-02 R2-A añade `node --test cloud/supabase/tests/networking_cycles_history_v1.test.mjs` para composición estática y `node cloud/supabase/tests/local/networking_cycles_history_v1_postgres.mjs` para certificación PostgreSQL 17 desechable, sin red ni puertos. El harness cubre migration, verifiers, backfill sin historia inventada, RLS/grants, revocación, concurrencia, rollback y reset; no sustituye preflight ni smoke remotos.
+
+Para reproducir el reset observado en DEV antes de R2-A, ejecutar el mismo harness con `R2A_RESET_VARIANT=hardened-standalone-crlf`. Esta variante instala localmente el cuerpo exacto del script independiente con CRLF y metadata/ACL endurecidas, comprueba su admisión, bloquea cuerpos o permisos alterados y verifica que R2-A lo sustituye por el reset completo.
+
 ## Comprobación manual necesaria
 
 La comprobación manual sigue siendo necesaria cuando el comportamiento depende de:

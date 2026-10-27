@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2 y releases posteriores pendientes, sin implementar.
-- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. R1 completó `Tu punto de partida` y su edición compartida entre onboarding y Cuenta; el resto del diseño sigue siendo futuro.
+- Status: R1 COMPLETED; R2-A implementado, branch publicada y SQL DEV verificado; PROD pendiente; R2-B y releases posteriores pendientes.
+- Este documento conserva el diseño funcional aprobado, las conclusiones de la auditoría focal y las decisiones pendientes de OBJ-02. R1 completó `Tu punto de partida`; R2-A implementó ciclos e historial mínimo con SQL instalado solo en DEV, mientras R2-B y las demás entregas siguen siendo futuras.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
-- El cierre de R1 no autoriza implementación ni cambios persistentes de las entregas posteriores.
+- La branch R2-A está publicada y su SQL fue instalado y verificado solo en DEV; esto no habilita R2-B, SQL PROD ni deployment de runtime nuevo.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -16,7 +16,7 @@ Coffeecito puede servir a tres necesidades de networking:
 
 La experiencia debe evolucionar hacia el concepto superior de un **plan de networking**. Cada uno de los tres grandes objetivos corresponde a un plan distinto y solo puede existir un plan activo por usuario, sin simultaneidad. En la primera versión funcional solo estará disponible `Búsqueda de un nuevo trabajo`. `Generación de negocios` y `Posicionamiento o marca personal` se muestran como `Próximamente`, con la acción `Avísame`, sin selector ni activación.
 
-Los planes de networking son un concepto funcional distinto de los planes comerciales persistidos en `subscription_plans` y `plan_code`. Separarlos es la recomendación técnica vigente para preservar permisos y capabilities actuales, pero requiere aprobación como parte del futuro contrato persistente.
+Los planes de networking son un concepto funcional distinto de los planes comerciales persistidos en `subscription_plans` y `plan_code`. R2-A adopta esta frontera sin cambiar permisos ni capabilities; cualquier dependencia comercial futura sigue pendiente.
 
 La sección actual `Objetivos` se divide conceptualmente en dos niveles:
 
@@ -192,7 +192,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ## Realidad actual auditada
 
-- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. No existen ciclos ni Oportunidades persistidas.
+- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A añade ciclos e historial mínimo: su SQL está instalado y verificado en DEV, pero sigue pendiente en PROD y no hay runtime nuevo desplegado. Oportunidades continúa ausente.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
 - `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
@@ -200,14 +200,18 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - `/dashboard` existe detrás de los gates privados, pero está oculto de la navegación, monta el Coach y calcula KPIs en cliente sobre lecturas con límites. Desocultarlo como Seguimiento requiere adaptar navegación, semántica y cobertura; no basta con reactivar código existente.
 - El KPI actual `Contactos realizados` cuenta contactos con mensajes/correos, no contactos cuyo estado sea `Contactado` o superior. `Total cafés` cuenta interacciones calendar/call. Ninguno implementa todavía la pirámide aprobada.
 
-## Recomendaciones técnicas pendientes de aprobación
+## Contrato técnico R2-A autorizado
 
-- Separar tipos de planes de networking de `subscription_plans` y `plan_code` para conservar permisos actuales.
-- Usar el modelo mínimo tipo de plan + ciclo; justificar cualquier entidad adicional por una cardinalidad o lifecycle real.
-- Conservar `objectives` e IDs como Prioridades y añadir su pertenencia a ciclo mediante evolución compatible.
-- Realizar un backfill conservador: preservar prioridades existentes, no inventar fecha de ciclo ni historial y distinguir usuarios nuevos, existentes con prioridades y existentes sin prioridades.
-- Implementar cierre/archivo no destructivo; no reutilizar `deleteObjective` ni confundir cierre con `reset_current_user_app_data_v0_1`.
-- Separar inicio de networking, inicio de ciclo y límites de recuperación por fuente.
+- Los planes de networking se separan de `subscription_plans` y `plan_code`; R2-A persiste el tipo dentro de cada ciclo sin cambiar permisos comerciales.
+- El modelo mínimo incorpora `networking_cycles`; conserva `objectives` e IDs y añade pertenencia nullable compatible con el runtime anterior.
+- El backfill crea un ciclo legacy solo para usuarios con Prioridades existentes, mantiene inicio y snapshot desconocidos como `NULL`, y no inventa transiciones.
+- Situación profesional registra snapshot al crear un ciclo nuevo y transiciones reales posteriores. Contactos registra inicialización y cambios reales de `networking_status`/`networking_focus` sin copiar PII.
+- Las interacciones no reciben `cycle_id`: una función interna atribuye únicamente eventos con `occurred_at` dentro de límites conocidos y devuelve `NULL` si no hay una única coincidencia.
+- R2-A no expone cierre ni reinicio. El cierre/archivo no destructivo y la sustitución del borrado físico en ese flujo pertenecen a R2-B; no reutilizar `reset_current_user_app_data_v0_1`.
+- Inicio de networking, inicio de ciclo y límites de recuperación por fuente permanecen separados.
+
+## Recomendaciones técnicas posteriores pendientes de aprobación
+
 - Entregar Oportunidades, relaciones e historial juntos para mantener transiciones y asociaciones coherentes y atómicas.
 - Usar un formulario compartido desde ficha de contacto, Prioridades y vista general de Oportunidades.
 - Calcular Oportunidades abiertas distintas por relación explícita Prioridad/ciclo y no sumar filas como total global.
@@ -225,11 +229,12 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ### Planes, ciclos y Avísame
 
-- aprobación del modelo persistente tipo de plan + ciclo y de la convención de backfill;
-- semántica exacta al cerrar, reiniciar o cambiar de plan en el futuro;
-- fecha de inicio desconocida para ciclos migrados y reglas de unicidad/lifecycle;
+- R2-A implementó tipo de plan + ciclo, un único ciclo activo, backfill conservador y ledgers estrechos; preflight y nueve de nueve verificadores PASS tras instalar SQL en DEV, PROD pendiente;
+- R2-B debe cerrar la semántica exacta y la UX de cerrar, reiniciar o cambiar de plan, incluidos los campos globales opcionales;
+- antes de exponer métricas temporales, confirmar si el día de inicio usa UTC o una zona del usuario; el helper interno R2-A usa UTC de forma consistente con la validación R1 y no se consume todavía en UI;
+- falta identificar el campo real de calidad de foco/cercanía antes de ofrecer su reinicio;
 - retirada, retención y eliminación de solicitudes `Avísame`, además del procedimiento autorizado para un aviso futuro;
-- compatibilidad de reset y eliminación de cuenta.
+- eliminación de cuenta y retención histórica más allá del reset propio ya cubierto por R2-A.
 
 ### Oportunidades
 
@@ -253,14 +258,15 @@ Estas decisiones de Seguimiento no bloquean R1.
 ## Releases funcionales previstos
 
 1. **R1 - Tu punto de partida (COMPLETED):** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
-2. **Planes, ciclos y Prioridades:** persistencia y backfill compatible, un único ciclo activo, archivo histórico y adaptación de consumidores. `Avísame` puede salir como subentrega independiente cuando estén aprobadas privacidad y retención.
-3. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
-4. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
+2. **R2-A - Fundación de ciclos e historial mínimo (branch publicada; SQL DEV verificado; PROD pendiente):** persistencia y backfill compatible, un único ciclo activo, pertenencia de Prioridades y ledgers estrechos; sin cierre/reinicio visible.
+3. **R2-B - Cierre y reinicio configurable:** operación no destructiva, preview de impacto, opciones por campo y adaptación de consumidores. `Avísame` puede salir como subentrega independiente cuando estén aprobadas privacidad y retención.
+4. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
+5. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
 
 Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/verifiers nuevos, compatibilidad con el runtime anterior, backup/recuperación ensayados y gates DEV/PROD separados. No se agrupa todo el schema en R1.
 
 ## Próxima fase
 
-R1 está completada. R2 (Planes, ciclos y Prioridades) permanece pendiente de definición y autorización de implementación; `Avísame`, Oportunidades y Seguimiento conservan sus decisiones abiertas y no se han implementado. Este cierre no inicia ninguna de esas entregas.
+R1 está completada. La branch R2-A está publicada y su SQL está instalado y verificado en DEV; PROD conserva sus gates separados y no se ha desplegado runtime nuevo. R2-B, `Avísame`, Oportunidades y Seguimiento conservan sus decisiones abiertas y no se han implementado.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.
