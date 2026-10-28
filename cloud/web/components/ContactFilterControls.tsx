@@ -3,7 +3,7 @@
 import type { ContactFilters } from "../lib/contactFilters";
 import { NETWORKING_STATUSES } from "../lib/contactActions";
 import { statusClass } from "../lib/format";
-import { objectiveTypeLabel } from "../lib/objectiveActions";
+import { objectiveTypeLabel } from "../lib/cycleObjectiveActions";
 import type { ObjectiveRow } from "../lib/readModel";
 import { Icon } from "./ui/Icon";
 
@@ -98,8 +98,8 @@ export function ContactFilterControls({
               ))}
             </div>
           </div>
-          <div className="contacts-hashtag-filter" aria-label="Filtro por objetivos">
-            <span>Objetivos</span>
+          <div className="contacts-hashtag-filter" aria-label="Filtro por prioridades">
+            <span>Prioridades</span>
             <div className="contacts-hashtag-scroll">
               {objectiveOptions.length ? (
                 Array.from(objectivesByType.entries()).map(([type, objectives]) => (
@@ -120,7 +120,7 @@ export function ContactFilterControls({
                   </div>
                 ))
               ) : (
-                <button disabled type="button">sin objetivos</button>
+                <button disabled type="button">sin prioridades</button>
               )}
             </div>
           </div>

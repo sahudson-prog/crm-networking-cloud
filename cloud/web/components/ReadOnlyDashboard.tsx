@@ -15,7 +15,7 @@ import {
 } from "../lib/cloudData";
 import { DEFAULT_CONTACT_FILTERS, filterContacts, objectiveOptionsForContacts, type ContactFilters } from "../lib/contactFilters";
 import { buildDashboardKpis, parseLocalDate } from "../lib/kpiCalculations";
-import { readObjectives } from "../lib/objectiveActions";
+import { readObjectives } from "../lib/cycleObjectiveActions";
 import { buildObjectiveMetrics } from "../lib/objectiveMetrics";
 import type {
   ContactRow,

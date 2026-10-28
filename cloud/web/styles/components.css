@@ -9006,3 +9006,244 @@ code {
     right: -34px;
   }
 }
+
+.networking-cycle-panel,
+.networking-cycle-form,
+.networking-cycle-options {
+  display: grid;
+  gap: 12px;
+}
+
+.networking-cycle-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.networking-cycle-form .field {
+  max-width: 420px;
+}
+
+.networking-cycle-panel .panel-title,
+.objectives-priorities .panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.networking-cycle-panel .panel-title .icon,
+.objectives-priorities .panel-title .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--crm-primary);
+}
+
+.networking-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.networking-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 210px;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  background: var(--crm-surface);
+  box-shadow: var(--crm-shadow-soft);
+  padding: 20px;
+}
+
+.networking-plan.is-active {
+  border-color: var(--crm-primary);
+}
+
+.networking-plan.is-unavailable {
+  background: var(--crm-bg);
+  box-shadow: none;
+  color: var(--crm-muted);
+}
+
+.networking-plan-heading {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.networking-plan-heading h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.networking-plan-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  align-self: start;
+  margin-top: 1px;
+  color: var(--crm-primary);
+}
+
+.networking-plan.is-unavailable .networking-plan-icon,
+.networking-plan.is-unavailable .networking-plan-heading h3 {
+  color: var(--crm-muted);
+}
+
+.networking-plan-status,
+.networking-plan-pending {
+  color: var(--crm-muted);
+  font-size: 13px;
+}
+
+.networking-plan-status {
+  font-weight: 600;
+}
+
+.networking-plan p {
+  margin: 0;
+  color: var(--crm-muted);
+  font-size: 13px;
+  padding-left: 34px;
+}
+
+.networking-plan.is-unavailable > .networking-plan-status,
+.networking-plan.is-unavailable > .networking-plan-pending {
+  margin-left: 34px;
+}
+
+.networking-plan.is-unavailable > .networking-plan-pending {
+  margin-top: auto;
+}
+
+.networking-process-summary {
+  display: grid;
+  gap: 5px;
+  padding-left: 34px;
+  font-size: 13px;
+}
+
+.networking-process-summary strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.networking-process-summary span {
+  color: var(--crm-muted);
+}
+
+.networking-plan-actions {
+  display: flex;
+  margin-top: auto;
+  padding-left: 34px;
+}
+
+.networking-process-action {
+  width: auto;
+  max-width: 100%;
+}
+
+.objectives-priorities {
+  display: grid;
+  gap: 18px;
+}
+
+.objectives-priorities .panel-header {
+  margin-bottom: 0;
+}
+
+.objectives-priorities .objectives-column-grid {
+  gap: 12px;
+}
+
+.objectives-priorities .objectives-group {
+  gap: 10px;
+}
+
+.objectives-priorities .objectives-group-head h3 {
+  color: var(--crm-text);
+  font-size: 12px;
+  letter-spacing: 0.025em;
+}
+
+.objectives-group-head h3 {
+  flex: 1;
+}
+
+.objectives-group-head .button.square {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.objective-row {
+  cursor: default;
+}
+
+.objective-row:focus-within {
+  border-color: var(--crm-border-strong);
+}
+
+.objective-row-main {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.objective-row-main:focus-visible {
+  outline: 2px solid var(--crm-primary);
+  outline-offset: 3px;
+}
+
+.networking-process-dialog,
+.objective-editor-dialog {
+  width: min(560px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  margin: auto;
+  overflow: auto;
+  grid-template-rows: none;
+}
+
+.networking-process-dialog:not([open]),
+.objective-editor-dialog:not([open]) {
+  display: none;
+}
+
+.networking-process-dialog::backdrop,
+.objective-editor-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.objective-editor-dialog .objectives-editor-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 780px) {
+  .networking-plan-grid,
+  .objective-editor-dialog .objectives-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .networking-plan {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .objective-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .objective-row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}

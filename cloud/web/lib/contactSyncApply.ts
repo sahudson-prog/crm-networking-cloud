@@ -8,6 +8,7 @@ import {
   type ContactMergeSource
 } from "./contactMerge.ts";
 import { mergeContactsDeep } from "./contactMergeActions.ts";
+import { expectedNetworkingContext, networkingWriteContext, type NetworkingContext } from "./networkingCycles.ts";
 import {
   externalContactSnapshotDbPayload,
   externalContactSnapshotsFromPreviewChange
@@ -57,6 +58,7 @@ type ApplyContactSyncDependencies = {
   createInvocation: (input: ApplyContactSyncPreviewInput) => Promise<string | null>;
   failInvocation: (invocationId: string | null, error: unknown) => Promise<void>;
   getUserId: () => Promise<string>;
+  getNetworkingContext: () => Promise<NetworkingContext>;
   saveCursor: (input: ApplyContactSyncPreviewInput) => Promise<void>;
 };
 
@@ -64,6 +66,7 @@ type ApplyContactSyncContext = {
   connectedAccountId?: string | null;
   provider: SyncProvider;
   userId: string;
+  networkingContext?: NetworkingContext;
 };
 
 const SIMPLE_FIELD_TO_COLUMN: Record<string, string> = {
@@ -97,6 +100,9 @@ export async function applyContactSyncPreview(
   try {
     const userId = await deps.getUserId();
     await deps.assertStorageReady();
+    // Freeze the expected cycle for this reviewed batch. A cycle transition in
+    // the same tab must not make later changes inherit a new context.
+    const networkingContext = input.provider === "google" ? await deps.getNetworkingContext() : undefined;
     const contactIds = new Set<string>();
     const totalCount = selectedActionableChanges.length;
     let processedCount = 0;
@@ -121,7 +127,8 @@ export async function applyContactSyncPreview(
         const contactId = await deps.applyChange(change, {
           connectedAccountId: input.connectedAccountId,
           provider: input.provider,
-          userId
+          userId,
+          networkingContext
         });
         if (contactId) contactIds.add(contactId);
         result.appliedCount += 1;
@@ -183,6 +190,7 @@ function defaultDependencies(overrides: Partial<ApplyContactSyncDependencies>): 
     createInvocation: createActionInvocation,
     failInvocation: failActionInvocation,
     getUserId: currentUserId,
+    getNetworkingContext: expectedNetworkingContext,
     saveCursor: async (input) => {
       await upsertSyncCursor({
         connectedAccountId: input.connectedAccountId,
@@ -220,9 +228,13 @@ async function applyContactSyncChange(change: SyncPreviewChange, context: ApplyC
 async function applyGoogleContactSyncChange(change: SyncPreviewChange, context: ApplyContactSyncContext) {
   if (!context.connectedAccountId) throw new Error("La sincronizacion Google requiere una cuenta conectada.");
   const db = requireSupabase();
-  const { data, error } = await db.rpc("apply_google_contact_sync_change_v1", {
+  const expected = context.networkingContext;
+  if (!expected) throw new Error("Falta el contexto de networking del lote Google.");
+  const { data, error } = await db.rpc("apply_google_contact_sync_change_r2b", {
     p_connected_account_id: context.connectedAccountId,
-    p_change: googleContactSyncMutationFromPreviewChange(change, context)
+    p_change: googleContactSyncMutationFromPreviewChange(change, context),
+    p_expected_cycle_id: expected.cycleId,
+    p_expected_context: expected.token
   });
   if (error) throw error;
   if (typeof data !== "string" || !data.trim()) {
@@ -335,6 +347,7 @@ async function createContactFromSyncChange(change: SyncPreviewChange, context: A
       role: mergeDecision?.role.trim() ?? payload.role ?? "",
       networking_status: mergeDecision?.networkingStatus || "Pendiente",
       networking_focus: mergeDecision?.focus ?? DEFAULT_IMPORTED_CONTACT_NETWORKING_FOCUS,
+      networking_write_context: await networkingWriteContext(),
       is_headhunter: mergeDecision?.headhunter ?? false,
       is_active: true,
       sync_status: "synced"
@@ -457,6 +470,7 @@ async function applyContactMergeDecision(contactId: string, decision: ContactMer
       is_headhunter: decision.headhunter,
       networking_focus: decision.focus,
       networking_status: decision.networkingStatus,
+      networking_write_context: await networkingWriteContext(),
       role: decision.role.trim(),
       sync_status: "synced"
     })

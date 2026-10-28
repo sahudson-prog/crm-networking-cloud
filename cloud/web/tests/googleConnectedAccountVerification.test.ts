@@ -358,7 +358,10 @@ test("writers Google usan RPCs transaccionales con cuenta conectada", () => {
   const contactWriter = readFileSync(new URL("../lib/contactSyncApply.ts", import.meta.url), "utf8");
   const interactionWriter = readFileSync(new URL("../lib/externalInteractionSync.ts", import.meta.url), "utf8");
 
-  assert.match(contactWriter, /apply_google_contact_sync_change_v1/);
+  assert.match(contactWriter, /apply_google_contact_sync_change_r2b/);
+  assert.doesNotMatch(contactWriter, /apply_google_contact_sync_change_v1/);
+  assert.match(contactWriter, /p_expected_cycle_id: expected\.cycleId/);
+  assert.match(contactWriter, /p_expected_context: expected\.token/);
   assert.match(contactWriter, /if \(context\.provider === "google"\)/);
   assert.match(interactionWriter, /apply_google_interaction_sync_v1/);
   assert.match(interactionWriter, /if \(normalized\.provider === "google"\)/);

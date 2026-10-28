@@ -7,6 +7,7 @@ import {
   type HeadhunterCompanyMasterRow
 } from "./headhunterCompanyMaster.ts";
 import { activeInteractions } from "./interactionState.ts";
+import { readNetworkingCycles } from "./networkingCycles.ts";
 import type { ContactRow, InteractionParticipantRow, InteractionRow } from "./readModel.ts";
 import { supabase } from "./supabaseClient.ts";
 
@@ -127,23 +128,26 @@ export async function reviewNetworkingStatusSuggestions(input: CoachRuleReviewIn
   if (!userId) throw new Error("No hay usuario autenticado.");
 
   const contactIds = normalizeContactIds(input.contactIds);
-  const [contacts, participants, activeTodos, configs, headhunterMaster] = await Promise.all([
+  const [contacts, participants, activeTodos, configs, headhunterMaster, cycles] = await Promise.all([
     readContactsForRuleReview(contactIds),
     readParticipantsForRuleReview(contactIds),
     readActiveRuleTodos(contactIds),
     readTodoConfigs(),
-    readHeadhunterCompanyMaster()
+    readHeadhunterCompanyMaster(),
+    readNetworkingCycles()
   ]);
+  const activeCycle = cycles.find((cycle) => cycle.status === "active") ?? null;
   const scopedInteractionIds = contactIds ? unique(participants.map((participant) => participant.interaction_id)) : undefined;
-  const interactions = await readInteractionsForRuleReview(scopedInteractionIds);
+  const interactions = await readInteractionsForRuleReview(scopedInteractionIds, activeCycle?.started_at ?? null);
 
   const now = new Date();
   const configByType = new Map(configs.map((config) => [config.todo_type, config]));
   const interactionsByContact = groupInteractionsByContact(interactions, participants);
   const candidates = [
-    ...contacts
+    ...(activeCycle ? contacts : [])
       .map((contact) => choosePreferredCandidate(contact, interactionsByContact.get(contact.id) ?? [], now))
-      .filter((candidate): candidate is RuleCandidate => Boolean(candidate)),
+      .filter((candidate): candidate is RuleCandidate => Boolean(candidate))
+      .map((candidate) => ({ ...candidate, dedupKey: `${activeCycle?.id}|${candidate.dedupKey}` })),
     ...contacts
       .map((contact) => chooseHeadhunterCompanyCandidate(contact, headhunterMaster))
       .filter((candidate): candidate is RuleCandidate => Boolean(candidate))
@@ -495,7 +499,7 @@ async function readContactsForRuleReview(contactIds?: string[]): Promise<Contact
   return (data ?? []) as ContactReviewRow[];
 }
 
-async function readInteractionsForRuleReview(interactionIds?: string[]): Promise<InteractionReviewRow[]> {
+async function readInteractionsForRuleReview(interactionIds?: string[], since?: string | null): Promise<InteractionReviewRow[]> {
   if (!supabase) return [];
   if (interactionIds && !interactionIds.length) return [];
   let query = supabase
@@ -503,6 +507,7 @@ async function readInteractionsForRuleReview(interactionIds?: string[]): Promise
     .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,metadata,updated_at")
     .limit(MAX_ROWS);
   if (interactionIds?.length) query = query.in("id", interactionIds);
+  if (since) query = query.gte("occurred_at", since);
   const { data, error } = await query;
   if (error) throw error;
   return activeInteractions((data ?? []) as InteractionReviewRow[]);

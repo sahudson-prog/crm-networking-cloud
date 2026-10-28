@@ -11,6 +11,7 @@ import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 import { InvitationButton } from "./InvitationButton";
 import { canRenderSystemSurface } from "../lib/systemAccess";
+import { expectedNetworkingCycleId } from "../lib/networkingCycles";
 
 const ShellActionsContext = createContext<{ onSignOut?: () => void }>({});
 
@@ -47,6 +48,7 @@ function ShellContent({ children }: { children: ReactNode }) {
     || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
   const headerReady = !onboarding.loading && onboarding.routeReady && !onboarding.loadFailed;
+  useEffect(() => { void expectedNetworkingCycleId().catch(() => undefined); }, []);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 780px)");
     const arrange = () => { if (utilities.current) utilities.current.open = !media.matches; };

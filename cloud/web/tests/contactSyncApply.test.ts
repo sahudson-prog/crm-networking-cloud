@@ -98,6 +98,7 @@ test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", 
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => {
         cursorSaved = true;
       }
@@ -113,6 +114,32 @@ test("applyContactSyncPreview aplica seleccion completa y guarda cursor nuevo", 
   assert.equal(cursorSaved, true);
   assert.equal(completed, true);
   assert.deepEqual(applied, [baseChange.id]);
+});
+
+test("Google congela el contexto del lote aunque la pestaña cambie de ciclo durante el apply", async () => {
+  let currentToken = "none:closed-1";
+  let contextReads = 0;
+  const observed: string[] = [];
+  const result = await applyContactSyncPreview({
+    changes: [baseChange, { ...baseChange, id: "google:modified:contact-2:people/2" }],
+    provider: "google", totalPreviewChanges: 2
+  }, {
+    applyChange: async (_change, context) => {
+      observed.push(context.networkingContext?.token ?? "missing");
+      currentToken = "active:cycle-2:request-2";
+      return "contact-1";
+    },
+    assertStorageReady: async () => undefined,
+    completeInvocation: async () => undefined,
+    createInvocation: async () => "invocation-1",
+    failInvocation: async () => undefined,
+    getUserId: async () => "user-1",
+    getNetworkingContext: async () => { contextReads += 1; return { cycleId: null, token: currentToken }; },
+    saveCursor: async () => undefined
+  });
+  assert.equal(result.ok, true);
+  assert.equal(contextReads, 1);
+  assert.deepEqual(observed, ["none:closed-1", "none:closed-1"]);
 });
 
 test("applyContactSyncPreview no guarda cursor si quedan cambios pendientes", async () => {
@@ -132,6 +159,7 @@ test("applyContactSyncPreview no guarda cursor si quedan cambios pendientes", as
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => {
         cursorSaved = true;
       }
@@ -165,6 +193,7 @@ test("applyContactSyncPreview no guarda cursor si falla algun cambio", async () 
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => {
         cursorSaved = true;
       }
@@ -206,6 +235,7 @@ test("applyContactSyncPreview valida almacenamiento antes de crear contactos", a
           failedInvocation = true;
         },
         getUserId: async () => "user-1",
+        getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
         saveCursor: async () => undefined
       }
     ),
@@ -252,6 +282,7 @@ test("applyContactSyncPreview ignora filas informativas sin cambios al calcular 
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => undefined
     }
   );
@@ -290,6 +321,7 @@ test("applyContactSyncPreview distingue aplicados y fallidos en seleccion parcia
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => undefined
     }
   );
@@ -332,6 +364,7 @@ test("applyContactSyncPreview registra detalle de errores no Error desde Supabas
       createInvocation: async () => "invocation-1",
       failInvocation: async () => undefined,
       getUserId: async () => "user-1",
+      getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
       saveCursor: async () => undefined
     }
   );

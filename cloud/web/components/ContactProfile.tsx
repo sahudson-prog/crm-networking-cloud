@@ -182,7 +182,7 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
           </div>
 
           <div className="contact-objectives-block">
-            <span className="contact-mini-label">Objetivos</span>
+            <span className="contact-mini-label">Prioridades</span>
             <ObjectiveChips objectives={objectives} />
           </div>
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { objectivePriorityLabel, objectiveTypeLabel } from "../lib/objectiveActions";
+import { objectivePriorityLabel, objectiveTypeLabel } from "../lib/cycleObjectiveActions";
 import type { ObjectiveMetricRow } from "../lib/objectiveMetrics";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
@@ -10,7 +10,7 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
   const visibleRows = showInactiveObjectives ? rows : rows.filter((row) => row.contactCount > 0 || row.coffeeCount > 0);
 
   if (!rows.length) {
-    return <EmptyValue>sin objetivos para mostrar</EmptyValue>;
+    return <EmptyValue>sin prioridades para mostrar</EmptyValue>;
   }
 
   return (
@@ -21,7 +21,7 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
           type="checkbox"
           onChange={(event) => setShowInactiveObjectives(event.target.checked)}
         />
-        Mostrar objetivos sin actividad
+        Mostrar prioridades sin actividad
       </label>
       {visibleRows.length ? (
         <div className="objective-metrics-wrap">
@@ -63,7 +63,7 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
         </div>
       ) : (
         <div className="objective-metrics-empty">
-          <EmptyValue>sin objetivos con actividad para los filtros actuales</EmptyValue>
+          <EmptyValue>sin prioridades con actividad para los filtros actuales</EmptyValue>
         </div>
       )}
     </>

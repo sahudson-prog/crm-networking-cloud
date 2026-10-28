@@ -6,7 +6,7 @@ import {
   objectivePriorityLabel,
   objectiveTypeLabel,
   readObjectives
-} from "../lib/objectiveActions";
+} from "../lib/cycleObjectiveActions";
 import type { ObjectiveRow } from "../lib/readModel";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
@@ -33,7 +33,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
       .catch((readError) => {
         if (!active) return;
         setObjectives([]);
-        setError(readError instanceof Error ? readError.message : "No pude leer objetivos.");
+        setError(readError instanceof Error ? readError.message : "No pude leer Prioridades.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -56,11 +56,11 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
   return (
     <div className="objective-selector">
       <div className="objective-selector-head">
-        <span>Objetivos</span>
+        <span>Prioridades</span>
         {loading ? <small>Leyendo...</small> : null}
       </div>
       {error ? <small className="danger-text">{error}</small> : null}
-      {!loading && !objectives.length && !error ? <EmptyValue>Sin objetivos definidos</EmptyValue> : null}
+      {!loading && !objectives.length && !error ? <EmptyValue>Sin prioridades definidas</EmptyValue> : null}
       {OBJECTIVE_TYPES.map((type) => {
         const rows = grouped.get(type.value) ?? [];
         if (!rows.length) return null;
@@ -93,7 +93,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
 }
 
 export function ObjectiveChips({ objectives }: { objectives: ObjectiveRow[] }) {
-  if (!objectives.length) return <EmptyValue>sin objetivos</EmptyValue>;
+  if (!objectives.length) return <EmptyValue>sin prioridades</EmptyValue>;
   return (
     <div className="objective-chip-row readonly">
       {objectives.map((objective) => (

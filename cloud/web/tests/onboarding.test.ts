@@ -483,7 +483,7 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
 test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
 
-  assert.match(routeSource, /title="Comencemos definiendo tus objetivos"/);
+  assert.match(routeSource, /title="Comencemos definiendo tus prioridades"/);
   assert.match(routeSource, /title="Aquí organizas y priorizas tu red"/);
   assert.match(routeSource, /Por defecto, esta vista muestra sólo los contactos que quieres priorizar para hacer networking\. En\s+Coffeecito, esos contactos se marcan como Foco\./);
   assert.match(routeSource, /Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que\s+quieras priorizar\./);

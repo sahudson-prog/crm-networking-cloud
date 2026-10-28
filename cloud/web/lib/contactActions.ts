@@ -1,7 +1,8 @@
 import { supabase } from "./supabaseClient";
 import { cleanContactCompany, cleanContactRole } from "./format";
 import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
-import { setContactObjectiveAssignments } from "./objectiveActions";
+import { setContactObjectiveAssignments } from "./cycleObjectiveActions";
+import { networkingWriteContext } from "./networkingCycles";
 import type { ContactRow } from "./readModel";
 
 export const NETWORKING_STATUSES = [
@@ -91,7 +92,7 @@ export async function updateContactNetworkingStatus(
   try {
     const { error: updateError } = await supabase
       .from("contacts")
-      .update({ networking_status: nextStatus })
+      .update({ networking_status: nextStatus, networking_write_context: await networkingWriteContext() })
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateError) throw updateError;
@@ -194,7 +195,7 @@ export async function updateContactFlags(contactId: string, flags: ContactFlagsI
   try {
     const { error: updateError } = await supabase
       .from("contacts")
-      .update(effectivePatch)
+      .update({ ...effectivePatch, networking_write_context: await networkingWriteContext() })
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateError) throw updateError;
@@ -403,6 +404,7 @@ export async function saveContactFromEditor(input: ContactEditorInput) {
       role: normalized.role,
       networking_status: normalized.networkingStatus,
       networking_focus: normalized.networkingFocus,
+      networking_write_context: await networkingWriteContext(),
       is_headhunter: normalized.isHeadhunter,
       headhunter_domains: normalized.headhunterDomains
     };
