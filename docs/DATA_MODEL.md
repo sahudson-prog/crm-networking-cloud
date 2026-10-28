@@ -103,7 +103,7 @@ Prioridades persistidas:
 - `MEDIUM`
 - `LOW`
 
-Existe unicidad activa por usuario, tipo y nombre normalizado.
+Desde R2-B, la unicidad activa se aplica por ciclo, tipo y nombre normalizado. Las Prioridades cerradas permanecen en su ciclo; el borrado operativo se transforma en archivo (`is_active = false`).
 
 `contact_objective_assignments` representa la relación many-to-many entre contactos y objetivos. Usa `contact_id`, `objective_id`, `user_id`, `assigned_by_actor` y `assigned_at`.
 
@@ -113,7 +113,9 @@ El candidato OBJ-02 R2-A expande este contrato con `networking_cycles` y `object
 
 `professional_situation_transitions` registra únicamente cambios reales posteriores a R2-A, con antes/después, instante DB, actor autenticado cuando existe y ciclo activo opcional. `contact_networking_transitions` registra inicialización y cambios reales de `networking_status` y `networking_focus`, sin duplicar nombre, email, empresa, teléfono ni notas. Ambos ledgers son de escritura interna por trigger y lectura del dueño con acceso efectivo.
 
-`interactions` no incorpora `cycle_id`. La atribución candidata usa `occurred_at` y límites conocidos de ciclos; eventos sin fecha o sin una única coincidencia no se atribuyen. El helper interno interpreta `started_on` al inicio del día UTC, coherente con la validación temporal R1, pero no tiene consumidor de UI; una zona distinta requiere decisión antes de exponer métricas. `created_at` de importación no sustituye la fecha de ocurrencia.
+R2-B añade `cycle_name`, `started_at`, `timezone_name`, resultado y `closed_recorded_at` a `networking_cycles`. El inicio legacy desconocido permanece `NULL`; los `started_on` conocidos de R2-A se interpretan explícitamente en UTC. Los períodos son rangos de instantes `[started_at, closed_at)` sin solapamiento. `networking_cycle_closed_contacts` y `networking_cycle_closed_assignments` congelan observaciones al registrar el cierre; no reconstruyen la realidad de un fin retroactivo. Estado y foco actuales siguen en `contacts` y pueden resetearse independientemente solo al crear un ciclo siguiente. Las Prioridades y asociaciones se leen operativamente desde el ciclo activo; sin él, contactos, interacciones y referidos continúan globales.
+
+`interactions` no incorpora `cycle_id`. La atribución usa `occurred_at` y los límites instantáneos conocidos `[started_at, closed_at)`; eventos sin fecha o sin una única coincidencia no se atribuyen. `created_at` de importación no sustituye la fecha de ocurrencia. Esta atribución no constituye un KPI histórico en R2-B.
 
 ## Referidos
 

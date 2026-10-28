@@ -12,6 +12,8 @@ Servicios implementados:
 - Gmail mediante Gmail API.
 - Calendar mediante Calendar API.
 El conector opera en modo lectura/importación/sincronización hacia CRM Networking. No escribe cambios hacia Google Contacts, Gmail ni Google Calendar.
+
+La aplicación de cambios de Google Contacts en R2-B usa `apply_google_contact_sync_change_r2b`, con ownership, acceso efectivo y versión esperada del ciclo, también cuando no hay ciclo activo. Se mantienen los scopes de solo lectura y la revisión previa; la RPC anterior de contactos no está disponible para roles cliente tras el forward-fix.
 El uso del conector también está sujeto a autorización interna de la app.
 
 ## OAuth y cuenta conectada

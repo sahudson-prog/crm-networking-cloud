@@ -118,6 +118,8 @@ Algunas operaciones hacen check explícito de capability antes de actuar:
 
 Otras operaciones dependen principalmente de sesión, filtros `user_id` y RLS. Esto incluye muchas lecturas y escrituras de contactos, interacciones, referidos, objetivos y sugerencias. En `sync_run_logs`, RLS separa el `INSERT` propio de la lectura administrativa por capability.
 
+OBJ-02 R2-B restringe creación/configuración/cierre de ciclos y escritura de Prioridades/asociaciones a RPCs `SECURITY DEFINER` estrechas con `auth.uid()`, acceso efectivo, ownership y contexto versionado del ciclo activo (incluido `none` y la configuración legacy). Los triggers exigen ese contexto desde la instalación, bloquean mutaciones de ciclos cerrados, borrado físico ordinario de Prioridades y cambios de estado/foco desde pestañas antiguas; las ediciones globales de identidad de contactos permanecen disponibles. Las tablas de observación al cierre solo permiten SELECT al dueño con acceso efectivo. El merge autenticado usa `merge_contacts_deep_r2b`; el entry point anterior pierde EXECUTE para `authenticated`. El gate privado de rollout pasa de `paused` a `test_only` y luego a `open` mediante SQL privilegiado; las políticas de acceso efectivo también lo aplican. El reset de datos propios sigue siendo una operación separada con su capability y frase de confirmación.
+
 Las rutas de Sistema usan `AuthGate` y un guard frontend compartido que falla cerrado antes de montar su contenido privado. Este guard controla navegación y montaje de vistas, pero no sustituye el enforcement backend. El enforcement backend depende del contrato de autorización de cada operación, que puede combinar RPC, RLS, policies y checks explícitos de capability.
 
 ## Operaciones privilegiadas
@@ -149,6 +151,8 @@ El inicio/finalización OAuth y el uso posterior de una cuenta ya conectada son 
 `connected_accounts` mantiene SELECT para que el usuario vea su conexión, pero la escritura directa de INSERT/UPDATE/DELETE desde roles cliente queda cerrada. La creación o actualización de Google Connected Account ocurre mediante una RPC interna invocable solo por `service_role`; la desvinculación self-service ocurre mediante una RPC estrecha para usuarios autenticados.
 
 La persistencia de resultados Google se realiza por RPCs `SECURITY DEFINER` estrechas que derivan usuario desde `auth.uid()`, fijan `provider='google'`, verifican cuenta y operación en cada elemento y escriben la fuente externa de forma transaccional. La fase `contract` retira INSERT/UPDATE directo de roles cliente sobre `external_contact_ids`, `external_contact_snapshots` y `external_interaction_sources`; las operaciones manuales y las importaciones locales vCard/ICS no dependen de esas capabilities Google.
+
+Desde el forward-fix R2-B, el sync de contactos Google entra por `apply_google_contact_sync_change_r2b` con `cycle_id` esperado y token versionado, incluido `none:<último cierre>` cuando no hay ciclo. La RPC toma el bloqueo de usuario antes de delegar en el escritor Google existente; ese escritor V1 ya no tiene EXECUTE para roles cliente. El merge interno solo recibe el contexto `merge:` tras validar ownership, acceso efectivo y versión. Cada cambio seleccionado sigue siendo una transaction; un fallo no avanza el cursor del lote.
 
 La tabla tiene una columna `oauth_refresh_token_encrypted`, pero este flujo no escribe ni lee refresh tokens persistentes. En la práctica vigente, si no hay `provider_token` utilizable o si el token actual no corresponde a una autorización de datos verificada, la UI pide reconectar Google.
 

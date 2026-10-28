@@ -8,9 +8,11 @@ No existe un design system formal completo. Sí existe una base visual compartid
 
 La app usa una estética sobria: fondo gris claro, paneles blancos, bordes suaves, radio bajo, sombras contenidas, texto oscuro y acentos azules/verdes/rojos/naranjos según acción o estado.
 
+El criterio visual permanente es un acabado premium y preciso, comparable en cuidado a Apple Human Interface Guidelines: proporciones, alineación, espaciado, tipografía e iconografía coherentes a tamaño real en desktop y móvil. Usar iconos profesionales de un mismo sistema para conjuntos relacionados; evitar trazados SVG improvisados, badges decorativos y controles desproporcionados. Validar visualmente los cambios en ambos tamaños antes de darlos por terminados.
+
 La fuente visual es Inter con fallback a fuentes del sistema.
 
-La iconografía no depende de una librería externa. `components/ui/Icon.tsx` define un set propio de iconos SVG lineales. `components/ui/ProviderIcon.tsx` contiene iconografía de proveedores presente en la UI; la existencia de un icono no implica que el conector correspondiente esté implementado.
+La iconografía compartida usa el set SVG lineal de `components/ui/Icon.tsx`. Los tres planes de `Mi objetivo` usan `BriefcaseBusiness`, `Handshake` y `Megaphone` de `lucide-react`, importados individualmente y con escala/trazo comunes; esta excepción no cambia los demás iconos de la app. `components/ui/ProviderIcon.tsx` contiene iconografía de proveedores presente en la UI; la existencia de un icono no implica que el conector correspondiente esté implementado.
 
 ## Identidad de marca
 
@@ -73,7 +75,7 @@ La cabecera separa navegación principal y acciones secundarias. Contactos y Obj
 
 Las vistas se organizan con `Panel`, grids y toolbars. El patrón visual más estable es panel blanco con borde, header compacto, título de 16px y contenido interno ordenado por grid o listas.
 
-Dashboard y Contactos comparten `ContactFilterControls` sobre el contenido principal. El filtro incluye buscador universal, selectores de Foco y Headhunter, botón de más filtros, estados seleccionables y objetivos como chips.
+Dashboard y Contactos comparten `ContactFilterControls` sobre el contenido principal. El filtro incluye buscador universal, selectores de Foco y Headhunter, botón de más filtros, estados seleccionables y Prioridades del ciclo activo como chips. `Mi objetivo` reutiliza panel, campos y modal del sistema. La interfaz no muestra el historial de procesos.
 
 ## Primitives compartidas
 

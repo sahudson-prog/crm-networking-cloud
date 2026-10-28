@@ -74,9 +74,9 @@ El tablero de contactos permite trabajar visualmente el avance de networking. Al
 
 La ficha de contacto concentra la información individual de una persona. Desde ahí el usuario puede ver datos de contacto, estado de networking, foco, marca headhunter, objetivos, últimas interacciones, referidos y sugerencias del Coach asociadas a ese contacto.
 
-## Objetivos de búsqueda
+## Mi objetivo y Prioridades
 
-La sección Objetivos permite mantener las prioridades profesionales del usuario.
+La sección Prioridades permite mantener las prioridades profesionales del ciclo activo de Búsqueda laboral. `Mi objetivo` permite crear explícitamente el ciclo con nombre, inicio y zona horaria; un ciclo legacy se completa sin inventar datos pasados. Al finalizar, el usuario indica fecha/hora y resultado. El cierre conserva la red y las Prioridades históricas; no inicia otro ciclo ni modifica la situación laboral. La interfaz no muestra listados de ciclos anteriores.
 
 Los objetivos vigentes se organizan en cuatro tipos:
 
@@ -85,7 +85,7 @@ Los objetivos vigentes se organizan en cuatro tipos:
 - Cargos.
 - Funciones.
 
-El usuario puede crear, editar, activar, desactivar, eliminar, priorizar y asociar objetivos a contactos. La prioridad se puede ajustar de forma rápida desde la vista de objetivos.
+Durante el ciclo activo, el usuario puede crear, editar, activar, desactivar, archivar, priorizar y asociar Prioridades a contactos. La prioridad se puede ajustar de forma rápida desde su vista. Al crear un nuevo ciclo, las Prioridades comienzan vacías; el usuario puede elegir, por separado y sin selección inicial, reiniciar estados a Pendiente o limpiar foco de contactos activos, incluidos headhunters.
 
 Un contacto puede estar asociado a uno o más objetivos. Esto permite filtrar contactos por objetivos y construir indicadores sobre el avance de la búsqueda profesional.
 
