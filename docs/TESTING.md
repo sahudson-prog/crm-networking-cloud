@@ -120,6 +120,8 @@ Para cambios de SQL, RLS, permisos o funciones Supabase, revisar la migration o 
 
 OBJ-02 R2-A añade `node --test cloud/supabase/tests/networking_cycles_history_v1.test.mjs` para composición estática y `node cloud/supabase/tests/local/networking_cycles_history_v1_postgres.mjs` para certificación PostgreSQL 17 desechable, sin red ni puertos. El harness cubre migration, verifiers, backfill sin historia inventada, RLS/grants, revocación, concurrencia, rollback y reset; no sustituye preflight ni smoke remotos.
 
+OBJ-02 R2-B y el forward-fix Google: desde `cloud/web` ejecutar `npm run test:networking-cycles`, `npm run test:sync` y `node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/googleConnectedAccountVerification.test.ts`; desde la raíz ejecutar `node cloud/supabase/tests/local/networking_cycle_operations_v1_postgres.mjs`. El harness PostgreSQL instala migrations `202610270001`, `202610270002` y `202610280001` en orden sobre baseline desechable; prueba preflight/verifiers, roles y grants reales, contexto sin ciclo, sync estado/foco, merge histórico, concurrencia, rollback e idempotencia. No sustituye el smoke autenticado ni los gates de DEV/PROD.
+
 Para reproducir el reset observado en DEV antes de R2-A, ejecutar el mismo harness con `R2A_RESET_VARIANT=hardened-standalone-crlf`. Esta variante instala localmente el cuerpo exacto del script independiente con CRLF y metadata/ACL endurecidas, comprueba su admisión, bloquea cuerpos o permisos alterados y verifica que R2-A lo sustituye por el reset completo.
 
 ## Comprobación manual necesaria

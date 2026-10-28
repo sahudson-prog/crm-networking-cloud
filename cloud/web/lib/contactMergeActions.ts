@@ -1,5 +1,6 @@
 import type { ContactMergeResult } from "./contactMerge.ts";
 import { supabase } from "./supabaseClient.ts";
+import { expectedNetworkingContext } from "./networkingCycles.ts";
 
 export type ContactDeepMergeInput = {
   targetContactId: string;
@@ -32,8 +33,11 @@ export type ContactMergeErrorDiagnostic = {
 export async function mergeContactsDeep(input: ContactDeepMergeInput) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   const normalized = normalizeContactDeepMergeInput(input);
+  const context = await expectedNetworkingContext();
 
-  const { data, error } = await supabase.rpc("merge_contacts_deep", {
+  const { data, error } = await supabase.rpc("merge_contacts_deep_r2b", {
+    p_expected_cycle_id: context.cycleId,
+    p_expected_context: context.token,
     p_result: normalized.result,
     p_source: normalized.source || "contact_merge",
     p_source_contact_ids: normalized.sourceContactIds,

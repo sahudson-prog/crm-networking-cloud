@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { activeInteractions } from "./interactionState";
 import { buildDashboardKpis, parseLocalDate } from "./kpiCalculations";
-import { readObjectiveAssignmentsForContacts } from "./objectiveActions";
+import { readObjectiveAssignmentsForContacts } from "./cycleObjectiveActions";
 import type {
   ContactListRow,
   ContactRow,

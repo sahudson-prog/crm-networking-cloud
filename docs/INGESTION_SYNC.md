@@ -56,6 +56,8 @@ El preview de contactos puede generar propuestas de nuevos, modificaciones, elim
 
 La aplicación procesa solo cambios seleccionados y accionables. Un nuevo externo crea contacto local, medios de contacto, identidad externa y snapshot. Un externo conocido modificado actualiza operaciones aplicables y luego refresca identidad externa y snapshot.
 
+En R2-B, cada cambio Google usa la RPC de contacto con el contexto de ciclo esperado por la pestaña, aun si no existe ciclo activo. Los cambios de estado/foco y las consolidaciones se serializan con inicio/cierre; una pestaña obsoleta falla antes de escribir ese cambio. La operación sigue siendo atómica por cambio seleccionado, y el cursor no avanza si hay fallos en el lote.
+
 Después de aplicar cambios de creación o modificación, se registran vínculos externos y snapshots, se audita el cambio y se gatilla revisión acotada del Coach para contactos afectados.
 
 El cursor de contactos se guarda solo si la aplicación termina sin errores, existe cursor nuevo y no quedan cambios pendientes del preview. Si quedan cambios sin aplicar, el cursor no avanza.

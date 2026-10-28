@@ -23,6 +23,7 @@ type IconName =
   | "checkbox"
   | "circleDot"
   | "target"
+  | "tag"
   | "targetOff"
   | "sortAsc"
   | "sortDesc"
@@ -62,6 +63,7 @@ const paths: Record<IconName, string> = {
   checkbox: "M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 8 3 3 5-6",
   circleDot: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-3a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+  tag: "M3 4h9l9 9-8 8-10-10V4Zm5 3a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z",
   targetOff: "M4 4l16 16M12 21a9 9 0 0 1-8.3-12.5M7.5 4.7A9 9 0 0 1 20.3 16M12 17a5 5 0 0 1-4.7-6.8M10.5 7.2A5 5 0 0 1 16.8 13.5",
   sortAsc: "M7 17h10M7 12h7M7 7h4M18 16l3-3m0 0 3 3m-3-3v8",
   sortDesc: "M7 7h10M7 12h7M7 17h4M18 8l3 3m0 0 3-3m-3 3V3",

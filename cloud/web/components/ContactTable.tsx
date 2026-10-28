@@ -8,7 +8,7 @@ import { DEFAULT_CONTACT_FILTERS, filterContacts, headhunterDomainsForContact, o
 import { triggerCoachRuleReviewForContacts } from "../lib/coachRuleTriggers";
 import { cleanContactCompany, cleanContactRole, joinCompact, statusClass } from "../lib/format";
 import { readHeadhunterCompanyMaster } from "../lib/headhunterCompanyActions";
-import { addObjectiveAssignmentsToContacts, objectiveTypeLabel, readObjectives } from "../lib/objectiveActions";
+import { addObjectiveAssignmentsToContacts, objectiveTypeLabel, readObjectives } from "../lib/cycleObjectiveActions";
 import {
   resolveHeadhunterCompany,
   type HeadhunterCompanyMasterRow,

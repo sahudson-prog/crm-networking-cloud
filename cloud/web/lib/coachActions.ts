@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.ts";
+import { networkingWriteContext } from "./networkingCycles.ts";
 import { normalizeHeadhunterCompanyName } from "./headhunterCompanyMaster.ts";
 import type { TodoRow } from "./readModel.ts";
 
@@ -140,7 +141,7 @@ export async function executeNetworkingStatusTodo({
 
     const { error: updateContactError } = await supabase
       .from("contacts")
-      .update({ networking_status: suggestedStatus })
+      .update({ networking_status: suggestedStatus, networking_write_context: await networkingWriteContext() })
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateContactError) throw updateContactError;

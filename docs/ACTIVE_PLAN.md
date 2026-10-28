@@ -30,6 +30,7 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint actual
 
 - Último PR integrado en `main`: PR #42, OBJ-02 R1 - Tu punto de partida, SHA `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
+- Actualización OBJ-02: el owner confirmó R2-A instalado y validado en DEV/PROD. Para R2-B, `origin/main` se verificó en `79e92ed641d3f4aca353dd79acc3a94b41da814b`; el trabajo local aislado está en `codex/obj-02-r2b-minimal`. Las líneas históricas de R2-A de este archivo describen checkpoints anteriores.
 - Última release de producto completada: OBJ-02 R1; Vercel PROD Ready / Current y smoke funcional PASS confirmados por el owner.
 - Last completed product release SHA: `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
@@ -55,9 +56,9 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 COMPLETED; R2-A IMPLEMENTADO, SQL DEV INSTALADO Y VERIFICADO; PROD PENDIENTE.
-- Verified local baseline: 660cca4317c3316bf2fb5030122c3cff24d9a9b0.
-- Current branch/worktree: `codex/obj-02-r2a-cycles-history`, branch publicada para el incremento persistente aislado de ciclos e historial mínimo.
+- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B con `202610270002` y `202610280001` instaladas y ambos verifiers PASS en DEV según el operador. Smoke funcional y UX PASS informado; gate DEV `paused`. La branch se publica para PR; evidencia focal del SHA publicado en el runtime DEV local, apertura normal y PROD siguen pendientes.
+- Verified local baseline: `origin/main` = `79e92ed641d3f4aca353dd79acc3a94b41da814b` al iniciar R2-B.
+- Current branch/worktree: `codex/obj-02-r2b-minimal`, `C:\Users\Sergio\.codex\worktrees\obj-02-r2b-minimal\main`.
 - Completed:
   - PR #42 integrado en el baseline indicado y canonical sincronizado por fast-forward, verificados localmente;
   - R1 implementa `Tu punto de partida` entre introducción y Objetivos, compartido con Cuenta y compatible con onboarding V1;
@@ -65,18 +66,21 @@ Prompt de recuperación copy/paste-safe:
   - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
   - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas;
   - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre;
-  - R2-A implementado y branch publicada en `3681078597ecc6b205d92fc0c985ca94d6ed3f74`; según evidencia confirmada por el owner, preflight Supabase DEV `clean_install` PASS, migration R2-A aplicada con SUCCESS y nueve de nueve verificadores DEV PASS; no hubo SQL PROD ni deployment de runtime nuevo.
+  - R2-A fue instalado y validado en DEV/PROD según el owner; sus migrations aplicadas y el worktree de cierre permanecen intactos.
+  - R2-B mínimo añade creación/configuración/cierre de ciclos de Búsqueda laboral, Prioridades por ciclo, dos resets independientes y observaciones congeladas al cierre. Los datos históricos se conservan, pero no hay listado de procesos anteriores en la interfaz. La revisión independiente reforzó contexto versionado, rechazo de sesiones antiguas, horas ambiguas/inexistentes y gate operativo de acceso; el orden de DEV está en `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md`.
+  - R2-B DEV según el operador: preflights y captura PASS, migrations `202610270002` y `202610280001` aplicadas, ambos verifiers PASS y smoke funcional/UX `test_only` del candidato local PASS informado. No se aportó evidencia individual de cada escenario crítico; el primer ingreso real con usuario nuevo sigue diferido. El gate fue restaurado a `paused`, con cero usuarios autorizados, RPCs sensibles bloqueadas, Data API OFF, Auth signup OFF y runtime detenido. DEV usa `http://localhost:3000` y no tiene Vercel DEV permanente; PROD no cambió.
+  - Auditoría pre-PR detectó sync Google sin contexto y reconciliación de cierre con token obsoleto; la corrección conjunta y precisión temporal pasaron PostgreSQL local, tests afectados, typecheck y build. El forward-fix `202610280001` ya fue instalado y verificado en DEV según el operador.
 - Pending:
   - first-run real con usuario nuevo diferido, con cobertura automatizada; no declarado smoke manual PASS;
-  - preparar PR manual del owner para la branch R2-A publicada; preflight, recuperación, migration, verifiers y smoke PROD conservan gate separado;
-  - resolver en R2-B la operación visible de cierre/reinicio configurable; `Avísame`, Oportunidades y Seguimiento permanecen en entregas separadas.
-- Blockers: ninguno para preparar el PR de R2-A. SQL PROD y deployment de runtime requieren gates y autorización separados.
-- Manual/remote actions already executed: merge de PR #42 verificado en Git; SQL DEV/PROD, deployment y smoke de R1 confirmados por el owner; preflight, migration y nueve verificadores R2-A confirmados por el owner solo en DEV.
-- Immediate next action: el owner crea el PR manualmente desde la branch R2-A publicada; PROD permanece pendiente.
-- Stop boundary: no crear PR, merge, SQL remoto, deployment ni implementación de R2-B, Oportunidades, `Avísame` o Seguimiento en esta tarea.
+  - R2-B: tras publicar la branch y crear el PR manual, ejecutar el SHA publicado en `http://localhost:3000` apuntando solo a Supabase DEV, documentar evidencia individual de los escenarios críticos aún no acreditados y volver a `paused` al terminar el smoke `test_only`. Abrir DEV solo tras comprobar runtime y protecciones operativas; PROD tiene gates separados, con backup recuperable y aprobación operacional;
+  - `Avísame`, Oportunidades, Seguimiento, KPIs históricos, copia y reapertura de ciclos permanecen diferidos.
+- Blockers: ninguno local conocido; faltan PR, evidencia focal del SHA publicado en runtime DEV local, apertura controlada y, por separado, gates PROD. El runtime anterior no puede reabrirse después de `202610270002`.
+- Manual/remote actions already executed: solo las acciones R2-B DEV informadas por el operador en Completed; esta publicación no ejecuta SQL remoto ni cambia servicios. PROD R2-B intacto.
+- Immediate next action: tras publicar la branch, el usuario crea el PR en GitHub Web; seguir los gates DEV locales pendientes de `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md` antes de abrir el uso normal.
+- Stop boundary: esta tarea autoriza solo commits y push de `codex/obj-02-r2b-minimal`; sin SQL remoto, PR, merge ni deployment.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (SQL DEV VERIFICADO; PROD PENDIENTE)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (DEV/PROD validado según owner) → `OBJ-02 R2-B` (ambas migrations y verifiers DEV PASS según operador; gates de release pendientes)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -120,12 +124,12 @@ Prompt de recuperación copy/paste-safe:
 
 **Relación con otras fases**
 
-- ONB-01 no activa una fase nueva al cerrarse. INV-01 y OBJ-02 R1 están cerradas; R2-A es la única entrega posterior contratada, con SQL DEV verificado y PROD pendiente. R2-B y los demás candidatos siguen `NOT CONTRACTED / DECISION REQUIRED`.
+- Al cierre de ONB-01, esa fase no activó otra por sí sola. INV-01 y OBJ-02 R1 quedaron cerradas; el checkpoint vigente de R2-A/R2-B figura arriba. Los demás candidatos siguen `NOT CONTRACTED / DECISION REQUIRED`.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 continúa con R1 completada y R2-A implementada, con SQL DEV verificado y PROD pendiente. R2-B y las demás entregas permanecen `NOT CONTRACTED / DECISION REQUIRED`, al igual que los demás candidatos; INV-01 está cerrada.
+OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner y R2-B en preparación pre-PR con SQL y verifiers DEV PASS informados por el operador. Las entregas posteriores permanecen `NOT CONTRACTED / DECISION REQUIRED`; INV-01 está cerrada.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.

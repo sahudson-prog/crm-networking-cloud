@@ -135,16 +135,21 @@ function OnboardingIntro() {
 }
 
 function OnboardingObjectivesStep() {
+  const onboarding = useOnboarding();
+  const [cycleReady, setCycleReady] = useState(false);
+  const onCycleReadyChange = useCallback((ready: boolean) => setCycleReady(ready), []);
   return (
     <ObjectivesPage
+      onCycleReadyChange={onCycleReadyChange}
       onboardingCoach={(
-        <OnboardingCoach routeId="objectives" title="Comencemos definiendo tus objetivos">
+        <OnboardingCoach routeId="objectives" title="Comencemos definiendo tus prioridades"
+          nextDisabled={!onboarding.replaying && !cycleReady}>
           <p>
-            Aquí defines qué quieres lograr con tu red: por ejemplo, acercarte a una empresa, explorar un cargo o
-            avanzar hacia una nueva oportunidad.
+            Primero confirma tu ciclo de búsqueda laboral. Después podrás añadir Prioridades para empresas,
+            industrias, cargos o funciones.
           </p>
           <p>
-            Puedes crear objetivos reales desde esta misma página, o continuar y volver a completarlos después.
+            Las Prioridades son opcionales; puedes completarlas más adelante.
           </p>
         </OnboardingCoach>
       )}
