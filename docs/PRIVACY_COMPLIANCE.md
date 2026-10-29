@@ -118,6 +118,8 @@ Como la función borra también `audit_log` y `action_invocations` del usuario, 
 
 ## Consentimiento, retención y políticas
 
+El candidato local `Avísame` conserva solo solicitudes activas con modalidad, identidad Auth, correo normalizado en el momento del alta y fecha técnica. Se eliminan al retirarlas, al borrar realmente `auth.users` (cascada) o al cerrar y purgar la lista de esa modalidad. El reset propio conserva la identidad y la solicitud; tampoco la altera el cierre/reinicio de ciclos. El botón actual de eliminación de cuenta no borra Auth, por lo que no debe anunciarse eliminación total. Un flujo futuro que conserve la identidad deberá purgar estas solicitudes explícitamente. No hay historial de retiradas ni plazo fijo por antigüedad. Esta finalidad de aviso no autoriza campañas ni tratamiento de marketing.
+
 OAuth Google confirma autorización técnica para scopes de proveedor. No equivale por sí solo a consentimiento legal general para todos los usos posibles de datos.
 
 El Before User Created Auth Hook de Supabase, cuando se active, usará la allowlist para impedir altas no autorizadas. Ese bloqueo no revela el contenido de la allowlist al usuario.

@@ -9121,6 +9121,33 @@ code {
   margin-top: auto;
 }
 
+.button.networking-plan-notice {
+  align-self: flex-start;
+  margin: auto 0 0 34px;
+  border-radius: 999px;
+  min-width: 118px;
+  max-width: calc(100% - 34px);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+}
+
+.button.networking-plan-notice.positive {
+  color: var(--crm-positive);
+  border-color: var(--crm-positive);
+}
+
+.networking-notice-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--crm-danger);
+}
+
+.networking-notice-dialog h2 {
+  margin-top: 0;
+}
+
 .networking-process-summary {
   display: grid;
   gap: 5px;

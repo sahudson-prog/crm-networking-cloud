@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B mínimo con ambas migrations y verifiers DEV PASS y smoke funcional/UX PASS informados por el operador, gate `paused`. La branch se publica para PR; evidencia focal del SHA publicado en el runtime DEV local, apertura y PROD pendientes.
+- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B integrado en el `main` local por PR #45 (`e516e9c`), sin inferir de ese merge el estado de instalación o despliegue remoto. `Avísame` se implementa como candidato local separado, todavía sin SQL ni runtime remoto.
 - Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02. El contrato mínimo R2-B aprobado en octubre de 2026 prevalece sobre propuestas anteriores de alcance más amplio descritas abajo.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
-- R2-A fue instalado y validado en DEV/PROD según el owner. El SQL R2-B fue instalado y verificado solo en DEV según el operador; el runtime DEV es local en `http://localhost:3000`. PROD no recibió R2-B.
+- R2-A fue instalado y validado en DEV/PROD según el owner. Antes de PR #45 se informó SQL y verifiers R2-B PASS en DEV; esta tarea no verifica el estado remoto posterior al merge. La evidencia histórica no prueba por sí sola el estado actual de PROD.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -65,13 +65,11 @@ La etapa de importación del tutorial se dedica exclusivamente a contactos. Esta
 
 ### Avísame
 
-Para cada modalidad futura, `Avísame` abre un popup con el texto:
+Cada modalidad futura presenta un único botón tipo píldora, inicialmente `Avísame`. Al pulsarlo, la solicitud se guarda directamente. Solo tras confirmación server-side el botón pasa a `✓ Te avisaremos` y aparece un popup informativo: `Te notificaremos al correo registrado en Coffeecito cuando tengamos novedades o pruebas disponibles de [modalidad]`, con la única acción `Cerrar`. Pulsar `Te avisaremos` retira la solicitud y devuelve el botón a `Avísame`, sin otro popup. No se pide correo ni confirmación previa. El estado se restaura desde la persistencia al recargar; errores y respuestas inciertas no deben presentar un alta no confirmada.
 
-> Confirma que quieres dejarnos tu correo para avisarte novedades o pruebas de esta modalidad.
+Una fila activa por usuario/modalidad conserva correo y fecha del momento de solicitud. Identidad y correo se derivan server-side de Auth, sin parámetros de cliente para elegirlos. Solo se admiten las dos modalidades futuras, con unicidad, RLS y operaciones explícitas e idempotentes de alta y retirada. La solicitud no pertenece a un ciclo y sobrevive a su cierre o reinicio, así como al reset de datos propios que conserva la identidad. No hay historial de retiradas ni plazo arbitrario: se elimina con la retirada, con la eliminación efectiva de Auth o cuando se cierre manualmente la lista por modalidad al cumplirse o abandonarse su finalidad. El flujo actual de Cuenta no implementa eliminación de Auth; cualquier eliminación de cuenta futura deberá purgarla explícitamente si conserva esa identidad.
 
-El popup muestra el correo y la modalidad, con acciones `Confirmar` y `Cancelar`. Solo `Confirmar` persiste la modalidad, el correo vigente en ese momento y la identidad/fecha técnicas mínimas. Correo e identidad se derivan server-side de la autenticación; la modalidad debe ser válida, el acceso es privado y existe una sola solicitud por usuario/modalidad.
-
-La primera versión no incluye panel, envíos, campañas, seguimiento de cambios de correo ni un sistema general de suscripciones. La consulta será SQL manual futura por el owner. Cancelar no persiste nada. Retirada, retención, eliminación de cuenta y eventual ejecución de avisos siguen siendo decisiones de contrato pendientes; esta finalidad no constituye consentimiento de marketing.
+La primera versión no incluye panel, envíos, campañas, seguimiento de cambios de correo ni suscripciones comerciales. El owner podrá consultar manualmente las solicitudes activas por SQL y cerrar/purgar una modalidad mediante un procedimiento posterior separado. La finalidad de aviso no constituye consentimiento de marketing.
 
 ### Prioridades
 
@@ -192,7 +190,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 
 ## Realidad actual auditada
 
-- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B tiene SQL y verifiers DEV PASS informados, sin runtime nuevo desplegado. Oportunidades continúa ausente.
+- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B está integrado en Git por PR #45. Esta tarea no verificó su despliegue remoto. Oportunidades continúa ausente.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
 - `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
@@ -210,21 +208,21 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - R2-A no expone cierre ni reinicio. El cierre/archivo no destructivo y la sustitución del borrado físico en ese flujo pertenecen a R2-B; no reutilizar `reset_current_user_app_data_v0_1`.
 - Inicio de networking, inicio de ciclo y límites de recuperación por fuente permanecen separados.
 
-## Contrato mínimo R2-B implementado localmente y validado en DEV
+## Contrato mínimo R2-B integrado en Git
 
 - Solo `JOB_SEARCH` se puede crear. Nombre editable, inicio explícito con fecha/hora y zona IANA; configuración de ciclo legacy conserva ID, Prioridades y ausencia de datos históricos no conocidos. `started_at` y `closed_at` son instantes de negocio; `created_at` y `closed_recorded_at` son instantes de registro. Los intervalos son `[inicio, fin)`, permiten comenzar exactamente al terminar el anterior y no se solapan.
 - `Mi objetivo` muestra el ciclo activo. El cierre exige fecha/hora y uno de cinco resultados, es transaccional e idempotente. No crea un ciclo siguiente ni modifica situación laboral, `Fecha_Inicio_Networking`, cursores o ventanas de sync. No se permite reabrir o editar un ciclo cerrado.
 - Las Prioridades y asociaciones permanecen en su ciclo; el siguiente comienza vacío. El borrado ordinario archiva la Prioridad. Los datos de ciclos cerrados se conservan y protegen en PostgreSQL, sin listado de historial en Cuenta ni Objetivos. Al cierre se congelan el estado/foco de contactos activos y las asociaciones observadas, con `observed_at`; un cierre retroactivo no afirma que esas observaciones fueran ciertas en la fecha de fin.
 - El nuevo ciclo ofrece dos opciones independientes inicialmente desmarcadas: reiniciar a `Pendiente` y limpiar foco de contactos activos, incluidos headhunters. Cerrar no modifica esos campos. La red global sigue operativa sin ciclo, mientras las lecturas y escrituras de Prioridades se acotan al activo. El Coach no reutiliza interacciones anteriores al inicio del ciclo para avances de estado.
-- RPCs con ownership, acceso efectivo, token de contexto esperado, índices de idempotencia y bloqueo por usuario protegen sesiones antiguas y concurrencia. Sync, merge y reset tienen adaptación focal. `Avísame`, Oportunidades, Seguimiento, KPIs, copia de Prioridades y reapertura/corrección siguen diferidos.
-- `PROD CONTRACT CHANGE`: migrations `202610270002` y `202610280001`, preflights, verifiers y prueba local Postgres. El gate de acceso se instala en `paused`; el runtime anterior deja de ser seguro para escribir desde la primera migration. DEV completó instalación, verificación y smoke funcional/UX local `test_only` según el operador; falta evidencia individual de escenarios críticos con el SHA publicado en `http://localhost:3000` antes de la apertura, según `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md`. Una falla transaccional revierte su migration; tras el commit se conservan datos y se aplica forward-fix. PROD exige backup recuperable y ensayo de recuperación según `PROD_CONTRACTS.md` y `RELEASE_RUNBOOK.md`.
+- RPCs con ownership, acceso efectivo, token de contexto esperado, índices de idempotencia y bloqueo por usuario protegen sesiones antiguas y concurrencia. Sync, merge y reset tienen adaptación focal. Oportunidades, Seguimiento, KPIs, copia de Prioridades y reapertura/corrección siguen diferidos; `Avísame` tiene candidato local separado.
+- `PROD CONTRACT CHANGE`: migrations `202610270002` y `202610280001`, preflights, verifiers y prueba local Postgres. El gate de acceso se instala en `paused`; el runtime anterior deja de ser seguro para escribir desde la primera migration. DEV completó instalación, verificación y smoke funcional/UX local `test_only` según el operador antes del merge de PR #45; el estado remoto actual no se comprobó en esta tarea. Una falla transaccional revierte su migration; tras el commit se conservan datos y se aplica forward-fix. PROD exige backup recuperable y ensayo de recuperación según `PROD_CONTRACTS.md` y `RELEASE_RUNBOOK.md`.
 
 ## Recomendaciones técnicas posteriores pendientes de aprobación
 
 - Entregar Oportunidades, relaciones e historial juntos para mantener transiciones y asociaciones coherentes y atómicas.
 - Usar un formulario compartido desde ficha de contacto, Prioridades y vista general de Oportunidades.
 - Calcular Oportunidades abiertas distintas por relación explícita Prioridad/ciclo y no sumar filas como total global.
-- Modelar `Avísame` con unicidad usuario/modalidad, correo canónico server-side y acceso administrativo agregado, sin construir un sistema general de suscripciones.
+- Para `Avísame`, mantener solo consultas manuales de solicitudes activas; no se contrata acceso administrativo agregado ni panel.
 
 ## Estado y pendientes por entrega
 
@@ -242,7 +240,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - R2-B mínimo implementa creación, configuración legacy, cierre y reinicio opcional por estado/foco; sin cambio de tipo de plan ni copia;
 - R2-B persiste zona horaria IANA para los nuevos límites. El `started_on` preexistente se conserva como fecha civil y su interpretación UTC anterior se migra explícitamente a `started_at`; inicio legacy desconocido queda `NULL`;
 - falta identificar el campo real de calidad de foco/cercanía antes de ofrecer su reinicio;
-- retirada, retención y eliminación de solicitudes `Avísame`, además del procedimiento autorizado para un aviso futuro;
+- `Avísame`: candidato local de alta/retirada, lectura propia y purga; faltan gates DEV/PROD y la integración de cualquier futura eliminación de cuenta que conserve `auth.users`;
 - eliminación de cuenta y retención histórica más allá del reset propio ya cubierto por R2-A.
 
 ### Oportunidades
@@ -268,7 +266,7 @@ Estas decisiones de Seguimiento no bloquean R1.
 
 1. **R1 - Tu punto de partida (COMPLETED):** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
 2. **R2-A - Fundación de ciclos e historial mínimo (DEV/PROD validado según owner):** persistencia y backfill compatible, un único ciclo activo, pertenencia de Prioridades y ledgers estrechos; sin cierre/reinicio visible.
-3. **R2-B mínimo (SQL y smoke local DEV PASS informados; release pendiente):** creación/configuración/cierre, dos opciones independientes de reset y adaptación de consumidores; historia persistida sin listado en la interfaz. `Avísame` sigue independiente.
+3. **R2-B mínimo (PR #45 integrado; estado remoto por reconfirmar):** creación/configuración/cierre, dos opciones independientes de reset y adaptación de consumidores; historia persistida sin listado en la interfaz. `Avísame` sigue independiente.
 4. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
 5. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
 
@@ -276,6 +274,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B tiene ambas migrations y verifiers DEV PASS y smoke local informado, con gate `paused`; tras publicar la branch siguen pendientes PR manual, evidencia focal del SHA publicado en el runtime DEV local, apertura controlada y un gate PROD independiente con backup recuperable. `Avísame`, Oportunidades y Seguimiento siguen pendientes.
+R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B fue integrado por PR #45 en el baseline local; el estado operacional remoto posterior al merge requiere comprobación independiente. `Avísame` es candidato local sin migration remota ni runtime publicado. Oportunidades y Seguimiento siguen pendientes.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.
