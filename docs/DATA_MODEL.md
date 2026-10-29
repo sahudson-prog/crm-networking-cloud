@@ -117,6 +117,8 @@ R2-B añade `cycle_name`, `started_at`, `timezone_name`, resultado y `closed_rec
 
 `interactions` no incorpora `cycle_id`. La atribución usa `occurred_at` y los límites instantáneos conocidos `[started_at, closed_at)`; eventos sin fecha o sin una única coincidencia no se atribuyen. `created_at` de importación no sustituye la fecha de ocurrencia. Esta atribución no constituye un KPI histórico en R2-B.
 
+El candidato local `Avísame` (migration `202610290001`, aún no desplegada según esta tarea) añade `networking_plan_notice_modes` con las dos modalidades futuras y su estado de lista, y `networking_plan_interest` con clave primaria `(user_id, objective_type)`, correo normalizado obtenido de Auth al solicitar y `requested_at` generado por DB. No guarda historial de retiradas ni `cycle_id`. La FK a `auth.users` elimina la fila si se borra realmente esa identidad. El reset de datos propios conserva Auth y no elimina la solicitud; el cierre/reinicio de ciclos tampoco.
+
 ## Referidos
 
 `referrals` representa una persona recomendada por un contacto dentro del proceso de networking.

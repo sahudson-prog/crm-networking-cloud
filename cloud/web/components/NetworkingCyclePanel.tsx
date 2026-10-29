@@ -8,6 +8,8 @@ import {
 } from "../lib/networkingCycles";
 import { NETWORKING_CYCLE_RESULTS, type NetworkingCycleResult } from "../lib/networkingCycleModel";
 import { createCycleCloseFlow } from "../lib/networkingCycleCloseFlow";
+import { readMyNetworkingPlanNotices, requestNetworkingPlanNotice, withdrawNetworkingPlanNotice } from "../lib/networkingPlanNotice";
+import { reconcileNetworkingPlanNotice, type FutureNetworkingPlan } from "../lib/networkingPlanNoticeFlow";
 import { firstSelectableStartInstant, localDateTimeCandidates, localDateTimeToIso, startInputMin, startIsOnOrAfterClose,
   timezoneOffsetLabel, type RepeatedTimeChoice } from "../lib/networkingCycleTime";
 import { Button } from "./ui/Button";
@@ -17,6 +19,11 @@ function suggestedName() {
   return `Búsqueda laboral · ${new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" }).format(new Date())}`;
 }
 
+const futurePlans: Array<{ code: FutureNetworkingPlan; label: string }> = [
+  { code: "BUSINESS_DEVELOPMENT", label: "Generación de negocios" },
+  { code: "PERSONAL_BRAND", label: "Posicionamiento o marca personal" }
+];
+
 export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
   onReadyChange?: (ready: boolean) => void;
   onCycleChange?: () => void;
@@ -25,6 +32,14 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+  const [notices, setNotices] = useState<Set<FutureNetworkingPlan>>(new Set());
+  const [noticesLoading, setNoticesLoading] = useState(true);
+  const [noticeReadFailed, setNoticeReadFailed] = useState(false);
+  const [noticeWorking, setNoticeWorking] = useState(false);
+  const [noticeError, setNoticeError] = useState("");
+  const [noticeInformation, setNoticeInformation] = useState<FutureNetworkingPlan | null>(null);
+  const noticeLock = useRef(false);
+  const noticeDialog = useRef<HTMLDialogElement>(null);
   const [startFieldError, setStartFieldError] = useState("");
   const [stale, setStale] = useState(false);
   const [name, setName] = useState(suggestedName);
@@ -62,6 +77,8 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
 
   useEffect(() => { onReadyChange?.(ready); }, [onReadyChange, ready]);
   useEffect(() => { void load(); }, []);
+  useEffect(() => { void loadNotices(); }, []);
+  useEffect(() => { if (noticeInformation && !noticeDialog.current?.open) noticeDialog.current?.showModal(); }, [noticeInformation]);
   useEffect(() => { if (creating && !createDialog.current?.open) createDialog.current?.showModal(); }, [creating]);
   useEffect(() => { if (closing && !closeDialog.current?.open) closeDialog.current?.showModal(); }, [closing]);
 
@@ -73,6 +90,46 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
     setError("");
     setStartFieldError("");
     setCreating(true);
+  }
+
+  async function loadNotices() {
+    setNoticesLoading(true);
+    setNoticeError("");
+    try {
+      setNotices(await readMyNetworkingPlanNotices());
+      setNoticeReadFailed(false);
+    } catch {
+      setNoticeReadFailed(true);
+      setNoticeError("No pudimos leer tus avisos. Intenta nuevamente.");
+    } finally {
+      setNoticesLoading(false);
+    }
+  }
+
+  async function changeNotice(modality: FutureNetworkingPlan) {
+    if (noticeLock.current || noticesLoading || noticeReadFailed) return;
+    noticeLock.current = true;
+    setNoticeWorking(true);
+    setNoticeError("");
+    const desired = !notices.has(modality);
+    try {
+      const outcome = await reconcileNetworkingPlanNotice({ modality, desired,
+        request: requestNetworkingPlanNotice, withdraw: withdrawNetworkingPlanNotice,
+        read: readMyNetworkingPlanNotices });
+      setNotices(outcome.notices);
+      setNoticeReadFailed(false);
+      if (!outcome.confirmed) {
+        setNoticeError("No pudimos confirmar el cambio. Revisa el estado e intenta nuevamente.");
+      } else if (desired) {
+        setNoticeInformation(modality);
+      }
+    } catch {
+      setNoticeReadFailed(true);
+      setNoticeError("No pudimos confirmar el cambio. Actualiza los avisos antes de reintentar.");
+    } finally {
+      noticeLock.current = false;
+      setNoticeWorking(false);
+    }
   }
 
   function openClose() {
@@ -211,14 +268,35 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
         <article className="networking-plan is-unavailable">
           <div className="networking-plan-heading"><Handshake className="networking-plan-icon" size={22} strokeWidth={1.8} aria-hidden="true" /><h3>Generar nuevos negocios</h3></div>
           <span className="networking-plan-status">Próximamente</span>
-          <span className="networking-plan-pending">Avísame · pendiente de habilitación</span>
+          <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
+            aria-pressed={notices.has("BUSINESS_DEVELOPMENT")}
+            onClick={() => void changeNotice("BUSINESS_DEVELOPMENT")}
+            tone={notices.has("BUSINESS_DEVELOPMENT") ? "positive" : "secondary"}>
+            {noticesLoading ? "Cargando..." : notices.has("BUSINESS_DEVELOPMENT") ? "✓ Te avisaremos" : "Avísame"}
+          </Button>
         </article>
         <article className="networking-plan is-unavailable">
           <div className="networking-plan-heading"><Megaphone className="networking-plan-icon" size={22} strokeWidth={1.8} aria-hidden="true" /><h3>Posicionar tu marca</h3></div>
           <span className="networking-plan-status">Próximamente</span>
-          <span className="networking-plan-pending">Avísame · pendiente de habilitación</span>
+          <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
+            aria-pressed={notices.has("PERSONAL_BRAND")}
+            onClick={() => void changeNotice("PERSONAL_BRAND")}
+            tone={notices.has("PERSONAL_BRAND") ? "positive" : "secondary"}>
+            {noticesLoading ? "Cargando..." : notices.has("PERSONAL_BRAND") ? "✓ Te avisaremos" : "Avísame"}
+          </Button>
         </article>
       </div>
+      {noticeError ? <div className="networking-notice-error" role="alert"><span>{noticeError}</span>
+        <Button disabled={noticesLoading || noticeWorking} onClick={() => void loadNotices()}>Actualizar</Button>
+      </div> : null}
+      {noticeInformation ? (
+        <dialog ref={noticeDialog} className="modal-card networking-notice-dialog" aria-labelledby="networking-notice-title"
+          onClose={() => setNoticeInformation(null)}>
+          <h2 id="networking-notice-title">Te avisaremos</h2>
+          <p>Te notificaremos al correo registrado en Coffeecito cuando tengamos novedades o pruebas disponibles de {futurePlans.find((plan) => plan.code === noticeInformation)?.label}.</p>
+          <footer className="modal-actions"><Button onClick={() => noticeDialog.current?.close()} tone="primary">Cerrar</Button></footer>
+        </dialog>
+      ) : null}
       {!creating && !closing && error ? <p className="form-error" role="alert">{error}</p> : null}
       {creating ? (
         <dialog ref={createDialog} className="modal-card networking-process-dialog" aria-labelledby="create-process-title"
