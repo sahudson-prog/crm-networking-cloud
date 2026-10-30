@@ -56,18 +56,28 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 COMPLETED; R2-A validado en DEV/PROD según el owner; R2-B integrado en el baseline local por PR #45. `Avísame` es el único incremento activo de esta tarea, candidato local sin publicación ni SQL remoto. Oportunidades y Seguimiento no se implementan aquí.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según el owner; R2-B integrado en el baseline local por PR #45. `Avísame` pertenece a la branch publicada PR #46 y su estado por ambiente requiere comprobación independiente. Oportunidades V1 es candidato local separado; Seguimiento no se implementa aquí.
 - Verified local baseline: `main` y `origin/main` locales = `e516e9cd9dddf81f125ff4b42e6cc9219c7121a4`; referencia remota no sincronizada por restricción de esta tarea.
-- Current branch/worktree: `codex/obj-02-avisame-v1`, `C:\Dev\Coffeecito-Workspace\worktrees\obj-02-avisame-v1`.
+- Current branch/worktree de este candidato: `codex/obj-02-integracion-v1`, `C:\Dev\Coffeecito-Workspace\worktrees\obj-02-integracion-v1`; base `a345d10dd64e45d398a245876ff472f59f492a0c`.
 - Completed: PR #45 integrado en Git local; contrato y código R2-B presentes. Evidencia histórica aportada por el operador: migrations/verifiers y smoke local `test_only` PASS en DEV antes del merge. El first-run real de R1 sigue diferido con cobertura automatizada. Revisión local de `Avísame`: migración/verifier y lifecycle certificados en PostgreSQL 17 desechable; sin SQL remoto.
-- Pending: smoke visual autenticado de `Avísame`; después, gates separados de migration/verifier/smoke DEV, backup y aprobación PROD, migration/verifier PROD, publicación de runtime y smoke. Verificar dinámicamente el estado operacional R2-B antes de promover dependencias; no inferirlo del merge. La eliminación completa de cuenta sigue sin infraestructura efectiva.
-- Blockers: ningún bloqueo de código conocido; falta aprobación de cambio persistente y evidencia por ambiente. No se declara `Avísame` desplegado.
+- Pending: para Oportunidades, consolidación del candidato y gates PROD independientes: preflight, backup recuperable, recuperación, ventana compatible, migrations/verifiers, runtime y smoke. Verificar dinámicamente R2-B y Avísame antes de promover dependencias; no inferir instalación remota desde Git. La eliminación completa de cuenta sigue sin infraestructura efectiva.
+- Blockers: PROD aún requiere preflight de filas y contrato instalado; cualquier legacy `stage=finished` detiene la migration hasta resolver su etapa explícitamente. El cliente anterior de cinco columnas no es compatible como escritor tras esta fase.
 - Manual/remote actions in this task: ninguna.
-- Immediate next action: revisar el candidato local y autorizar por separado el gate SQL DEV; después efectuar smoke autenticado antes de cualquier promoción PROD.
+- Immediate next action: consolidar el candidato local aprobado en DEV; preparar por separado el cutover PROD sin repetir migrations instaladas en DEV.
 - Stop boundary: sin commit, fetch, push, PR, SQL remoto ni deployment.
+
+### Candidato local paralelo OBJ-02 / Oportunidades V1
+
+- Nuevo contrato de cierre: cuatro etapas y situación activa/finalizada/anulada; resultados por etapa, causa opcional, filtros y reapertura en la misma etapa. 202610300001 conserva datos/eventos y se detiene ante cualquier etapa legacy `finished`. Su instalación y verificación DEV fueron confirmadas por el owner; PROD no está promovido.
+
+- Worktree `codex/obj-02-integracion-v1` basado en el commit de Avísame `a345d10dd64e45d398a245876ff472f59f492a0c`; no modifica `main` ni PR #46.
+- Según el owner, DEV tiene instaladas `202610290002`, `202610290003`, `202610290004` y `202610300001`, con verifier compuesto PASS. El smoke autenticado de creación, movimiento y nuevo cierre, incluida la aprobación visual final, fue confirmado por el owner; no certifica PROD.
+- Corrección local 004: elegibilidad compartida por metadata y columna soft-delete opcional sin añadirla; lectura RPC estrecha, alta sin interacciones independiente de esa lectura y edición fail-closed. Paginación con conteo exacto, avance por filas recibidas y rechazo de incompletitud. Validación local con PostgreSQL/PostgREST y fixtures sintéticas, cadena 002 -> 003 -> 004, ambos esquemas y formulario React montado; no certifica DEV ni Auth externo. Las migrations 002/003 permanecen intactas.
+- Revisión técnica local: corregidos reintentos de alta, versionado de fusión, conservación de relaciones archivadas, lecturas paginadas y guardas de instalación. Ensayo PostgreSQL 17 aislado PASS, incluidos RLS/ACL efectivos, concurrencia, ciclos históricos, reset, rollback y verifiers R2-B/Avísame. El smoke autenticado DEV es evidencia aportada por el owner, no una prueba ejecutada por Codex.
+- Gates separados pendientes: revisión/publicación del candidato y, para PROD, preflight de filas legacy y contrato instalado, recuperación/ventana, migrations y verifier compuesto, deployment y smoke. Seguimiento sigue fuera de alcance.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (DEV/PROD validado según owner) → `OBJ-02 R2-B` (PR #45 integrado; estado operacional remoto por reconfirmar) → `Avísame` (candidato local)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (DEV/PROD validado según owner) → `OBJ-02 R2-B` (PR #45 integrado; estado operacional remoto por reconfirmar) → `Avísame` (PR #46, estado por ambiente a verificar) → `Oportunidades V1` (candidato local)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -116,7 +126,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R2-B integrado en Git local y `Avísame` en implementación local separada. Oportunidades y Seguimiento permanecen sin implementar; INV-01 está cerrada.
+OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R2-B integrado en Git local y `Avísame` en una branch publicada separada. Oportunidades V1 está implementada localmente y validada en DEV según el owner, aún sin promoción PROD; Seguimiento permanece sin implementar. INV-01 está cerrada.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -213,7 +223,7 @@ OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 COMPLETED; R2-A validado en DEV/PROD según owner; R2-B integrado en Git por PR #45, estado remoto por reconfirmar; `Avísame` candidato local; releases posteriores pendientes.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según owner; R2-B integrado en Git por PR #45, estado remoto por reconfirmar; `Avísame` en PR #46; Oportunidades V1 validada en DEV según el owner, sin promoción PROD; Seguimiento pendiente.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
@@ -222,7 +232,7 @@ OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R
 - Resultado R2-A: según el owner, instalado y validado en DEV/PROD. Los checkpoints anteriores de este archivo no actualizaban ese estado.
 - Decisiones posteriores: operación visible de cierre/reinicio configurable, privacidad de `Avísame`, máquina de estados/resultados, relaciones y semántica de Seguimiento.
 - Estado de R1: PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`; según evidencia confirmada por el owner, SQL y tres verifiers PASS en DEV/PROD, runtime PROD Ready / Current y smoke PASS. First-run real diferido con cobertura automatizada.
-- Out of scope actual: aplicar SQL remoto o desplegar runtime; implementar Oportunidades o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Out of scope actual: aplicar SQL remoto o desplegar runtime; implementar Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 

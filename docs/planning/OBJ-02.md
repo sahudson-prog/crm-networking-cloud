@@ -2,7 +2,7 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B integrado en el `main` local por PR #45 (`e516e9c`), sin inferir de ese merge el estado de instalación o despliegue remoto. `Avísame` se implementa como candidato local separado, todavía sin SQL ni runtime remoto.
+- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B integrado en el `main` local por PR #45 (`e516e9c`), sin inferir de ese merge el estado remoto. `Avísame` está publicado como PR #46; Oportunidades V1 está implementada en otra branch y validada en DEV según el owner, sin promoción PROD.
 - Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02. El contrato mínimo R2-B aprobado en octubre de 2026 prevalece sobre propuestas anteriores de alcance más amplio descritas abajo.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
 - R2-A fue instalado y validado en DEV/PROD según el owner. Antes de PR #45 se informó SQL y verifiers R2-B PASS en DEV; esta tarea no verifica el estado remoto posterior al merge. La evidencia histórica no prueba por sí sola el estado actual de PROD.
@@ -106,9 +106,9 @@ Una Oportunidad debe relacionarse con varias personas desde el inicio. El diseñ
 ### Flujo reutilizable de creación
 
 - Debe existir un flujo visible y reutilizable para crear Oportunidades desde distintos contextos.
-- Los contextos iniciales son vista general de Oportunidades, Prioridades y ficha de contacto; deben poder agregarse otros en el futuro sin saturar el listado de contactos.
+- Los contextos iniciales del candidato V1 son vista general de Oportunidades y Prioridades; la entrada desde ficha de contacto queda diferida por decisión posterior del owner. El editor compartido debe admitir nuevos contextos en el futuro sin saturar el listado de contactos.
 - El mismo flujo debe recibir contexto y prepoblar relaciones cuando corresponda.
-- Si se crea una Oportunidad desde una ficha de contacto, ese contacto puede venir preseleccionado.
+- Si se habilita más adelante la creación desde ficha de contacto, ese contacto podrá venir preseleccionado.
 - No deben existir formularios divergentes por pantalla.
 
 ### Seguimiento y ¿Cómo voy?
@@ -126,14 +126,14 @@ La pirámide tiene, de abajo hacia arriba:
 1. `Contactados`: contactos únicos con estado `Contactado` o superior; excluye `Pendiente`.
 2. `Cafés`: unión distinta de contactos únicos con estado `Cita concretada` o superior, o al menos un café válido de tipo cita/llamada. No suma condiciones ni cuenta eventos.
 3. `Oportunidades`: oportunidades distintas no eliminadas, incluidas las cerradas.
-4. `Ofertas totales`: oportunidades que efectivamente alcanzaron `Oferta recibida` u `Oferta exitosa`; excluye cierres sin oferta.
-5. `Ofertas exitosas`: oportunidades con estado/resultado explícito `Oferta exitosa`; un cierre genérico no basta.
+4. `Ofertas totales`: oportunidades no anuladas cuya etapa vigente es `Oferta recibida`, activas o finalizadas, cualquiera sea su resultado de cierre. No reconstruir visitas históricas.
+5. `Ofertas exitosas`: oportunidades finalizadas con resultado vigente `Oferta aceptada`; un cierre genérico no basta.
 
 Se muestran las razones `% cafés/contactados`, `% oportunidades/cafés`, `% ofertas/oportunidades` y `% ofertas exitosas/ofertas`. Un denominador cero se presenta como `Sin base`. Los valores superiores a 100% no se truncan: los niveles mezclan unidades distintas y no deben presentarse como probabilidad estadística ni cohorte homogénea.
 
 Un único toggle permite agrupar headhunters solo en `Contactados` y `Cafés`. Debe reutilizar la clasificación vigente y la clave canónica de empresa/dominio empleada en Contactos. Cada grupo cuenta una vez por nivel si al menos un miembro cumple la condición. El toggle no fusiona datos ni modifica Oportunidades, ofertas o el gráfico lateral.
 
-Para preservar el hecho histórico de una oferta, la representación mínima recomendada es un historial de transiciones o eventos que diferencie `Oferta recibida` y `Oferta exitosa`: cada oportunidad cuenta una sola vez en ofertas totales si alcanzó cualquiera de ambas, y un cierre posterior no elimina ese hecho. Esta recomendación no aprueba por sí sola la máquina de estados completa ni autoriza inferir una oferta por el ordinal de `Cerrada` o inventar etapas/fechas.
+Decisión posterior del owner: las métricas de Oportunidades y Ofertas se calculan exclusivamente desde etapa y resultado vigentes, no desde el historial. Una visita anterior a `Oferta recibida` deja de sumar si se corrige a otra etapa. El historial conserva auditoría, no alimenta esos conteos. Esta precisión no cambia las definiciones de `Cafés` y `Contactados`.
 
 La columna `Oportunidades` cuenta oportunidades abiertas distintas relacionadas explícitamente con cada Prioridad y el ciclo correspondiente. Una oportunidad puede aparecer en más de una fila; un total global debe usar la unión distinta y no la suma de filas.
 
@@ -168,29 +168,25 @@ El atributo pertenece al perfil del usuario, no al ciclo. Es nullable para prese
 - Si una interacción está vinculada a una Oportunidad de un ciclo cerrado, la interacción continúa existiendo y su relación queda histórica.
 - Este comportamiento no debe reutilizar ni confundirse con `reset_current_user_app_data_v0_1`, cuyo propósito y perímetro son diferentes.
 
-## Propuesta pendiente: estados de Oportunidad
+## Oportunidades V1: contrato candidato local
 
-La máquina de estados no está aprobada todavía.
+Contrato de cierre aprobado: cuatro etapas (`Identificadas`, `Postuladas`, `En proceso`, `Oferta recibida`) y situación independiente `activa`, `finalizada` o `anulada`. Finalizar se realiza mediante una acción compacta en la tarjeta, no por arrastre a una quinta columna. La finalizada conserva su etapa y muestra el resultado vigente. Filtro `Activas / Finalizadas / Todas`, predeterminado `Activas`; nunca incluye anuladas.
 
-La propuesta de trabajo actual separa `etapa` de `resultado` para no mezclar progreso con cierre:
+Resultados exactos por etapa:
+- Identificadas: Descartada por mí; Plazo de postulación vencido; Vacante cancelada; Otro.
+- Postuladas: No seleccionado; Postulación retirada por mí; Vacante cancelada; Sin respuesta; Otro.
+- En proceso: No seleccionado; Proceso retirado por mí; Vacante cancelada; Sin respuesta; Otro.
+- Oferta recibida: Oferta aceptada; Oferta declinada; Oferta expirada; Otro.
 
-`Identificada` -> `Postulado` -> `En proceso/entrevistas` -> `Oferta recibida` -> `Cerrada`
+`Causa de cierre` es opcional para todos los resultados (límite técnico existente: 500 caracteres). Reabrir conserva la misma etapa y desactiva resultado/causa vigentes; conserva ambos en auditoría. Después de reabrir puede cambiarse la etapa mediante arrastre o menú. Un nuevo cierre exige seleccionar resultado nuevamente. Se permiten correcciones trazables del resultado/causa en su etapa; no cambiar la etapa de una finalizada sin reabrir. La anulación sigue siendo una operación separada para creaciones por error. No se incorpora archivo ni fusión general.
 
-Al cerrar, se registraría un resultado separado, por ejemplo:
+El forward-fix `202610300001` requiere 002/003/004. Cualquier fila legacy con `stage=finished`, incluso anulada, exige STOP y resolución expresa del owner sobre su etapa antes de migrar; no inferirla desde eventos. El resto conserva campos e historial, añadiendo situación derivada de resultado/anulación. DEV resolvió una fila de prueba incompatible mediante una operación focal autorizada antes de aplicar la migration, según el owner; no se infiere el estado PROD.
 
-- éxito;
-- rechazo de la empresa;
-- retirada por el usuario;
-- oferta declinada;
-- sin avance;
-- otro;
-- razón opcional.
-
-Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento se requiere distinguir explícitamente `Oferta recibida` y `Oferta exitosa`, conservar el hecho histórico de la oferta después del cierre y excluir cierres sin oferta. Sigue abierto si esto se representa mediante etapas/resultados, eventos de historial o, posteriormente, un objeto Oferta propio.
+Cada Oportunidad pertenece a un ciclo y puede vincular varios contactos, Prioridades del mismo ciclo e interacciones existentes, sin roles obligatorios para los contactos. Las interacciones elegibles deben tener al menos un participante que sea contacto vinculado; la selección es explícita y deduplicada, sin incorporar automáticamente otros participantes. Retirar un contacto exige advertir antes de desvincular interacciones que ya no sean elegibles. El editor compartido se abre desde Kanban y Prioridades; la entrada desde ficha de contacto queda diferida. Al cerrar un ciclo, sus Oportunidades quedan históricas y no pasan al siguiente. Según el owner, 002/003/004 y `202610300001` están instaladas y verificadas en DEV, y el smoke funcional y visual V1 resultó satisfactorio. Esa evidencia no certifica PROD.
 
 ## Realidad actual auditada
 
-- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B está integrado en Git por PR #45. Esta tarea no verificó su despliegue remoto. Oportunidades continúa ausente.
+- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B está integrado en Git por PR #45. Esta tarea no verificó su despliegue remoto. Oportunidades V1 es solo un candidato local en una branch separada.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
 - `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
@@ -220,7 +216,7 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 ## Recomendaciones técnicas posteriores pendientes de aprobación
 
 - Entregar Oportunidades, relaciones e historial juntos para mantener transiciones y asociaciones coherentes y atómicas.
-- Usar un formulario compartido desde ficha de contacto, Prioridades y vista general de Oportunidades.
+- Usar un formulario compartido desde Prioridades y vista general de Oportunidades; la entrada desde ficha de contacto queda diferida.
 - Calcular Oportunidades abiertas distintas por relación explícita Prioridad/ciclo y no sumar filas como total global.
 - Para `Avísame`, mantener solo consultas manuales de solicitudes activas; no se contrata acceso administrativo agregado ni panel.
 
@@ -240,17 +236,14 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - R2-B mínimo implementa creación, configuración legacy, cierre y reinicio opcional por estado/foco; sin cambio de tipo de plan ni copia;
 - R2-B persiste zona horaria IANA para los nuevos límites. El `started_on` preexistente se conserva como fecha civil y su interpretación UTC anterior se migra explícitamente a `started_at`; inicio legacy desconocido queda `NULL`;
 - falta identificar el campo real de calidad de foco/cercanía antes de ofrecer su reinicio;
-- `Avísame`: candidato local de alta/retirada, lectura propia y purga; faltan gates DEV/PROD y la integración de cualquier futura eliminación de cuenta que conserve `auth.users`;
+- `Avísame`: incremento separado de alta/retirada, lectura propia y purga; verificar su estado operacional por ambiente antes de cualquier promoción de Oportunidades. Una futura eliminación de cuenta que conserve `auth.users` requiere integración adicional;
 - eliminación de cuenta y retención histórica más allá del reset propio ya cubierto por R2-A.
 
-### Oportunidades
+### Oportunidades posteriores a V1
 
-- máquina de etapas/resultados, saltos, reapertura y correcciones;
-- representación mínima de `Oferta recibida` y `Oferta exitosa`, y si una Oferta será un objeto propio;
-- roles de relaciones Oportunidad-Contacto;
-- cardinalidad y UX Oportunidad-Interacción;
-- tratamiento de referidos al vincular personas;
-- versionado, archivo, merge y reset.
+- roles opcionales de relaciones Oportunidad-Contacto y tratamiento de referidos al vincular personas;
+- archivo o fusión general de Oportunidades y posible objeto Oferta propio;
+- promoción y smoke por ambiente del candidato V1.
 
 ### Seguimiento
 
@@ -274,6 +267,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B fue integrado por PR #45 en el baseline local; el estado operacional remoto posterior al merge requiere comprobación independiente. `Avísame` es candidato local sin migration remota ni runtime publicado. Oportunidades y Seguimiento siguen pendientes.
+R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B fue integrado por PR #45 en el baseline local; el estado operacional remoto posterior al merge requiere comprobación independiente. `Avísame` está en la branch publicada PR #46; su estado por ambiente debe verificarse antes de promover dependencias. Según el owner, Oportunidades V1 tiene SQL 002/003/004 y `202610300001` instalados y verificados en DEV, con smoke funcional y visual PASS. El candidato aún no está publicado ni promovido a PROD; Seguimiento sigue pendiente.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.

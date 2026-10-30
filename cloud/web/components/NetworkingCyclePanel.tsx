@@ -24,9 +24,10 @@ const futurePlans: Array<{ code: FutureNetworkingPlan; label: string }> = [
   { code: "PERSONAL_BRAND", label: "Posicionamiento o marca personal" }
 ];
 
-export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
+export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingChange }: {
   onReadyChange?: (ready: boolean) => void;
   onCycleChange?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [cycles, setCycles] = useState<NetworkingCycle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +77,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange }: {
   const endCandidates = candidatesFor(end, timezone);
 
   useEffect(() => { onReadyChange?.(ready); }, [onReadyChange, ready]);
+  useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
   useEffect(() => { void load(); }, []);
   useEffect(() => { void loadNotices(); }, []);
   useEffect(() => { if (noticeInformation && !noticeDialog.current?.open) noticeDialog.current?.showModal(); }, [noticeInformation]);

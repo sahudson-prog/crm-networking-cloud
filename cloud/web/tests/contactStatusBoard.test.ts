@@ -4,6 +4,7 @@ import test from "node:test";
 
 const tableSource = source("../components/ContactTable.tsx");
 const stylesSource = source("../styles/components.css");
+const boardSource = source("../components/ui/StatusBoard.tsx");
 const cardSource = tableSource.slice(
   tableSource.indexOf("function ContactStatusCard"),
   tableSource.indexOf("function SortHeader")
@@ -18,9 +19,10 @@ test("tarjetas normales no muestran el marcador decorativo y los grupos conserva
 
 test("el tablero mantiene cinco columnas, DnD y encadenamiento vertical nativo", () => {
   assert.match(tableSource, /NETWORKING_STATUSES\.map/);
-  assert.match(tableSource, /onDragStart=\{\(event\)/);
-  assert.match(tableSource, /onDragOver=\{\(event\)/);
-  assert.match(tableSource, /onDrop=\{\(event\)/);
+  assert.match(tableSource, /<StatusBoard label="Tablero de estados networking" statuses=\{NETWORKING_STATUSES\}/);
+  assert.match(boardSource, /onDragStart=\{\(event\)/);
+  assert.match(boardSource, /onDragOver=\{\(event\)/);
+  assert.match(boardSource, /onDrop=\{\(event\)/);
   assert.match(stylesSource, /\.contacts-status-board\s*\{[\s\S]*grid-template-columns: repeat\(5, minmax\(184px, 1fr\)\)[\s\S]*overflow-x: auto/);
   assert.match(stylesSource, /\.contacts-status-column\s*\{[\s\S]*min-width: 184px/);
   assert.match(statusScrollStyles, /max-height: 335px[\s\S]*min-height: 335px[\s\S]*overflow-y: auto[\s\S]*overscroll-behavior-y: auto/);
