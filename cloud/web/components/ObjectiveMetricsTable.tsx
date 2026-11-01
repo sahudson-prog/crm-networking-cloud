@@ -5,9 +5,11 @@ import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
 import { StatusBadge } from "./StatusBadge";
 
-export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) {
+export function ObjectiveMetricsTable({ rows, opportunityCounts, supplementalUnavailable = false }: {
+  rows: ObjectiveMetricRow[]; opportunityCounts?: ReadonlyMap<string, number>; supplementalUnavailable?: boolean;
+}) {
   const [showInactiveObjectives, setShowInactiveObjectives] = useState(false);
-  const visibleRows = showInactiveObjectives ? rows : rows.filter((row) => row.contactCount > 0 || row.coffeeCount > 0);
+  const visibleRows = showInactiveObjectives ? rows : rows.filter((row) => row.contactCount > 0 || row.coffeeCount > 0 || (opportunityCounts?.get(row.objectiveId) ?? 0) > 0);
 
   if (!rows.length) {
     return <EmptyValue>sin prioridades para mostrar</EmptyValue>;
@@ -24,13 +26,14 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
         Mostrar prioridades sin actividad
       </label>
       {visibleRows.length ? (
-        <div className="objective-metrics-wrap">
+        <div className="objective-metrics-wrap" tabIndex={0} role="region" aria-label="Indicadores por Prioridad">
           <table className="objective-metrics-table">
             <thead>
               <tr>
                 <th>Objetivo</th>
                 <th>Tipo</th>
                 <th>Prioridad</th>
+                {opportunityCounts ? <th>Oportunidades</th> : null}
                 <th>Contactos</th>
                 <th>Cafes</th>
                 <th>Ultima actividad</th>
@@ -47,6 +50,7 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
                   <td>
                     <PriorityStars priority={row.priorityLevel} />
                   </td>
+                  {opportunityCounts ? <td>{opportunityCounts.get(row.objectiveId) ?? 0}</td> : null}
                   <td>
                     {row.contactCount}
                     {row.focusContactCount !== row.contactCount ? (
@@ -54,8 +58,8 @@ export function ObjectiveMetricsTable({ rows }: { rows: ObjectiveMetricRow[] }) 
                     ) : null}
                   </td>
                   <td>{row.coffeeCount}</td>
-                  <td>{formatLastActivity(row.daysSinceLastInteraction)}</td>
-                  <td>{row.networkingStatus ? <StatusBadge status={row.networkingStatus} /> : <EmptyValue>sin estado</EmptyValue>}</td>
+                  <td>{supplementalUnavailable ? <EmptyValue>No disponible</EmptyValue> : formatLastActivity(row.daysSinceLastInteraction)}</td>
+                  <td>{supplementalUnavailable ? <EmptyValue>No disponible</EmptyValue> : row.networkingStatus ? <StatusBadge status={row.networkingStatus} /> : <EmptyValue>sin estado</EmptyValue>}</td>
                 </tr>
               ))}
             </tbody>

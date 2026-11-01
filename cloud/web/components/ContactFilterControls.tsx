@@ -13,6 +13,10 @@ type ContactFilterControlsProps = {
   quickQuery: string;
   objectiveOptions?: ObjectiveRow[];
   summary?: string;
+  quickSearchLabel?: string;
+  quickSearchDisabled?: boolean;
+  focusLocked?: boolean;
+  showStatusFilter?: boolean;
   onFiltersChange: (filters: ContactFilters) => void;
   onFiltersOpenChange: (open: boolean) => void;
   onQuickQueryChange: (value: string) => void;
@@ -24,6 +28,10 @@ export function ContactFilterControls({
   objectiveOptions = [],
   quickQuery,
   summary,
+  quickSearchLabel,
+  quickSearchDisabled = false,
+  focusLocked = false,
+  showStatusFilter = true,
   onFiltersChange,
   onFiltersOpenChange,
   onQuickQueryChange
@@ -57,18 +65,11 @@ export function ContactFilterControls({
   return (
     <div className="contact-filter-controls">
       <div className="contacts-filter-main">
-        <div className="contacts-quick-search">
-          <Icon name="search" />
-          <input
-            aria-label="Buscador universal"
-            placeholder="Buscador universal"
-            value={quickQuery}
-            onChange={(event) => onQuickQueryChange(event.target.value)}
-          />
-        </div>
+        <ContactQuickSearch value={quickQuery} onChange={onQuickQueryChange} label={quickSearchLabel} disabled={quickSearchDisabled} />
         <TriStateFilterSelect
           label="Foco"
           value={filters.networkingFocus}
+          disabled={focusLocked}
           onChange={(value) => updateTriStateFilter("networkingFocus", value)}
         />
         <TriStateFilterSelect
@@ -78,13 +79,13 @@ export function ContactFilterControls({
         />
         <button className="contacts-filter-toggle" onClick={() => onFiltersOpenChange(!filtersOpen)} type="button">
           <Icon name={filtersOpen ? "collapse" : "expand"} />
-          <span>Mas filtros</span>
+          <span>Más filtros</span>
         </button>
         {summary ? <span className="contacts-filter-summary">{summary}</span> : null}
       </div>
       {filtersOpen ? (
         <div className="contacts-filter-expanded">
-          <div className="contacts-expanded-filter-row">
+          {showStatusFilter ? <div className="contacts-expanded-filter-row">
             <span>Estado</span>
             <div className="contacts-status-filter-row" aria-label="Filtrar por estado networking">
               {NETWORKING_STATUSES.map((status) => (
@@ -97,7 +98,7 @@ export function ContactFilterControls({
                 />
               ))}
             </div>
-          </div>
+          </div> : null}
           <div className="contacts-hashtag-filter" aria-label="Filtro por prioridades">
             <span>Prioridades</span>
             <div className="contacts-hashtag-scroll">
@@ -109,6 +110,7 @@ export function ContactFilterControls({
                       {objectives.map((objective) => (
                         <button
                           className={selectedObjectiveIds.has(objective.id) ? "active" : ""}
+                          aria-pressed={selectedObjectiveIds.has(objective.id)}
                           key={objective.id}
                           onClick={() => toggleObjective(objective.id)}
                           type="button"
@@ -130,6 +132,15 @@ export function ContactFilterControls({
   );
 }
 
+export function ContactQuickSearch({ value, onChange, label = "Buscador universal", disabled = false }: {
+  value: string; onChange: (value: string) => void; label?: string; disabled?: boolean;
+}) {
+  return <div className="contacts-quick-search"><Icon name="search" />
+    <input aria-label={label} placeholder={label} value={value} disabled={disabled}
+      onChange={event => onChange(event.target.value)} />
+  </div>;
+}
+
 function groupObjectivesByType(objectives: ObjectiveRow[]) {
   const grouped = new Map<ObjectiveRow["objective_type"], ObjectiveRow[]>();
   for (const objective of objectives) {
@@ -143,16 +154,18 @@ function groupObjectivesByType(objectives: ObjectiveRow[]) {
 function TriStateFilterSelect({
   label,
   onChange,
-  value
+  value,
+  disabled = false
 }: {
   label: string;
   onChange: (value: "all" | "true" | "false") => void;
   value: "all" | "true" | "false";
+  disabled?: boolean;
 }) {
   return (
     <label className="contacts-filter-select">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value as "all" | "true" | "false")}>
+      <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as "all" | "true" | "false")}>
         <option value="true">Si</option>
         <option value="false">No</option>
         <option value="all">Todos</option>

@@ -39,13 +39,16 @@ test("la ficha conserva filtro por contactId y todas las acciones de suggestions
   assert.match(coach, /CoachActionLogDialog/);
 });
 
-test("Dashboard conserva agrupado y detallado dentro del Coach y lo ubica antes de filtros", () => {
+test("Seguimiento no monta Coach; su implementación agrupada y detallada sigue disponible", () => {
   const coach = source("../components/CoachPreview.tsx");
   const dashboard = source("../components/ReadOnlyDashboard.tsx");
-  const coachPosition = dashboard.indexOf('className="dashboard-coach"');
-  const filtersPosition = dashboard.indexOf('className="dashboard-filter-bar"');
-
-  assert.ok(coachPosition >= 0 && filtersPosition > coachPosition);
+  const tracking = source("../components/TrackingView.tsx");
+  assert.match(dashboard, /<TrackingView/);
+  assert.match(dashboard, /<ObjectiveMetricsTable/);
+  assert.match(dashboard, /<InteractionTimelineList/);
+  assert.match(dashboard, /<HeadhunterCompanies/);
+  assert.doesNotMatch(tracking, /CoachModule|CoachPreview/);
+  assert.match(tracking, /import \{ KpiLineChart \} from "\.\/DashboardKpis"/);
   assert.doesNotMatch(dashboard, /className="coach-panel"|coach-panel-caption/);
   assert.match(coach, /showIndividualSuggestions \? "ver agrupado" : "ver detallado"/);
   assert.match(coach, /shouldGroupSuggestions/);
@@ -55,12 +58,13 @@ test("Dashboard conserva agrupado y detallado dentro del Coach y lo ubica antes 
   assert.match(coach, /<section[\s\S]*aria-label="Coach IA"[\s\S]*className=\{`coach-module/);
 });
 
-test("Dashboard vive en su ruta directa y permanece fuera de la navegación", () => {
+test("Seguimiento conserva gates privados y vuelve a la navegación sin renombrar rutas", () => {
   const shell = source("../components/Shell.tsx");
   const dashboardRoute = source("../app/dashboard/page.tsx");
 
   assert.match(dashboardRoute, /<AuthGate>[\s\S]*<Shell>[\s\S]*<ReadOnlyDashboard \/>/);
-  assert.doesNotMatch(shell, /href="\/dashboard"|>\s*Dashboard\s*</);
+  assert.match(shell, /href="\/dashboard"[\s\S]*Seguimiento/);
+  assert.doesNotMatch(shell, />\s*Dashboard\s*</);
 });
 
 test("Shell usa el lockup oficial de Coffeecito sin texto legacy", () => {

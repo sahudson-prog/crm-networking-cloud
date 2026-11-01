@@ -177,6 +177,8 @@ Los datos app-owned persistidos se aíslan principalmente mediante RLS y ownersh
 
 ## Límites actuales
 
+Seguimiento V1 candidato añade `current_user_tracking_snapshot_v1()`, RPC de solo lectura SECURITY INVOKER. No recibe identidad ni ciclo del cliente: deriva auth.uid(), exige current_user_has_app_access() (incluido gate R2-B), filtra ownership y conserva RLS/grants existentes. Solo authenticated ejecuta; PUBLIC, anon, service_role y supabase_auth_admin no. No crea permisos de escritura ni roles nuevos. El snapshot minimiza campos a métricas y resolución HH.
+
 La autorización no está centralizada en una sola capa. Combina RLS, checks explícitos de capability, filtros `user_id`, RPCs y gating de componentes.
 
 El modelo de roles, planes y capabilities existe, pero la app no aplica capabilities de forma uniforme a todas las operaciones de negocio.

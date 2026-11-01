@@ -71,13 +71,15 @@ No se observó un sistema formal de spacing, tipografía, widths o breakpoints c
 
 El shell principal vive en `components/Shell.tsx`. Usa `.app-shell` como contenedor centrado, con ancho máximo de 1220px y margen horizontal responsive.
 
-La cabecera separa navegación principal y acciones secundarias. Contactos y Objetivos aparecen como navegación principal con texto e icono. Contactos es la página principal autenticada en `/` y conserva su ruta explícita `/contactos`. Dashboard permanece disponible en `/dashboard` para acceso directo y revisión, pero está temporalmente oculto de la navegación visible. Las utilidades se ordenan como Sistema, Sync y Cuenta, con Cuenta al extremo derecho; Sistema aparece solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales. Sync es un control compacto que abre un popover con una fila por servicio habilitado, freshness individual, errores o resultados transitorios y una única acción contextual; el header no expone esos textos de forma permanente.
+La cabecera separa navegación principal y acciones secundarias. Contactos y Objetivos aparecen como navegación principal con texto e icono. Contactos es la página principal autenticada en `/` y conserva su ruta explícita `/contactos`. El candidato local Seguimiento reutiliza `/dashboard` y devuelve su enlace visible, sin cambiar los gates privados. A 320 px los tres enlaces principales compactan espaciado/tamaño sin añadir otra fila. Las utilidades se ordenan como Sistema, Sync y Cuenta, con Cuenta al extremo derecho; Sistema aparece solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales. Sync es un control compacto que abre un popover con una fila por servicio habilitado, freshness individual, errores o resultados transitorios y una única acción contextual; el header no expone esos textos de forma permanente.
 
 Las vistas se organizan con `Panel`, grids y toolbars. El patrón visual más estable es panel blanco con borde, header compacto, título de 16px y contenido interno ordenado por grid o listas.
 
-Dashboard y Contactos comparten `ContactFilterControls` sobre el contenido principal. El filtro incluye buscador universal, selectores de Foco y Headhunter, botón de más filtros, estados seleccionables y Prioridades del ciclo activo como chips. `Mi objetivo` reutiliza panel, campos y modal del sistema. La interfaz no muestra el historial de procesos.
+Contactos y Seguimiento reutilizan `ContactFilterControls`: buscador, Foco, Headhunter y Más filtros. En Seguimiento, Foco permanece fijo en Sí por contrato; Prioridades conserva selección OR, y Agrupar Headhunters se ubica junto al selector temporal del gráfico. `Mi objetivo` reutiliza panel, campos y modal del sistema. La interfaz no muestra el historial de procesos.
 
 ## Primitives compartidas
+
+Seguimiento V1 local conserva la composición de `ReadOnlyDashboard`: búsqueda, filtros, bloque `¿Cómo voy?`, tabla `ObjectiveMetricsTable`, Últimas interacciones, Empresas headhunter y Contactos referidos. Un único Panel blanco contiene cinco niveles rectangulares compactos a la izquierda, con conversiones alineadas a su derecha, y `KpiLineChart` reutilizado a la derecha; se apilan solo cuando el espacio del panel es insuficiente. El gráfico usa doce posiciones temporales fijas sin carrusel ni línea: columnas azul oscuro/azul claro/verde apiladas para café con fecha de cita, café con fecha estimada y cita futura proyectada; total numérico encima de cada columna, período actual en negrita, leyenda debajo y toggle mensual/semanal arriba. El paso horizontal de las barras equivale aproximadamente a dos veces su ancho; no se muestra acumulado separado. La tabla conserva sus columnas y añade Oportunidades inmediatamente después de Prioridad. Las ayudas breves de números, conversiones y períodos admiten hover, foco y Escape. El snapshot se conserva durante refresh/error; las lecturas de detalle tienen error independiente y nunca sustituyen las métricas. La búsqueda explora los detalles, mientras Prioridades/HH gobiernan los indicadores según OBJ-02. La validación visual sintética no sustituye el smoke autenticado del owner.
 
 `Button` es la primitive principal para botones. Usa clase `.button`, tonos `primary`, `secondary`, `ghost`, `danger` y `positive`, variante cuadrada e iconos opcionales.
 
@@ -111,7 +113,7 @@ La tabla de contactos incluye selección por checkbox, orden por columnas visibl
 
 Las acciones masivas de contactos están agrupadas por tipo: Seleccionar, Foco, Headhunter, Estado y Objetivos. Usan botones de icono compactos y selectores.
 
-Las listas de interacciones usan `InteractionTimelineList`, basado en `details/summary`. Se reutiliza en ficha de contacto y Dashboard, con variante para mostrar contexto de contactos.
+Las listas de interacciones usan `InteractionTimelineList`, basado en `details/summary`. Se conserva en la ficha de contacto, en Últimas interacciones de Seguimiento y otros consumidores de timeline.
 
 Objetivos usa bloques por tipo, filas seleccionables, acciones contextuales visibles al seleccionar y estrellas para prioridad.
 
@@ -137,7 +139,7 @@ La lógica de matching, cursores, precedencia y persistencia no pertenece a este
 
 `CoachPreview` y `CoachModule` presentan sugerencias como burbujas compactas junto a una mascota visual. Permiten seleccionar sugerencias, ejecutar, descartar, buscar nuevas sugerencias y abrir configuración o historial. Suggestions y onboarding comparten un único frame visual para la mascota, la burbuja, su borde y su punta responsive; cada modo aporta únicamente su contenido y controles propios.
 
-En Dashboard aparece antes de los filtros y del contenido principal, sin un panel envolvente propio, y puede mostrar sugerencias agrupadas o detalladas. En ficha de contacto ocupa el ancho completo antes del grid principal y filtra al contacto actual.
+En Seguimiento candidato el Coach no se monta; su código de sugerencias agrupadas/detalladas se conserva para otros usos. En ficha de contacto ocupa el ancho completo antes del grid principal y filtra al contacto actual.
 
 Las burbujas usan `details/summary`, fecha visible, texto compacto, vínculos al contacto y checkbox externo. La semántica de reglas no pertenece a este documento.
 

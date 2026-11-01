@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { readCompletePages } from "./completeRead";
 import { activeInteractions } from "./interactionState";
 import { buildDashboardKpis, parseLocalDate } from "./kpiCalculations";
 import { readObjectiveAssignmentsForContacts } from "./cycleObjectiveActions";
@@ -131,18 +132,20 @@ export async function readRecentInteractions(limit = 8): Promise<InteractionRow[
 
 export async function readAllInteractions(): Promise<InteractionRow[]> {
   const client = requireSupabase();
-  const { data, error } = await client
+  const data = await readCompletePages<InteractionRow>(async (from, to) => await client
     .from("interactions")
-    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
+    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata", { count: "exact" })
     .order("occurred_at", { ascending: false, nullsFirst: false })
-    .limit(INTERACTION_MAX_ROWS);
-
-  if (error) throw error;
-  return activeInteractions((data ?? []) as InteractionRow[]);
+    .order("id", { ascending: true })
+    .range(from, to));
+  return activeInteractions(data);
 }
 
-export async function readInteractionParticipants(): Promise<InteractionParticipantRow[]> {
+export async function readInteractionParticipants(complete = false): Promise<InteractionParticipantRow[]> {
   const client = requireSupabase();
+  if (complete) return readCompletePages<InteractionParticipantRow & { id: string }>(async (from, to) => await client
+    .from("interaction_participants").select("id,interaction_id,contact_id,email_identity,role", { count: "exact" })
+    .order("id", { ascending: true }).range(from, to));
   const { data, error } = await client
     .from("interaction_participants")
     .select("interaction_id,contact_id,email_identity,role")
@@ -171,9 +174,19 @@ export async function readInteractionParticipantsForInteractions(interactionIds:
   }));
 }
 
-export async function readExternalSourcesForInteractions(interactionIds: string[]): Promise<ExternalInteractionSourceRow[]> {
+export async function readExternalSourcesForInteractions(interactionIds: string[], complete = false): Promise<ExternalInteractionSourceRow[]> {
   if (!interactionIds.length) return [];
   const client = requireSupabase();
+  if (complete) {
+    const result: ExternalInteractionSourceRow[] = [];
+    const ids = [...new Set(interactionIds)];
+    for (let i = 0; i < ids.length; i += 100) result.push(...await readCompletePages<ExternalInteractionSourceRow & { id: string }>(async (from, to) => await client
+      .from("external_interaction_sources")
+      .select("id,interaction_id,provider,source_service,external_object_type,external_id,external_thread_id,external_url,sync_status,prevent_reimport", { count: "exact" })
+      .in("interaction_id", ids.slice(i, i + 100)).eq("is_active", true)
+      .order("id", { ascending: true }).range(from, to)));
+    return result;
+  }
   const { data, error } = await client
     .from("external_interaction_sources")
     .select("interaction_id,provider,source_service,external_object_type,external_id,external_thread_id,external_url,sync_status,prevent_reimport")
@@ -232,8 +245,14 @@ export async function readActiveTodos(input: { limit?: number; contactId?: strin
     });
 }
 
-export async function readAllActiveContacts(): Promise<ContactRow[]> {
+export async function readAllActiveContacts(complete = false): Promise<ContactRow[]> {
   const client = requireSupabase();
+  if (complete) {
+    const rows = await readCompletePages<ContactRow>(async (from, to) => await client.from("contacts")
+      .select("id,display_name,company,role,networking_status,networking_focus,is_headhunter,headhunter_domains,is_active,updated_at,contact_emails(email,domain),contact_phones(phone)", { count: "exact" })
+      .eq("is_active", true).order("display_name", { ascending: true }).order("id", { ascending: true }).range(from, to));
+    return withContactObjectiveAssignments(rows, true);
+  }
   const rows: ContactRow[] = [];
 
   for (let from = 0; from < CONTACT_MAX_ROWS; from += CONTACT_PAGE_SIZE) {
@@ -407,12 +426,13 @@ async function readContactsByIds(contactIds: string[]) {
   return new Map(((data ?? []) as ContactRow[]).map((contact) => [contact.id, contact]));
 }
 
-async function withContactObjectiveAssignments<T extends ContactRow>(contacts: T[]): Promise<T[]> {
+async function withContactObjectiveAssignments<T extends ContactRow>(contacts: T[], requireComplete = false): Promise<T[]> {
   if (!contacts.length) return contacts;
   let assignmentsByContact = new Map<string, Awaited<ReturnType<typeof readObjectiveAssignmentsForContacts>> extends Map<string, infer Rows> ? Rows : never>();
   try {
     assignmentsByContact = await readObjectiveAssignmentsForContacts(contacts.map((contact) => contact.id));
   } catch (error) {
+    if (requireComplete) throw new Error("dashboard_assignments_unavailable");
     console.warn("No se pudieron leer objetivos asociados a contactos.", error);
     assignmentsByContact = new Map();
   }

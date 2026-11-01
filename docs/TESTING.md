@@ -17,7 +17,15 @@ El stack validado es:
 - Tests automatizados con el runner nativo de Node.js (`node --test`).
 - Archivos TypeScript ejecutados con flags de Node para strip de tipos.
 
-No se observó un comando global `npm test`, lint configurado, pipeline CI, suite de navegador, pruebas visuales automatizadas, cobertura formal ni harness automatizado de SQL/RLS.
+No existe un comando global `npm test` ni cobertura formal completa. Sí hay harnesses focales de navegador y PostgreSQL local, descritos por módulo; no equivalen a CI integral ni a smoke remoto.
+
+### Seguimiento V1
+
+- Desde cloud/web: `node --experimental-strip-types --test tests/trackingModel.test.ts tests/trackingCoffeeContract.test.ts`. Cubre estado actual elegible, transición de ingreso/reingreso, cita calendar pasada, llamada excluida, horizonte semanal/mensual IANA/DST, exclusión por cancelación/descarte, filtros/HH, falta de fecha atribuible, métricas vigentes y paginación. No certifica propagación externa de cancelaciones.
+- Desde la raíz: `node --experimental-strip-types cloud/supabase/tests/local/tracking_snapshot_postgres.mjs`. Requiere imagen Supabase PostgreSQL 17 existente; no descarga, usa red none, sin puertos, datos sintéticos y cleanup por identidad/label. Aplica 002→003 localmente y prueba guardas/rollback, ACL/RLS efectivos, aislamiento, revocación y más de 2.600 interacciones con/sin columna opcional. Ejecuta el cálculo sobre el snapshot real con estado/transición, citas locales sin status, cancelación y descarte; mide tiempo PostgreSQL sintético, no latencia DEV.
+- Desde cloud/web: `node --test tests/dashboardComposition.test.mjs` verifica lectores de detalle con límite API inferior al solicitado, fallos explícitos y compatibilidad del gráfico KPI original sin series apiladas.
+- Desde cloud/web: `node tests/local/tracking-browser.cjs`, con `OPPORTUNITY_PLAYWRIGHT_MODULE` apuntando a Playwright ya disponible. Monta ReadOnlyDashboard, sus secciones y Shell reales; sustituye proveedores de sesión/lectura por fixtures y bloquea red externa. Comprueba tabla reutilizada, barras apiladas sin línea, total por columna, tooltips hover/foco/Escape, búsqueda de detalle sin alterar métricas, latencia/error/retry/desmontaje/filtros y escritorio/320px; guarda capturas fuera de Git.
+- `node tests/local/status-boards-browser.cjs` conserva la regresión montada de Contactos/Objetivos/Oportunidades. `npm run typecheck` y `node tests/local/opportunities-build.cjs` verifican tipos y build estándar aislado con fuente local; sin .env real. Smoke autenticado y volumen/latencia reales por ambiente quedan pendientes.
 
 ## Comandos confirmados
 

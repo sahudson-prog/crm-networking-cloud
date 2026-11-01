@@ -432,6 +432,12 @@ Existe una operación RPC real llamada `merge_contacts_deep` que soporta reasign
 
 ## Ambigüedades vigentes
 
+La lectura Seguimiento V1 está preparada localmente: `current_user_tracking_snapshot_v1()` entrega un JSON bajo el snapshot MVCC de la consulta con ciclo activo (started_at/zona IANA), contactos activos/estado actual/foco/HH, dominios sin emails completos, transiciones de estado del ciclo con estado anterior, citas/llamadas desde el inicio, participantes, lifecycle mínimo de fuentes, Prioridades/asignaciones, Oportunidades/vínculos y maestro HH. El forward-fix local `202610300003` añade estado actual/anterior al JSON de la función `202610300002` ya aplicada en DEV según el owner; no transforma tablas ni filas. No expone asuntos, notas, cuerpos, identidades Auth ni URLs externas. No reconstruye historia sin ciclo/inicio conocido.
+
+No hay persistencia analítica nueva. Cafés y su columna por Prioridad usan el estado actual elegible; azul fecha la cita calendar pasada válida más antigua o, en su ausencia, el ingreso a la secuencia actual de estados elegibles. Verde usa la cita futura válida más próxima de un contacto no elegible dentro del horizonte de la vista. Una persona elegible sin evidencia temporal permanece en la pirámide y se reporta como no atribuible. Oportunidades usa etapa/resultado actuales. Un JSON escalar evita el truncamiento de filas de PostgREST; errores/timeout rechazan toda la lectura. El lector general readAllInteractions pagina con conteo exacto y clave estable, sin el límite de 2.500; no equivale al snapshot transaccional multifuente de Seguimiento.
+
+Calendar se interpreta según su estado local: ausencia de status/procedencia externa no invalida la cita. Metadata.deleted/dismissed, soft-delete opcional y cancelaciones/eliminaciones explícitas persistidas sí la excluyen; el cálculo no verifica Google ni reconstruye cancelaciones ausentes. Las comparaciones de límites preservan microsegundos de PostgreSQL; los períodos visuales se agrupan por fecha civil IANA.
+
 `interactions` conserva campos específicos de proveedor mientras `external_interaction_sources` implementa la relación normalizada con objetos externos. El repo no declara todavía una consolidación definitiva.
 
 `contacts.headhunter_domains` sigue existiendo y es leído por código actual junto con el maestro global de empresas headhunter. No queda cerrada en este documento la fuente canónica final para todos los casos.
