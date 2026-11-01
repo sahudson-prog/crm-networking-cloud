@@ -56,16 +56,16 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 COMPLETED; R2-A validado en DEV/PROD según el owner; R2-B integrado en el baseline local por PR #45. `Avísame` pertenece a la branch publicada PR #46 y su estado por ambiente requiere comprobación independiente. Oportunidades V1 está consolidado en el commit local `7912f089`; Seguimiento 002/003 y sus verifiers pasaron en DEV según el owner, con smoke visual/funcional nuevo pendiente.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según el owner; R2-B integrado en el baseline local por PR #45. `Avísame` pertenece a la branch publicada PR #46, abierta sin merge, y su estado por ambiente requiere comprobación independiente. Oportunidades V1 está consolidado en el commit local `7912f089`; Seguimiento en `68effc8`, con 002/003 y sus verifiers PASS en DEV según el owner y smoke autenticado de la nueva semántica pendiente.
 - Verified local baseline: `main` y `origin/main` locales = `e516e9cd9dddf81f125ff4b42e6cc9219c7121a4`; referencia remota no sincronizada por restricción de esta tarea.
-- Current branch/worktree de este candidato: `codex/obj-02-integracion-v1`, `C:\Dev\Coffeecito-Workspace\worktrees\obj-02-integracion-v1`; base Avísame `a345d10dd64e45d398a245876ff472f59f492a0c`, HEAD local Oportunidades `7912f0896984891558f3896d06256a62d54afba1`. Seguimiento son cambios locales posteriores sin commit.
+- Current branch/worktree de este candidato: `codex/obj-02-integracion-v1`, `C:\Dev\Coffeecito-Workspace\worktrees\obj-02-integracion-v1`; base Avísame `a345d10dd64e45d398a245876ff472f59f492a0c`, commit local Oportunidades `7912f0896984891558f3896d06256a62d54afba1` y commit local Seguimiento `68effc8b0ca28098d005e09e60c843054021ad9c`.
 - Completed: PR #45 integrado en Git local; contrato y código R2-B presentes. Evidencia histórica aportada por el operador: migrations/verifiers y smoke local `test_only` PASS en DEV antes del merge. El first-run real de R1 sigue diferido con cobertura automatizada. Revisión local de `Avísame`: migración/verifier y lifecycle certificados en PostgreSQL 17 desechable; sin SQL remoto.
-- Pending: revisión/publicación de Oportunidades y Seguimiento, smoke de la nueva semántica en DEV, y gates PROD independientes: preflight, backup recuperable, recuperación, ventana compatible, migrations/verifiers, runtime y smoke. Verificar dinámicamente R2-B y Avísame antes de promover dependencias; no inferir instalación remota desde Git. La eliminación completa de cuenta sigue sin infraestructura efectiva.
+- Pending: push de la rama integrada, revisión e integración manual del PR, smoke de la nueva semántica en DEV y gates PROD independientes: preflight, backup recuperable, recuperación, ventana compatible, migrations/verifiers, runtime y smoke. Verificar dinámicamente R2-B y Avísame antes de promover dependencias; no inferir instalación remota desde Git. La eliminación completa de cuenta sigue sin infraestructura efectiva.
 - Blockers: PROD aún requiere preflight de filas y contrato instalado; cualquier legacy `stage=finished` detiene la migration hasta resolver su etapa explícitamente. El cliente anterior de cinco columnas no es compatible como escritor tras esta fase.
 - Manual/remote actions in this task: ninguna.
 - Seguimiento: 002/003 y sus verifiers PASS en DEV según el owner; el candidato local muestra cinco niveles y separa fecha de cita/fecha estimada/proyección sin alterar SQL. No se reparó Google Sync ni se amplió su alcance. Avísame y Oportunidades están aprobados en DEV según el owner; la promoción PROD sigue sujeta a gates separados. La semántica nueva de Seguimiento no está certificada mediante smoke autenticado DEV.
 - Immediate next action: completar validación visual local y smoke DEV del owner sobre el runtime actualizado; no repetir migrations ya instaladas.
-- Stop boundary: sin commit, fetch, push, PR, SQL remoto ni deployment.
+- Stop boundary: sin fetch, push, operaciones de PR, SQL remoto ni deployment en este cierre documental; publicación y cutover requieren gates separados.
 
 ### Candidato local paralelo OBJ-02 / Oportunidades V1
 
@@ -127,7 +127,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R2-B integrado en Git local y `Avísame` en una branch publicada separada. Oportunidades V1 está implementada localmente y validada en DEV según el owner, aún sin promoción PROD; Seguimiento tiene un candidato local sin instalar ni aprobar por ambiente. INV-01 está cerrada.
+OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R2-B integrado en Git local y `Avísame` en una branch publicada separada (PR #46 abierta, sin merge). Oportunidades V1 está implementada localmente y validada en DEV según el owner, aún sin promoción PROD; Seguimiento está consolidado localmente en `68effc8`, con SQL/verifiers DEV PASS según el owner, smoke autenticado de la nueva semántica y promoción PROD pendientes. INV-01 está cerrada.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -224,7 +224,7 @@ OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 COMPLETED; R2-A validado en DEV/PROD según owner; R2-B integrado en Git por PR #45, estado remoto por reconfirmar; `Avísame` en PR #46; Oportunidades V1 validada en DEV según el owner, sin promoción PROD; Seguimiento candidato local pendiente de instalación/verificación y smoke por ambiente.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según owner; R2-B integrado en Git por PR #45, estado remoto por reconfirmar; `Avísame` en PR #46 abierta sin merge; Oportunidades V1 validada en DEV según el owner, sin promoción PROD; Seguimiento consolidado localmente en `68effc8`, SQL/verifiers DEV PASS según el owner, smoke autenticado de la nueva semántica y cutover PROD pendientes.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
