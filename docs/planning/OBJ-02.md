@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B integrado en el `main` local por PR #45 (`e516e9c`), sin inferir de ese merge el estado remoto. `Avísame` está publicado como PR #46; Oportunidades V1 está implementada en otra branch y validada en DEV según el owner, sin promoción PROD.
+- Status: OBJ-02 COMPLETED operacionalmente según el owner. R1, R2-A, R2-B, Avísame, Oportunidades y Seguimiento quedaron integrados; PR #46 cerrado sin merge y PR #47 integrado en `4f28f46c2c817f5c6ca23572605bcf44f1000421`. SQL/verificadores PROD, deployment y smoke PASS reportados por el owner el 2026-11-02; cierre documental aún sin publicar.
 - Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02. El contrato mínimo R2-B aprobado en octubre de 2026 prevalece sobre propuestas anteriores de alcance más amplio descritas abajo.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
-- R2-A fue instalado y validado en DEV/PROD según el owner. Antes de PR #45 se informó SQL y verifiers R2-B PASS en DEV; esta tarea no verifica el estado remoto posterior al merge. La evidencia histórica no prueba por sí sola el estado actual de PROD.
+- R2-A y R2-B instalados y validados en DEV/PROD según el owner; el checkpoint operacional actual está en `docs/ACTIVE_PLAN.md`.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -149,7 +149,7 @@ Elegibilidad de citas: Seguimiento usa el estado LOCAL de Interacciones. Una cit
 
 El descarte/eliminación local existe en Interacciones; no se identificó una acción manual específica para registrar cancelación o no realización. Esa capacidad y la propagación de cancelaciones desde Google son deuda independiente de Interacciones/Sync, no bloqueos artificiales de Seguimiento. No se añaden flags, permisos ni cambios de conectores en esta entrega.
 
-Candidato local Seguimiento: snapshot SQL único bajo MVCC, SECURITY INVOKER y RLS, cálculo compartido en cliente; sin topes silenciosos. El forward-fix 202610300003 amplía el snapshot 002 con estado actual y transición anterior para la nueva regla, sin tablas ni escrituras. Lectura fallida no es lista vacía válida. Según el owner, 002 y 003 con sus verifiers pasaron en DEV; el smoke visual y funcional de esta semántica sigue pendiente. No declarar desplegado en PROD.
+Seguimiento usa un snapshot SQL único bajo MVCC, SECURITY INVOKER y RLS, con cálculo compartido en cliente; sin topes silenciosos. El forward-fix 202610300003 amplía el snapshot 002 con estado actual y transición anterior para la nueva regla, sin tablas ni escrituras. Lectura fallida no es lista vacía válida. Según el owner, 002 y 003 con sus verifiers pasaron en DEV y PROD; deployment y smoke PROD PASS el 2026-11-02.
 
 ### Situación profesional del usuario
 
@@ -274,6 +274,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B fue integrado por PR #45 en el baseline local; el estado operacional remoto posterior al merge requiere comprobación independiente. `Avísame` está en la branch publicada PR #46; su estado por ambiente debe verificarse antes de promover dependencias. Según el owner, Oportunidades V1 tiene SQL 002/003/004 y `202610300001` instalados y verificados en DEV, con smoke funcional y visual PASS; fue consolidado en el commit local `7912f089`. Seguimiento 002/verifier pasaron en DEV según el owner. La semántica nueva de Cafés requiere 003 local y smoke autenticado posterior; no está publicada ni promovida a PROD.
+OBJ-02 quedó completado operacionalmente según el owner: PR #47 integrado, siete migrations/verificadores PROD PASS, backup/restauración aislada PASS, deployment y smoke PROD PASS el 2026-11-02. No hay una próxima iniciativa seleccionada por este cierre; las decisiones funcionales pendientes de fases futuras no se consideran implementadas.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.
