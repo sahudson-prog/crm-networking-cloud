@@ -2,10 +2,10 @@
 
 ## Estado y autoridad
 
-- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B mínimo con ambas migrations y verifiers DEV PASS y smoke funcional/UX PASS informados por el operador, gate `paused`. La branch se publica para PR; evidencia focal del SHA publicado en el runtime DEV local, apertura y PROD pendientes.
+- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B integrado en el `main` local por PR #45 (`e516e9c`), sin inferir de ese merge el estado remoto. `Avísame` está publicado como PR #46; Oportunidades V1 está implementada en otra branch y validada en DEV según el owner, sin promoción PROD.
 - Este documento conserva el diseño funcional aprobado y las decisiones pendientes de OBJ-02. El contrato mínimo R2-B aprobado en octubre de 2026 prevalece sobre propuestas anteriores de alcance más amplio descritas abajo.
 - PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`, verificado en Git. Según evidencia operacional confirmada por el owner, SQL y tres verifiers R1 PASS en DEV/PROD, Vercel PROD Ready / Current y smoke funcional PROD PASS.
-- R2-A fue instalado y validado en DEV/PROD según el owner. El SQL R2-B fue instalado y verificado solo en DEV según el operador; el runtime DEV es local en `http://localhost:3000`. PROD no recibió R2-B.
+- R2-A fue instalado y validado en DEV/PROD según el owner. Antes de PR #45 se informó SQL y verifiers R2-B PASS en DEV; esta tarea no verifica el estado remoto posterior al merge. La evidencia histórica no prueba por sí sola el estado actual de PROD.
 ## Visión de producto
 
 Coffeecito puede servir a tres necesidades de networking:
@@ -65,13 +65,11 @@ La etapa de importación del tutorial se dedica exclusivamente a contactos. Esta
 
 ### Avísame
 
-Para cada modalidad futura, `Avísame` abre un popup con el texto:
+Cada modalidad futura presenta un único botón tipo píldora, inicialmente `Avísame`. Al pulsarlo, la solicitud se guarda directamente. Solo tras confirmación server-side el botón pasa a `✓ Te avisaremos` y aparece un popup informativo: `Te notificaremos al correo registrado en Coffeecito cuando tengamos novedades o pruebas disponibles de [modalidad]`, con la única acción `Cerrar`. Pulsar `Te avisaremos` retira la solicitud y devuelve el botón a `Avísame`, sin otro popup. No se pide correo ni confirmación previa. El estado se restaura desde la persistencia al recargar; errores y respuestas inciertas no deben presentar un alta no confirmada.
 
-> Confirma que quieres dejarnos tu correo para avisarte novedades o pruebas de esta modalidad.
+Una fila activa por usuario/modalidad conserva correo y fecha del momento de solicitud. Identidad y correo se derivan server-side de Auth, sin parámetros de cliente para elegirlos. Solo se admiten las dos modalidades futuras, con unicidad, RLS y operaciones explícitas e idempotentes de alta y retirada. La solicitud no pertenece a un ciclo y sobrevive a su cierre o reinicio, así como al reset de datos propios que conserva la identidad. No hay historial de retiradas ni plazo arbitrario: se elimina con la retirada, con la eliminación efectiva de Auth o cuando se cierre manualmente la lista por modalidad al cumplirse o abandonarse su finalidad. El flujo actual de Cuenta no implementa eliminación de Auth; cualquier eliminación de cuenta futura deberá purgarla explícitamente si conserva esa identidad.
 
-El popup muestra el correo y la modalidad, con acciones `Confirmar` y `Cancelar`. Solo `Confirmar` persiste la modalidad, el correo vigente en ese momento y la identidad/fecha técnicas mínimas. Correo e identidad se derivan server-side de la autenticación; la modalidad debe ser válida, el acceso es privado y existe una sola solicitud por usuario/modalidad.
-
-La primera versión no incluye panel, envíos, campañas, seguimiento de cambios de correo ni un sistema general de suscripciones. La consulta será SQL manual futura por el owner. Cancelar no persiste nada. Retirada, retención, eliminación de cuenta y eventual ejecución de avisos siguen siendo decisiones de contrato pendientes; esta finalidad no constituye consentimiento de marketing.
+La primera versión no incluye panel, envíos, campañas, seguimiento de cambios de correo ni suscripciones comerciales. El owner podrá consultar manualmente las solicitudes activas por SQL y cerrar/purgar una modalidad mediante un procedimiento posterior separado. La finalidad de aviso no constituye consentimiento de marketing.
 
 ### Prioridades
 
@@ -108,9 +106,9 @@ Una Oportunidad debe relacionarse con varias personas desde el inicio. El diseñ
 ### Flujo reutilizable de creación
 
 - Debe existir un flujo visible y reutilizable para crear Oportunidades desde distintos contextos.
-- Los contextos iniciales son vista general de Oportunidades, Prioridades y ficha de contacto; deben poder agregarse otros en el futuro sin saturar el listado de contactos.
+- Los contextos iniciales del candidato V1 son vista general de Oportunidades y Prioridades; la entrada desde ficha de contacto queda diferida por decisión posterior del owner. El editor compartido debe admitir nuevos contextos en el futuro sin saturar el listado de contactos.
 - El mismo flujo debe recibir contexto y prepoblar relaciones cuando corresponda.
-- Si se crea una Oportunidad desde una ficha de contacto, ese contacto puede venir preseleccionado.
+- Si se habilita más adelante la creación desde ficha de contacto, ese contacto podrá venir preseleccionado.
 - No deben existir formularios divergentes por pantalla.
 
 ### Seguimiento y ¿Cómo voy?
@@ -125,21 +123,33 @@ La vista actualmente llamada Dashboard pasa a llamarse `Seguimiento` y debe volv
 
 La pirámide tiene, de abajo hacia arriba:
 
-1. `Contactados`: contactos únicos con estado `Contactado` o superior; excluye `Pendiente`.
-2. `Cafés`: unión distinta de contactos únicos con estado `Cita concretada` o superior, o al menos un café válido de tipo cita/llamada. No suma condiciones ni cuenta eventos.
-3. `Oportunidades`: oportunidades distintas no eliminadas, incluidas las cerradas.
-4. `Ofertas totales`: oportunidades que efectivamente alcanzaron `Oferta recibida` u `Oferta exitosa`; excluye cierres sin oferta.
-5. `Ofertas exitosas`: oportunidades con estado/resultado explícito `Oferta exitosa`; un cierre genérico no basta.
+1. `Contactados`: contactos con Foco Networking vigente cuyo estado actual es `Contactado` o superior. No se infiere el estado desde un correo o una cita.
+2. `Cafés`: contactos foco únicos cuyo estado actual es `Cita concretada` o `Agradecimiento enviado`. La fecha azul se atribuye según la regla de citas pasadas y transición de ingreso descrita abajo; llamadas y citas por sí solas no modifican el conteo.
+3. `Procesos`: oportunidades no anuladas cuya etapa vigente es `En proceso` u `Oferta recibida`, activas o finalizadas. `Identificadas` y `Postuladas` no cuentan; no reconstruir visitas históricas.
+4. `Ofertas recibidas`: oportunidades no anuladas cuya etapa vigente es `Oferta recibida`, activas o finalizadas.
+5. `Ofertas exitosas`: oportunidades finalizadas con resultado vigente `Oferta aceptada`; un cierre genérico no basta.
 
-Se muestran las razones `% cafés/contactados`, `% oportunidades/cafés`, `% ofertas/oportunidades` y `% ofertas exitosas/ofertas`. Un denominador cero se presenta como `Sin base`. Los valores superiores a 100% no se truncan: los niveles mezclan unidades distintas y no deben presentarse como probabilidad estadística ni cohorte homogénea.
+Se muestran las razones `% cafés/contactados`, `% procesos/cafés`, `% ofertas recibidas/procesos` y `% ofertas exitosas/ofertas recibidas`. Un denominador cero se presenta como `Sin base`. Los valores superiores a 100% no se truncan: los niveles mezclan unidades distintas y no deben presentarse como probabilidad estadística ni cohorte homogénea.
 
-Un único toggle permite agrupar headhunters solo en `Contactados` y `Cafés`. Debe reutilizar la clasificación vigente y la clave canónica de empresa/dominio empleada en Contactos. Cada grupo cuenta una vez por nivel si al menos un miembro cumple la condición. El toggle no fusiona datos ni modifica Oportunidades, ofertas o el gráfico lateral.
+Decisión posterior al contrato original: filtros compartidos de Prioridades (OR/unión; ninguna = todas), HH (Todos/Solo/Excluir) y toggle independiente Agrupar HH. Todas las métricas de personas, incluidas ambas barras y Cafés por Prioridad, exigen foco vigente; quitarlo excluye y reponerlo recupera la evidencia válida. Filtrar primero y agrupar después mediante el resolver canónico de Contactos: solo empresa inequívoca, una unidad por empresa y primera fecha elegible del grupo. Ambiguos/sin resolver siguen siendo HH individuales, sin duplicar multidominios. No se fusionan filas persistentes ni oportunidades.
 
-Para preservar el hecho histórico de una oferta, la representación mínima recomendada es un historial de transiciones o eventos que diferencie `Oferta recibida` y `Oferta exitosa`: cada oportunidad cuenta una sola vez en ofertas totales si alcanzó cualquiera de ambas, y un cierre posterior no elimina ese hecho. Esta recomendación no aprueba por sí sola la máquina de estados completa ni autoriza inferir una oferta por el ordinal de `Cerrada` o inventar etapas/fechas.
+Oportunidades filtra Prioridades únicamente por relaciones explícitas. Solo HH requiere al menos un contacto vinculado foco/HH; Excluir HH requiere ninguno (incluye oportunidades sin contactos). Mixtas con HH foco pertenecen a Solo HH. No inferir HH por empresa/nombre/dominio de la oportunidad. La columna Oportunidades cuenta solo activas por relación explícita prioridad/ciclo; las filas no son sumables como total global.
+
+Decisión posterior del owner: Procesos, Ofertas recibidas y Ofertas exitosas se calculan exclusivamente desde etapa y resultado vigentes, no desde el historial. Una visita anterior a `En proceso` u `Oferta recibida` deja de sumar si se corrige a otra etapa. El historial conserva auditoría, no alimenta esos conteos. Contactados y Cafés usan estado actual.
 
 La columna `Oportunidades` cuenta oportunidades abiertas distintas relacionadas explícitamente con cada Prioridad y el ciclo correspondiente. Una oportunidad puede aparecer en más de una fila; un total global debe usar la unión distinta y no la suma de filas.
 
-Siguen abiertas la ventana temporal de cada nivel y la elegibilidad exacta de citas/llamadas. Deben quedar visibles y consistentes antes de publicar Seguimiento, pero no bloquean R1. Las discrepancias entre estado del contacto e interacciones no actualizan estados automáticamente.
+Universo definitivo: ciclo activo por ID, instante exacto `networking_cycles.started_at` y zona IANA persistida. Nunca sustituir por Fecha_Inicio_Networking. Sin ciclo = vacío; legacy sin inicio/zona = solicitar configuración. Evidencias realizadas en [inicio, ahora]; no trasladar historia global anterior. Las discrepancias estado/interacciones no actualizan estados.
+
+Total cafés: Cafés de la pirámide cuenta una vez por contacto foco cuyo estado actual sea `Cita concretada` o `Agradecimiento enviado`, sin inferir elegibilidad por citas, llamadas ni transiciones pasadas. Azul oscuro atribuye cada contacto elegible a su cita calendar pasada válida más antigua dentro del ciclo; si no la hay, azul claro usa el ingreso a la secuencia actual de esos dos estados (Cita concretada -> Agradecimiento enviado conserva el primer ingreso; salir y volver a ingresar crea uno nuevo). Una cita futura o llamada nunca fecha azul. Si faltan ambas evidencias temporales, el contacto sigue en la pirámide pero se informa como no atribuible, sin fecha inventada. Verde cuenta una vez por contacto foco de estado actual no elegible con al menos una cita calendar futura válida dentro del horizonte: usa la más próxima, aunque tenga citas pasadas. Azul y verde son excluyentes por contacto; la agrupación HH sigue siendo por grupo y filtro. Si varios miembros HH aportan evidencia, se usa la primera fecha del grupo y su tipo de evidencia, con preferencia por cita real en empate. El acumulado azul de todo el ciclo puede diferir de Cafés solo por contactos elegibles sin fecha atribuible y no se limita a la ventana visible.
+
+Ventana semanal/mensual: doce posiciones geométricas fijas, nueve anteriores, actual en décima y dos futuras; lunes/día 1 en zona IANA. Las posiciones anteriores al inicio del ciclo quedan vacías, sin ceros ni etiquetas; el primer período elegible es parcial desde el instante exacto. Semanal incluye citas futuras desde ahora hasta ahora + 14 días civiles locales, final exclusivo. Mensual incluye desde ahora hasta el comienzo del tercer mes calendario posterior al actual, final exclusivo; el resto del mes actual y los dos siguientes completos. Sin carrusel, scroll ni flechas. El gráfico muestra solo columnas apiladas azul oscuro/azul claro/verde y el total numérico encima de cada columna, sin línea; las fechas del eje X se inclinan 45 grados. Ratios sin truncar >100%, cero denominador = Sin base.
+
+Elegibilidad de citas: Seguimiento usa el estado LOCAL de Interacciones. Una cita calendar pasada/futura registrada no exige status externo ni fuente confirmada; excluye metadata.deleted/dismissed, soft-delete opcional, fuente local deleted_at_source, cancelación persistida ICS (status CANCELLED/method CANCEL) y eventos sin fecha/participante. No infiere asistencia ni consulta Calendar. Estos criterios validan fechas azules/verdes, pero no alteran la elegibilidad de Cafés dada por el estado actual. Un cambio local recalcula la primera cita válida restante.
+
+El descarte/eliminación local existe en Interacciones; no se identificó una acción manual específica para registrar cancelación o no realización. Esa capacidad y la propagación de cancelaciones desde Google son deuda independiente de Interacciones/Sync, no bloqueos artificiales de Seguimiento. No se añaden flags, permisos ni cambios de conectores en esta entrega.
+
+Candidato local Seguimiento: snapshot SQL único bajo MVCC, SECURITY INVOKER y RLS, cálculo compartido en cliente; sin topes silenciosos. El forward-fix 202610300003 amplía el snapshot 002 con estado actual y transición anterior para la nueva regla, sin tablas ni escrituras. Lectura fallida no es lista vacía válida. Según el owner, 002 y 003 con sus verifiers pasaron en DEV; el smoke visual y funcional de esta semántica sigue pendiente. No declarar desplegado en PROD.
 
 ### Situación profesional del usuario
 
@@ -170,35 +180,31 @@ El atributo pertenece al perfil del usuario, no al ciclo. Es nullable para prese
 - Si una interacción está vinculada a una Oportunidad de un ciclo cerrado, la interacción continúa existiendo y su relación queda histórica.
 - Este comportamiento no debe reutilizar ni confundirse con `reset_current_user_app_data_v0_1`, cuyo propósito y perímetro son diferentes.
 
-## Propuesta pendiente: estados de Oportunidad
+## Oportunidades V1: contrato candidato local
 
-La máquina de estados no está aprobada todavía.
+Contrato de cierre aprobado: cuatro etapas (`Identificadas`, `Postuladas`, `En proceso`, `Oferta recibida`) y situación independiente `activa`, `finalizada` o `anulada`. Finalizar se realiza mediante una acción compacta en la tarjeta, no por arrastre a una quinta columna. La finalizada conserva su etapa y muestra el resultado vigente. Filtro `Activas / Finalizadas / Todas`, predeterminado `Activas`; nunca incluye anuladas.
 
-La propuesta de trabajo actual separa `etapa` de `resultado` para no mezclar progreso con cierre:
+Resultados exactos por etapa:
+- Identificadas: Descartada por mí; Plazo de postulación vencido; Vacante cancelada; Otro.
+- Postuladas: No seleccionado; Postulación retirada por mí; Vacante cancelada; Sin respuesta; Otro.
+- En proceso: No seleccionado; Proceso retirado por mí; Vacante cancelada; Sin respuesta; Otro.
+- Oferta recibida: Oferta aceptada; Oferta declinada; Oferta expirada; Otro.
 
-`Identificada` -> `Postulado` -> `En proceso/entrevistas` -> `Oferta recibida` -> `Cerrada`
+`Causa de cierre` es opcional para todos los resultados (límite técnico existente: 500 caracteres). Reabrir conserva la misma etapa y desactiva resultado/causa vigentes; conserva ambos en auditoría. Después de reabrir puede cambiarse la etapa mediante arrastre o menú. Un nuevo cierre exige seleccionar resultado nuevamente. Se permiten correcciones trazables del resultado/causa en su etapa; no cambiar la etapa de una finalizada sin reabrir. La anulación sigue siendo una operación separada para creaciones por error. No se incorpora archivo ni fusión general.
 
-Al cerrar, se registraría un resultado separado, por ejemplo:
+El forward-fix `202610300001` requiere 002/003/004. Cualquier fila legacy con `stage=finished`, incluso anulada, exige STOP y resolución expresa del owner sobre su etapa antes de migrar; no inferirla desde eventos. El resto conserva campos e historial, añadiendo situación derivada de resultado/anulación. DEV resolvió una fila de prueba incompatible mediante una operación focal autorizada antes de aplicar la migration, según el owner; no se infiere el estado PROD.
 
-- éxito;
-- rechazo de la empresa;
-- retirada por el usuario;
-- oferta declinada;
-- sin avance;
-- otro;
-- razón opcional.
-
-Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento se requiere distinguir explícitamente `Oferta recibida` y `Oferta exitosa`, conservar el hecho histórico de la oferta después del cierre y excluir cierres sin oferta. Sigue abierto si esto se representa mediante etapas/resultados, eventos de historial o, posteriormente, un objeto Oferta propio.
+Cada Oportunidad pertenece a un ciclo y puede vincular varios contactos, Prioridades del mismo ciclo e interacciones existentes, sin roles obligatorios para los contactos. Las interacciones elegibles deben tener al menos un participante que sea contacto vinculado; la selección es explícita y deduplicada, sin incorporar automáticamente otros participantes. Retirar un contacto exige advertir antes de desvincular interacciones que ya no sean elegibles. El editor compartido se abre desde Kanban y Prioridades; la entrada desde ficha de contacto queda diferida. Al cerrar un ciclo, sus Oportunidades quedan históricas y no pasan al siguiente. Según el owner, 002/003/004 y `202610300001` están instaladas y verificadas en DEV, y el smoke funcional y visual V1 resultó satisfactorio. Esa evidencia no certifica PROD.
 
 ## Realidad actual auditada
 
-- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B tiene SQL y verifiers DEV PASS informados, sin runtime nuevo desplegado. Oportunidades continúa ausente.
+- `objectives` representa las Prioridades mediante tipos `COMPANY`, `INDUSTRY`, `ROLE` y `FUNCTION`, con prioridad `HIGH`, `MEDIUM` o `LOW`; `contact_objective_assignments` las relaciona many-to-many con contactos. R2-A está instalado y validado en DEV/PROD según el owner; R2-B está integrado en Git por PR #45. Esta tarea no verificó su despliegue remoto. Oportunidades V1 es solo un candidato local en una branch separada.
 - Los IDs de `objectives` y sus asociaciones son contratos usados por filtros, contactos y métricas. La evolución debe preservarlos. El borrado actual de un objetivo es físico y no sirve como cierre histórico.
 - `Fecha_Inicio_Networking` vive en `user_settings` y nombre vive en `profiles`. Según evidencia operacional confirmada por el owner, R1 aplicó y verificó en DEV y PROD la columna nullable `profiles.professional_situation_code`, sus RPCs estrechas y el trigger de fecha; el runtime R1 está desplegado en PROD con smoke funcional PASS.
 - El onboarding persistido usa `product_onboarding_v1` con estados `not_started`, `in_progress`, `dismissed` y `completed`, pasos conocidos y replay separado. Cambiar su versión o pasos sin transición compatible puede devolver usuarios al inicio.
 - Las interacciones son objetos globales del usuario con participantes y fuentes externas. Las Oportunidades deben vincularlas sin duplicarlas. Merge de contactos y reset usan perímetros nominales que deberán evolucionar en las entregas correspondientes.
-- `/dashboard` existe detrás de los gates privados, pero está oculto de la navegación, monta el Coach y calcula KPIs en cliente sobre lecturas con límites. Desocultarlo como Seguimiento requiere adaptar navegación, semántica y cobertura; no basta con reactivar código existente.
-- El KPI actual `Contactos realizados` cuenta contactos con mensajes/correos, no contactos cuyo estado sea `Contactado` o superior. `Total cafés` cuenta interacciones calendar/call. Ninguno implementa todavía la pirámide aprobada.
+- El candidato local reutiliza `/dashboard` como Seguimiento visible detrás de los mismos gates, sin montar Coach ni los gráficos de contactos realizados. Usa snapshot coherente del ciclo y métricas de personas distintas; no equivale a un deployment.
+- Los cálculos antiguos de KPIs y Coach se conservan fuera de esta vista; no se usan para los nuevos indicadores de Seguimiento.
 
 ## Contrato técnico R2-A autorizado
 
@@ -210,21 +216,21 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - R2-A no expone cierre ni reinicio. El cierre/archivo no destructivo y la sustitución del borrado físico en ese flujo pertenecen a R2-B; no reutilizar `reset_current_user_app_data_v0_1`.
 - Inicio de networking, inicio de ciclo y límites de recuperación por fuente permanecen separados.
 
-## Contrato mínimo R2-B implementado localmente y validado en DEV
+## Contrato mínimo R2-B integrado en Git
 
 - Solo `JOB_SEARCH` se puede crear. Nombre editable, inicio explícito con fecha/hora y zona IANA; configuración de ciclo legacy conserva ID, Prioridades y ausencia de datos históricos no conocidos. `started_at` y `closed_at` son instantes de negocio; `created_at` y `closed_recorded_at` son instantes de registro. Los intervalos son `[inicio, fin)`, permiten comenzar exactamente al terminar el anterior y no se solapan.
 - `Mi objetivo` muestra el ciclo activo. El cierre exige fecha/hora y uno de cinco resultados, es transaccional e idempotente. No crea un ciclo siguiente ni modifica situación laboral, `Fecha_Inicio_Networking`, cursores o ventanas de sync. No se permite reabrir o editar un ciclo cerrado.
 - Las Prioridades y asociaciones permanecen en su ciclo; el siguiente comienza vacío. El borrado ordinario archiva la Prioridad. Los datos de ciclos cerrados se conservan y protegen en PostgreSQL, sin listado de historial en Cuenta ni Objetivos. Al cierre se congelan el estado/foco de contactos activos y las asociaciones observadas, con `observed_at`; un cierre retroactivo no afirma que esas observaciones fueran ciertas en la fecha de fin.
 - El nuevo ciclo ofrece dos opciones independientes inicialmente desmarcadas: reiniciar a `Pendiente` y limpiar foco de contactos activos, incluidos headhunters. Cerrar no modifica esos campos. La red global sigue operativa sin ciclo, mientras las lecturas y escrituras de Prioridades se acotan al activo. El Coach no reutiliza interacciones anteriores al inicio del ciclo para avances de estado.
-- RPCs con ownership, acceso efectivo, token de contexto esperado, índices de idempotencia y bloqueo por usuario protegen sesiones antiguas y concurrencia. Sync, merge y reset tienen adaptación focal. `Avísame`, Oportunidades, Seguimiento, KPIs, copia de Prioridades y reapertura/corrección siguen diferidos.
-- `PROD CONTRACT CHANGE`: migrations `202610270002` y `202610280001`, preflights, verifiers y prueba local Postgres. El gate de acceso se instala en `paused`; el runtime anterior deja de ser seguro para escribir desde la primera migration. DEV completó instalación, verificación y smoke funcional/UX local `test_only` según el operador; falta evidencia individual de escenarios críticos con el SHA publicado en `http://localhost:3000` antes de la apertura, según `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md`. Una falla transaccional revierte su migration; tras el commit se conservan datos y se aplica forward-fix. PROD exige backup recuperable y ensayo de recuperación según `PROD_CONTRACTS.md` y `RELEASE_RUNBOOK.md`.
+- RPCs con ownership, acceso efectivo, token de contexto esperado, índices de idempotencia y bloqueo por usuario protegen sesiones antiguas y concurrencia. Sync, merge y reset tienen adaptación focal. R2-B no incluyó Oportunidades ni Seguimiento; sus candidatos posteriores se describen en este documento. Copia de Prioridades y reapertura/corrección de ciclos siguen diferidas; `Avísame` tiene candidato separado.
+- `PROD CONTRACT CHANGE`: migrations `202610270002` y `202610280001`, preflights, verifiers y prueba local Postgres. El gate de acceso se instala en `paused`; el runtime anterior deja de ser seguro para escribir desde la primera migration. DEV completó instalación, verificación y smoke funcional/UX local `test_only` según el operador antes del merge de PR #45; el estado remoto actual no se comprobó en esta tarea. Una falla transaccional revierte su migration; tras el commit se conservan datos y se aplica forward-fix. PROD exige backup recuperable y ensayo de recuperación según `PROD_CONTRACTS.md` y `RELEASE_RUNBOOK.md`.
 
 ## Recomendaciones técnicas posteriores pendientes de aprobación
 
 - Entregar Oportunidades, relaciones e historial juntos para mantener transiciones y asociaciones coherentes y atómicas.
-- Usar un formulario compartido desde ficha de contacto, Prioridades y vista general de Oportunidades.
+- Usar un formulario compartido desde Prioridades y vista general de Oportunidades; la entrada desde ficha de contacto queda diferida.
 - Calcular Oportunidades abiertas distintas por relación explícita Prioridad/ciclo y no sumar filas como total global.
-- Modelar `Avísame` con unicidad usuario/modalidad, correo canónico server-side y acceso administrativo agregado, sin construir un sistema general de suscripciones.
+- Para `Avísame`, mantener solo consultas manuales de solicitudes activas; no se contrata acceso administrativo agregado ni panel.
 
 ## Estado y pendientes por entrega
 
@@ -242,33 +248,25 @@ Esta propuesta debe revisarse y aprobarse antes de implementar. Para Seguimiento
 - R2-B mínimo implementa creación, configuración legacy, cierre y reinicio opcional por estado/foco; sin cambio de tipo de plan ni copia;
 - R2-B persiste zona horaria IANA para los nuevos límites. El `started_on` preexistente se conserva como fecha civil y su interpretación UTC anterior se migra explícitamente a `started_at`; inicio legacy desconocido queda `NULL`;
 - falta identificar el campo real de calidad de foco/cercanía antes de ofrecer su reinicio;
-- retirada, retención y eliminación de solicitudes `Avísame`, además del procedimiento autorizado para un aviso futuro;
+- `Avísame`: incremento separado de alta/retirada, lectura propia y purga; verificar su estado operacional por ambiente antes de cualquier promoción de Oportunidades. Una futura eliminación de cuenta que conserve `auth.users` requiere integración adicional;
 - eliminación de cuenta y retención histórica más allá del reset propio ya cubierto por R2-A.
 
-### Oportunidades
+### Oportunidades posteriores a V1
 
-- máquina de etapas/resultados, saltos, reapertura y correcciones;
-- representación mínima de `Oferta recibida` y `Oferta exitosa`, y si una Oferta será un objeto propio;
-- roles de relaciones Oportunidad-Contacto;
-- cardinalidad y UX Oportunidad-Interacción;
-- tratamiento de referidos al vincular personas;
-- versionado, archivo, merge y reset.
+- roles opcionales de relaciones Oportunidad-Contacto y tratamiento de referidos al vincular personas;
+- archivo o fusión general de Oportunidades y posible objeto Oferta propio;
+- promoción y smoke por ambiente del candidato V1.
 
 ### Seguimiento
 
-- universo temporal de cada nivel de la pirámide;
-- elegibilidad exacta de una cita/llamada como café válido;
-- comportamiento de filtros y ciclo seleccionado;
-- fuente completa de agregaciones sin límites silenciosos;
-- semántica visible de razones que mezclan contactos, eventos y oportunidades.
-
-Estas decisiones de Seguimiento no bloquean R1.
+- Revisión del candidato local y gates de instalación/smoke DEV y PROD.
+- Comprobación de volumen/latencia y smoke con datos locales almacenados en DEV. La vigencia externa de Calendar no es un gate; no se certifica ni repara Sync en esta entrega. Las decisiones de métricas/filtros/ventana anteriores ya están cerradas.
 
 ## Releases funcionales previstos
 
 1. **R1 - Tu punto de partida (COMPLETED):** nombre, situación profesional y `Fecha_Inicio_Networking` compartidos entre onboarding y Cuenta; importación del tutorial solo de contactos. Preserva onboarding V1, completed, in_progress, replay y todos los datos existentes. No incluye ciclos, Oportunidades, Avísame ni Seguimiento.
 2. **R2-A - Fundación de ciclos e historial mínimo (DEV/PROD validado según owner):** persistencia y backfill compatible, un único ciclo activo, pertenencia de Prioridades y ledgers estrechos; sin cierre/reinicio visible.
-3. **R2-B mínimo (SQL y smoke local DEV PASS informados; release pendiente):** creación/configuración/cierre, dos opciones independientes de reset y adaptación de consumidores; historia persistida sin listado en la interfaz. `Avísame` sigue independiente.
+3. **R2-B mínimo (PR #45 integrado; estado remoto por reconfirmar):** creación/configuración/cierre, dos opciones independientes de reset y adaptación de consumidores; historia persistida sin listado en la interfaz. `Avísame` sigue independiente.
 4. **Oportunidades:** entidad, relaciones, historial y formulario compartido en una misma entrega, junto con las extensiones necesarias de merge/reset.
 5. **Seguimiento:** navegación visible, `¿Cómo voy?`, gráfico `Total cafés`, toggle headhunter, columna Oportunidades y retiro focal del Coach y de los dos gráficos reemplazados.
 
@@ -276,6 +274,6 @@ Cada release persistente exige clasificación `PROD CONTRACT CHANGE`, migration/
 
 ## Próxima fase
 
-R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B tiene ambas migrations y verifiers DEV PASS y smoke local informado, con gate `paused`; tras publicar la branch siguen pendientes PR manual, evidencia focal del SHA publicado en el runtime DEV local, apertura controlada y un gate PROD independiente con backup recuperable. `Avísame`, Oportunidades y Seguimiento siguen pendientes.
+R1 está completada; R2-A está instalado y validado en DEV/PROD según el owner. R2-B fue integrado por PR #45 en el baseline local; el estado operacional remoto posterior al merge requiere comprobación independiente. `Avísame` está en la branch publicada PR #46; su estado por ambiente debe verificarse antes de promover dependencias. Según el owner, Oportunidades V1 tiene SQL 002/003/004 y `202610300001` instalados y verificados en DEV, con smoke funcional y visual PASS; fue consolidado en el commit local `7912f089`. Seguimiento 002/verifier pasaron en DEV según el owner. La semántica nueva de Cafés requiere 003 local y smoke autenticado posterior; no está publicada ni promovida a PROD.
 
 Owner docs relevantes para R1: `docs/UI_SYSTEM.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_ACCESS.md`, `docs/TESTING.md` y `docs/PROD_CONTRACTS.md` si se aprueba un cambio persistente.

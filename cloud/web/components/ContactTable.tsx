@@ -23,6 +23,8 @@ import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon, type IconName } from "./ui/Icon";
+import { StatusBoard, StatusBoardCard, type BoardDropTarget } from "./ui/StatusBoard";
+import { useDeferredBoardSave, omitKeys, applyStatusToIds, removeUnchangedPending, removeSettledOptimistic } from "../lib/useDeferredBoardSave";
 
 type ContactTableProps = {
   contacts: ContactListRow[];
@@ -35,11 +37,6 @@ type SortDirection = "asc" | "desc";
 type SortState = {
   key: SortKey;
   direction: SortDirection;
-};
-
-type BoardDropTarget = {
-  index: number;
-  status: string;
 };
 
 type ContactBoardCard = {
@@ -128,16 +125,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
     };
   }, []);
 
-  useEffect(() => {
-    const pendingEntries = Object.entries(pendingBoardStatuses);
-    if (!pendingEntries.length || savingBoardIds.size) return;
-
-    const timeoutId = window.setTimeout(() => {
-      void flushBoardStatuses(pendingEntries);
-    }, 1600);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [pendingBoardStatuses, savingBoardIds.size]);
+  useDeferredBoardSave(pendingBoardStatuses, savingBoardIds.size, flushBoardStatuses);
 
   function toggleSelected(contactId: string, checked: boolean) {
     setSelectedIds((current) => {
@@ -665,61 +653,15 @@ function ContactStatusBoard({
   savingContactIds: Set<string>;
 }) {
   return (
-    <div className="contacts-status-board" aria-label="Tablero de estados networking">
-      {NETWORKING_STATUSES.map((status) => {
-        const statusCards = cardsByStatus.get(status) ?? [];
-        const targetIndex = dropTarget?.status === status ? dropTarget.index : null;
-        return (
-          <div
-            className={`contacts-status-column ${statusClass(status)} ${draggingContactId ? "drop-ready" : ""}`}
-            key={status}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onDropTargetChange(null);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              if (!statusCards.length) onDropTargetChange({ status, index: 0 });
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const cardId = event.dataTransfer.getData("text/plain") || draggingContactId;
-              if (cardId) onDropContact(cardId, status);
-              onDragEnd();
-            }}
-          >
-            <div className="contacts-status-column-head">
-              <StatusBadge status={status} />
-              <strong>{statusCards.length}</strong>
-            </div>
-            <div className="contacts-status-scroll">
-              {statusCards.map((card, index) => (
-                <div key={card.id}>
-                  {targetIndex === index ? <div className="contacts-status-drop-line" /> : null}
-                  <ContactStatusCard
-                    card={card}
-                    dragging={draggingContactId === card.id}
-                    pending={card.contactIds.some((contactId) => pendingContactIds.has(contactId))}
-                    saving={card.contactIds.some((contactId) => savingContactIds.has(contactId))}
-                    onDragEnd={onDragEnd}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      onDropTargetChange({
-                        status,
-                        index: event.clientY < rect.top + rect.height / 2 ? index : index + 1
-                      });
-                    }}
-                    onDragStart={onDragStart}
-                  />
-                </div>
-              ))}
-              {targetIndex === statusCards.length && statusCards.length ? <div className="contacts-status-drop-line" /> : null}
-              {!statusCards.length ? <div className="contacts-status-empty">Suelta un contacto aca</div> : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <StatusBoard label="Tablero de estados networking" statuses={NETWORKING_STATUSES}
+      cardsByStatus={cardsByStatus} draggingId={draggingContactId} dropTarget={dropTarget}
+      onDragEnd={onDragEnd} onDragStart={onDragStart} onDropCard={onDropContact}
+      onDropTargetChange={onDropTargetChange} columnClass={statusClass}
+      renderHeader={(status, count) => <><StatusBadge status={status} /><strong>{count}</strong></>}
+      renderCard={(card, events) => <ContactStatusCard card={card} dragging={draggingContactId === card.id}
+        pending={card.contactIds.some((id) => pendingContactIds.has(id))}
+        saving={card.contactIds.some((id) => savingContactIds.has(id))} {...events} />}
+    />
   );
 }
 
@@ -741,22 +683,10 @@ function ContactStatusCard({
   saving: boolean;
 }) {
   return (
-    <div
-      className={`contacts-status-card ${card.isHeadhunterGroup || card.primaryContact.is_headhunter ? "headhunter" : ""} ${card.isHeadhunterGroup ? "group" : ""} ${dragging ? "dragging" : ""} ${pending ? "pending" : ""} ${saving ? "saving" : ""}`}
-      draggable
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDragStart={(event) => {
-        const dragImage = event.currentTarget.cloneNode(true) as HTMLElement;
-        dragImage.classList.add("contacts-status-drag-image");
-        document.body.appendChild(dragImage);
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", card.id);
-        event.dataTransfer.setDragImage(dragImage, 24, 24);
-        window.setTimeout(() => dragImage.remove(), 0);
-        onDragStart(card.id);
-      }}
-    >
+    <StatusBoardCard id={card.id}
+      className={`${card.isHeadhunterGroup || card.primaryContact.is_headhunter ? "headhunter" : ""} ${card.isHeadhunterGroup ? "group" : ""}`}
+      dragging={dragging} pending={pending} saving={saving}
+      onDragEnd={onDragEnd} onDragOver={onDragOver} onDragStart={onDragStart}>
       <span className="contacts-status-card-icon" title={card.isHeadhunterGroup ? "Empresa headhunter" : card.primaryContact.is_headhunter ? "Headhunter" : "Contacto"}>
         <Icon name={card.isHeadhunterGroup || card.primaryContact.is_headhunter ? "circleDot" : "users"} />
       </span>
@@ -774,7 +704,7 @@ function ContactStatusCard({
           +{card.extraCount}
         </span>
       ) : null}
-    </div>
+    </StatusBoardCard>
   );
 }
 
@@ -887,19 +817,6 @@ function groupBoardCardsByStatus(cards: ContactBoardCard[]) {
   }, new Map());
 }
 
-function omitKey<T>(record: Record<string, T>, key: string) {
-  const { [key]: _omitted, ...rest } = record;
-  return rest;
-}
-
-function omitKeys<T>(record: Record<string, T>, keys: string[]) {
-  return keys.reduce((next, key) => omitKey(next, key), record);
-}
-
-function applyStatusToIds(record: Record<string, string>, contactIds: string[], status: string) {
-  return contactIds.reduce((next, contactId) => ({ ...next, [contactId]: status }), record);
-}
-
 function headhunterGroupKey(contact: ContactListRow) {
   const company = cleanContactCompany(contact.company).toLowerCase();
   if (company) return `company:${company}`;
@@ -918,22 +835,6 @@ function statusOrDefault(status: string) {
 function statusRank(status: string) {
   const index = NETWORKING_STATUSES.indexOf(status as typeof NETWORKING_STATUSES[number]);
   return index >= 0 ? index : 0;
-}
-
-function removeUnchangedPending(current: Record<string, string>, entries: Array<[string, string]>) {
-  return entries.reduce((next, [contactId, status]) => {
-    if (next[contactId] !== status) return next;
-    return omitKey(next, contactId);
-  }, current);
-}
-
-function removeSettledOptimistic(current: Record<string, string>, contactIds: string[], entries: Array<[string, string]>) {
-  const settled = new Map(entries);
-  return contactIds.reduce((next, contactId) => {
-    const status = settled.get(contactId);
-    if (!status || next[contactId] !== status) return next;
-    return omitKey(next, contactId);
-  }, current);
 }
 
 function sortValue(contact: ContactListRow, key: SortKey) {

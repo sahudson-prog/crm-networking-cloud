@@ -29,8 +29,8 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Último PR integrado en `main`: PR #42, OBJ-02 R1 - Tu punto de partida, SHA `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
-- Actualización OBJ-02: el owner confirmó R2-A instalado y validado en DEV/PROD. Para R2-B, `origin/main` se verificó en `79e92ed641d3f4aca353dd79acc3a94b41da814b`; el trabajo local aislado está en `codex/obj-02-r2b-minimal`. Las líneas históricas de R2-A de este archivo describen checkpoints anteriores.
+- Último PR integrado en el `main` local: PR #45, OBJ-02 R2-B, SHA `e516e9cd9dddf81f125ff4b42e6cc9219c7121a4`. No se hizo fetch ni se verificó despliegue remoto en esta tarea.
+- El owner confirmó R2-A instalado y validado en DEV/PROD. Antes del merge de PR #45, el operador informó SQL y verifiers R2-B PASS en DEV; ese checkpoint histórico no determina el estado remoto actual de R2-B.
 - Última release de producto completada: OBJ-02 R1; Vercel PROD Ready / Current y smoke funcional PASS confirmados por el owner.
 - Last completed product release SHA: `56a25e5d241799b2fd6129258b06f7d67d89cad6`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
@@ -56,31 +56,29 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: R1 COMPLETED; R2-A instalado y validado en DEV/PROD según el owner; R2-B con `202610270002` y `202610280001` instaladas y ambos verifiers PASS en DEV según el operador. Smoke funcional y UX PASS informado; gate DEV `paused`. La branch se publica para PR; evidencia focal del SHA publicado en el runtime DEV local, apertura normal y PROD siguen pendientes.
-- Verified local baseline: `origin/main` = `79e92ed641d3f4aca353dd79acc3a94b41da814b` al iniciar R2-B.
-- Current branch/worktree: `codex/obj-02-r2b-minimal`, `C:\Users\Sergio\.codex\worktrees\obj-02-r2b-minimal\main`.
-- Completed:
-  - PR #42 integrado en el baseline indicado y canonical sincronizado por fast-forward, verificados localmente;
-  - R1 implementa `Tu punto de partida` entre introducción y Objetivos, compartido con Cuenta y compatible con onboarding V1;
-  - según evidencia operacional confirmada por el owner, DEV: preflight/captura PASS, migration aplicada, tres verifiers PASS y smoke autenticado de Cuenta, persistencia, tutorial, Coach, navegación, responsive 320 px y teclado/foco PASS;
-  - según evidencia operacional confirmada por el owner, PROD: preflight/captura PASS, backup lógico íntegro y restauración local aislada PASS para schema/datos, migration aplicada y tres verifiers PASS;
-  - comprobación focal reportada por el owner: seis triggers y cero señales de llamadas externas;
-  - Vercel PROD Ready / Current y smoke funcional PROD PASS confirmados por el owner; no repetidos por Codex en este cierre;
-  - R2-A fue instalado y validado en DEV/PROD según el owner; sus migrations aplicadas y el worktree de cierre permanecen intactos.
-  - R2-B mínimo añade creación/configuración/cierre de ciclos de Búsqueda laboral, Prioridades por ciclo, dos resets independientes y observaciones congeladas al cierre. Los datos históricos se conservan, pero no hay listado de procesos anteriores en la interfaz. La revisión independiente reforzó contexto versionado, rechazo de sesiones antiguas, horas ambiguas/inexistentes y gate operativo de acceso; el orden de DEV está en `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md`.
-  - R2-B DEV según el operador: preflights y captura PASS, migrations `202610270002` y `202610280001` aplicadas, ambos verifiers PASS y smoke funcional/UX `test_only` del candidato local PASS informado. No se aportó evidencia individual de cada escenario crítico; el primer ingreso real con usuario nuevo sigue diferido. El gate fue restaurado a `paused`, con cero usuarios autorizados, RPCs sensibles bloqueadas, Data API OFF, Auth signup OFF y runtime detenido. DEV usa `http://localhost:3000` y no tiene Vercel DEV permanente; PROD no cambió.
-  - Auditoría pre-PR detectó sync Google sin contexto y reconciliación de cierre con token obsoleto; la corrección conjunta y precisión temporal pasaron PostgreSQL local, tests afectados, typecheck y build. El forward-fix `202610280001` ya fue instalado y verificado en DEV según el operador.
-- Pending:
-  - first-run real con usuario nuevo diferido, con cobertura automatizada; no declarado smoke manual PASS;
-  - R2-B: tras publicar la branch y crear el PR manual, ejecutar el SHA publicado en `http://localhost:3000` apuntando solo a Supabase DEV, documentar evidencia individual de los escenarios críticos aún no acreditados y volver a `paused` al terminar el smoke `test_only`. Abrir DEV solo tras comprobar runtime y protecciones operativas; PROD tiene gates separados, con backup recuperable y aprobación operacional;
-  - `Avísame`, Oportunidades, Seguimiento, KPIs históricos, copia y reapertura de ciclos permanecen diferidos.
-- Blockers: ninguno local conocido; faltan PR, evidencia focal del SHA publicado en runtime DEV local, apertura controlada y, por separado, gates PROD. El runtime anterior no puede reabrirse después de `202610270002`.
-- Manual/remote actions already executed: solo las acciones R2-B DEV informadas por el operador en Completed; esta publicación no ejecuta SQL remoto ni cambia servicios. PROD R2-B intacto.
-- Immediate next action: tras publicar la branch, el usuario crea el PR en GitHub Web; seguir los gates DEV locales pendientes de `docs/planning/OBJ-02-R2B-DEV-CUTOVER.md` antes de abrir el uso normal.
-- Stop boundary: esta tarea autoriza solo commits y push de `codex/obj-02-r2b-minimal`; sin SQL remoto, PR, merge ni deployment.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según el owner; R2-B integrado en el baseline local por PR #45. `Avísame` pertenece a la branch publicada PR #46, abierta sin merge, y su estado por ambiente requiere comprobación independiente. Oportunidades V1 está consolidado en el commit local `7912f089`; Seguimiento en `68effc8`, con 002/003 y sus verifiers PASS en DEV según el owner y smoke autenticado de la nueva semántica pendiente.
+- Verified local baseline: `main` y `origin/main` locales = `e516e9cd9dddf81f125ff4b42e6cc9219c7121a4`; referencia remota no sincronizada por restricción de esta tarea.
+- Current branch/worktree de este candidato: `codex/obj-02-integracion-v1`, `C:\Dev\Coffeecito-Workspace\worktrees\obj-02-integracion-v1`; base Avísame `a345d10dd64e45d398a245876ff472f59f492a0c`, commit local Oportunidades `7912f0896984891558f3896d06256a62d54afba1` y commit local Seguimiento `68effc8b0ca28098d005e09e60c843054021ad9c`.
+- Completed: PR #45 integrado en Git local; contrato y código R2-B presentes. Evidencia histórica aportada por el operador: migrations/verifiers y smoke local `test_only` PASS en DEV antes del merge. El first-run real de R1 sigue diferido con cobertura automatizada. Revisión local de `Avísame`: migración/verifier y lifecycle certificados en PostgreSQL 17 desechable; sin SQL remoto.
+- Pending: push de la rama integrada, revisión e integración manual del PR, smoke de la nueva semántica en DEV y gates PROD independientes: preflight, backup recuperable, recuperación, ventana compatible, migrations/verifiers, runtime y smoke. Verificar dinámicamente R2-B y Avísame antes de promover dependencias; no inferir instalación remota desde Git. La eliminación completa de cuenta sigue sin infraestructura efectiva.
+- Blockers: PROD aún requiere preflight de filas y contrato instalado; cualquier legacy `stage=finished` detiene la migration hasta resolver su etapa explícitamente. El cliente anterior de cinco columnas no es compatible como escritor tras esta fase.
+- Manual/remote actions in this task: ninguna.
+- Seguimiento: 002/003 y sus verifiers PASS en DEV según el owner; el candidato local muestra cinco niveles y separa fecha de cita/fecha estimada/proyección sin alterar SQL. No se reparó Google Sync ni se amplió su alcance. Avísame y Oportunidades están aprobados en DEV según el owner; la promoción PROD sigue sujeta a gates separados. La semántica nueva de Seguimiento no está certificada mediante smoke autenticado DEV.
+- Immediate next action: completar validación visual local y smoke DEV del owner sobre el runtime actualizado; no repetir migrations ya instaladas.
+- Stop boundary: sin fetch, push, operaciones de PR, SQL remoto ni deployment en este cierre documental; publicación y cutover requieren gates separados.
+
+### Candidato local paralelo OBJ-02 / Oportunidades V1
+
+- Nuevo contrato de cierre: cuatro etapas y situación activa/finalizada/anulada; resultados por etapa, causa opcional, filtros y reapertura en la misma etapa. 202610300001 conserva datos/eventos y se detiene ante cualquier etapa legacy `finished`. Su instalación y verificación DEV fueron confirmadas por el owner; PROD no está promovido.
+
+- Worktree `codex/obj-02-integracion-v1` basado en el commit de Avísame `a345d10dd64e45d398a245876ff472f59f492a0c`; no modifica `main` ni PR #46.
+- Según el owner, DEV tiene instaladas `202610290002`, `202610290003`, `202610290004` y `202610300001`, con verifier compuesto PASS. El smoke autenticado de creación, movimiento y nuevo cierre, incluida la aprobación visual final, fue confirmado por el owner; no certifica PROD.
+- Corrección local 004: elegibilidad compartida por metadata y columna soft-delete opcional sin añadirla; lectura RPC estrecha, alta sin interacciones independiente de esa lectura y edición fail-closed. Paginación con conteo exacto, avance por filas recibidas y rechazo de incompletitud. Validación local con PostgreSQL/PostgREST y fixtures sintéticas, cadena 002 -> 003 -> 004, ambos esquemas y formulario React montado; no certifica DEV ni Auth externo. Las migrations 002/003 permanecen intactas.
+- Revisión técnica local: corregidos reintentos de alta, versionado de fusión, conservación de relaciones archivadas, lecturas paginadas y guardas de instalación. Ensayo PostgreSQL 17 aislado PASS, incluidos RLS/ACL efectivos, concurrencia, ciclos históricos, reset, rollback y verifiers R2-B/Avísame. El smoke autenticado DEV es evidencia aportada por el owner, no una prueba ejecutada por Codex.
+- Gates separados pendientes: revisión/publicación del candidato y, para PROD, preflight de filas legacy y contrato instalado, recuperación/ventana, migrations y verifier compuesto, deployment y smoke. El forward-fix local de Seguimiento no altera el Kanban ni sus migrations instaladas.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (DEV/PROD validado según owner) → `OBJ-02 R2-B` (ambas migrations y verifiers DEV PASS según operador; gates de release pendientes)
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02 R1` (COMPLETED) → `OBJ-02 R2-A` (DEV/PROD validado según owner) → `OBJ-02 R2-B` (PR #45 integrado; estado operacional remoto por reconfirmar) → `Avísame` (PR #46, estado por ambiente a verificar) → `Oportunidades V1` (candidato local)
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -129,7 +127,7 @@ Prompt de recuperación copy/paste-safe:
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner y R2-B en preparación pre-PR con SQL y verifiers DEV PASS informados por el operador. Las entregas posteriores permanecen `NOT CONTRACTED / DECISION REQUIRED`; INV-01 está cerrada.
+OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner, R2-B integrado en Git local y `Avísame` en una branch publicada separada (PR #46 abierta, sin merge). Oportunidades V1 está implementada localmente y validada en DEV según el owner, aún sin promoción PROD; Seguimiento está consolidado localmente en `68effc8`, con SQL/verifiers DEV PASS según el owner, smoke autenticado de la nueva semántica y promoción PROD pendientes. INV-01 está cerrada.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -226,16 +224,16 @@ OBJ-02 continúa con R1 completada, R2-A validada en DEV/PROD según el owner y 
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: R1 COMPLETED; R2-A IMPLEMENTADO Y VERIFICADO EN DEV, PROD PENDIENTE; R2-B Y RELEASES POSTERIORES PENDIENTES.
+- Status: R1 COMPLETED; R2-A validado en DEV/PROD según owner; R2-B integrado en Git por PR #45, estado remoto por reconfirmar; `Avísame` en PR #46 abierta sin merge; Oportunidades V1 validada en DEV según el owner, sin promoción PROD; Seguimiento consolidado localmente en `68effc8`, SQL/verifiers DEV PASS según el owner, smoke autenticado de la nueva semántica y cutover PROD pendientes.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard futuro renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
 - Resultado R1: nuevo paso `Tu punto de partida` después de la introducción y antes de Objetivos; nombre, situación profesional estructurada y `Fecha_Inicio_Networking` obligatorios para nuevos usuarios; Cuenta comparte la misma fuente; completed no se reabre, in_progress no se reinicia y replay no escribe al navegar.
 - R2-A contratado: fundación expand-only de ciclos, pertenencia de Prioridades, snapshot/transiciones de situación profesional, ledger mínimo de estado/foco de contactos y atribución temporal interna de interacciones sin `cycle_id`.
-- Resultado R2-A: según el owner, preflight `clean_install`, migration y nueve verificadores PASS en DEV; sin SQL PROD ni deployment de runtime nuevo.
-- Decisiones posteriores: operación visible de cierre/reinicio configurable, privacidad de `Avísame`, máquina de estados/resultados, relaciones y semántica de Seguimiento.
+- Resultado R2-A: según el owner, instalado y validado en DEV/PROD. Los checkpoints anteriores de este archivo no actualizaban ese estado.
+- La semántica posterior de Seguimiento está cerrada en OBJ-02.md: foco actual, evidencia del ciclo, HH canónico, primeras fechas y métricas vigentes de Oportunidades. Su promoción por ambiente sigue pendiente; no altera los contratos de ciclos, Avísame u Oportunidades.
 - Estado de R1: PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`; según evidencia confirmada por el owner, SQL y tres verifiers PASS en DEV/PROD, runtime PROD Ready / Current y smoke PASS. First-run real diferido con cobertura automatizada.
-- Out of scope actual: aplicar SQL PROD o desplegar runtime; exponer cierre/reinicio; implementar Oportunidades, `Avísame` o Seguimiento; confundir OBJ-02 con PRODUCT-EVAL-01.
+- Out of scope actual: aplicar SQL remoto o desplegar runtime, reparar Google Sync o confundir OBJ-02 con PRODUCT-EVAL-01.
 - Relación: siguiente iniciativa después del cierre INV-01.
 ### UX-NAV-01 - Transiciones de navegación
 

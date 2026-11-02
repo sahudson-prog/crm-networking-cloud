@@ -15,14 +15,19 @@ type ObjectiveSelectorProps = {
   disabled?: boolean;
   selectedObjectiveIds: string[];
   onChange: (objectiveIds: string[]) => void;
+  choices?: Pick<ObjectiveRow, "id" | "objective_name" | "objective_type" | "priority_level">[];
+  choicesLoading?: boolean;
+  choicesError?: string;
 };
 
-export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onChange }: ObjectiveSelectorProps) {
+export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onChange,
+  choices, choicesLoading = false, choicesError = "" }: ObjectiveSelectorProps) {
   const [objectives, setObjectives] = useState<ObjectiveRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (choices) return;
     let active = true;
     setLoading(true);
     setError("");
@@ -41,10 +46,13 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
     return () => {
       active = false;
     };
-  }, []);
+  }, [choices]);
 
+  const visibleObjectives = choices ?? objectives;
+  const visibleLoading = choices ? choicesLoading : loading;
+  const visibleError = choices ? choicesError : error;
   const selected = useMemo(() => new Set(selectedObjectiveIds), [selectedObjectiveIds]);
-  const grouped = useMemo(() => groupObjectives(objectives), [objectives]);
+  const grouped = useMemo(() => groupObjectives(visibleObjectives), [visibleObjectives]);
 
   function toggleObjective(objectiveId: string) {
     const next = new Set(selectedObjectiveIds);
@@ -57,10 +65,10 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
     <div className="objective-selector">
       <div className="objective-selector-head">
         <span>Prioridades</span>
-        {loading ? <small>Leyendo...</small> : null}
+        {visibleLoading ? <small>Leyendo...</small> : null}
       </div>
-      {error ? <small className="danger-text">{error}</small> : null}
-      {!loading && !objectives.length && !error ? <EmptyValue>Sin prioridades definidas</EmptyValue> : null}
+      {visibleError ? <small className="danger-text">{visibleError}</small> : null}
+      {!visibleLoading && !visibleObjectives.length && !visibleError ? <EmptyValue>Sin prioridades definidas</EmptyValue> : null}
       {OBJECTIVE_TYPES.map((type) => {
         const rows = grouped.get(type.value) ?? [];
         if (!rows.length) return null;
@@ -73,7 +81,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
                 return (
                   <button
                     className={`objective-chip ${active ? "active" : ""}`}
-                    disabled={disabled}
+                    disabled={disabled || Boolean(visibleError) || visibleLoading}
                     key={objective.id}
                     onClick={() => toggleObjective(objective.id)}
                     title={`${objective.objective_name} · Prioridad ${objectivePriorityLabel(objective.priority_level)}`}
@@ -88,6 +96,12 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
           </div>
         );
       })}
+      {choices && !visibleLoading && !visibleError ? selectedObjectiveIds.filter((id) =>
+        !visibleObjectives.some((objective) => objective.id === id)).map((id) =>
+        <button className="objective-chip active" key={id} type="button" disabled={disabled}
+          onClick={() => toggleObjective(id)} aria-label="Desvincular prioridad conservada">
+          Prioridad conservada (no disponible) <Icon name="close" />
+        </button>) : null}
     </div>
   );
 }
@@ -105,8 +119,8 @@ export function ObjectiveChips({ objectives }: { objectives: ObjectiveRow[] }) {
   );
 }
 
-function groupObjectives(objectives: ObjectiveRow[]) {
-  const grouped = new Map<ObjectiveRow["objective_type"], ObjectiveRow[]>();
+function groupObjectives(objectives: Pick<ObjectiveRow, "id" | "objective_name" | "objective_type" | "priority_level">[]) {
+  const grouped = new Map<ObjectiveRow["objective_type"], typeof objectives>();
   for (const objective of objectives) {
     const current = grouped.get(objective.objective_type) ?? [];
     current.push(objective);

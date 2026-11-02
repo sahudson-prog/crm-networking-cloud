@@ -86,6 +86,10 @@ function ShellContent({ children }: { children: ReactNode }) {
             <Icon name="users" />
             Contactos
           </Link>
+          <Link className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`} href="/dashboard">
+            <Icon name="chart" />
+            Seguimiento
+          </Link>
         </nav>
         <div className="nav-utility">
           {!isOnboarding ? <InvitationButton /> : null}

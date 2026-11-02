@@ -1,6 +1,7 @@
 @import "../styles/tokens.css";
 @import "../styles/components.css";
 @import "../styles/invitations.css";
+@import "../styles/tracking.css";
 
 * {
   box-sizing: border-box;

@@ -512,13 +512,13 @@ test("mandatory no ofrece salida y replay completed conserva salida descartable"
   assert.match(providerSource, /function complete\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
 });
 
-test("Dashboard queda fuera de la navegación pero su ruta sigue disponible", () => {
+test("Seguimiento está en la navegación sin reemplazar la portada de Contactos", () => {
   const shellSource = source("../components/Shell.tsx");
   const rootRoute = source("../app/page.tsx");
   const dashboardRoute = source("../app/dashboard/page.tsx");
 
   assert.doesNotMatch(shellSource, />\s*Dashboard\s*</);
-  assert.doesNotMatch(shellSource, /<Icon name="chart"/);
+  assert.match(shellSource, /href="\/dashboard"[\s\S]*<Icon name="chart" \/>[\s\S]*Seguimiento/);
   assert.match(rootRoute, /<ReadOnlyContacts \/>/);
   assert.doesNotMatch(rootRoute, /ReadOnlyDashboard/);
   assert.match(dashboardRoute, /<ReadOnlyDashboard \/>/);

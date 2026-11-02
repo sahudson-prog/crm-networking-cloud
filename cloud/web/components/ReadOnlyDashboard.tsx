@@ -1,332 +1,131 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  readActiveTodos,
-  readAllInteractions,
-  readAllActiveContacts,
-  readAppSummary,
-  readDashboardReferrals,
-  readExternalSourcesForInteractions,
-  readInteractionParticipants,
-  readUserSetting,
-  buildHeadhunterCompanies,
-  readStatusCounts
-} from "../lib/cloudData";
-import { DEFAULT_CONTACT_FILTERS, filterContacts, objectiveOptionsForContacts, type ContactFilters } from "../lib/contactFilters";
-import { buildDashboardKpis, parseLocalDate } from "../lib/kpiCalculations";
-import { readObjectives } from "../lib/cycleObjectiveActions";
-import { buildObjectiveMetrics } from "../lib/objectiveMetrics";
-import type {
-  ContactRow,
-  DashboardReferralRow,
-  ExternalInteractionSourceRow,
-  HeadhunterCompanyRow,
-  InteractionParticipantRow,
-  InteractionRow,
-  KpiPeriodMode,
-  KpiTrend,
-  AppSummary,
-  ObjectiveRow,
-  StatusCount,
-  TodoRow
-} from "../lib/readModel";
-import { CoachPreview } from "./CoachPreview";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { readTrackingSnapshot } from "../lib/trackingRead";
+import { buildTracking, defaultTrackingFilters, type TrackingSnapshot } from "../lib/trackingModel";
+import { readDashboardDetails, type DashboardDetails } from "../lib/dashboardDetails";
+import { buildHeadhunterCompanies } from "../lib/cloudData";
+import { DEFAULT_CONTACT_FILTERS, filterContacts, type ContactFilters } from "../lib/contactFilters";
+import { buildObjectiveMetrics, type ObjectiveMetricRow } from "../lib/objectiveMetrics";
+import type { ObjectiveRow } from "../lib/readModel";
 import { ContactFilterControls } from "./ContactFilterControls";
-import { DashboardKpis } from "./DashboardKpis";
-import { HeadhunterCompanies } from "./HeadhunterCompanies";
-import { groupParticipantsByInteraction, groupSourcesByInteraction, InteractionTimelineList } from "./InteractionTimelineList";
+import { TrackingView } from "./TrackingView";
 import { ObjectiveMetricsTable } from "./ObjectiveMetricsTable";
+import { HeadhunterCompanies } from "./HeadhunterCompanies";
+import { InteractionTimelineList, groupParticipantsByInteraction, groupSourcesByInteraction } from "./InteractionTimelineList";
 import { ReferralActions } from "./ReferralActions";
 import { Button } from "./ui/Button";
 import { Panel } from "./ui/Panel";
 
-type LoadState = {
-  loading: boolean;
-  error: string;
-  summary: AppSummary;
-  statusCounts: StatusCount[];
-  contacts: ContactRow[];
-  allInteractions: InteractionRow[];
-  participants: InteractionParticipantRow[];
-  sources: ExternalInteractionSourceRow[];
-  todos: TodoRow[];
-  allObjectives: ObjectiveRow[];
-  kpis: KpiTrend[];
-  headhunterCompanies: HeadhunterCompanyRow[];
-  referrals: DashboardReferralRow[];
-  networkingStartValue: string;
-};
-
-const emptySummary: AppSummary = {
-  contacts: 0,
-  activeContacts: 0,
-  focusContacts: 0,
-  headhunters: 0,
-  interactions: 0,
-  todos: 0,
-  importBatches: 0
-};
-
 export function ReadOnlyDashboard() {
-  const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("weekly");
-  const [quickQuery, setQuickQuery] = useState("");
+  const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null);
+  const [details, setDetails] = useState<DashboardDetails | null>(null);
+  const [filters, setFilters] = useState(defaultTrackingFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [contactFilters, setContactFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS);
-  const [selectedHeadhunterDomains, setSelectedHeadhunterDomains] = useState<Set<string>>(new Set());
-  const [reloadToken, setReloadToken] = useState(0);
-  const [state, setState] = useState<LoadState>({
-    loading: true,
-    error: "",
-    summary: emptySummary,
-    statusCounts: [],
-    contacts: [],
-    allInteractions: [],
-    participants: [],
-    sources: [],
-    todos: [],
-    allObjectives: [],
-    kpis: [],
-    headhunterCompanies: [],
-    referrals: [],
-    networkingStartValue: ""
-  });
-
+  const [quickQuery, setQuickQuery] = useState("");
+  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true), [error, setError] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(true), [detailError, setDetailError] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const generation = useRef(0);
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const [summary, statusCounts, contacts, allInteractions, todos, referrals, networkingStartValue, allObjectives] = await Promise.all([
-          readAppSummary(),
-          readStatusCounts(),
-          readAllActiveContacts(),
-          readAllInteractions(),
-          readActiveTodos(),
-          readDashboardReferrals(),
-          readUserSetting("Fecha_Inicio_Networking"),
-          readObjectives({ activeOnly: true })
-        ]);
-        const interactionIds = allInteractions.map((interaction) => interaction.id);
-        const [participants, sources] = await Promise.all([
-          readInteractionParticipants(),
-          readExternalSourcesForInteractions(interactionIds)
-        ]);
-        const kpis = buildDashboardKpis({
-          contacts,
-          interactions: allInteractions,
-          participants,
-          mode: periodMode,
-          networkingStartDate: parseLocalDate(networkingStartValue)
-        });
-        const headhunterCompanies = buildHeadhunterCompanies(contacts, allInteractions, participants);
-
-        if (!cancelled) {
-          setState({
-            loading: false,
-            error: "",
-            summary,
-            statusCounts,
-            contacts,
-            allInteractions,
-            participants,
-            sources,
-            todos,
-            allObjectives,
-            kpis,
-            headhunterCompanies,
-            referrals,
-            networkingStartValue
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setState((previous) => ({
-            ...previous,
-            loading: false,
-            error: error instanceof Error ? error.message : "No se pudo leer Supabase."
-          }));
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [periodMode, reloadToken]);
-
-  const filteredContacts = useMemo(
-    () => filterContacts(state.contacts, quickQuery, contactFilters),
-    [contactFilters, quickQuery, state.contacts]
-  );
-  const networkingStartDate = useMemo(() => parseLocalDate(state.networkingStartValue), [state.networkingStartValue]);
-  const dashboardInteractionsBase = useMemo(
-    () => filterInteractionsFromDate(state.allInteractions, networkingStartDate),
-    [networkingStartDate, state.allInteractions]
-  );
-  const objectiveOptions = useMemo(
-    () => state.allObjectives.length ? state.allObjectives : objectiveOptionsForContacts(state.contacts),
-    [state.allObjectives, state.contacts]
-  );
-  const filteredContactIds = useMemo(() => new Set(filteredContacts.map((contact) => contact.id)), [filteredContacts]);
-  const contactMap = useMemo(() => new Map(state.contacts.map((contact) => [contact.id, contact])), [state.contacts]);
-  const filteredParticipants = useMemo(
-    () => state.participants.filter((participant) => participant.contact_id && filteredContactIds.has(participant.contact_id)),
-    [filteredContactIds, state.participants]
-  );
-  const filteredInteractionIds = useMemo(
-    () => new Set(filteredParticipants.map((participant) => participant.interaction_id)),
-    [filteredParticipants]
-  );
-  const filteredInteractionsBase = useMemo(
-    () => dashboardInteractionsBase.filter((interaction) => filteredInteractionIds.has(interaction.id)),
-    [dashboardInteractionsBase, filteredInteractionIds]
-  );
-  const filteredKpis = useMemo(
-    () => buildDashboardKpis({
-      contacts: filteredContacts,
-      interactions: filteredInteractionsBase,
-      participants: filteredParticipants,
-      mode: periodMode,
-      networkingStartDate
-    }),
-    [filteredContacts, filteredInteractionsBase, filteredParticipants, networkingStartDate, periodMode]
-  );
-  const filteredHeadhunterCompanies = useMemo(
-    () => buildHeadhunterCompanies(filteredContacts, filteredInteractionsBase, filteredParticipants),
-    [filteredContacts, filteredInteractionsBase, filteredParticipants]
-  );
-  const filteredTodos = useMemo(
-    () => state.todos.filter((todo) => !todo.object_id || filteredContactIds.has(todo.object_id)),
-    [filteredContactIds, state.todos]
-  );
-  const objectiveMetrics = useMemo(
-    () => buildObjectiveMetrics({
-      objectives: state.allObjectives,
-      contacts: filteredContacts,
-      interactions: filteredInteractionsBase,
-      participants: filteredParticipants,
-      networkingStartDate
-    }),
-    [filteredContacts, filteredInteractionsBase, filteredParticipants, networkingStartDate, state.allObjectives]
-  );
-  const filteredReferrals = useMemo(
-    () => state.referrals.filter((referral) => filteredContactIds.has(referral.referredByContactId) || Boolean(referral.linkedContactId && filteredContactIds.has(referral.linkedContactId))),
-    [filteredContactIds, state.referrals]
-  );
-  const participantsByInteraction = useMemo(() => groupParticipantsByInteraction(state.participants), [state.participants]);
-  const sourcesByInteraction = useMemo(() => groupSourcesByInteraction(state.sources), [state.sources]);
-  const filteredInteractions = useMemo(() => {
-    if (!selectedHeadhunterDomains.size) return filteredInteractionsBase.slice(0, 12);
-    const selectedInteractionIds = new Set(
-      filteredHeadhunterCompanies
-        .filter((row) => selectedHeadhunterDomains.has(row.domain))
-        .flatMap((row) => row.interactionIds)
-    );
-    return filteredInteractionsBase.filter((interaction) => selectedInteractionIds.has(interaction.id)).slice(0, 12);
-  }, [filteredHeadhunterCompanies, filteredInteractionsBase, selectedHeadhunterDomains]);
-
-  function toggleHeadhunterDomain(domain: string) {
-    setSelectedHeadhunterDomains((previous) => {
-      const next = new Set(previous);
-      if (next.has(domain)) next.delete(domain);
-      else next.add(domain);
-      return next;
-    });
-  }
-
-  if (state.loading) return <section className="panel">Cargando dashboard...</section>;
-  if (state.error) return <section className="panel">Error: {state.error}</section>;
-
-  return (
-    <div className="grid">
-      <section className="dashboard-coach" aria-label="Coach IA">
-        <CoachPreview
-          todos={filteredTodos}
-          total={filteredTodos.length}
-          interactions={filteredInteractionsBase}
-          onExecuted={() => setReloadToken((value) => value + 1)}
-        />
-      </section>
-
-      <div className="dashboard-filter-bar">
-        <ContactFilterControls
-          filters={contactFilters}
-          filtersOpen={filtersOpen}
-          objectiveOptions={objectiveOptions}
-          quickQuery={quickQuery}
-          summary={`Mostrando ${filteredContacts.length} de ${state.contacts.length} contactos`}
-          onFiltersChange={setContactFilters}
-          onFiltersOpenChange={setFiltersOpen}
-          onQuickQueryChange={setQuickQuery}
-        />
-      </div>
-
-      <Panel title="KPIs" caption="Resumen de actividad y objetivos">
-        <div className="section-toolbar">
-          <span className="metric-label">Periodo KPI</span>
-          <div className="button-group">
-            <Button tone={periodMode === "weekly" ? "primary" : "secondary"} onClick={() => setPeriodMode("weekly")}>
-              Semanal
-            </Button>
-            <Button tone={periodMode === "monthly" ? "primary" : "secondary"} onClick={() => setPeriodMode("monthly")}>
-              Mensual
-            </Button>
-          </div>
-        </div>
-        <DashboardKpis trends={filteredKpis} />
-      </Panel>
-
-      <Panel title="Objetivos" caption="Resumen segun filtros actuales">
-        <ObjectiveMetricsTable rows={objectiveMetrics} />
-      </Panel>
-
-      <Panel
-        title="Ultimas interacciones"
-        caption={
-          selectedHeadhunterDomains.size
-            ? "Filtradas por empresas headhunter seleccionadas"
-            : "Interacciones segun filtros actuales"
-        }
-      >
-        <InteractionTimelineList
-          contactsById={contactMap}
-          emptyMessage="Sin interacciones para los filtros actuales."
-          interactions={filteredInteractions}
-          participantsByInteraction={participantsByInteraction}
-          showContactContext
-          sourcesByInteraction={sourcesByInteraction}
-        />
-      </Panel>
-
-      <Panel title="Empresas headhunter" caption="Resumen por empresa/dominio headhunter">
-        <HeadhunterCompanies
-          rows={filteredHeadhunterCompanies}
-          selectedDomains={selectedHeadhunterDomains}
-          onToggleDomain={toggleHeadhunterDomain}
-          onClearSelection={() => setSelectedHeadhunterDomains(new Set())}
-        />
-      </Panel>
-
-      <Panel title="Contactos referidos" caption="Referidos segun filtros actuales">
-        <ReferralActions rows={filteredReferrals} />
-      </Panel>
+    const current = ++generation.current;
+    setLoading(true); setError(false); setDetailLoading(true); setDetailError(false);
+    readTrackingSnapshot().then(value => {
+      buildTracking(value);
+      if (generation.current !== current) return;
+      setSnapshot(value);
+      setFilters(f => ({ ...f, priorityIds: f.priorityIds.filter(id => value.priorities.some(p => p.id === id)) }));
+    }).catch(() => { if (generation.current === current) setError(true); })
+      .finally(() => { if (generation.current === current) setLoading(false); });
+    readDashboardDetails().then(value => { if (generation.current === current) setDetails(value); })
+      .catch(() => { if (generation.current === current) setDetailError(true); })
+      .finally(() => { if (generation.current === current) setDetailLoading(false); });
+    return () => { generation.current++; };
+  }, [revision]);
+  const model = useMemo(() => snapshot ? buildTracking(snapshot, filters) : null, [snapshot, filters]);
+  const objectives = useMemo<ObjectiveRow[]>(() => (snapshot?.priorities ?? []).map(p => ({
+    ...p, objective_name_normalized: p.objective_name, objective_description: "", is_active: true, created_at: "", updated_at: ""
+  })), [snapshot]);
+  const contactFilterValues = useMemo<ContactFilters>(() => ({ ...DEFAULT_CONTACT_FILTERS,
+    networkingFocus: "true", objectiveIds: filters.priorityIds,
+    isHeadhunter: filters.headhunters === "only" ? "true" : filters.headhunters === "exclude" ? "false" : "all"
+  }), [filters]);
+  const baseContacts = useMemo(() => filterContacts(details?.contacts ?? [], "", {
+    ...DEFAULT_CONTACT_FILTERS, objectiveIds: filters.priorityIds,
+    isHeadhunter: filters.headhunters === "all" ? "all" : filters.headhunters === "only" ? "true" : "false"
+  }), [details, filters]);
+  const filteredContacts = useMemo(() => filterContacts(baseContacts, quickQuery, { ...DEFAULT_CONTACT_FILTERS }), [baseContacts, quickQuery]);
+  const cycleInteractions = useMemo(() => {
+    const start = snapshot?.cycle?.started_at;
+    return (details?.interactions ?? []).filter(i => !start || (i.occurred_at && Date.parse(i.occurred_at) >= Date.parse(start)));
+  }, [details, snapshot]);
+  const contactIds = useMemo(() => new Set(filteredContacts.map(c => c.id)), [filteredContacts]);
+  const participants = useMemo(() => (details?.participants ?? []).filter(p => p.contact_id && contactIds.has(p.contact_id)), [details, contactIds]);
+  const interactionIds = useMemo(() => new Set(participants.map(p => p.interaction_id)), [participants]);
+  const interactions = useMemo(() => cycleInteractions.filter(i => interactionIds.has(i.id)), [cycleInteractions, interactionIds]);
+  const companies = useMemo(() => buildHeadhunterCompanies(filteredContacts, interactions, participants), [filteredContacts, interactions, participants]);
+  const latest = useMemo(() => {
+    if (!selectedDomains.size) return interactions.slice(0, 12);
+    const ids = new Set(companies.filter(c => selectedDomains.has(c.domain)).flatMap(c => c.interactionIds));
+    return interactions.filter(i => ids.has(i.id)).slice(0, 12);
+  }, [interactions, companies, selectedDomains]);
+  const contactMap = useMemo(() => new Map((details?.contacts ?? []).map(c => [c.id, c])), [details]);
+  const participantMap = useMemo(() => groupParticipantsByInteraction(details?.participants ?? []), [details]);
+  const sourceMap = useMemo(() => groupSourcesByInteraction(details?.sources ?? []), [details]);
+  const rows = useMemo<ObjectiveMetricRow[]>(() => {
+    if (model?.state !== "ready") return [];
+    const supplemental = new Map(buildObjectiveMetrics({ objectives, contacts: baseContacts,
+      interactions: cycleInteractions, participants: details?.participants ?? [] }).map(row => [row.objectiveId, row]));
+    return model.priorities.map(p => ({
+      objectiveId: p.id, objectiveName: p.objective_name, objectiveType: p.objective_type, priorityLevel: p.priority_level,
+      contactCount: p.contactCount, focusContactCount: p.contactCount, coffeeCount: p.coffeeCount,
+      lastInteractionAt: supplemental.get(p.id)?.lastInteractionAt ?? null,
+      daysSinceLastInteraction: supplemental.get(p.id)?.daysSinceLastInteraction ?? null,
+      networkingStatus: supplemental.get(p.id)?.networkingStatus ?? ""
+    }));
+  }, [model, objectives, baseContacts, cycleInteractions, details]);
+  const opportunityCounts = useMemo(() => new Map(model?.state === "ready" ? model.priorities.map(p => [p.id, p.opportunityCount]) : []), [model]);
+  const referrals = useMemo(() => (details?.referrals ?? []).filter(r => contactIds.has(r.referredByContactId) || Boolean(r.linkedContactId && contactIds.has(r.linkedContactId))), [details, contactIds]);
+  const detailFeedback = <div className="tracking-feedback" aria-live="polite">
+    {detailError ? <span role="alert" className="danger-text">No pudimos actualizar el detalle. {details ? "Se conserva la lectura anterior." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar detalle</Button></span>
+      : detailLoading ? (details ? "Actualizando detalle..." : "Leyendo detalle...") : null}
+  </div>;
+  return <div className="grid tracking-dashboard" aria-label="Seguimiento">
+    <div className="dashboard-filter-bar">
+      <ContactFilterControls filters={contactFilterValues} filtersOpen={filtersOpen} onFiltersOpenChange={setFiltersOpen}
+        objectiveOptions={objectives} quickQuery={quickQuery} onQuickQueryChange={setQuickQuery}
+        quickSearchLabel="Buscar en interacciones y empresas" quickSearchDisabled={!details}
+        focusLocked showStatusFilter={false}
+        onFiltersChange={next => setFilters(current => ({ ...current, priorityIds: next.objectiveIds,
+          headhunters: next.isHeadhunter === "true" ? "only" : next.isHeadhunter === "false" ? "exclude" : "all" }))} />
     </div>
-  );
-}
-
-function filterInteractionsFromDate(interactions: InteractionRow[], minimumDate: Date | null) {
-  if (!minimumDate) return interactions;
-  const minimumTime = startOfLocalDay(minimumDate).getTime();
-  return interactions.filter((interaction) => {
-    if (!interaction.occurred_at) return false;
-    const occurredAt = new Date(interaction.occurred_at);
-    if (Number.isNaN(occurredAt.getTime())) return false;
-    return occurredAt.getTime() >= minimumTime;
-  });
-}
-
-function startOfLocalDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    <div className="tracking-feedback" aria-live="polite">
+      {error ? <span role="alert" className="danger-text">No pudimos verificar todos los datos. {snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar</Button></span>
+        : loading ? (snapshot ? "Actualizando..." : "Leyendo seguimiento...") : null}
+    </div>
+    <Panel title="¿Cómo voy?" className="tracking-main-panel">
+      {model?.state === "ready" ? <TrackingView key={snapshot!.cycle!.id} model={model}
+        groupHeadhunters={filters.groupHeadhunters}
+        onGroupChange={value => setFilters(current => ({ ...current, groupHeadhunters: value }))} /> : null}
+      {model?.state === "no_cycle" ? <p className="empty-value">No hay una búsqueda activa. Puedes iniciarla en Objetivos.</p> : null}
+      {model?.state === "unknown_start" ? <p className="empty-value">Configura el inicio y la zona horaria en Objetivos para ver tus avances.</p> : null}
+    </Panel>
+    <Panel title="Objetivos" caption="Resumen según filtros actuales">
+      {model?.state === "ready" ? <ObjectiveMetricsTable rows={rows} opportunityCounts={opportunityCounts} supplementalUnavailable={!details || detailError} /> : <span className="empty-value">Sin indicadores disponibles.</span>}
+    </Panel>
+    {detailFeedback}
+    <Panel title="Últimas interacciones" caption={selectedDomains.size ? "Filtradas por empresas headhunter seleccionadas" : "Interacciones según filtros actuales"}>
+      {details ? <InteractionTimelineList contactsById={contactMap} interactions={latest} participantsByInteraction={participantMap} sourcesByInteraction={sourceMap} showContactContext
+        emptyMessage="Sin interacciones para los filtros actuales." /> : <span className="empty-value">{detailLoading ? "Leyendo interacciones..." : "Detalle no disponible."}</span>}
+    </Panel>
+    <Panel title="Empresas headhunter" caption="Resumen por empresa/dominio headhunter">
+      {details ? <HeadhunterCompanies rows={companies} selectedDomains={selectedDomains}
+        onToggleDomain={domain => setSelectedDomains(old => { const next = new Set(old); if (next.has(domain)) next.delete(domain); else next.add(domain); return next; })}
+        onClearSelection={() => setSelectedDomains(new Set())} /> : <span className="empty-value">{detailLoading ? "Leyendo empresas..." : "Detalle no disponible."}</span>}
+    </Panel>
+    <Panel title="Contactos referidos" caption="Referidos según filtros actuales">
+      {details ? <ReferralActions rows={referrals} /> : <span className="empty-value">{detailLoading ? "Leyendo referidos..." : "Detalle no disponible."}</span>}
+    </Panel>
+  </div>;
 }

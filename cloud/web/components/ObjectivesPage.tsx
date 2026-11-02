@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   OBJECTIVE_PRIORITIES,
   deleteObjective,
@@ -19,6 +19,8 @@ import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
 import { NetworkingCyclePanel } from "./NetworkingCyclePanel";
+import { OpportunityBoard } from "./OpportunityBoard";
+import { OpportunityEditor, type OpportunityEditorRequest } from "./OpportunityEditor";
 
 const OBJECTIVE_PAGE_TYPES: ObjectiveType[] = ["INDUSTRY", "COMPANY", "ROLE", "FUNCTION"];
 
@@ -40,30 +42,53 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
   const [editorOpen, setEditorOpen] = useState(false);
   const editorDialog = useRef<HTMLDialogElement>(null);
   const [loading, setLoading] = useState(true);
+  const [cycleLoading, setCycleLoading] = useState(true);
+  const [opportunitiesLoaded, setOpportunitiesLoaded] = useState(false);
+  const [initialComplete, setInitialComplete] = useState(false);
+  const [priorityReadError, setPriorityReadError] = useState("");
+  const [prioritiesLoaded, setPrioritiesLoaded] = useState(false);
+  const priorityLoadVersion = useRef(0);
   const [saving, setSaving] = useState(false);
   const [prioritySavingId, setPrioritySavingId] = useState("");
   const [message, setMessage] = useState("");
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("");
   const [linkingObjective, setLinkingObjective] = useState<ObjectiveRow | null>(null);
   const [cycleReady, setCycleReady] = useState(false);
+  const [opportunityRevision, setOpportunityRevision] = useState(0);
+  const [opportunityEditor, setOpportunityEditor] = useState<OpportunityEditorRequest | null>(null);
 
   const grouped = useMemo(() => groupObjectives(objectives), [objectives]);
+  const handleOpportunitiesLoaded = useCallback(() => setOpportunitiesLoaded(true), []);
 
   useEffect(() => {
     void loadObjectives();
+    return () => { priorityLoadVersion.current += 1; };
   }, []);
+  useEffect(() => {
+    if (!cycleLoading && !loading && (onboardingCoach || !cycleReady || opportunitiesLoaded)) setInitialComplete(true);
+  }, [cycleLoading, cycleReady, loading, onboardingCoach, opportunitiesLoaded]);
+  useEffect(() => { onCycleReadyChange?.(initialComplete && cycleReady && !priorityReadError); },
+    [initialComplete, cycleReady, priorityReadError, onCycleReadyChange]);
   useEffect(() => { if (editorOpen && !editorDialog.current?.open) editorDialog.current?.showModal(); }, [editorOpen]);
+  useEffect(() => {
+    if (message !== "Prioridad guardada." && message !== "Prioridad archivada.") return;
+    const timer = window.setTimeout(() => setMessage(""), 1800);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   async function loadObjectives() {
+    const version = ++priorityLoadVersion.current;
     setLoading(true);
-    setMessage("");
     try {
       const rows = await readObjectives();
-      setObjectives(rows);
+      if (version !== priorityLoadVersion.current) return false;
+      setObjectives(rows); setPrioritiesLoaded(true); setPriorityReadError("");
+      return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No pude leer Prioridades.");
+      if (version === priorityLoadVersion.current) setPriorityReadError("No pudimos leer Prioridades. Intenta nuevamente.");
+      return false;
     } finally {
-      setLoading(false);
+      if (version === priorityLoadVersion.current) setLoading(false);
     }
   }
 
@@ -101,8 +126,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
     try {
       await saveObjective({ ...draft, objectiveId: editingId || undefined });
       editorDialog.current?.close();
-      await loadObjectives();
-      setMessage("Prioridad guardada.");
+      if (await loadObjectives()) setMessage("Prioridad guardada.");
     } catch (error) {
       setMessage(readableObjectiveError(error));
     } finally {
@@ -118,8 +142,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
     try {
       await deleteObjective(objective.id);
       if (selectedObjectiveId === objective.id) setSelectedObjectiveId("");
-      await loadObjectives();
-      setMessage("Prioridad archivada.");
+      if (await loadObjectives()) setMessage("Prioridad archivada.");
     } catch (error) {
       setMessage(readableObjectiveError(error));
     } finally {
@@ -154,20 +177,26 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
   }
 
   return (
-    <div className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""}`}>
+    <>
+    {!initialComplete ? <section className="panel" role="status">Leyendo objetivos...</section> : null}
+    <div hidden={!initialComplete} className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""}`}>
       {onboardingCoach ? <div className="objectives-onboarding-coach">{onboardingCoach}</div> : null}
-      <NetworkingCyclePanel onReadyChange={(ready) => { setCycleReady(ready); onCycleReadyChange?.(ready); }}
-        onCycleChange={() => void loadObjectives()} />
+      <NetworkingCyclePanel onReadyChange={setCycleReady} onLoadingChange={setCycleLoading}
+        onCycleChange={() => { void loadObjectives(); setOpportunityRevision((value) => value + 1); }} />
       {cycleReady ? <>
       <section className="objectives-priorities" aria-labelledby="priorities-title">
         <div className="panel-header">
           <h2 className="panel-title" id="priorities-title"><Icon name="tag" /> Prioridades</h2>
         </div>
-        {!editorOpen && message ? <p className={message.includes("No pude") || message.includes("ya existe") ? "danger-text" : "form-success"} role="status">{message}</p> : null}
-        {loading ? <p role="status">Leyendo prioridades...</p> : null}
+        <div className="contacts-status-toolbar objectives-status-toolbar">
+          <p className={`contacts-status-feedback ${priorityReadError || (message && message !== "Prioridad guardada." && message !== "Prioridad archivada.") ? "form-error" : "form-success"}`} role="status" aria-live="polite">
+            {priorityReadError || (!editorOpen ? message : "")}
+          </p>
+          {priorityReadError ? <Button icon="sync" square disabled={loading} aria-label="Reintentar lectura de Prioridades" onClick={() => void loadObjectives()} /> : null}
+        </div>
 
-      {!loading ? (
-        <section className="objectives-column-grid">
+      {prioritiesLoaded ? (
+        <section className="objectives-column-grid" aria-busy={loading}>
           {OBJECTIVE_PAGE_TYPES.map((type) => {
             const rows = grouped.get(type) ?? [];
             return (
@@ -175,7 +204,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
                 <div className="objectives-group-head">
                   <h3>{objectiveTypeLabel(type)}</h3>
                   <span>{rows.length}</span>
-                  <Button icon="plus" square onClick={() => addObjective(type)}
+                  <Button icon="plus" square disabled={loading || Boolean(priorityReadError)} onClick={() => addObjective(type)}
                     aria-label={`Agregar Prioridad en ${objectiveTypeLabel(type)}`} />
                 </div>
                 {rows.length ? (
@@ -193,12 +222,15 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
                           {objective.objective_description ? <p>{objective.objective_description}</p> : null}
                         </button>
                         <PriorityStars
-                          disabled={Boolean(prioritySavingId)}
+                          disabled={Boolean(prioritySavingId) || loading || Boolean(priorityReadError)}
                           priority={objective.priority_level}
                           onChange={(priorityLevel) => updateObjectivePriority(objective, priorityLevel)}
                         />
                         {selectedObjectiveId === objective.id ? (
-                          <div className="objective-row-actions">
+                          <fieldset className="objective-row-actions" disabled={loading || Boolean(priorityReadError)}>
+                            {!onboardingCoach && objective.is_active ? <Button icon="plus" square
+                              aria-label={`Crear oportunidad vinculada a ${objective.objective_name}`}
+                              onClick={() => setOpportunityEditor({ objectiveId: objective.id })} /> : null}
                             <Button
                               icon="users"
                               onClick={(event) => {
@@ -226,7 +258,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
                               square
                               aria-label={`Archivar ${objective.objective_name}`}
                             />
-                          </div>
+                          </fieldset>
                         ) : null}
                       </div>
                     ))}
@@ -240,6 +272,8 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
         </section>
       ) : null}
       </section>
+      <OpportunityEditor request={opportunityEditor} onClose={() => setOpportunityEditor(null)}
+        onSaved={() => { setOpportunityEditor(null); setOpportunityRevision((value) => value + 1); }} />
       {editorOpen ? (
         <dialog ref={editorDialog} className="modal-card objective-editor-dialog" aria-labelledby="objective-editor-title"
           onCancel={(event) => { if (saving) event.preventDefault(); }} onClose={resetDraft}>
@@ -289,7 +323,11 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
         }}
       />
       </> : null}
+      {!onboardingCoach ? <div hidden={!cycleReady}>
+        <OpportunityBoard revision={opportunityRevision} enabled={cycleReady} onInitialLoadComplete={handleOpportunitiesLoaded} />
+      </div> : null}
     </div>
+    </>
   );
 }
 

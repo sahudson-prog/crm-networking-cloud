@@ -4535,6 +4535,62 @@ textarea::placeholder {
   gap: 12px;
 }
 
+.objectives-page[hidden] { display: none; }
+.objectives-page fieldset.objective-row-actions { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+.opportunities-section { min-width: 0; display: grid; gap: 10px; }
+.opportunities-section .panel-title { display: flex; align-items: center; gap: 8px; }
+.contacts-status-board.opportunity-board { min-width: 0; grid-template-columns: repeat(4, minmax(184px, 1fr)); }
+.opportunity-situation-filter { display: flex; flex-wrap: wrap; gap: 4px; }
+.opportunity-column { grid-template-rows: auto 1fr; align-content: start; }
+.opportunity-column.identified { background: #f2f4f7; }
+.opportunity-column.applied { background: #f0f6fa; }
+.opportunity-column.in_process { background: #f4f0f8; }
+.opportunity-column.offer_received { background: #edf7f0; }
+.opportunity-winged-icon { display: block; flex: none; }
+.opportunity-column-title { margin: 0; font-size: 12px; font-weight: 800; flex: 1; }
+.opportunity-column .button.square { width: 30px; height: 30px; padding: 0; }
+.contacts-status-card.opportunity-card { min-width: 0; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.opportunity-status-toolbar, .objectives-status-toolbar { height: 36px; }
+.opportunity-status-toolbar .contacts-status-feedback, .objectives-status-toolbar .contacts-status-feedback { text-align: left; min-width: 0; overflow: auto; max-height: 32px; }
+.opportunity-card-main { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; display: grid; gap: 3px; min-width: 0; }
+.opportunity-card-main strong { font-size: 12px; font-weight: 800; line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.opportunity-card-main span { color: var(--crm-muted); font-size: 11.2px; line-height: 1.2; overflow-wrap: anywhere; }
+.opportunity-card-main:focus-visible, .opportunity-card-action:focus-visible, .opportunity-action-popover :focus-visible { outline: 2px solid var(--crm-primary); outline-offset: 2px; }
+.opportunity-result { color: var(--crm-muted); font-weight: 650; }
+.opportunity-card-footer { display: grid; gap: 6px; }
+.opportunity-counts { grid-column: 1 / -1; display: flex; justify-content: flex-start; gap: 9px; color: var(--crm-muted); font-size: 10px; }
+.opportunity-counts span { display: inline-flex; align-items: center; gap: 3px; }
+.opportunity-counts .icon { width: 12px; height: 12px; }
+.opportunity-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.opportunity-card-action { min-height: 30px; white-space: nowrap; }
+.opportunity-card-action:disabled { cursor: not-allowed; opacity: 0.55; }
+.opportunity-action-popover { position: fixed; right: auto; z-index: 100; width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 12px; gap: 10px; }
+.opportunity-action-popover form { display: grid; gap: 10px; }
+.opportunity-action-popover .field { margin: 0; }
+.opportunity-action-popover .modal-actions { margin: 0; }
+.opportunity-action-popover .button { height: 32px; font-size: 12px; }
+.opportunity-stage-options { display: grid; gap: 4px; }
+.opportunity-stage-options .button { justify-content: flex-start; width: 100%; }
+.opportunity-editor-stage { font-size: 13px; font-weight: 700; }
+.opportunity-editor-dialog { width: min(620px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); margin: auto; overflow: auto; }
+.opportunity-editor-dialog:not([open]) { display: none; }
+.opportunity-editor-dialog::backdrop { background: rgba(15, 23, 42, 0.4); }
+.opportunity-editor-fields { display: grid; gap: 10px; min-width: 0; border: 0; margin: 0; padding: 0; }
+.opportunity-editor-feedback,
+.opportunity-editor-note { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 400; }
+.opportunity-editor-feedback { font-weight: 600; }
+.opportunity-editor-note { color: var(--crm-muted); }
+.opportunity-contact-picker { display: grid; gap: 6px; min-width: 0; }
+.opportunity-picker-label { color: var(--crm-muted); font-size: 11.2px; font-weight: 800; text-transform: uppercase; }
+.opportunity-selected-contacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.opportunity-selected-contacts .objective-chip { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.opportunity-selected-contacts .objective-chip span { margin-left: 4px; }
+.opportunity-relations { border: 1px solid var(--crm-border); border-radius: 6px; min-width: 0; }
+.opportunity-relations legend { font-size: 12px; font-weight: 700; }
+.opportunity-relation-list { max-height: 110px; overflow: auto; display: grid; gap: 5px; }
+.opportunity-relation-list label { display: flex; align-items: center; gap: 7px; font-size: 12px; min-width: 0; }
+.opportunity-relation-list label span { overflow-wrap: anywhere; }
 .objectives-editor-panel,
 .objectives-list-panel {
   display: grid;
@@ -9119,6 +9175,33 @@ code {
 
 .networking-plan.is-unavailable > .networking-plan-pending {
   margin-top: auto;
+}
+
+.button.networking-plan-notice {
+  align-self: flex-start;
+  margin: auto 0 0 34px;
+  border-radius: 999px;
+  min-width: 118px;
+  max-width: calc(100% - 34px);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+}
+
+.button.networking-plan-notice.positive {
+  color: var(--crm-positive);
+  border-color: var(--crm-positive);
+}
+
+.networking-notice-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--crm-danger);
+}
+
+.networking-notice-dialog h2 {
+  margin-top: 0;
 }
 
 .networking-process-summary {
