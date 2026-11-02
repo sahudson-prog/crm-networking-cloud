@@ -57,18 +57,18 @@ Prompt de recuperación copy/paste-safe:
 ## Checkpoint de tarea activa
 
 - Current phase: OBJ-02 - Nuevos Objetivos.
-- Status: COMPLETED operacionalmente según el owner; cierre documental preparado, todavía sin commit ni publicación.
+- Status: COMPLETED operacionalmente según el owner; PR #48 es el vehículo documental de este checkpoint.
 - Verified baseline: canonical `main` = `origin/main` = `4f28f46c2c817f5c6ca23572605bcf44f1000421`, working tree limpio tras fast-forward.
 - Current branch/worktree: `codex/obj-02-release-docs`, worktree documental `obj-02-release-docs` basado en el SHA integrado; worktrees de producto preservados.
 - Completed según el owner: aprobación funcional/visual DEV de Avísame, Oportunidades y Seguimiento; siete migrations PROD y sus verificadores PASS: `202610290001`, `202610290002`, `202610290003`, `202610290004`, `202610300001`, `202610300002` y `202610300003`; backup lógico y restauración aislada PASS; deployment Production Ready/Current del SHA integrado; smoke PROD PASS el 2026-11-02. No repetir estos SQL ni las pruebas de producto por este cierre documental.
 - Completed verificado directamente: referencia remota de `main`, fetch y fast-forward del canonical limpio, commit integrado y archivos versionados; estado GitHub Vercel `success` para el SHA; lectura de los scripts reales de captura/restauración y preparación documental. No se consultaron Supabase ni Vercel directamente, ni se ejecutaron backups, restores o smoke en esta tarea.
-- Pending: revisión y autorización separada de la publicación documental. El first-run real de R1 sigue diferido con cobertura automatizada; la eliminación completa de cuenta conserva su deuda de infraestructura, sin ampliar esta release.
+- Pending: no hay gates operacionales pendientes de OBJ-02. El first-run real de R1 sigue diferido con cobertura automatizada; la eliminación completa de cuenta conserva su deuda de infraestructura, sin ampliar esta release.
 - Límite de verificación: sin acceso directo a Vercel no se certificó independientemente `Current`; consta la confirmación del owner y el estado GitHub `success`. El backup/restore PASS acredita el ensayo SQL realizado, no Storage bytes, configuración externa, contraseñas de roles, PITR ni equivalencia exhaustiva de todos los catálogos remotos.
-- Immediate next action: publicar el cierre documental tras aprobación; después, selección de iniciativa pendiente por el owner, sin prioridad nueva aprobada.
-- Stop boundary: sin commit, push, operaciones de PR, SQL remoto ni deployment en esta tarea.
+- Immediate next action: selección de iniciativa pendiente por el owner, sin prioridad nueva aprobada.
+- Stop boundary: este checkpoint no autoriza SQL remoto, deployment ni una iniciativa nueva.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED según owner; cierre documental pendiente de publicación) → selección de iniciativa pendiente, sin contratación nueva.
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED según owner; checkpoint documental en PR #48) → selección de iniciativa pendiente, sin contratación nueva.
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -214,7 +214,7 @@ OBJ-02 está integrado, desplegado y validado en PROD según la confirmación de
 
 ### OBJ-02 - Nuevos Objetivos
 
-- Status: COMPLETED operacionalmente según el owner; PR #47 integrado en `4f28f46c2c817f5c6ca23572605bcf44f1000421`, siete migrations/verificadores PROD, backup/restore aislado, deployment Ready/Current y smoke PROD PASS el 2026-11-02. Cierre documental aún sin publicar.
+- Status: COMPLETED operacionalmente según el owner; PR #47 integrado en `4f28f46c2c817f5c6ca23572605bcf44f1000421`, siete migrations/verificadores PROD, backup/restore aislado, deployment Ready/Current y smoke PROD PASS el 2026-11-02. PR #48 documenta este cierre.
 - Objetivo: evolucionar Objetivos hacia planes/ciclos, Prioridades, Oportunidades y Seguimiento mediante releases compatibles y separadas.
 - Especificación funcional durable: docs/planning/OBJ-02.md.
 - Decisiones cerradas: tres planes no simultáneos; solo Búsqueda de un nuevo trabajo disponible; modalidades futuras como `Próximamente` con `Avísame`; Prioridades/IDs, networking e historia preservados; R1 se limita a `Tu punto de partida` compartido entre onboarding y Cuenta; importación del tutorial solo de contactos; Dashboard renombrado y desocultado como Seguimiento con `¿Cómo voy?`, Total cafés y columna Oportunidades.
@@ -224,7 +224,7 @@ OBJ-02 está integrado, desplegado y validado en PROD según la confirmación de
 - La semántica de Seguimiento está cerrada en OBJ-02.md: foco actual, evidencia del ciclo, HH canónico, primeras fechas y métricas vigentes de Oportunidades. Se integró en PR #47 y el owner confirmó smoke PROD PASS, sin reabrir los contratos de ciclos, Avísame u Oportunidades.
 - Estado de R1: PR #42 integrado en `56a25e5d241799b2fd6129258b06f7d67d89cad6`; según evidencia confirmada por el owner, SQL y tres verifiers PASS en DEV/PROD, runtime PROD Ready / Current y smoke PASS. First-run real diferido con cobertura automatizada.
 - Out of scope actual: aplicar SQL remoto o desplegar runtime, reparar Google Sync o confundir OBJ-02 con PRODUCT-EVAL-01.
-- Relación: siguiente iniciativa después del cierre INV-01.
+- Relación: iniciativa completada; la siguiente permanece sin seleccionar.
 ### UX-NAV-01 - Transiciones de navegación
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
