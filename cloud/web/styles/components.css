@@ -7254,28 +7254,28 @@ textarea::placeholder {
 
 .onboarding-intro-benefits {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.onboarding-intro-benefits article {
+.onboarding-intro-benefits li {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 4px;
   min-width: 0;
-  border: 1px solid rgba(139, 90, 60, 0.16);
-  border-radius: var(--crm-radius-sm);
-  background: rgba(255, 253, 251, 0.52);
-  padding: 18px 16px;
 }
 
 .onboarding-intro-benefits h3 {
   margin: 0;
-  color: var(--brand-terracotta);
+  color: var(--brand-espresso);
   font-size: 16px;
   line-height: 1.25;
 }
 
+.onboarding-intro-slide-benefits-content > p,
 .onboarding-intro-benefits p {
   color: var(--brand-coffee);
   font-size: var(--onboarding-intro-body-size);
@@ -7287,19 +7287,6 @@ textarea::placeholder {
   color: var(--brand-coffee);
   font-size: var(--onboarding-intro-body-size);
   line-height: 1.55;
-}
-
-.onboarding-intro-questions {
-  display: grid;
-  gap: 12px;
-  max-width: 620px;
-}
-
-.onboarding-intro-questions p {
-  color: var(--brand-espresso);
-  font-size: var(--onboarding-intro-body-size);
-  font-weight: 650;
-  line-height: 1.45;
 }
 
 .onboarding-intro-slide-final-content {
@@ -8854,6 +8841,7 @@ code {
   }
 
   .coach-onboarding-actions > div:last-child {
+    flex-wrap: wrap;
     justify-content: flex-end;
   }
 

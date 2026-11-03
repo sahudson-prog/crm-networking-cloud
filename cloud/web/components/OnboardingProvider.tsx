@@ -83,7 +83,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       } catch {
         if (!active) return;
         setLoadFailed(true);
-        setError("No pudimos comprobar el avance de la guía. Intenta nuevamente.");
+        setError("No pudimos cargar tu avance. Vuelve a intentarlo.");
       } finally {
         if (active) setLoading(false);
       }
@@ -152,7 +152,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       setState(nextState);
       return true;
     } catch {
-      setError("No pudimos guardar el avance de la guía. Intenta nuevamente.");
+      setError("No pudimos guardar tu avance. Vuelve a intentarlo.");
       return false;
     }
   }
@@ -186,7 +186,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!isOnboardingReplayAllowed(state, session)) {
       const currentStep = state.status === "in_progress" ? state.lastStep ?? "objectives" : null;
       if (!currentStep || !canMoveOnboardingToStep(currentStep, step)) {
-        setError("No pudimos avanzar la guía desde este paso.");
+        setError("No pudimos continuar desde este paso.");
         return;
       }
       const nextState = moveOnboardingToStep(state, step);

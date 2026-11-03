@@ -50,7 +50,7 @@ function OnboardingRouteContent({ routeId }: { routeId: OnboardingRouteId }) {
   }
 
   if (onboarding.loading || !onboarding.routeReady) {
-    return <p className="onboarding-route-loading" role="status">Preparando recorrido...</p>;
+    return <p className="onboarding-route-loading" role="status">Preparando tu tutorial...</p>;
   }
 
   if (routeId === "intro") return <OnboardingIntro />;
@@ -84,12 +84,11 @@ function OnboardingStartingPointStep() {
         nextLabel={saving ? "Guardando..." : "Siguiente"}
         onNext={() => void continueToObjectives()}
         routeId="starting_point"
-        title="Tu punto de partida"
+        title="Cuéntame de ti."
       >
         <p id="starting-point-step-title">
-          Antes de empezar, cuéntame un poco sobre ti. Así podré llamarte por tu nombre, adaptar tu experiencia y medir
-          tus avances desde la fecha que elijas. Esa fecha también servirá de referencia para recuperar las
-          interacciones históricas disponibles cuando importemos información.
+          ¿Cómo te llamas y cuál es tu situación profesional? Con estos datos podremos personalizar tu experiencia.
+          Puedes actualizarlos después en Cuenta.
         </p>
       </OnboardingCoach>
       <StartingPointFields
@@ -142,14 +141,11 @@ function OnboardingObjectivesStep() {
     <ObjectivesPage
       onCycleReadyChange={onCycleReadyChange}
       onboardingCoach={(
-        <OnboardingCoach routeId="objectives" title="Comencemos definiendo tus prioridades"
+        <OnboardingCoach routeId="objectives" title="Define tu objetivo y tus prioridades."
           nextDisabled={!onboarding.replaying && !cycleReady}>
           <p>
-            Primero confirma tu ciclo de búsqueda laboral. Después podrás añadir Prioridades para empresas,
-            industrias, cargos o funciones.
-          </p>
-          <p>
-            Las Prioridades son opcionales; puedes completarlas más adelante.
+            Define tu objetivo de networking y establece las prioridades que te interesa perseguir. Esto te ayudará a
+            enfocar tus conversaciones y encontrar oportunidades que tengan sentido para ti.
           </p>
         </OnboardingCoach>
       )}
@@ -178,19 +174,11 @@ function OnboardingContactsStep() {
           nextDisabled={!contactsResolved}
           onNext={continueFromContacts}
           routeId="contacts"
-          title="Aquí organizas y priorizas tu red"
+          title="Tu red, organizada a tu manera."
         >
           <p>
-            Por defecto, esta vista muestra sólo los contactos que quieres priorizar para hacer networking. En
-            Coffeecito, esos contactos se marcan como Foco.
-          </p>
-          <p>
-            Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que
-            quieras priorizar.
-          </p>
-          <p>
-            También puedes arrastrar una tarjeta para actualizar su estado, crear nuevos contactos o gestionar varios
-            desde la tabla inferior.
+            Aquí administras tus contactos: eliges a quiénes poner en foco para hacer networking, actualizas su estado
+            de avance y marcas a los headhunters para agruparlos por consultora.
           </p>
         </OnboardingCoach>
       )}
@@ -238,16 +226,10 @@ function OnboardingContactStep() {
   }, []);
 
   const coach = (
-    <OnboardingCoach nextDisabled={!profile} routeId="contact" title="Cada contacto tiene una ficha con su historia">
+    <OnboardingCoach nextDisabled={!profile} routeId="contact" title="La historia de cada contacto.">
       <p>
-        Aquí puedes editar la información del contacto y mantener todo el contexto de la relación en un solo lugar.
-      </p>
-      <p>
-        Registra interacciones —mensajes, citas, correos o llamadas— y edítalas para incorporar minutas y notas.
-      </p>
-      <p>
-        También puedes registrar personas referidas durante esas interacciones. Si una se vuelve relevante, puedes
-        convertirla en contacto y comenzar a darle seguimiento en Coffeecito.
+        Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas,
+        con notas y minutas. También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red.
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
     </OnboardingCoach>
@@ -269,9 +251,11 @@ function OnboardingContactStep() {
 function OnboardingGoogleStep() {
   return (
     <div className="onboarding-google-step">
-      <OnboardingCoach routeId="google" title="Importa tus contactos de forma masiva">
-        <p>Si quieres avanzar más rápido, puedes importar contactos desde un archivo vCard o desde tu cuenta de Google.</p>
-        <p>Si prefieres, también puedes construir tu red manualmente dentro de Coffeecito, paso a paso.</p>
+      <OnboardingCoach routeId="google" title="Comienza con tus contactos.">
+        <p>
+          Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito. Aquí puedes ver cómo
+          exportar contactos desde Google o desde Apple.
+        </p>
       </OnboardingCoach>
       <AccountPage view="google-onboarding" />
     </div>
@@ -292,11 +276,10 @@ function OnboardingFinalStep() {
 
   return (
     <section className="onboarding-route">
-      <OnboardingCoach nextLabel="Fin del tutorial" onBack={goBack} routeId="final" title="Ya tienes lo esencial">
-        <p>Ahora ya conoces el flujo base para avanzar con mayor intención y continuidad.</p>
+      <OnboardingCoach nextLabel="Ir a Contactos" onBack={goBack} routeId="final" title="Ya puedes empezar.">
         <p>
-          Coach seguirá acompañándote con sugerencias para ayudarte a mantener tu red al día y decidir mejor tus
-          próximos pasos.
+          Ahora ya conoces las funciones básicas para avanzar. Yo te acompañaré con sugerencias para mantener tu red
+          ordenada y al día.
         </p>
       </OnboardingCoach>
     </section>

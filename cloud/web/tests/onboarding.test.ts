@@ -215,17 +215,16 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   assert.match(slidesSource, />\s*Anterior\s*</);
   assert.match(slidesSource, />\s*Siguiente\s*</);
   assert.doesNotMatch(slidesSource, /Diapositiva \$\{activeIndex \+ 1\} de/);
-  assert.match(slidesSource, /Networking no es acumular contactos\. Es construir relaciones que amplían tu acceso a información,/);
-  assert.match(slidesSource, /personas y oportunidades relevantes\./);
-  assert.match(slidesSource, /la\s+relevancia de esas relaciones, los círculos a los que te conectan y tu capacidad de movilizarlas cuando importa\./);
-  assert.match(slidesSource, /Una buena red profesional amplía tu alcance y abre nuevas posibilidades\./);
-  assert.match(slidesSource, /Más efectividad en procesos de selección/);
-  assert.match(slidesSource, /Más negocios y alianzas/);
-  assert.match(slidesSource, /Más crecimiento y posicionamiento/);
-  assert.match(slidesSource, /Los candidatos referidos tienen más probabilidades de llegar a entrevistas y recibir ofertas - incluso hasta/);
-  assert.match(slidesSource, /<strong>7x<\/strong>/);
-  assert.match(slidesSource, /Gestionar tu red no debería convertirse en otro trabajo\./);
-  assert.match(slidesSource, /también crecen los contactos, conversaciones y pendientes\./);
+  assert.match(slidesSource, /Hay un diamante en bruto en tu red\./);
+  assert.match(slidesSource, /Tus contactos pueden ser el punto de partida de tu próximo trabajo, negocio o marca profesional\./);
+  assert.match(slidesSource, /Una red bien cultivada abre oportunidades\./);
+  assert.match(slidesSource, /Encontrar tu próximo trabajo:/);
+  assert.match(slidesSource, /Generar nuevos negocios:/);
+  assert.match(slidesSource, /Fortalecer tu posicionamiento:/);
+  assert.match(slidesSource, /<ul className="onboarding-intro-benefits">/);
+  assert.equal((slidesSource.match(/<li>/g) ?? []).length, 3);
+  assert.doesNotMatch(slidesSource, /7x|benchmarks|onboarding-intro-questions/);
+  assert.match(slidesSource, /Que organizar tu red no te quite tiempo para conectar\./);
   assert.match(slidesSource, /Coffeecito se encarga de la gestión\. Tú del café y la conversación\./);
   assert.match(slidesSource, /onboarding-intro-slide-final-content/);
   assert.equal(slidesSource.match(/Coffeecito se encarga de la gestión\. Tú del café y la conversación\./g)?.length, 1);
@@ -237,7 +236,7 @@ test("la intro es privada pero no monta Shell ni Coach", () => {
   assert.match(slidesSource, /Empecemos/);
   assert.ok(navigationStart >= 0 && navigationEnd > navigationStart);
   assert.doesNotMatch(primaryNavigation, /onExit|Salir/);
-  assert.match(slidesSource, /<div className="onboarding-intro-replay-exit">[\s\S]*<Button onClick=\{onExit\} tone="ghost">Salir<\/Button>/);
+  assert.match(slidesSource, /<div className="onboarding-intro-replay-exit">[\s\S]*<Button onClick=\{onExit\} tone="ghost">Salir del tutorial<\/Button>/);
   assert.doesNotMatch(introSource, /Ahora no|onboarding\.defer|onboarding-intro-actions/);
   assert.doesNotMatch(introSource, /Comenzar recorrido/);
   assert.match(styles, /--onboarding-intro-title-size: clamp\(24px, 2\.1vw, 32px\)/);
@@ -293,7 +292,7 @@ test("errores de carga y escritura quedan fail-closed", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
   const shellSource = source("../components/Shell.tsx");
 
-  assert.match(providerSource, /setLoadFailed\(true\)[\s\S]*No pudimos comprobar el avance de la guía/);
+  assert.match(providerSource, /setLoadFailed\(true\)[\s\S]*No pudimos cargar tu avance/);
   assert.match(providerSource, /const routeReady = !loading && !loadFailed && isOnboardingRouteAdmitted/);
   assert.match(providerSource, /await saveProductOnboardingState\(nextState\)[\s\S]*setState\(nextState\)[\s\S]*catch/);
   assert.match(providerSource, /if \(completionPending\.current\) return;[\s\S]*completionPending\.current = true/);
@@ -338,8 +337,8 @@ test("Tu punto de partida precede y preserva la pantalla real de Objetivos", () 
   const providerSource = source("../components/OnboardingProvider.tsx");
 
   assert.match(routeSource, /routeId === "starting_point"[\s\S]*<OnboardingObjectivesStep/);
-  assert.match(routeSource, /title="Tu punto de partida"/);
-  assert.match(routeSource, /Antes de empezar, cuéntame un poco sobre ti\./);
+  assert.match(routeSource, /title="Cuéntame de ti\."/);
+  assert.match(routeSource, /¿Cómo te llamas y cuál es tu situación profesional\?/);
   assert.match(routeSource, /<StartingPointFields[\s\S]*mode="onboarding"/);
   assert.match(routeSource, /fieldsRef\.current\?\.save\(\)[\s\S]*moveTo\("objectives"\)/);
   assert.match(routeSource, /if \(onboarding\.replaying\)[\s\S]*moveTo\("objectives"\)[\s\S]*return/);
@@ -464,9 +463,9 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
   const accountSource = source("../components/AccountPage.tsx");
   const vcardSource = source("../components/VCardImportPanel.tsx");
 
-  assert.match(routeSource, /title="Importa tus contactos de forma masiva"/);
-  assert.match(routeSource, /puedes importar contactos desde un archivo vCard o desde tu cuenta de Google/);
-  assert.match(routeSource, /Si prefieres, también puedes construir tu red manualmente/);
+  assert.match(routeSource, /title="Comienza con tus contactos\."/);
+  assert.match(routeSource, /Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito\. Aquí puedes ver cómo[\s\S]*exportar contactos desde Google o desde Apple\./);
+  assert.doesNotMatch(routeSource, /Te explicamos|aquí.*obtener el archivo/);
   assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
   assert.match(accountSource, /includeVCard[\s\S]*redirectPath="\/onboarding\/google"/);
   assert.match(accountSource, /<VCardImportPanel[\s\S]*actionLabel="Importar archivo vCard"[\s\S]*sourceLabel="vCard \(\.vcf\)"/);
@@ -483,16 +482,14 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
 test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
   const routeSource = source("../components/OnboardingRoutePage.tsx");
 
-  assert.match(routeSource, /title="Comencemos definiendo tus prioridades"/);
-  assert.match(routeSource, /title="Aquí organizas y priorizas tu red"/);
-  assert.match(routeSource, /Por defecto, esta vista muestra sólo los contactos que quieres priorizar para hacer networking\. En\s+Coffeecito, esos contactos se marcan como Foco\./);
-  assert.match(routeSource, /Cambia el filtro de “Foco” a “Todos” para revisar tu red completa y marcar como Foco a las personas que\s+quieras priorizar\./);
-  assert.match(routeSource, /También puedes arrastrar una tarjeta para actualizar su estado, crear nuevos contactos o gestionar varios\s+desde la tabla inferior\./);
-  assert.match(routeSource, /title="Cada contacto tiene una ficha con su historia"/);
-  assert.match(routeSource, /Aquí puedes editar la información del contacto y mantener todo el contexto de la relación en un solo lugar\./);
-  assert.match(routeSource, /Registra interacciones —mensajes, citas, correos o llamadas— y edítalas para incorporar minutas y notas\./);
-  assert.match(routeSource, /También puedes registrar personas referidas durante esas interacciones\. Si una se vuelve relevante, puedes\s+convertirla en contacto y comenzar a darle seguimiento en Coffeecito\./);
-  assert.match(routeSource, /title="Importa tus contactos de forma masiva"/);
+  assert.match(routeSource, /title="Define tu objetivo y tus prioridades\."/);
+  assert.match(routeSource, /title="Tu red, organizada a tu manera\."/);
+  assert.match(routeSource, /Aquí administras tus contactos: eliges a quiénes poner en foco/);
+  assert.match(routeSource, /marcas a los headhunters para agruparlos por consultora\./);
+  assert.match(routeSource, /title="La historia de cada contacto\."/);
+  assert.match(routeSource, /Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas,/);
+  assert.match(routeSource, /También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red\./);
+  assert.match(routeSource, /title="Comienza con tus contactos\."/);
   assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
 });
 
@@ -501,8 +498,8 @@ test("mandatory no ofrece salida y replay completed conserva salida descartable"
   const providerSource = source("../components/OnboardingProvider.tsx");
   const coachSource = source("../components/CoachPreview.tsx");
 
-  assert.match(routeSource, /nextLabel="Fin del tutorial"/);
-  assert.match(routeSource, /Coach seguirá acompañándote con sugerencias/);
+  assert.match(routeSource, /nextLabel="Ir a Contactos"/);
+  assert.match(routeSource, /Yo te acompañaré con sugerencias para mantener tu red[\s\S]*ordenada y al día\./);
   assert.equal(ONBOARDING_PRODUCT_DESTINATION, "/contactos");
   assert.doesNotMatch(routeSource, /Ahora no|onboarding\.defer/);
   assert.match(routeSource, /onExit=\{onboarding\.replaying \? \(\) => void onboarding\.exit\(routeId\) : undefined\}/);
@@ -619,6 +616,36 @@ test("persistencia usa una clave versionada y un wrapper dedicado", () => {
   assert.match(storeSource, /\.from\("user_settings"\)/);
   assert.match(storeSource, /onConflict: "user_id,setting_key"/);
   assert.doesNotMatch(genericStoreSource, /product_onboarding_v1/);
+});
+
+test("copy aprobado conserva frases exactas y mensajes de Cuenta fuera del tutorial", () => {
+  const intro = source("../components/OnboardingIntroSlides.tsx").replace(/\s+/g, " ");
+  const route = source("../components/OnboardingRoutePage.tsx").replace(/\s+/g, " ");
+  for (const text of [
+    "Hay un diamante en bruto en tu red.",
+    "Tus contactos pueden ser el punto de partida de tu próximo trabajo, negocio o marca profesional. El networking te ayuda a descubrir y desarrollar ese potencial. Coffeecito está para acompañarte en ese camino.",
+    "Que organizar tu red no te quite tiempo para conectar.",
+    "Coffeecito reúne tus contactos, conversaciones y pendientes para que no tengas que llevar todo en la cabeza.",
+    "Así puedes dedicar menos tiempo a ordenar información y más a saber con quién hablar y dar el siguiente paso."
+  ]) assert.ok(intro.includes(text), text);
+  assert.doesNotMatch(intro, /Conectar con intención puede ayudarte a:/);
+  for (const text of [
+    "Cuéntame de ti.", "Define tu objetivo y tus prioridades.",
+    "Comienza con tus contactos.", "Tu red, organizada a tu manera.",
+    "La historia de cada contacto.", "Ya puedes empezar.",
+    "Define tu objetivo de networking y establece las prioridades que te interesa perseguir. Esto te ayudará a enfocar tus conversaciones y encontrar oportunidades que tengan sentido para ti.",
+    "Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito. Aquí puedes ver cómo exportar contactos desde Google o desde Apple.",
+    "Aquí administras tus contactos: eliges a quiénes poner en foco para hacer networking",
+    "Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas, con notas y minutas. También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red.",
+    "Ahora ya conoces las funciones básicas para avanzar. Yo te acompañaré con sugerencias para mantener tu red ordenada y al día."
+  ]) assert.ok(route.includes(text), text);
+  assert.doesNotMatch(route, /Te explicamos aquí|Las Prioridades son opcionales/);
+  const importStep = route.slice(route.indexOf("function OnboardingGoogleStep"), route.indexOf("function OnboardingFinalStep"));
+  assert.doesNotMatch(importStep, /<a\b|href=|<button\b/i);
+  const fields = source("../components/StartingPointFields.tsx");
+  assert.match(fields, /mode === "onboarding" \? "Datos guardados\." : "Tu punto de partida quedó guardado\."/);
+  assert.match(fields, /mode === "onboarding" \? "Cargando tus datos\.\.\." : "Cargando tu punto de partida\.\.\."/);
+  assert.match(fields, /¿Desde cuándo haces networking\?/);
 });
 
 function source(path: string) {

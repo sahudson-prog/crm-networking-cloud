@@ -112,7 +112,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
         setDraft(persisted);
         setSaved(persisted);
         setErrors({});
-        setMessage("Tu punto de partida quedó guardado.");
+        setMessage(mode === "onboarding" ? "Datos guardados." : "Tu punto de partida quedó guardado.");
         onSaved?.(persisted);
         return true;
       } catch (error) {
@@ -189,7 +189,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
           </label>
         </div>
 
-        {loading ? <p className="meta" role="status">Cargando tu punto de partida...</p> : null}
+        {loading ? <p className="meta" role="status">{mode === "onboarding" ? "Cargando tus datos..." : "Cargando tu punto de partida..."}</p> : null}
         {loadError ? (
           <div className="starting-point-feedback" role="alert">
             <p className="form-error">{loadError}</p>
