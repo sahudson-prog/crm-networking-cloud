@@ -11,6 +11,7 @@ import {
 import type { ContactListRow, ContactProfileData } from "../lib/readModel";
 import { AccountPage } from "./AccountPage";
 import { AuthGate } from "./AuthGate";
+import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 import { CoachModule } from "./CoachPreview";
 import { ContactProfile } from "./ContactProfile";
 import { ObjectivesPage } from "./ObjectivesPage";
@@ -112,9 +113,9 @@ function OnboardingIntro() {
       <section className="onboarding-intro" aria-labelledby="onboarding-intro-title">
         <div className="onboarding-intro-layout">
           <div className="onboarding-intro-editorial">
-            <div aria-label="Coffeecito" className="onboarding-brand-lockup">
+            <div aria-label={BRAND_ACCESSIBLE_NAME} className="onboarding-brand-lockup">
               <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-              <span>Coffeecito</span>
+              <BrandBetaWordmark />
             </div>
             <div className="onboarding-intro-copy">
               <h1 id="onboarding-intro-title">Simplifica y ordena tu networking.</h1>

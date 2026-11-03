@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabaseClient";
 import { TurnstileWidget } from "./TurnstileWidget";
 import { PublicSiteLinks } from "./PublicSiteLinks";
 import { Button } from "./ui/Button";
+import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 
 export function PublicContactPage() {
   const [name, setName] = useState("");
@@ -94,9 +95,9 @@ export function PublicContactPage() {
   return (
     <main className="public-contact-page">
       <div className="public-contact-shell">
-        <Link aria-label="Coffeecito" className="public-contact-brand" href="/">
+        <Link aria-label={BRAND_ACCESSIBLE_NAME} className="public-contact-brand" href="/">
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <span>Coffeecito</span>
+          <BrandBetaWordmark />
         </Link>
 
         <section className="public-contact-intro">

@@ -8,6 +8,7 @@ import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferences
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
 import { Button } from "./ui/Button";
+import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 import { Icon } from "./ui/Icon";
 import { InvitationButton } from "./InvitationButton";
 import { canRenderSystemSurface } from "../lib/systemAccess";
@@ -73,9 +74,9 @@ function ShellContent({ children }: { children: ReactNode }) {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link aria-label="Coffeecito" className="shell-brand-lockup" href="/contactos">
+        <Link aria-label={BRAND_ACCESSIBLE_NAME} className="shell-brand-lockup" href="/contactos">
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <span>Coffeecito</span>
+          <BrandBetaWordmark />
         </Link>
         <nav className="nav-primary" aria-label="Navegacion principal">
           <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">

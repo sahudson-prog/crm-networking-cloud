@@ -6,6 +6,7 @@ import { PublicSiteLinks } from "./PublicSiteLinks";
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import { Button } from "./ui/Button";
+import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 import { ProviderIcon } from "./ui/ProviderIcon";
 import {
   applyAccessRevalidationResult,
@@ -320,9 +321,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <main className="auth-landing">
         <div aria-hidden="true" className="auth-landing-background" />
         <section aria-labelledby="auth-landing-title" className="auth-landing-content">
-          <div aria-label="Coffeecito" className="auth-brand-lockup">
+          <div aria-label={BRAND_ACCESSIBLE_NAME} className="auth-brand-lockup">
             <img aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-            <span className="auth-brand-wordmark">Coffeecito</span>
+            <BrandBetaWordmark className="auth-brand-wordmark" />
           </div>
           <div className="auth-landing-copy">
             <h1 id="auth-landing-title">Networking simple, estructurado y orientado a resultados.</h1>

@@ -29,12 +29,45 @@
   height: auto;
 }
 
-.shell-brand-lockup span {
+.shell-brand-lockup > span {
   font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
   font-size: 20px;
   font-weight: 900;
   letter-spacing: -0.015em;
   line-height: 1;
+}
+
+.brand-beta-wordmark {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.brand-beta-wordmark .brand-beta-mark {
+  position: absolute;
+  right: 0;
+  bottom: -8px;
+  padding: 1px 2px;
+  border: 1px solid var(--brand-terracotta);
+  border-radius: 2px;
+  background: var(--crm-surface);
+  color: var(--brand-espresso);
+  font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.auth-brand-wordmark .brand-beta-mark {
+  bottom: -9px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.onboarding-brand-lockup .brand-beta-mark {
+  bottom: -8px;
+  font-size: 10px;
 }
 
 .brand-subtitle {
@@ -661,7 +694,7 @@
   height: auto;
 }
 
-.public-contact-brand span {
+.public-contact-brand > span {
   font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
   font-size: 24px;
   font-weight: 900;
@@ -7102,7 +7135,7 @@ textarea::placeholder {
   height: auto;
 }
 
-.onboarding-brand-lockup span {
+.onboarding-brand-lockup > span {
   font-family: var(--font-coffeecito-wordmark), Lato, sans-serif;
   font-size: 31px;
   font-weight: 900;
@@ -8542,7 +8575,7 @@ textarea::placeholder {
     width: 62px;
   }
 
-  .onboarding-brand-lockup span {
+  .onboarding-brand-lockup > span {
     font-size: 27px;
   }
 
@@ -8903,8 +8936,12 @@ code {
     width: 34px;
   }
 
-  .shell-brand-lockup span {
+  .shell-brand-lockup > span {
     font-size: 17px;
+  }
+
+  .shell-brand-lockup .brand-beta-mark {
+    bottom: -6px;
   }
 
   .topbar .nav-link-icon,

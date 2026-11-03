@@ -51,6 +51,8 @@ La tipografía del wordmark no redefine la tipografía general vigente de la int
 
 El isotipo oficial está versionado en `cloud/web/public/brand/coffeecito-isotipo.svg`, que es su fuente de verdad y usa fondo transparente. No debe reconstruirse ni sustituirse por aproximaciones.
 
+`cloud/web/app/icon.svg` es el favicon/app icon derivado: reutiliza las formas, trazos y colores del isotipo maestro, pero emplea un lienzo y `viewBox` cuadrados con escala proporcional para aprovechar el espacio sin recortes. No incorpora el distintivo BETA. Ante cambios futuros del maestro, actualizar el derivado desde esa fuente y volver a validar 16, 32 y 48 px.
+
 ### Landing de acceso
 
 La entrada no autenticada usa una composición centrada sobre una fotografía cálida de networking, con overlay Cream para legibilidad, el lockup horizontal oficial, headline y subtítulo de producto. Google es la acción principal en Espresso y el acceso por email permanece como alternativa colapsable con su verificación vigente. La composición no usa una tarjeta envolvente y mantiene el fondo en una capa independiente del contenido.
