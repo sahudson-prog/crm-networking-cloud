@@ -14,7 +14,9 @@ test("Cuenta integra el flujo .ics completo detrás de un gate apagado por defec
 
 test("el panel usa parse, review persistido, selección y Apply existentes", () => {
   assert.match(panel, /parseIcsCalendar\(await file\.text\(\)\)/);
-  assert.match(panel, /requireNetworkingStartIso\(\)/);
+  assert.match(panel, /readHistoryWindow\(\)/);
+  assert.match(panel, /historyWindow\.effective_start/);
+  assert.doesNotMatch(panel, /requireNetworkingStartIso/);
   assert.match(panel, /buildIcsImportReviewFromPersistedData\(\{ minimumStartIso, parsed \}\)/);
   assert.match(panel, /applyIcsImportSelection\(\{ snapshot, selectedChangeIds: changeIds \}\)/);
   assert.match(panel, /<IcsImportPreviewDialog/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BriefcaseBusiness, Handshake, Megaphone } from "lucide-react";
 import {
   adoptConfirmedOwnClose, closeNetworkingCycle, expectedNetworkingContext, localDateTimeValue,
@@ -10,10 +10,11 @@ import { NETWORKING_CYCLE_RESULTS, type NetworkingCycleResult } from "../lib/net
 import { createCycleCloseFlow } from "../lib/networkingCycleCloseFlow";
 import { readMyNetworkingPlanNotices, requestNetworkingPlanNotice, withdrawNetworkingPlanNotice } from "../lib/networkingPlanNotice";
 import { reconcileNetworkingPlanNotice, type FutureNetworkingPlan } from "../lib/networkingPlanNoticeFlow";
-import { firstSelectableStartInstant, localDateTimeCandidates, localDateTimeToIso, startInputMin, startIsOnOrAfterClose,
+import { cycleDateError, cycleInputMax, cycleCloseInputMin, cycleStartFromDate, firstSelectableStartInstant, localDateTimeCandidates, localDateTimeToIso,
   timezoneOffsetLabel, type RepeatedTimeChoice } from "../lib/networkingCycleTime";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
+import { readHistoryPolicy, type HistoryPolicy } from "../lib/historyPolicy";
 
 function suggestedName() {
   return `Búsqueda laboral · ${new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" }).format(new Date())}`;
@@ -32,6 +33,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   const [cycles, setCycles] = useState<NetworkingCycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [policy, setPolicy] = useState<HistoryPolicy | null>(null);
   const [error, setError] = useState("");
   const [notices, setNotices] = useState<Set<FutureNetworkingPlan>>(new Set());
   const [noticesLoading, setNoticesLoading] = useState(true);
@@ -42,15 +44,15 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   const noticeLock = useRef(false);
   const noticeDialog = useRef<HTMLDialogElement>(null);
   const [startFieldError, setStartFieldError] = useState("");
+  const [endFieldError, setEndFieldError] = useState("");
   const [stale, setStale] = useState(false);
   const [name, setName] = useState(suggestedName);
-  const [start, setStart] = useState(() => localDateTimeValue());
-  const [startChoice, setStartChoice] = useState<RepeatedTimeChoice | "">("");
+  const [start, setStart] = useState(() => localDateTimeValue().slice(0, 10));
   const [resetStatus, setResetStatus] = useState(false);
   const [clearFocus, setClearFocus] = useState(false);
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [end, setEnd] = useState(() => localDateTimeValue());
+  const [end, setEnd] = useState(() => localDateTimeValue().slice(0, 16));
   const [endChoice, setEndChoice] = useState<RepeatedTimeChoice | "">("");
   const [result, setResult] = useState<NetworkingCycleResult | "">("");
   const requestId = useRef<string>(crypto.randomUUID());
@@ -67,14 +69,19 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   const previousClosedAt = cycles.filter((cycle) => cycle.status === "closed" && cycle.closed_at)
     .reduce<string | null>((latest, cycle) => !latest || Date.parse(cycle.closed_at!) > Date.parse(latest)
       ? cycle.closed_at : latest, null);
-  const startMinimum = useMemo(() => previousClosedAt ? startInputMin(previousClosedAt, timezone) : undefined,
-    [previousClosedAt, timezone]);
-  const startCandidates = candidatesFor(start, timezone);
-  const startBeforePreviousClose = Boolean(previousClosedAt && startCandidates.length
-    && startIsOnOrAfterClose(start, timezone, previousClosedAt, startChoice || undefined) === false);
-  const startDateError = startFieldError || (startBeforePreviousClose
-    ? "El inicio no puede ser anterior al cierre del proceso anterior." : "");
+  const lowerStart = !needsConfiguration && policy && (!previousClosedAt || Date.parse(policy.earliest_start) > Date.parse(previousClosedAt))
+    ? policy.earliest_start : previousClosedAt;
+  const startMinimum = lowerStart ? localDateTimeValue(new Date(firstSelectableStartInstant(lowerStart)), timezone).slice(0, 10) : undefined;
+  const validateStart = () => {
+    try { cycleStartFromDate(start, timezone, lowerStart); return ""; }
+    catch (cause) { return cause instanceof Error ? cause.message : "Selecciona una fecha válida."; }
+  };
+  const startDateError = startFieldError || validateStart();
   const endCandidates = candidatesFor(end, timezone);
+  const validateEnd = () => cycleDateError(end, timezone, { choice: endChoice || undefined,
+    minimum: active?.started_at, exclusiveMinimum: true, minimumMessage: "El fin debe ser posterior al inicio del proceso." });
+  const endDateError = endFieldError || validateEnd();
+  const endMinimum = active?.started_at ? cycleCloseInputMin(active.started_at, timezone) : undefined;
 
   useEffect(() => { onReadyChange?.(ready); }, [onReadyChange, ready]);
   useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
@@ -85,8 +92,9 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   useEffect(() => { if (closing && !closeDialog.current?.open) closeDialog.current?.showModal(); }, [closing]);
 
   function openCreate() {
-    setStart(localDateTimeValue());
-    setStartChoice("");
+    setPolicy(null);
+    void readHistoryPolicy(timezone).then(setPolicy).catch(e => setError(e.message));
+    setStart(localDateTimeValue().slice(0, 10));
     setResetStatus(false);
     setClearFocus(false);
     setError("");
@@ -135,7 +143,8 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   }
 
   function openClose() {
-    setEnd(localDateTimeValue());
+    setEndFieldError("");
+    setEnd(localDateTimeValue().slice(0, 16));
     setEndChoice("");
     setResult("");
     setError("");
@@ -160,18 +169,16 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   }
 
   async function createOrConfigure() {
-    if (previousClosedAt && startIsOnOrAfterClose(start, timezone, previousClosedAt,
-      startChoice || undefined) !== true) {
-      setStartFieldError("El inicio debe ser igual o posterior al cierre del proceso anterior.");
-      return;
-    }
+    const invalid = validateStart();
+    if (invalid || !policy) { setStartFieldError(invalid || "Espera a que se cargue el límite vigente."); return; }
     setWorking(true);
     setError("");
     setStartFieldError("");
     try {
+      const resolvedStart = cycleStartFromDate(start, timezone, lowerStart);
       await startNetworkingCycle({
-        requestId: requestId.current, name, localStart: start,
-        repeatedTimeChoice: startChoice || undefined,
+        requestId: requestId.current, name, localStart: resolvedStart.localStart,
+        repeatedTimeChoice: resolvedStart.repeatedTimeChoice,
         resetStatus: needsConfiguration ? false : resetStatus,
         clearFocus: needsConfiguration ? false : clearFocus,
         legacyCycleId: needsConfiguration ? active?.id : undefined
@@ -193,6 +200,8 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
 
   async function finish() {
     if (!active || !result || closeSubmitPending.current) return;
+    const invalid = validateEnd();
+    if (invalid) { setEndFieldError(invalid); return; }
     try {
       localDateTimeToIso(end, timezone, endChoice || undefined);
     } catch (cause) {
@@ -220,8 +229,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
       if (closeDialog.current?.open) closeDialog.current.close();
       setResult("");
       setName(suggestedName());
-      setStart(localDateTimeValue());
-      setStartChoice("");
+      setStart(localDateTimeValue().slice(0, 10));
       setResetStatus(false);
       setClearFocus(false);
       if (outcome.kind === "closed" || outcome.kind === "closed_elsewhere") {
@@ -314,30 +322,18 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
             <label className="field"><span>Nombre del proceso</span>
               <input maxLength={120} disabled={working} value={name} onChange={(event) => setName(event.target.value)} />
             </label>
-            <label className="field"><span>Inicio: fecha y hora</span>
-              <input type="datetime-local" step="1" disabled={working} min={startMinimum}
-                max={localDateTimeValue()} value={start}
-                aria-invalid={Boolean(startDateError) || Boolean(start && !startCandidates.length)}
+            <label className="field"><span>Fecha de inicio</span>
+              <input type="date" disabled={working} min={startMinimum}
+                max={localDateTimeValue(new Date(), timezone).slice(0, 10)} value={start}
+                aria-invalid={Boolean(startDateError)}
                 aria-describedby={[previousClosedAt ? "start-boundary-help" : "", startDateError ? "start-boundary-error" : ""].filter(Boolean).join(" ") || undefined}
-                onChange={(event) => { setStart(event.target.value); setStartChoice(""); setStartFieldError(""); }} />
+                onChange={(event) => { setStart(event.target.value); setStartFieldError(""); }} />
             </label>
-            {previousClosedAt ? <small id="start-boundary-help">Cierre anterior: {formatDateTime(previousClosedAt, timezone)}
-              {` (${timezone}, ${timezoneOffsetLabel(new Date(previousClosedAt), timezone)}). `}
-              {firstSelectableStartInstant(previousClosedAt) > Date.parse(previousClosedAt)
-                ? `Primera hora seleccionable: ${formatDateTime(new Date(firstSelectableStartInstant(previousClosedAt)).toISOString(), timezone)}. `
-                : ""}
-              Puedes iniciar otro proceso desde la primera hora seleccionable, incluso el mismo día.</small> : null}
+            {policy ? <small>{needsConfiguration ? `La importación histórica tiene un máximo de ${policy.max_months} meses.` : `Puedes elegir una fecha de hasta ${policy.max_months} meses atrás.`}</small> : <small>Consultando el límite vigente...</small>}
+            {needsConfiguration ? <small>Este proceso existente admite su inicio real, aunque sea anterior al límite de importación.</small> : null}
+            {previousClosedAt ? <small id="start-boundary-help">Cierre anterior: {formatDate(previousClosedAt, timezone)}.
+              Puedes iniciar otro proceso el mismo día; su inicio respetará el cierre anterior.</small> : null}
             {startDateError ? <small className="form-error" id="start-boundary-error" role="alert">{startDateError}</small> : null}
-            {start && !startCandidates.length ? <small role="alert">Esa hora no existe en {timezone} por el cambio de horario.</small> : null}
-            {startCandidates.length > 1 ? (
-              <label className="field"><span>Hora repetida: elige el instante</span>
-                <select value={startChoice} onChange={(event) => { setStartChoice(event.target.value as RepeatedTimeChoice | ""); setStartFieldError(""); }}>
-                  <option value="">Selecciona una opción</option>
-                  <option value="earlier">Primera vez ({timezoneOffsetLabel(startCandidates[0], timezone)})</option>
-                  <option value="later">Segunda vez ({timezoneOffsetLabel(startCandidates[startCandidates.length - 1], timezone)})</option>
-                </select>
-              </label>
-            ) : null}
             <small>Zona horaria: {timezone}. Puedes indicar un inicio anterior a tu uso de Coffeecito.</small>
             {!needsConfiguration && hasHistory ? (
               <div className="networking-cycle-options">
@@ -352,8 +348,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           <footer className="modal-actions">
             <Button disabled={working} onClick={() => createDialog.current?.close()}>Cancelar</Button>
-            <Button disabled={working || stale || startBeforePreviousClose || !name.trim() || !start || !startCandidates.length
-              || (startCandidates.length > 1 && !startChoice)} tone="primary" onClick={() => void createOrConfigure()}>
+            <Button disabled={working || stale || !policy || Boolean(startDateError) || !name.trim()} tone="primary" onClick={() => void createOrConfigure()}>
               {working ? "Guardando..." : needsConfiguration ? "Completar proceso" : "Comenzar proceso"}
             </Button>
           </footer>
@@ -369,13 +364,14 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
           </header>
           <p>Las Prioridades quedan en este proceso; contactos e interacciones se conservan. No se iniciará otro automáticamente.</p>
           <label className="field"><span>Fin: fecha y hora</span>
-            <input type="datetime-local" step="1" value={end} max={localDateTimeValue()} disabled={working}
-              onChange={(event) => { setEnd(event.target.value); setEndChoice(""); }} />
+            <input type="datetime-local" step="60" value={end} min={endMinimum} max={cycleInputMax(new Date(), timezone)?.slice(0, 16)} disabled={working}
+              aria-invalid={Boolean(endDateError)} aria-describedby={endDateError ? "end-boundary-error" : undefined}
+              onChange={(event) => { setEnd(event.target.value); setEndChoice(""); setEndFieldError(""); }} />
           </label>
-          {end && !endCandidates.length ? <small role="alert">Esa hora no existe en {timezone} por el cambio de horario.</small> : null}
+          {endDateError ? <small className="form-error" id="end-boundary-error" role="alert">{endDateError}</small> : null}
           {endCandidates.length > 1 ? (
             <label className="field"><span>Hora repetida: elige el instante</span>
-              <select value={endChoice} onChange={(event) => setEndChoice(event.target.value as RepeatedTimeChoice | "")}>
+              <select value={endChoice} onChange={(event) => { setEndChoice(event.target.value as RepeatedTimeChoice | ""); setEndFieldError(""); }}>
                 <option value="">Selecciona una opción</option>
                 <option value="earlier">Primera vez ({timezoneOffsetLabel(endCandidates[0], timezone)})</option>
                 <option value="later">Segunda vez ({timezoneOffsetLabel(endCandidates[endCandidates.length - 1], timezone)})</option>
@@ -392,7 +388,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           <footer className="modal-actions">
             <Button disabled={working} onClick={() => { if (!closeSubmitPending.current) closeDialog.current?.close(); }}>Cancelar</Button>
-            <Button disabled={working || stale || !end || !result || !endCandidates.length
+            <Button disabled={working || stale || Boolean(endDateError) || !end || !result || !endCandidates.length
               || (endCandidates.length > 1 && !endChoice)} tone="primary" onClick={() => void finish()}>
               {working ? "Finalizando..." : "Finalizar proceso"}
             </Button>
@@ -408,23 +404,16 @@ function formatDate(value: string | null, zone: string | null) {
   return new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeZone: zone || "UTC" }).format(new Date(value));
 }
 
-function formatDateTime(value: string, zone: string) {
-  const date = new Date(value);
-  const day = new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeZone: zone }).format(date);
-  const time = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false, timeZone: zone }).format(date);
-  const fraction = /\.(\d+)(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.exec(value)?.[1] ?? "";
-  return `${day}, ${time}${/[1-9]/.test(fraction) ? `.${fraction}` : ""}`;
-}
-
 function messageFor(cause: unknown) {
-  const message = cause instanceof Error ? cause.message : "No pudimos guardar el ciclo.";
+  const message = cause && typeof cause === "object" && "message" in cause && typeof cause.message === "string"
+    ? cause.message : "No pudimos guardar el ciclo.";
   if (message.includes("networking_context_stale")) return "El ciclo cambió en otra pestaña. Actualiza antes de guardar.";
   if (message.includes("cycle_already_closed")) return "Este proceso ya fue finalizado en otra sesión. Recarga la página para ver el cierre.";
   if (message.includes("cycle_request_conflict")) return "El intento de cierre tiene datos distintos a los ya registrados. Recarga la página antes de continuar.";
   if (message.includes("networking_cycle_date_overlap")) return "El período se superpone con otro ciclo.";
   if (message.includes("cycle_end_invalid")) return "El fin debe ser posterior al inicio y no puede estar en el futuro.";
   if (message.includes("cycle_start_invalid")) return "El inicio no puede estar en el futuro.";
+  if (message.includes("cycle_start_outside_policy")) return "El inicio supera el límite vigente o está en el futuro. Vuelve a abrir el formulario para actualizar el límite.";
   return message;
 }
 

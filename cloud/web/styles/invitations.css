@@ -58,7 +58,7 @@ dialog.invitation-dialog[open] { display: grid; grid-template-rows: auto minmax(
 @media (max-width: 440px) {
   .topbar .shell-brand-lockup { gap: 4px; }
   .topbar .shell-brand-lockup img { width: 26px; }
-  .topbar .shell-brand-lockup span { font-size: 16px; letter-spacing: 0; }
+  .topbar .shell-brand-lockup > span { font-size: 16px; letter-spacing: 0; }
   .invitation-head { padding: 12px 16px 0; }
   .invitation-head h2 { font-size: 18px; }
   .invitation-body { padding: 8px 16px 12px; }

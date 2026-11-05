@@ -42,6 +42,14 @@ Este patrón no significa que exista un pipeline único universal. Contactos e i
 
 Contactos tienen una separación explícita entre cálculo de preview y aplicación. Interacciones también pueden usar preview, pero su continuidad principal se apoya en fuentes externas vinculadas a interacciones locales.
 
+## Ventana histórica UX-DATE-01 (candidato local)
+
+Las nuevas operaciones históricas de Gmail/Calendar/ICS toman `current_user_history_window_v1()`: máximo entre inicio del ciclo activo y comienzo del día local de hoy menos M meses calendario, en zona IANA del ciclo (M global 1–12, default 6). Sin ciclo o inicio conocido se bloquean; no se restringen contactos. No se conserva un límite individual legacy más restrictivo ni se importa automáticamente.
+
+Review conserva contexto de ciclo, revisión de política y límite efectivo. Apply revalida en cliente y en SQL bajo bloqueo de ciclo y política. Cambios de ciclo, política o día efectivo exigen nueva revisión. ICS usa `apply_ics_import_v2` atómica por lote y compara instantes, no fechas UTC truncadas. Google usa `apply_google_history_v1` por ítem; un fallo posterior no revierte ítems anteriores pero impide avanzar cursor y permite revisión/reintento idempotente.
+
+`apply_google_periodic_v1` conserva el writer común, permisos, ownership y comportamiento periódico/incremental. No impone M ni exige ciclo. La clave legacy y las ventanas de recuperación siguen internas; no se alteran cursores. El contrato aprobado limita operaciones históricas, no certifica procedencia del lote frente a un cliente que invoque la operación periódica. Las RPC antiguas dejan de ser entradas cliente; requiere cutover coordinado según PROD_CONTRACTS, todavía no realizado.
+
 ## Sincronización de contactos
 
 El flujo de contactos lee objetos externos, contactos locales activos, vínculos externos existentes, snapshots conocidos y cursores cuando corresponde.

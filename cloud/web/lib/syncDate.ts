@@ -81,12 +81,9 @@ export function networkingStartBounds(now = new Date()) {
 }
 
 export function networkingStartErrorMessage(status: NetworkingStartStatus) {
-  if (status.reason === "future") return "La fecha de inicio de networking no puede ser futura. Revísala en Cuenta.";
-  if (status.reason === "too_old") {
-    return `La fecha de inicio de networking debe ser igual o posterior a ${status.minimumDate}. Revísala en Cuenta.`;
-  }
-  if (status.reason === "invalid") return "La fecha de inicio de networking no es válida. Revísala en Cuenta.";
-  return "Define la fecha de inicio de networking en Cuenta antes de importar correos o citas.";
+  // Retained for the periodic compatibility path; this is no longer a user setting.
+  if (status.reason === "too_old") return "La referencia interna queda fuera de la ventana histórica legacy.";
+  return "La referencia interna de sincronización no está disponible o no es válida. Solicita una revisión antes de reintentar.";
 }
 
 function historicalNetworkingStartIso(status: NetworkingStartStatus) {

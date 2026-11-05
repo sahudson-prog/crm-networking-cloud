@@ -2,39 +2,45 @@
 
 ## Estado y autoridad
 
-- Status: `NEXT / SELECTED FOR IMPLEMENTATION`. Esta especificación no autoriza cambios de producto por sí sola.
-- Este documento conserva las decisiones de producto para una variante temporal de marca durante la beta.
-- No autoriza cambios de assets, UI, landing, onboarding ni cabecera.
+- Status: implementada localmente y aprobada visualmente por el owner como candidata de la release conjunta Beta UX V1, junto con UX-ONB-COPY-01 y UX-DATE-01. No está desplegada.
+- La decisión final es únicamente un distintivo `BETA` junto al wordmark. No se añaden mensajes, avisos ni copy sobre acceso anticipado, restricciones o planes futuros.
 
-## Decisiones funcionales aprobadas
+## Contrato visual aprobado
 
-- Los recursos originales de marca se preservan versionados en Git.
-- Se añadirá una variante temporal `BETA` sin sobrescribir el isotipo ni las composiciones originales.
-- La variante se aplicará en landing, onboarding y cabecera.
-- Debe comunicar acceso anticipado y la posibilidad de futuras restricciones o planes pagados.
-- La presencia BETA será discreta y profesional junto a Coffeecito; comunicará que el producto está en pruebas y puede cambiar.
-- Debe ser reversible, responsive y accesible, sin banners invasivos ni cambios generales de identidad.
+- Preservar el isotipo oficial y el wordmark `Coffeecito` sin editar el asset base.
+- Situar un distintivo pequeño debajo del extremo derecho del wordmark, bajo "cito", levemente montado sobre su base visual y sin alargar el lockup.
+- Mantenerlo discreto, profesional, accesible y responsive. En la cabecera es más compacto que en landing y onboarding.
+- El distintivo BETA no se aplica al favicon ni al app icon. La corrección proporcional del favicon derivado está aprobada por separado; no cambia el isotipo maestro, la navegación ni los textos del tutorial.
 
-## Pendientes de auditoría y diseño técnico
+## Superficies verificadas
 
-Antes de contratar implementación deben definirse:
+El inventario de usos del isotipo en componentes de `cloud/web` contiene cinco lockups:
 
-- composición visual exacta de la variante y sus assets derivados;
-- superficies, breakpoints y reglas de accesibilidad donde se mostrará;
-- copy final de acceso anticipado, restricciones y planes futuros;
-- mecanismo de activación temporal y su retirada posterior;
-- pruebas visuales y de navegación;
-- compatibilidad con el contrato visual y assets actuales sin reemplazar sus fuentes originales.
+| Superficie | Componente | Variante |
+| --- | --- | --- |
+| Landing de acceso | `AuthGate` | BETA / original |
+| Introducción del onboarding | `OnboardingRoutePage` | BETA / original |
+| Aceptación legal del onboarding | `LegalAcceptanceGate` | BETA / original |
+| Cabecera autenticada | `Shell` | BETA / original |
+| Contacto público | `PublicContactPage` | BETA / original |
 
-## Alcance y gates
+El favicon/app icon derivado usa únicamente la taza original, sin BETA; los logos de proveedores no son lockups de Coffeecito.
 
-- Hipótesis a validar: una señal BETA breve en las tres superficies comunica el estado del producto sin interrumpir los recorridos existentes.
-- Excluye rediseñar la marca completa, reemplazar assets originales, cambiar permisos o ampliar el acceso beta.
-- Antes de implementar: aprobar composición y copy final; inventariar assets/superficies vigentes y definir activación/retirada reversible.
-- Antes de publicar: revisión visual desktop/móvil, contraste, teclado y lectores de pantalla; deployment y smoke por los gates habituales. No hay cambios persistentes previstos por este contrato.
+## Favicon derivado
 
-## Owner docs probables al contratar
+- `cloud/web/public/brand/coffeecito-isotipo.svg` es el isotipo maestro, intacto. `cloud/web/app/icon.svg` conserva sus mismas formas, trazos y colores.
+- El derivado usa lienzo cuadrado `64×64`, `viewBox="34 -72 1554 1554"` y `preserveAspectRatio="xMidYMid meet"`: centra el contorno visible, lo escala uniformemente y deja el mínimo margen de seguridad sin recortar taza ni asa.
+- Si el isotipo maestro cambia en el futuro, se debe actualizar el derivado a partir de ese maestro y recalcular el encuadre cuadrado; validar de nuevo a 16, 32 y 48 px. El favicon no hereda el toggle BETA.
 
-- `docs/PRODUCT.md`
-- `docs/UI_SYSTEM.md`
-- `docs/ENVIRONMENTS.md` solo si la activación requiere configuración de ambiente
+## Activación y retirada
+
+- `BRAND_BETA_ENABLED` es el único toggle, inicialmente `true`, en `cloud/web/components/ui/BrandBetaWordmark.tsx`. Es una constante local; no depende de Supabase ni de configuración remota.
+- Las cinco superficies reutilizan `BrandBetaWordmark` y `BRAND_ACCESSIBLE_NAME`. Con `false`, el componente devuelve el `<span>` original sin badge, clases ni espacio residual, y el nombre accesible vuelve a `Coffeecito`.
+- Para desactivar temporalmente, cambiar solo `BRAND_BETA_ENABLED` a `false`, ejecutar pruebas de ambas variantes, typecheck, build y revisión visual desktop/móvil antes de publicar.
+- Pendiente explícito al finalizar la beta: retirar el distintivo. Primero desactivarlo y validar; después eliminar el toggle, el componente y sus estilos BETA en un cambio separado, conservando el isotipo y los lockups originales.
+
+## Gates
+
+- Pruebas focales, typecheck y build PASS; landing y favicon aprobados por el owner. Revisión autenticada DEV PASS para cabecera y replay del onboarding; aceptación legal PASS con fixture aislado del componente real, sin aceptar términos ni alterar datos. La publicación y el smoke de la release conjunta Beta UX V1 siguen pendientes.
+- Fuera de alcance: Contactos presenta aproximadamente 55 px de overflow horizontal a 320 px, originado fuera del lockup BETA. Queda pendiente de QA-UX-01; no se corrige en BRAND-BETA-01.
+- No hay cambios persistentes, permisos ni servicios externos en este contrato.

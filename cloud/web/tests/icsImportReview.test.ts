@@ -429,7 +429,7 @@ test("omite por fecha civil antes de Foco y mantiene inclusivo el día configura
 
   assert.deepEqual(result.changes.map((change) => change.metadata?.icsUid), ["inclusive@example.com"]);
   assert.equal(result.omissionCounts.beforeNetworkingStart, 1);
-  assert.match(icsReviewDescription(result), /1 cita anterior al inicio de networking fue omitida/);
+  assert.match(icsReviewDescription(result), /1 cita anterior a la ventana vigente fue omitida/);
 });
 
 test("filtra por fecha civil UTC del instante y no por la fecha local declarada", () => {

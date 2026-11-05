@@ -24,7 +24,7 @@ import {
   googleDataSessionEligibility
 } from "../lib/googleDataSessionGuard";
 import { isIcsImportEnabled } from "../lib/icsImportFeature";
-import { readNetworkingStartIso } from "../lib/syncDate";
+import { HistoryImportAvailabilityFeedback, useHistoryImportAvailability, type HistoryAvailability } from "./HistoryImportNotice";
 import { isOnboardingTestResetAvailable } from "../lib/onboarding";
 import { googleConnectionRevalidationUi } from "../lib/accountGoogleConnectionUi";
 import {
@@ -63,6 +63,7 @@ type AccountState = {
   googleSyncEligibilityKnown: boolean;
   message: string;
   networkingStartReady: boolean;
+  historyAvailability?: HistoryAvailability;
   resettingData: boolean;
 };
 
@@ -70,6 +71,8 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
   const onboarding = useOnboarding();
   const { onSignOut } = useShellActions();
   const [account, setAccount] = useState<AccountState>(createInitialAccountState(true));
+  const history = useHistoryImportAvailability();
+  const accountWithHistory = { ...account, networkingStartReady: history.status === "ready", historyAvailability: history.status };
   const accountLoadGenerationRef = useRef(0);
   const googleFinalizeInFlightRef = useRef(false);
   const currentAccountEmailRef = useRef("");
@@ -149,7 +152,7 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
     return (
       <div className="account-page onboarding-google-account">
         <GoogleImportSection
-          account={account}
+          account={accountWithHistory}
           includeOtherSources={false}
           includeVCard
           redirectPath="/onboarding/google"
@@ -184,10 +187,6 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
         </div>
         <StartingPointFields
           mode="account"
-          onSaved={(values) => setAccount((current) => ({
-            ...current,
-            networkingStartReady: Boolean(values.networkingStartDate)
-          }))}
         />
       </section>
 
@@ -205,7 +204,8 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
         </section>
       ) : null}
 
-      <GoogleImportSection account={account} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
+      <HistoryImportAvailabilityFeedback status={history.status} retry={history.retry} />
+      <GoogleImportSection account={accountWithHistory} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
 
       <section className="account-section" aria-labelledby="account-quality-title">
         <div className="account-section-title">
@@ -631,7 +631,9 @@ function googleImportDisabledReason(
   if (account.googleConnectionLoading && !account.googleConnectionKnown) return "Revisando autorización de Google.";
   if (!account.googleDataAuthorizationAllowed) return GOOGLE_DATA_SESSION_REQUIRED_MESSAGE;
   if ((service === "calendar" || service === "mail") && !account.networkingStartReady) {
-    return "Define primero la fecha de inicio de networking.";
+    if (account.historyAvailability === "loading") return "Comprobando la ventana de importación...";
+    if (account.historyAvailability === "error") return "No pudimos comprobar la ventana de importación. Reintenta la lectura.";
+    return "Configura el inicio de tu proceso en Objetivos antes de importar correos o citas.";
   }
   return "";
 }
@@ -655,14 +657,9 @@ async function loadAccountState(options: { registerRememberedScopes: boolean }):
   let googleSyncEligibilityKnown = false;
   let networkingStartReady = false;
   try {
-    const [nextGoogleConnection, networkingStart] = await Promise.all([
-      readCurrentGoogleConnectionState({
+    googleConnection = await readCurrentGoogleConnectionState({
         registerRememberedScopes: options.registerRememberedScopes
-      }),
-      readNetworkingStartIso()
-    ]);
-    googleConnection = nextGoogleConnection;
-    networkingStartReady = Boolean(networkingStart);
+      });
   } catch (error) {
     message = error instanceof Error ? error.message : "No pude leer cuentas conectadas.";
   }

@@ -1,10 +1,98 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  firstSelectableStartInstant, localDateTimeCandidates, localDateTimeToIso, localDateTimeValue,
+  cycleDateError, cycleInputMax, cycleStartFromDate, cycleCloseInputMin, firstSelectableStartInstant, localDateTimeCandidates, localDateTimeToIso, localDateTimeValue,
   startInputMin, startIsOnOrAfterClose, timezoneOffsetLabel
 } from "../lib/networkingCycleTime.ts";
 import { networkingContextFromCycles, type NetworkingCycle } from "../lib/networkingCycles.ts";
+
+test("date-only start selects the first valid instant and roundtrips through the existing RPC adapter", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  const start = cycleStartFromDate("2026-11-04", "America/Santiago", null, now);
+  assert.equal(start.startedAt, "2026-11-04T03:00:00.000Z");
+  assert.equal(localDateTimeToIso(start.localStart, "America/Santiago", start.repeatedTimeChoice), start.startedAt);
+  for (const day of ["", "2026-02-30", "2026-11-05", "04/11/2026"]) {
+    assert.throws(() => cycleStartFromDate(day, "America/Santiago", null, now));
+  }
+});
+
+test("consecutive same-day cycles preserve exact/fractional close bounds and deterministic retries", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  for (const [close, expected] of [
+    ["2026-11-04T10:30:00Z", "2026-11-04T10:30:00.000Z"],
+    ["2026-11-04T10:30:00.000456Z", "2026-11-04T10:30:01.000Z"]
+  ]) {
+    const start = cycleStartFromDate("2026-11-04", "America/Santiago", close, now);
+    assert.equal(start.startedAt, expected);
+    assert.deepEqual(cycleStartFromDate("2026-11-04", "America/Santiago", close, now + 1000), start);
+  }
+  assert.throws(() => cycleStartFromDate("2026-11-03", "America/Santiago", "2026-11-04T10:30:00Z", now));
+  assert.throws(() => cycleStartFromDate("2026-11-04", "America/Santiago", "2026-11-04T12:00:00.000001Z", now));
+});
+
+test("date-only start respects policy instant, legacy and a bound rounding into the next day", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  assert.equal(cycleStartFromDate("2026-05-04", "UTC", "2026-05-04T10:00:00Z", now).startedAt, "2026-05-04T10:00:00.000Z");
+  assert.throws(() => cycleStartFromDate("2026-05-03", "UTC", "2026-05-04T00:00:00Z", now));
+  assert.equal(cycleStartFromDate("2020-01-01", "UTC", null, now).startedAt, "2020-01-01T00:00:00.000Z");
+  assert.throws(() => cycleStartFromDate("2026-05-04", "UTC", "2026-05-04T23:59:59.999999Z", now));
+  assert.equal(cycleStartFromDate("2026-05-05", "UTC", "2026-05-04T23:59:59.999999Z", now).startedAt, "2026-05-05T00:00:00.000Z");
+});
+
+test("date-only DST: skipped midnight, repeated midnight, repeated close hour and skipped day", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  assert.equal(cycleStartFromDate("2026-09-06", "America/Santiago", null, now).localStart, "2026-09-06T01:00:00");
+  const repeated = cycleStartFromDate("2026-11-01", "America/Havana", null, now);
+  assert.equal(repeated.repeatedTimeChoice, "earlier");
+  assert.equal(localDateTimeToIso(repeated.localStart, "America/Havana", repeated.repeatedTimeChoice), repeated.startedAt);
+  const afterClose = cycleStartFromDate("2026-04-04", "America/Santiago", "2026-04-05T03:15:00Z", now);
+  assert.equal(afterClose.repeatedTimeChoice, "later");
+  assert.equal(localDateTimeToIso(afterClose.localStart, "America/Santiago", afterClose.repeatedTimeChoice), "2026-04-05T03:15:00.000Z");
+  assert.throws(() => cycleStartFromDate("2011-12-30", "Pacific/Apia", null, now), /no existe/);
+});
+
+test("minute close has a strict lower bound, preserving stored seconds and DST ambiguity", () => {
+  assert.equal(cycleCloseInputMin("2026-11-01T12:00:00Z", "UTC"), "2026-11-01T12:01");
+  assert.equal(cycleCloseInputMin("2026-11-01T12:00:59.999999Z", "UTC"), "2026-11-01T12:01");
+  assert.equal(cycleCloseInputMin("2026-04-05T02:30:00Z", "America/Santiago"), undefined);
+});
+
+test("field validation rejects missing, malformed, impossible and future dates", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  for (const value of ["", "invalid", "2026-02-30T12:00", "2026-11-04T12:00:01"]) {
+    assert.notEqual(cycleDateError(value, "UTC", { now }), "");
+  }
+  assert.equal(cycleDateError("2026-11-04T12:00:00", "UTC", { now }), "");
+  assert.match(cycleDateError("2026-11-04T12:00:00", "UTC", { now, minimum: "invalid" }), /validar/);
+});
+
+test("start policy is inclusive; legacy without a minimum remains valid", () => {
+  const options = { now: Date.parse("2026-11-04T12:00:00Z"), minimum: "2026-05-04T03:00:00Z" };
+  assert.notEqual(cycleDateError("2026-05-03T22:59:59", "America/Santiago", options), "");
+  assert.equal(cycleDateError("2026-05-03T23:00:00", "America/Santiago", options), "");
+  assert.equal(cycleDateError("2020-01-01T12:00", "America/Santiago", { now: options.now }), "");
+});
+
+test("close rejects before/equal start, accepts later same-day and preserves subsecond bounds", () => {
+  for (const minimum of ["2026-05-20T16:00:00Z", "2026-05-20T16:00:00.000456Z"]) {
+    const options = { minimum, exclusiveMinimum: true, now: Date.parse("2026-05-21T00:00:00Z") };
+    assert.notEqual(cycleDateError("2026-05-20T11:59:59", "America/Santiago", options), "");
+    assert.notEqual(cycleDateError("2026-05-20T12:00:00", "America/Santiago", options), "");
+    assert.equal(cycleDateError("2026-05-20T12:00:01", "America/Santiago", options), "");
+    assert.equal(cycleDateError("2026-05-21T04:00:01", "Pacific/Auckland", options), "");
+  }
+});
+
+test("field validation handles omitted/repeated DST hours against absolute boundaries", () => {
+  const now = Date.parse("2026-11-04T12:00:00Z");
+  assert.match(cycleDateError("2026-09-06T00:30", "America/Santiago", { now }), /no existe/);
+  const options = { now, minimum: "2026-04-05T02:30:00Z", exclusiveMinimum: true };
+  assert.match(cycleDateError("2026-04-04T23:15", "America/Santiago", options), /se repite/);
+  assert.notEqual(cycleDateError("2026-04-04T23:15", "America/Santiago", { ...options, choice: "earlier" }), "");
+  assert.equal(cycleDateError("2026-04-04T23:15", "America/Santiago", { ...options, choice: "later" }), "");
+  assert.equal(cycleInputMax(new Date("2026-04-05T03:15:00Z"), "America/Santiago"), undefined);
+  assert.equal(cycleInputMax(new Date(now), "UTC"), "2026-11-04T12:00:00");
+});
 
 test("Chile: la hora repetida exige elegir uno de dos instantes distintos", () => {
   const value = "2026-04-04T23:30";

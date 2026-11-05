@@ -75,8 +75,8 @@ test("Shell usa el lockup oficial de Coffeecito sin texto legacy", () => {
   assert.match(shell, /className="shell-brand-lockup" href="\/contactos"/);
   assert.doesNotMatch(shell, /className="shell-brand-lockup" href="\/"/);
   assert.match(shell, /src="\/brand\/coffeecito-isotipo\.svg"/);
-  assert.match(shell, />Coffeecito<\/span>/);
-  assert.match(css, /\.shell-brand-lockup span[\s\S]*var\(--font-coffeecito-wordmark\)[\s\S]*font-weight: 900[\s\S]*letter-spacing: -0\.015em/);
+  assert.match(shell, /<BrandBetaWordmark \/>/);
+  assert.match(css, /\.shell-brand-lockup > span[\s\S]*var\(--font-coffeecito-wordmark\)[\s\S]*font-weight: 900[\s\S]*letter-spacing: -0\.015em/);
 });
 
 test("Shell separa marca, navegacion primaria y utilidades para el header responsive", () => {

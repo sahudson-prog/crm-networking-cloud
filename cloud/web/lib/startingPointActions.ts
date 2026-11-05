@@ -20,12 +20,12 @@ export async function readCurrentUserStartingPoint(): Promise<StartingPointValue
 
 export async function saveCurrentUserStartingPoint(
   values: StartingPointValues,
-  fields: Array<keyof StartingPointValues> = ["fullName", "professionalSituationCode", "networkingStartDate"]
+  fields: Array<keyof StartingPointValues> = ["fullName", "professionalSituationCode"]
 ): Promise<StartingPointValues> {
   const normalized = normalizeStartingPoint(values);
   const { data, error } = await requireSupabase().rpc("save_current_user_starting_point_v1", {
     p_full_name: fields.includes("fullName") ? normalized.fullName : null,
-    p_networking_start_date: fields.includes("networkingStartDate") ? normalized.networkingStartDate : null,
+    p_networking_start_date: null,
     p_professional_situation_code: fields.includes("professionalSituationCode")
       ? normalized.professionalSituationCode
       : null

@@ -31,7 +31,7 @@ Prompt de recuperación copy/paste-safe:
 
 - Último PR integrado: PR #48, cierre documental de OBJ-02, SHA `37f41606a51a33186ee79059dad45f58d524fcd5`. La release de producto sigue siendo PR #47 (`4f28f46c2c817f5c6ca23572605bcf44f1000421`); PR #46 fue cerrado sin merge y su contenido se integró por PR #47.
 - El owner confirma las siete migrations y sus verificadores PROD PASS, backup lógico y restauración local aislada PASS, Vercel Production Ready/Current para el SHA integrado y smoke PROD PASS el 2026-11-02. OBJ-02 queda COMPLETED operacionalmente según esa confirmación. El estado GitHub Vercel del SHA es `success`; no se verificó directamente en Vercel que siga siendo Current.
-- Canonical `main` y `origin/main` están alineados y limpios en `37f41606a51a33186ee79059dad45f58d524fcd5`.
+- Al cierre documental de OBJ-02, canonical `main` y `origin/main` quedaron alineados y limpios en `37f41606a51a33186ee79059dad45f58d524fcd5`. El baseline de trabajo posterior figura en el checkpoint activo.
 - Última release de producto completada: OBJ-02, PR #47; deployment y smoke PROD confirmados por el owner.
 - Last completed product release SHA: `4f28f46c2c817f5c6ca23572605bcf44f1000421`.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
@@ -56,21 +56,23 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: BRAND-BETA-01 - Identidad Beta, seleccionada como NEXT; esta preparación documental no autoriza implementación.
-- Status: ROADMAP APPROVED; BRAND-BETA-01 seleccionada, las demás iniciativas planificadas `NOT CONTRACTED` para implementación.
-- Verified baseline: canonical `main` = `origin/main` = `37f41606a51a33186ee79059dad45f58d524fcd5`, working tree limpio al crear el worktree documental.
-- Current branch/worktree: `codex/beta-readiness-roadmap`, worktree documental `beta-readiness-roadmap`; los demás worktrees se preservan.
+- Current phase: Beta UX V1, integración local autorizada de BRAND-BETA-01, UX-ONB-COPY-01 y UX-DATE-01; sin commit ni publicación conjunta.
+- Status: BRAND-BETA-01 (`c275f1af2ed8b7d717ceb57c4633f6d4712ef8bc`) y UX-ONB-COPY-01 (`38c5431a0f7160d7861354c6c862ee4ea45e6183`) son candidatos publicados según el owner, con HEAD locales coincidentes. No se integran individualmente a main.
+- Verified local baseline: canonical `main` limpio y referencia local `origin/main` = `e0092dbb8b4b8530ad0fdc66a9690a76322ec9b4`. No se hizo fetch por el límite de operaciones remotas; vigencia GitHub pendiente antes de publicación.
+- Current branch/worktree: `codex/beta-ux-v1`, worktree `beta-ux-v1`; candidatos y contrato originales preservados. Integración por diffs locales, sin merge ni commits nuevos.
+- Estado DEV reportado por el owner: UX-DATE-01 migrations/verifiers 001/002 y smoke funcional PASS; DEV cerrado en paused y Data API OFF. PROD sin cambios UX-DATE-01.
 - Completed según el owner: aprobación funcional/visual DEV de Avísame, Oportunidades y Seguimiento; siete migrations PROD y sus verificadores PASS: `202610290001`, `202610290002`, `202610290003`, `202610290004`, `202610300001`, `202610300002` y `202610300003`; backup lógico y restauración aislada PASS; deployment Production Ready/Current del SHA integrado; smoke PROD PASS el 2026-11-02. No repetir estos SQL ni las pruebas de producto por este cierre documental.
-- Completed verificado directamente: referencia remota de `main`, fetch y fast-forward del canonical limpio, commit integrado y archivos versionados; estado GitHub Vercel `success` para el SHA; lectura de los scripts reales de captura/restauración y preparación documental. No se consultaron Supabase ni Vercel directamente, ni se ejecutaron backups, restores o smoke en esta tarea.
-- Pending: no hay gates operacionales pendientes de OBJ-02. BRAND-BETA-01 requiere diseño/copy y revisión antes de implementar; las demás iniciativas requieren contratación propia. El first-run real de R1 sigue diferido con cobertura automatizada; la eliminación completa de cuenta conserva su deuda de infraestructura, sin ampliar la release anterior.
+- Completed local UX-DATE-01: política global, inicio inmutable, retiro del editor legacy, wrappers históricos/periódicos y validaciones sintéticas. No se consultaron Supabase ni Vercel ni se ejecutó SQL remoto en esta tarea.
+- Validación directa de integración: 300 tests focales PASS, typecheck/build PASS sin configuración remota y harness sintético Edge 320/1280 PASS. Se conserva el copy aprobado frente al conflicto de la burbuja inicial; pruebas de COPY actualizadas para ausencia de fecha y harness DATE para el mensaje aprobado. No se repitieron ensayos SQL: migrations/preflights/verifiers son idénticos al candidato DATE.
+- Pending: revisión y smoke del conjunto integrado, publicación autorizada y cutover PROD con backup recuperable y gates SQL/runtime independientes. No repetir SQL DEV ya verificado. No hay nuevos gates pendientes de OBJ-02; su deuda de eliminación de cuenta y first-run real diferido no se dan por corregidos.
 - Límite de verificación: sin acceso directo a Vercel no se certificó independientemente `Current`; consta la confirmación del owner y el estado GitHub `success`. El backup/restore PASS acredita el ensayo SQL realizado, no Storage bytes, configuración externa, contraseñas de roles, PITR ni equivalencia exhaustiva de todos los catálogos remotos.
-- Immediate next action: revisar esta planificación y preparar el alcance de implementación de BRAND-BETA-01 por separado.
-- Stop boundary: ningún cambio de producto, SQL remoto, deployment ni implementación queda autorizado por este checkpoint documental.
+- Immediate next action: revisar el diff integrado y autorizar por separado el smoke conjunto y la preparación de release; orden de cutover en planning/UX-DATE-01.md y contratos PROD.
+- Stop boundary: sin commit/push, PR, merge, SQL remoto, nuevas autorizaciones OAuth ni deployment. El resto del roadmap no se contrata por esta integración.
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED; PR #48 integrado) → `BRAND-BETA-01` (NEXT).
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED) → `Beta UX V1` (integración local en revisión).
 
-Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `UX-DATE-01` → `QA-UX-01` → `UX-SAVE-01` → `UX-COPY-01` → resto del backlog. Solo BRAND-BETA-01 está seleccionada como próxima implementación; el orden no contrata las demás ni desplaza los gates mínimos de seguridad, privacidad y operación antes de ampliar acceso a usuarios reales.
+Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `UX-DATE-01` → `QA-UX-01` → `UX-SAVE-01` → `UX-COPY-01` → resto del backlog. Las tres primeras se integrarán en una única release Beta UX V1, todavía no autorizada. El orden no contrata las restantes ni desplaza gates de seguridad, privacidad y operación.
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -114,12 +116,12 @@ Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `U
 
 **Relación con otras fases**
 
-- Al cierre de ONB-01, esa fase no activó otra por sí sola. INV-01 y OBJ-02 quedaron cerradas después; el pipeline y los estados actuales figuran arriba. BRAND-BETA-01 es NEXT y las demás iniciativas del orden beta siguen sin contrato de implementación.
+- Al cierre de ONB-01, esa fase no activó otra por sí sola. INV-01 y OBJ-02 quedaron cerradas después; el pipeline y los estados actuales de Beta UX V1 figuran arriba.
 - Se preserva la deuda UX fuera de alcance: las transiciones pueden repetir “Preparando recorrido...” / “Cargando...” y requieren auditoría separada de Shell, Coach y loading states.
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 está integrado, desplegado y validado en PROD según la confirmación del owner; canonical está sincronizado. PR #46 está cerrado sin merge; Avísame se integró junto con Oportunidades y Seguimiento mediante PR #47. INV-01 está cerrada. BRAND-BETA-01 es NEXT; las cinco iniciativas posteriores tienen orden aprobado pero no están contratadas para implementación.
+OBJ-02 está integrado, desplegado y validado en PROD según el owner. PR #46 está cerrado sin merge; Avísame se integró junto con Oportunidades y Seguimiento mediante PR #47. INV-01 está cerrada. Beta UX V1 está en preparación; QA-UX-01 y posteriores mantienen su contratación independiente.
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -207,21 +209,21 @@ OBJ-02 está integrado, desplegado y validado en PROD según la confirmación de
 
 ### BRAND-BETA-01 - Variante de marca beta
 
-- Status: `NEXT / SELECTED FOR IMPLEMENTATION`; esta tarea solo prepara documentación.
+- Status: candidato publicado para Beta UX V1 según el owner; preservado, sin integración en esta tarea.
 - Objetivo: variante BETA discreta y profesional junto a Coffeecito, reversible, accesible y responsive, sin sustituir recursos originales.
 - Especificación funcional durable: `docs/planning/BRAND-BETA-01.md`.
-- Decisiones cerradas: preservar assets originales en Git; aplicar la variante en landing, onboarding y cabecera; comunicar que el producto está en pruebas y puede cambiar; evitar banners invasivos y cambios generales de identidad.
-- Decisiones pendientes: composición exacta, copy final, activación/retirada y aceptación visual/accesible.
-- Relación: primera del orden beta aprobado; implementación requiere tarea separada.
+- Decisiones cerradas según el owner: distintivo BETA reversible y favicon aprobados; sin mensajes adicionales. El contrato actualizado vive en su candidato publicado, no se reimplementa en UX-DATE-01.
+- Pendiente: integración conjunta y retirada futura del distintivo al finalizar beta.
+- Relación: primera del orden beta aprobado, candidata junto con COPY y DATE.
 
 ### Iniciativas UX planificadas para beta
 
-Todas las siguientes están `NOT CONTRACTED` para implementación. El orden indica prioridad aprobada, no despliegue ni permiso para alterar contratos.
+COPY es candidato publicado y DATE candidato local autorizado; las restantes siguen `NOT CONTRACTED` para implementación. El orden no equivale a despliegue.
 
 | Orden | Iniciativa | Contrato de planificación |
 | --- | --- | --- |
 | 2 | `UX-ONB-COPY-01` | [Revisión editorial del tutorial](planning/UX-ONB-COPY-01.md), sin cambiar mecánicas. |
-| 3 | `UX-DATE-01` | [Una fecha visible](planning/UX-DATE-01.md); contrato de fecha y compatibilidad PROD aún abiertos. |
+| 3 | `UX-DATE-01` | [Una fecha visible](planning/UX-DATE-01.md); contrato aprobado, candidato local y cutover pendiente. |
 | 4 | `QA-UX-01` | [Entorno de auditoría visual](planning/QA-UX-01.md), aislado y sintético. |
 | 5 | `UX-SAVE-01` | [Persistencia transversal](planning/UX-SAVE-01.md), arquitectura preliminar sin tecnología elegida. |
 | 6 | `UX-COPY-01` | [Comunicación transversal](planning/UX-COPY-01.md), posterior al tutorial. |

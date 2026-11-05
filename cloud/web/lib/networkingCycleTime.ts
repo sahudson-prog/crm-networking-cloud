@@ -1,5 +1,68 @@
 export type RepeatedTimeChoice = "earlier" | "later";
 
+// Resolve a civil day within the existing instant interval, never move a bound
+// or a persisted timestamp. Skipped days have no selectable instant.
+export function cycleStartFromDate(day: string, zone: string, minimum?: string | null, now = Date.now()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Selecciona una fecha válida.");
+  let wall: WallTime;
+  try { wall = parseWallTime(`${day}T00:00:00`); }
+  catch { throw new Error("Selecciona una fecha válida."); }
+  const naive = utcTime(wall);
+  const midnights = localDateTimeCandidates(`${day}T00:00:00`, zone).map(date => date.getTime());
+  const projected = [-36, -12, 0, 12, 36].map(hours => {
+    const sample = naive + hours * 3_600_000;
+    return naive - (utcTime(wallAt(sample, zone)) - sample);
+  }).filter(instant => localDateTimeValue(new Date(instant), zone).slice(0, 10) === day);
+  const starts = midnights.length ? midnights : projected;
+  if (!starts.length) throw new Error("Ese día no existe en la zona horaria seleccionada.");
+  const instant = Math.max(Math.min(...starts), minimum ? firstSelectableStartInstant(minimum) : -Infinity);
+  if (localDateTimeValue(new Date(instant), zone).slice(0, 10) !== day)
+    throw new Error("La fecha es anterior al inicio permitido por el límite vigente o el cierre anterior.");
+  if (instant > now) throw new Error("La fecha no tiene un inicio permitido antes del presente.");
+  const localStart = localDateTimeValue(new Date(instant), zone);
+  const candidates = localDateTimeCandidates(localStart, zone);
+  const repeatedTimeChoice: RepeatedTimeChoice | undefined = candidates.length > 1
+    ? (candidates[0].getTime() === instant ? "earlier" : "later") : undefined;
+  return { localStart, repeatedTimeChoice, startedAt: new Date(instant).toISOString() };
+}
+
+export function cycleCloseInputMin(startedAt: string, zone: string) {
+  const nextMinute = Math.floor(Date.parse(startedAt) / 60_000) * 60_000 + 60_000;
+  return startInputMin(new Date(nextMinute).toISOString(), zone)?.slice(0, 16);
+}
+
+export function cycleDateError(value: string, zone: string, options: {
+  choice?: RepeatedTimeChoice; minimum?: string | null; exclusiveMinimum?: boolean;
+  minimumMessage?: string; now?: number;
+} = {}): string {
+  if (!value) return "Selecciona una fecha y hora válidas.";
+  let candidates: Date[];
+  try { candidates = localDateTimeCandidates(value, zone); }
+  catch { return "Selecciona una fecha y hora válidas."; }
+  if (!candidates.length) return "Esa hora no existe en la zona horaria por el cambio de horario.";
+  if (candidates.length > 1 && !options.choice) return "Esa hora se repite. Elige cuál usar.";
+  const instant = (options.choice === "later" ? candidates[candidates.length - 1] : candidates[0]).getTime();
+  if (instant > (options.now ?? Date.now())) return "La fecha y hora no pueden ser futuras.";
+  if (options.minimum) {
+    if (!Number.isFinite(Date.parse(options.minimum))) return "No pudimos validar el límite de fecha. Actualiza la página.";
+    const min = options.exclusiveMinimum
+      ? Math.floor(Date.parse(options.minimum) / 1000) * 1000 + 1000
+      : firstSelectableStartInstant(options.minimum);
+    if (!Number.isFinite(min)) return "No pudimos validar el límite de fecha. Actualiza la página.";
+    if (instant < min) return options.minimumMessage ?? "La fecha es anterior al límite permitido.";
+  }
+  return "";
+}
+
+// During a clock rollback, native wall-time bounds can exclude valid instants.
+export function cycleInputMax(now: Date, zone: string): string | undefined {
+  const offset = timezoneOffsetLabel(now, zone);
+  for (let hour = 1; hour <= 48; hour++) {
+    if (timezoneOffsetLabel(new Date(now.getTime() - hour * 3600000), zone) !== offset) return undefined;
+  }
+  return localDateTimeValue(now, zone);
+}
+
 type WallTime = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 
 function parseWallTime(value: string): WallTime {

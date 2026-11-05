@@ -1,5 +1,6 @@
 import { LegalAcceptanceCheckbox } from "./LegalAcceptanceCheckbox";
 import { Button } from "./ui/Button";
+import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 
 export function LegalAcceptanceGate({
   accepting,
@@ -20,9 +21,9 @@ export function LegalAcceptanceGate({
     <main className="legal-acceptance-shell">
       <div aria-hidden="true" className="onboarding-intro-background" />
       <section aria-labelledby="legal-acceptance-title" className="legal-acceptance-panel">
-        <div aria-label="Coffeecito" className="onboarding-brand-lockup legal-acceptance-brand">
+        <div aria-label={BRAND_ACCESSIBLE_NAME} className="onboarding-brand-lockup legal-acceptance-brand">
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <span>Coffeecito</span>
+          <BrandBetaWordmark />
         </div>
         <div className="legal-acceptance-copy">
           <h1 id="legal-acceptance-title">Antes de continuar</h1>

@@ -363,7 +363,9 @@ test("writers Google usan RPCs transaccionales con cuenta conectada", () => {
   assert.match(contactWriter, /p_expected_cycle_id: expected\.cycleId/);
   assert.match(contactWriter, /p_expected_context: expected\.token/);
   assert.match(contactWriter, /if \(context\.provider === "google"\)/);
-  assert.match(interactionWriter, /apply_google_interaction_sync_v1/);
+  assert.match(interactionWriter, /apply_google_history_v1/);
+  assert.match(interactionWriter, /apply_google_periodic_v1/);
+  assert.doesNotMatch(interactionWriter, /rpc\("apply_google_interaction_sync_v1"/);
   assert.match(interactionWriter, /if \(normalized\.provider === "google"\)/);
 });
 
@@ -473,7 +475,7 @@ test("botones de importacion compactos reciben razones visibles para disabled", 
   const contactsSource = readFileSync(new URL("../components/GoogleContactsSyncPanel.tsx", import.meta.url), "utf8");
   const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
 
-  assert.match(accountSource, /Define primero la fecha de inicio de networking/);
+  assert.match(accountSource, /Configura el inicio de tu proceso en Objetivos/);
   assert.match(contactsSource, /connected-service-reason/);
   assert.match(interactionsSource, /connected-service-action-reason/);
   assert.match(contactsSource, /Boolean\(compactDisabledReason\) \|\| state\.loading/);
@@ -581,10 +583,10 @@ test("Gmail histórico revalida capability en lectura preview y apply", () => {
   assert.match(apply[0], /authorizeConnectedSync\(input\.connectedAccountId, "email"\)[\s\S]*syncMail/);
 });
 
-test("Contactos no se bloquea por fecha de inicio pero correos y calendario si", () => {
+test("Contactos no se bloquea por ciclo pero la importación histórica exige inicio conocido", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
   const contactsReasonIndex = source.indexOf('googleImportDisabledReason(account, "contacts")');
-  const dateReasonIndex = source.indexOf("Define primero la fecha de inicio de networking.");
+  const dateReasonIndex = source.indexOf("Configura el inicio de tu proceso en Objetivos antes de importar correos o citas.");
 
   assert.ok(contactsReasonIndex > -1);
   assert.ok(dateReasonIndex > -1);

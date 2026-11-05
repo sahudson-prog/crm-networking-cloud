@@ -4,7 +4,6 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useState
 } from "react";
 import {
@@ -19,7 +18,6 @@ import {
   readCurrentUserStartingPoint,
   saveCurrentUserStartingPoint
 } from "../lib/startingPointActions";
-import { networkingStartBounds } from "../lib/syncDate";
 import { Button } from "./ui/Button";
 
 export type StartingPointFieldsHandle = {
@@ -56,7 +54,6 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
     const [message, setMessage] = useState("");
     const [reloadKey, setReloadKey] = useState(0);
     const [saving, setSaving] = useState(false);
-    const maximumDate = useMemo(() => networkingStartBounds().maximumDate, []);
     const changed = JSON.stringify(normalizeStartingPoint(draft)) !== JSON.stringify(saved);
 
     useEffect(() => {
@@ -91,7 +88,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
       const changedFields = (Object.keys(draft) as Array<keyof StartingPointValues>)
         .filter((key) => normalizeStartingPoint(draft)[key] !== saved[key]);
       const fieldsToSave = requireComplete
-        ? (["fullName", "professionalSituationCode", "networkingStartDate"] as Array<keyof StartingPointValues>)
+        ? (["fullName", "professionalSituationCode"] as Array<keyof StartingPointValues>)
         : changedFields;
       if (fieldsToSave.length === 0) return true;
       const allErrors = validateStartingPoint(draft);
@@ -112,7 +109,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
         setDraft(persisted);
         setSaved(persisted);
         setErrors({});
-        setMessage("Tu punto de partida quedó guardado.");
+        setMessage(mode === "onboarding" ? "Datos guardados." : "Tu punto de partida quedó guardado.");
         onSaved?.(persisted);
         return true;
       } catch (error) {
@@ -169,27 +166,9 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
             ) : null}
           </label>
 
-          <label className="field starting-point-field">
-            <span>¿Desde cuándo haces networking?</span>
-            <input
-              disabled={loading || saving}
-              max={maximumDate}
-              type="date"
-              value={draft.networkingStartDate}
-              onChange={(event) => update("networkingStartDate", event.target.value)}
-              aria-describedby={`starting-point-date-help${errors.networkingStartDate ? " starting-point-date-error" : ""}`}
-              aria-invalid={Boolean(errors.networkingStartDate)}
-            />
-            <small className="starting-point-help" id="starting-point-date-help">
-              Será la referencia para medir tus avances y recuperar interacciones históricas disponibles. No amplía las ventanas ni permisos de importación.
-            </small>
-            {errors.networkingStartDate ? (
-              <small className="form-error" id="starting-point-date-error">{errors.networkingStartDate}</small>
-            ) : null}
-          </label>
         </div>
 
-        {loading ? <p className="meta" role="status">Cargando tu punto de partida...</p> : null}
+        {loading ? <p className="meta" role="status">{mode === "onboarding" ? "Cargando tus datos..." : "Cargando tu punto de partida..."}</p> : null}
         {loadError ? (
           <div className="starting-point-feedback" role="alert">
             <p className="form-error">{loadError}</p>

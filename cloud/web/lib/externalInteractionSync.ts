@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import type { InteractionRow } from "./readModel";
+import type { HistoryWindow } from "./historyPolicy";
 
 const INTERACTION_TYPES = new Set(["email", "calendar", "call", "message", "manual"]);
 const DIRECTIONS = new Set(["inbound", "outbound", "internal", "unknown"]);
@@ -12,6 +13,7 @@ export type ExternalInteractionParticipantInput = {
 };
 
 export type ExternalInteractionInput = {
+  historyWindow?: HistoryWindow;
   provider: string;
   sourceService: string;
   externalObjectType: string;
@@ -92,9 +94,10 @@ async function syncGoogleInteraction(
 ): Promise<ExternalInteractionSyncResult> {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   if (!input.connectedAccountId) throw new Error("La sincronizacion Google requiere una cuenta conectada.");
-  const { data, error } = await supabase.rpc("apply_google_interaction_sync_v1", {
+  const { data, error } = await supabase.rpc(input.historyWindow ? "apply_google_history_v1" : "apply_google_periodic_v1", {
     p_connected_account_id: input.connectedAccountId,
-    p_item: input
+    p_item: input,
+    ...(input.historyWindow ? { p_context: input.historyWindow } : {})
   });
   if (error) throw error;
   const result = (data ?? {}) as Record<string, unknown>;
@@ -160,6 +163,7 @@ export async function markInteractionReviewed(input: InteractionReviewStateInput
 
 async function normalizeExternalInteractionInput(input: ExternalInteractionInput) {
   const normalized = {
+    historyWindow: input.historyWindow,
     provider: normalizeRequired(input.provider, "Proveedor"),
     sourceService: normalizeRequired(input.sourceService, "Servicio de origen"),
     externalObjectType: normalizeRequired(input.externalObjectType, "Tipo de objeto externo"),
