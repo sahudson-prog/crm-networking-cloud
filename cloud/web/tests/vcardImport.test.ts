@@ -22,6 +22,17 @@ NOTE:Este texto no tiene destino
 ADR:;;Calle de ejemplo;;;;
 END:VCARD`;
 
+for (const version of ["2.1", "3.0", "4.0"]) {
+  test(`fixture sintética vCard ${version}: nombre, correo y teléfono`, () => {
+    const result = parseVCardContacts(SINGLE_VCARD.replace("VERSION:3.0", `VERSION:${version}`));
+    assert.equal(result.invalidCount, 0);
+    assert.equal(result.contacts.length, 1);
+    assert.equal(result.contacts[0].displayName, "Ada Lovelace");
+    assert.deepEqual(result.contacts[0].emails, ["ada@example.com"]);
+    assert.equal(result.contacts[0].phones.length, 1);
+  });
+}
+
 function existingContact(overrides: Partial<ContactRow> = {}): ContactRow {
   return {
     company: "",

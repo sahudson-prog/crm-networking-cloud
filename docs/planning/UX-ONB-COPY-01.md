@@ -99,7 +99,7 @@ Botón: **Ir a Contactos**. Conserva el guardado de finalización antes de naveg
 ## Exclusiones, dependencias y gates
 
 - No se implementa el diálogo de ayuda de importación, pestañas ni enlaces externos. Se excluye expresamente la frase `Te explicamos aquí cómo obtener el archivo.`.
-- Pendiente separado: preparar un instructivo para exportar contactos desde Google y Apple. La frase aprobada `Aquí puedes ver cómo exportar contactos desde Google o desde Apple.` es solo texto en esta entrega; no hay enlace, popup ni control sin destino.
+- En la entrega original COPY, el instructivo de exportación quedó separado y la frase era solo texto. UX-VCARD-HELP-01 lo implementa como candidato posterior: `Aquí puedes ver cómo exportar contactos desde Google, Apple o Samsung.`; los tres nombres abren ayuda contextual, sin alterar el progreso. Incluye pestañas Google, iCloud, iPhone y Samsung. Revisión visual aprobada por el owner; publicación del candidato y release son gates separados.
 - No se oculta ni modifica la cabecera, sus botones, utilidades o enlaces. No se modifica BRAND-BETA-01.
 - El candidato COPY independiente conservaba la fecha. En la integración Beta UX V1, UX-DATE-01 retira el campo redundante sin sustituir el copy aprobado; la fecha única se configura en Objetivos. La release sigue siendo conjunta.
 - No se cambian mensajes operativos compartidos fuera del onboarding, Auth, SQL, permisos, importadores ni navegación. Las modalidades futuras continúan sin habilitarse.

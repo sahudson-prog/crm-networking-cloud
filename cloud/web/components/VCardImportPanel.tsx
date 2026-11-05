@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { readAllActiveContacts } from "../lib/cloudData";
 import { saveContactFromEditor } from "../lib/contactActions";
 import type { SyncPreviewChange } from "../lib/syncOrchestrator";
@@ -34,12 +34,14 @@ export function VCardImportPanel({
   actionLabel = "Importar",
   compactAction = false,
   description = "Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.",
-  sourceLabel = "Importar contactos desde archivo vCard"
+  sourceLabel = "Importar contactos desde archivo vCard",
+  sourceHelp
 }: {
   actionLabel?: string;
   compactAction?: boolean;
   description?: string;
   sourceLabel?: string;
+  sourceHelp?: ReactNode;
 } = {}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [applying, setApplying] = useState(false);
@@ -123,7 +125,7 @@ export function VCardImportPanel({
             <Icon name="file" />
           </span>
           <div>
-            <strong>{sourceLabel}</strong>
+            <div className="vcard-source-title"><strong>{sourceLabel}</strong>{sourceHelp ? <> {sourceHelp}</> : null}</div>
             <span>{description}</span>
           </div>
         </div>
