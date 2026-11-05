@@ -29,11 +29,12 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Último PR integrado: PR #48, cierre documental de OBJ-02, SHA `37f41606a51a33186ee79059dad45f58d524fcd5`. La release de producto sigue siendo PR #47 (`4f28f46c2c817f5c6ca23572605bcf44f1000421`); PR #46 fue cerrado sin merge y su contenido se integró por PR #47.
-- El owner confirma las siete migrations y sus verificadores PROD PASS, backup lógico y restauración local aislada PASS, Vercel Production Ready/Current para el SHA integrado y smoke PROD PASS el 2026-11-02. OBJ-02 queda COMPLETED operacionalmente según esa confirmación. El estado GitHub Vercel del SHA es `success`; no se verificó directamente en Vercel que siga siendo Current.
+- Último PR integrado y última release de producto completada: Beta UX V1, PR #50, SHA `d71bd96b5d5a00c2058b73a1ed0e7ea7f1304d8d`. OBJ-02 (PR #47 producto y #48 documentación) permanece completada como release anterior; PR #46 cerró sin merge.
+- Para OBJ-02, el owner confirmó las siete migrations y sus verificadores PROD PASS, backup lógico y restauración local aislada PASS, Vercel Production Ready/Current para `4f28f46c2c817f5c6ca23572605bcf44f1000421` y smoke PROD PASS el 2026-11-02. OBJ-02 quedó COMPLETED operacionalmente según esa confirmación. El estado GitHub Vercel de ese SHA fue `success`; no se verificó directamente en Vercel que siguiera siendo Current.
 - Al cierre documental de OBJ-02, canonical `main` y `origin/main` quedaron alineados y limpios en `37f41606a51a33186ee79059dad45f58d524fcd5`. El baseline de trabajo posterior figura en el checkpoint activo.
-- Última release de producto completada: OBJ-02, PR #47; deployment y smoke PROD confirmados por el owner.
-- Last completed product release SHA: `4f28f46c2c817f5c6ca23572605bcf44f1000421`.
+- Beta UX V1 integra BRAND-BETA-01, UX-ONB-COPY-01 y UX-DATE-01. El owner confirma en PROD migrations/verifiers `202611040001` y `202611040002` PASS, backup lógico `20261105-150016Z` con restauración local aislada PASS, Vercel Production Ready/Current, smoke PROD PASS, gate `open` y Data API ON. DEV permanece operativo en `test_only` con Data API ON. Estas son confirmaciones del owner, no verificaciones remotas de este checkpoint.
+- Canonical `main` se sincronizó limpio con `origin/main` en `d71bd96b5d5a00c2058b73a1ed0e7ea7f1304d8d` después del release.
+- Google histórico/periódico E2E no quedó certificado por este release; no confundir smoke general PASS con esa cobertura.
 - Release histórica conservada: PR #29, desacople del sync periódico respecto del límite histórico de networking.
 - Estado PROD: migrations `202610150002` y `202610150003` aplicadas; verifiers focales PASS; `verify_access` canónico PASS; PR #23 merged; Vercel Production PASS; smoke PROD PASS.
 - Contrato legal vigente: Terms 1.1, Privacy 1.1 y `acceptance_method = explicit_web`.
@@ -41,7 +42,7 @@ Prompt de recuperación copy/paste-safe:
 - Publicación operacional `SEC-DEV-01` completada: PR #37 integrado en `cd6eb1014b64ed4f2fb21e23733dbd93ac57c3f7`; Vercel Production confirmado por el owner. La remediación SQL se ejecutó solo en DEV.
 - ONB-01 cerrado: PR #27 y PR #28 integrados, Vercel success reportado y validación funcional PROD PASS confirmada por el owner el 20-10-2026.
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
-- Resultado estable de SYNC-INC-01: el límite histórico de 12 meses se mantiene para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloquea el sync periódico; Gmail y Calendar conservan sus ventanas rolling/incrementales acotadas.
+- Al cierre de SYNC-INC-01, el límite histórico era de 12 meses para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloqueaba el sync periódico. Beta UX V1 sustituyó ese límite histórico por la política global de UX-DATE-01, sin cambiar el contrato del sync periódico.
 - `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
 - `SEC-GOOGLE-01`: expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. Calendar PROD continúa con persistencia no declarada PASS y diagnóstico diferido. El contract permanece separado en `NO-GO`, sin autorización nueva en INV-01.
 
@@ -56,23 +57,17 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: Beta UX V1, integración local autorizada de BRAND-BETA-01, UX-ONB-COPY-01 y UX-DATE-01; sin commit ni publicación conjunta.
-- Status: BRAND-BETA-01 (`c275f1af2ed8b7d717ceb57c4633f6d4712ef8bc`) y UX-ONB-COPY-01 (`38c5431a0f7160d7861354c6c862ee4ea45e6183`) son candidatos publicados según el owner, con HEAD locales coincidentes. No se integran individualmente a main.
-- Verified local baseline: canonical `main` limpio y referencia local `origin/main` = `e0092dbb8b4b8530ad0fdc66a9690a76322ec9b4`. No se hizo fetch por el límite de operaciones remotas; vigencia GitHub pendiente antes de publicación.
-- Current branch/worktree: `codex/beta-ux-v1`, worktree `beta-ux-v1`; candidatos y contrato originales preservados. Integración por diffs locales, sin merge ni commits nuevos.
-- Estado DEV reportado por el owner: UX-DATE-01 migrations/verifiers 001/002 y smoke funcional PASS; DEV cerrado en paused y Data API OFF. PROD sin cambios UX-DATE-01.
-- Completed según el owner: aprobación funcional/visual DEV de Avísame, Oportunidades y Seguimiento; siete migrations PROD y sus verificadores PASS: `202610290001`, `202610290002`, `202610290003`, `202610290004`, `202610300001`, `202610300002` y `202610300003`; backup lógico y restauración aislada PASS; deployment Production Ready/Current del SHA integrado; smoke PROD PASS el 2026-11-02. No repetir estos SQL ni las pruebas de producto por este cierre documental.
-- Completed local UX-DATE-01: política global, inicio inmutable, retiro del editor legacy, wrappers históricos/periódicos y validaciones sintéticas. No se consultaron Supabase ni Vercel ni se ejecutó SQL remoto en esta tarea.
-- Validación directa de integración: 300 tests focales PASS, typecheck/build PASS sin configuración remota y harness sintético Edge 320/1280 PASS. Se conserva el copy aprobado frente al conflicto de la burbuja inicial; pruebas de COPY actualizadas para ausencia de fecha y harness DATE para el mensaje aprobado. No se repitieron ensayos SQL: migrations/preflights/verifiers son idénticos al candidato DATE.
-- Pending: revisión y smoke del conjunto integrado, publicación autorizada y cutover PROD con backup recuperable y gates SQL/runtime independientes. No repetir SQL DEV ya verificado. No hay nuevos gates pendientes de OBJ-02; su deuda de eliminación de cuenta y first-run real diferido no se dan por corregidos.
-- Límite de verificación: sin acceso directo a Vercel no se certificó independientemente `Current`; consta la confirmación del owner y el estado GitHub `success`. El backup/restore PASS acredita el ensayo SQL realizado, no Storage bytes, configuración externa, contraseñas de roles, PITR ni equivalencia exhaustiva de todos los catálogos remotos.
-- Immediate next action: revisar el diff integrado y autorizar por separado el smoke conjunto y la preparación de release; orden de cutover en planning/UX-DATE-01.md y contratos PROD.
-- Stop boundary: sin commit/push, PR, merge, SQL remoto, nuevas autorizaciones OAuth ni deployment. El resto del roadmap no se contrata por esta integración.
+- Current phase: Beta UX V1 `COMPLETED`; checkpoint documental post-release en `codex/beta-ux-v1-closeout`, basado en `d71bd96b5d5a00c2058b73a1ed0e7ea7f1304d8d`.
+- Confirmado por el owner: PR #50 integrado, SQL/verifiers 001/002 PROD PASS, backup `20261105-150016Z` y restauración aislada PASS, Vercel Production Ready/Current, smoke PROD PASS y gate PROD `open` con Data API ON. DEV conserva `test_only` y Data API ON.
+- Verificado localmente: canonical `main` limpio, sincronizado con `origin/main` en el SHA integrado; migrations y verifiers presentes. No se repitieron pruebas, SQL, backups ni despliegues en este cierre.
+- Pendiente de cobertura: Google histórico/periódico E2E no certificado. QA-UX-01 es siguiente en el orden aprobado, pero sigue `NOT CONTRACTED / DECISION REQUIRED`; no se inicia por cerrar Beta UX V1.
+- Immediate next action: decisión explícita del owner sobre contratar QA-UX-01 y sus gates; no hay nueva implementación autorizada por este checkpoint.
+
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED) → `Beta UX V1` (integración local en revisión).
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED) → `Beta UX V1` (COMPLETED) → `QA-UX-01` (siguiente en orden, NOT CONTRACTED).
 
-Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `UX-DATE-01` → `QA-UX-01` → `UX-SAVE-01` → `UX-COPY-01` → resto del backlog. Las tres primeras se integrarán en una única release Beta UX V1, todavía no autorizada. El orden no contrata las restantes ni desplaza gates de seguridad, privacidad y operación.
+Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `UX-DATE-01` → `QA-UX-01` → `UX-SAVE-01` → `UX-COPY-01` → resto del backlog. Las tres primeras se integraron en Beta UX V1. El orden no contrata las restantes ni desplaza gates de seguridad, privacidad y operación.
 
 ### OPS-LOCAL-01 - Canonical local Git cutover
 
@@ -121,7 +116,8 @@ Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `U
 
 ## Iniciativa activa y candidatos futuros
 
-OBJ-02 está integrado, desplegado y validado en PROD según el owner. PR #46 está cerrado sin merge; Avísame se integró junto con Oportunidades y Seguimiento mediante PR #47. INV-01 está cerrada. Beta UX V1 está en preparación; QA-UX-01 y posteriores mantienen su contratación independiente.
+OBJ-02 está integrado, desplegado y validado en PROD según el owner. PR #46 está cerrado sin merge; Avísame se integró junto con Oportunidades y Seguimiento mediante PR #47. INV-01 y Beta UX V1 están cerradas; QA-UX-01 y posteriores mantienen su contratación independiente.
+
 ### OPS-SYNC-01 - Revalidar hardening de diagnósticos de sync
 
 - Status: `NOT CONTRACTED / DECISION REQUIRED`.
@@ -209,21 +205,21 @@ OBJ-02 está integrado, desplegado y validado en PROD según el owner. PR #46 es
 
 ### BRAND-BETA-01 - Variante de marca beta
 
-- Status: candidato publicado para Beta UX V1 según el owner; preservado, sin integración en esta tarea.
+- Status: integrado en Beta UX V1 mediante PR #50.
 - Objetivo: variante BETA discreta y profesional junto a Coffeecito, reversible, accesible y responsive, sin sustituir recursos originales.
 - Especificación funcional durable: `docs/planning/BRAND-BETA-01.md`.
-- Decisiones cerradas según el owner: distintivo BETA reversible y favicon aprobados; sin mensajes adicionales. El contrato actualizado vive en su candidato publicado, no se reimplementa en UX-DATE-01.
-- Pendiente: integración conjunta y retirada futura del distintivo al finalizar beta.
-- Relación: primera del orden beta aprobado, candidata junto con COPY y DATE.
+- Decisiones cerradas según el owner: distintivo BETA reversible y favicon aprobados; sin mensajes adicionales.
+- Pendiente: retirada futura del distintivo al finalizar beta.
+- Relación: primera del orden beta aprobado, integrada junto con COPY y DATE.
 
 ### Iniciativas UX planificadas para beta
 
-COPY es candidato publicado y DATE candidato local autorizado; las restantes siguen `NOT CONTRACTED` para implementación. El orden no equivale a despliegue.
+COPY y DATE están integrados en Beta UX V1; las restantes siguen `NOT CONTRACTED` para implementación. El orden no equivale a autorización de la siguiente iniciativa.
 
 | Orden | Iniciativa | Contrato de planificación |
 | --- | --- | --- |
 | 2 | `UX-ONB-COPY-01` | [Revisión editorial del tutorial](planning/UX-ONB-COPY-01.md), sin cambiar mecánicas. |
-| 3 | `UX-DATE-01` | [Una fecha visible](planning/UX-DATE-01.md); contrato aprobado, candidato local y cutover pendiente. |
+| 3 | `UX-DATE-01` | [Una fecha visible](planning/UX-DATE-01.md); integrada en Beta UX V1, cutover PROD completado según el owner. |
 | 4 | `QA-UX-01` | [Entorno de auditoría visual](planning/QA-UX-01.md), aislado y sintético. |
 | 5 | `UX-SAVE-01` | [Persistencia transversal](planning/UX-SAVE-01.md), arquitectura preliminar sin tecnología elegida. |
 | 6 | `UX-COPY-01` | [Comunicación transversal](planning/UX-COPY-01.md), posterior al tutorial. |
