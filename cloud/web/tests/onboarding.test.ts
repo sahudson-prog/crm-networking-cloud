@@ -464,7 +464,7 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
   const vcardSource = source("../components/VCardImportPanel.tsx");
 
   assert.match(routeSource, /title="Comienza con tus contactos\."/);
-  assert.match(routeSource, /Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito\. Aquí puedes ver cómo[\s\S]*exportar contactos desde Google o desde Apple\./);
+  assert.match(routeSource, /<VCardHelp onboarding \/>/);
   assert.doesNotMatch(routeSource, /Te explicamos|aquí.*obtener el archivo/);
   assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
   assert.match(accountSource, /includeVCard[\s\S]*redirectPath="\/onboarding\/google"/);
@@ -634,7 +634,6 @@ test("copy aprobado conserva frases exactas y mensajes de Cuenta fuera del tutor
     "Comienza con tus contactos.", "Tu red, organizada a tu manera.",
     "La historia de cada contacto.", "Ya puedes empezar.",
     "Define tu objetivo de networking y establece las prioridades que te interesa perseguir. Esto te ayudará a enfocar tus conversaciones y encontrar oportunidades que tengan sentido para ti.",
-    "Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito. Aquí puedes ver cómo exportar contactos desde Google o desde Apple.",
     "Aquí administras tus contactos: eliges a quiénes poner en foco para hacer networking",
     "Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas, con notas y minutas. También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red.",
     "Ahora ya conoces las funciones básicas para avanzar. Yo te acompañaré con sugerencias para mantener tu red ordenada y al día."

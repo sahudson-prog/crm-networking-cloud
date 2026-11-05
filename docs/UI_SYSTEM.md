@@ -121,6 +121,8 @@ Objetivos usa bloques por tipo, filas seleccionables, acciones contextuales visi
 
 ## Dialogs y feedback
 
+UX-VCARD-HELP-01 incorpora `VCardHelp`, ayuda compartida entre el Coach de importación del tutorial (también replay) y el título vCard de Cuenta. Usa un diálogo modal nativo en portal, estilos del sistema, cuatro pestañas con teclado y retorno de foco al cerrar por X, Escape o Entendido. Google abre Google; Apple abre iCloud; Samsung abre Samsung; Cuenta abre Google. La ayuda no navega, no guarda progreso y no activa el selector de archivos. Los enlaces de proveedores abren otra pestaña con `noopener noreferrer`. Samsung se documenta para One UI 7 o posterior. El owner aprobó la revisión visual del candidato; esto no implica despliegue. No cambia Review/Apply ni el parser vCard.
+
 El patrón modal compartido usa `.modal-backdrop` y `.modal-card`, con header, cuerpo y footer de acciones. Los diálogos se adaptan por clases específicas como editor de contacto, editor de interacción, preview de sync o fusión de contactos.
 
 Los botones principales suelen ir a la derecha del footer, con acción primaria oscura. Las acciones destructivas usan tono rojo cuando están implementadas como botón o texto de advertencia.

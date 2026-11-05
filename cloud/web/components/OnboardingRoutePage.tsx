@@ -21,6 +21,7 @@ import { ReadOnlyContacts } from "./ReadOnlyContacts";
 import { Shell } from "./Shell";
 import { StartingPointFields, type StartingPointFieldsHandle } from "./StartingPointFields";
 import { Button } from "./ui/Button";
+import { VCardHelp } from "./VCardHelp";
 
 export function OnboardingRoutePage({ routeId }: { routeId: OnboardingRouteId }) {
   return (
@@ -253,10 +254,7 @@ function OnboardingGoogleStep() {
   return (
     <div className="onboarding-google-step">
       <OnboardingCoach routeId="google" title="Comienza con tus contactos.">
-        <p>
-          Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito. Aquí puedes ver cómo
-          exportar contactos desde Google o desde Apple.
-        </p>
+        <VCardHelp onboarding />
       </OnboardingCoach>
       <AccountPage view="google-onboarding" />
     </div>

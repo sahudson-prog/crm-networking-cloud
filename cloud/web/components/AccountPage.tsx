@@ -1,4 +1,5 @@
 "use client";
+import { VCardHelp } from "./VCardHelp";
 
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { resetCurrentUserAppData } from "../lib/accountDataActions";
@@ -421,6 +422,7 @@ function GoogleImportSection({
                   compactAction={includeOtherSources}
                   description={includeOtherSources ? "Selecciona un archivo de contactos." : undefined}
                   sourceLabel="vCard (.vcf)"
+                  sourceHelp={<VCardHelp />}
                 />
               ) : null}
               {contactsEligibility === "enabled" ? (

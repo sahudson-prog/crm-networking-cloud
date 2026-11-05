@@ -3061,6 +3061,23 @@ textarea::placeholder {
   gap: 8px;
 }
 
+.vcard-source-title { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.vcard-help-link { border: 0; padding: 0; background: none; color: inherit; font: inherit; font-weight: 400; text-decoration: underline; cursor: pointer; }
+.vcard-help-link:focus-visible { outline: 2px solid var(--crm-primary); outline-offset: 3px; }
+.vcard-help-dialog:not([open]) { display: none; }
+.vcard-help-dialog { width: min(560px, calc(100vw - 28px)); margin: auto; grid-template-rows: none; overflow-y: auto; color: var(--crm-text); font-size: 14px; line-height: 1.5; }
+.vcard-help-dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
+.vcard-help-dialog .modal-head h2 { font-size: 18px; }
+.vcard-help-dialog ol { padding-left: 24px; margin: 12px 0; }
+.vcard-help-dialog li + li { margin-top: 12px; }
+.vcard-help-dialog p { margin-bottom: 0; }
+.vcard-help-dialog a { color: var(--crm-primary); text-decoration: underline; }
+.vcard-help-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.vcard-help-tabs .button { padding: 8px; }
+.vcard-help-reference { display: inline; white-space: nowrap; }
+.vcard-help-reference svg { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; }
+@media (max-width: 400px) { .vcard-help-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .contact-deactivation-dialog {
   width: min(520px, calc(100vw - 28px));
   grid-template-rows: auto auto auto;
