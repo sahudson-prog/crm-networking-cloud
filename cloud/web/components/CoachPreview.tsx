@@ -303,7 +303,7 @@ function CoachSuggestionsContent({
 function CoachOnboardingContent({
   botSize = "normal",
   children,
-  exitLabel = "Salir",
+  exitLabel = "Salir del tutorial",
   nextDisabled = false,
   nextLabel = "Siguiente",
   onBack,
@@ -321,7 +321,7 @@ function CoachOnboardingContent({
         </div>
         <div className="coach-onboarding-content">{children}</div>
         <div className="coach-onboarding-actions">
-          <div>{onBack ? <Button icon="arrowLeft" onClick={onBack}>Atrás</Button> : null}</div>
+          <div>{onBack ? <Button icon="arrowLeft" onClick={onBack}>Anterior</Button> : null}</div>
           <div>
             {onExit ? <Button onClick={onExit} tone="ghost">{exitLabel}</Button> : null}
             <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button>

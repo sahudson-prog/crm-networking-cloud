@@ -87,12 +87,12 @@ test("sync periódico permite que una fecha reciente acorte Gmail y Calendar", (
   );
 });
 
-test("importaciones históricas conservan el máximo de 12 meses", () => {
+test("helper legacy conserva su límite sin usarse en las nuevas operaciones históricas", () => {
   const now = new Date("2026-10-16T12:00:00.000Z");
 
   assert.throws(
     () => resolveHistoricalNetworkingStartIso("2025-10-01", now),
-    /debe ser igual o posterior a 2025-10-16/
+    /ventana histórica legacy/
   );
 });
 
@@ -105,6 +105,6 @@ test("sync periódico rechaza fechas inválidas o futuras con mensajes seguros",
   );
   assert.throws(
     () => resolvePeriodicNetworkingStartIso("2026-10-17", now),
-    (error) => error instanceof NetworkingStartConfigurationError && /no puede ser futura/.test(error.message)
+    (error) => error instanceof NetworkingStartConfigurationError && /no es válida/.test(error.message)
   );
 });

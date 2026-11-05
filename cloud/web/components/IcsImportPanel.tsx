@@ -6,7 +6,8 @@ import { MAX_ICS_FILE_BYTES, parseIcsCalendar } from "../lib/icsImport";
 import { applyIcsImportSelection, type IcsApplyResult } from "../lib/icsImportApply";
 import { buildIcsImportReviewFromPersistedData } from "../lib/icsImportData";
 import type { IcsImportReviewSnapshot } from "../lib/icsImportReview";
-import { requireNetworkingStartIso } from "../lib/syncDate";
+import { readHistoryWindow } from "../lib/historyPolicy";
+import { HistoryImportNotice } from "./HistoryImportNotice";
 import { IcsImportPreviewDialog } from "./IcsImportPreviewDialog";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
@@ -22,6 +23,7 @@ export function IcsImportPanel() {
   });
   const [open, setOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<IcsImportReviewSnapshot | null>(null);
+  const [historyMonths, setHistoryMonths] = useState<number | null>(null);
 
   async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -41,10 +43,12 @@ export function IcsImportPanel() {
 
     setLoading(true);
     try {
-      const minimumStartIso = await requireNetworkingStartIso();
+      const historyWindow = await readHistoryWindow();
+      setHistoryMonths(historyWindow.max_months);
+      const minimumStartIso = historyWindow.effective_start;
       const parsed = parseIcsCalendar(await file.text());
       const nextSnapshot = await buildIcsImportReviewFromPersistedData({ minimumStartIso, parsed });
-      setSnapshot(nextSnapshot);
+      setSnapshot({ ...nextSnapshot, historyWindow });
       setOpen(true);
     } catch (error) {
       setFeedback({
@@ -102,6 +106,7 @@ export function IcsImportPanel() {
         </div>
       </div>
 
+      <HistoryImportNotice months={historyMonths} />
       <p className="account-import-limits">
         Hasta 500 citas, 5 MB de datos normalizados y 5.000 participantes por importación.
       </p>

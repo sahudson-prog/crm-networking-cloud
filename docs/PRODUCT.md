@@ -101,7 +101,7 @@ El usuario puede ver interacciones desde el Dashboard y desde la ficha de cada c
 
 La aplicación permite importar correos y citas desde el proveedor conectado vigente. Antes de guardar cambios, el usuario revisa una vista previa de resultados, con elementos nuevos, modificados u omitidos cuando corresponde.
 
-La fecha de inicio de networking define desde cuándo se consideran interacciones para importaciones históricas e indicadores. Esa fecha se administra desde Cuenta y afecta la lectura de actividad e indicadores del Dashboard.
+En el candidato local UX-DATE-01, el único inicio configurable visible es el del ciclo en Objetivos, inmutable después de crearlo. Los nuevos ciclos admiten hasta M meses atrás (default 6, administrable entre 1 y 12). Los legacy sin fecha permiten completar su inicio real una vez. Las importaciones históricas requieren ciclo activo e inicio conocido y usan el máximo entre ese inicio y el día local de hoy menos M meses calendario. No se borran interacciones anteriores ni se cambia el sync periódico. Este contrato todavía requiere cutover DEV/PROD; la clave anterior permanece internamente por compatibilidad, sin editor visible.
 
 La actualización de actividad puede ejecutarse de manera global para contactos en foco o desde la ficha de un contacto específico. La actualización desde una ficha se acota al contexto de ese contacto.
 
@@ -135,7 +135,7 @@ Desde Cuenta el usuario puede:
 - revisar servicios conectados;
 - conectar o desvincular Google;
 - ver permisos disponibles para contactos, correos y calendario;
-- ajustar la fecha de inicio de networking;
+- editar nombre y situación profesional; el inicio del proceso se establece en Objetivos, no en Cuenta (candidato UX-DATE-01);
 - importar contactos;
 - importar correos;
 - importar citas de calendario;

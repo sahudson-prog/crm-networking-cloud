@@ -1,4 +1,3 @@
-import { networkingStartBounds, parseDateSetting } from "./syncDate.ts";
 
 export const PROFESSIONAL_SITUATION_OPTIONS = [
   { code: "employed", label: "Con empleo" },
@@ -49,12 +48,6 @@ export function validateStartingPoint(
 
   if (!isProfessionalSituationCode(normalized.professionalSituationCode)) {
     errors.professionalSituationCode = "Selecciona tu situación profesional.";
-  }
-
-  const parsedDate = parseDateSetting(normalized.networkingStartDate);
-  if (!parsedDate) errors.networkingStartDate = "Selecciona una fecha válida.";
-  else if (normalized.networkingStartDate > networkingStartBounds(now).maximumDate) {
-    errors.networkingStartDate = "La fecha de inicio no puede ser futura.";
   }
 
   return errors;

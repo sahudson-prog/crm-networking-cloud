@@ -34,7 +34,9 @@ import {
   ACTIVITY_SYNC_MAX_MAIL_MESSAGES,
   ACTIVITY_SYNC_MAX_MAIL_PAGES
 } from "../lib/interactionSyncLimits";
-import { calendarFutureWindowIso, requireNetworkingStartIso } from "../lib/syncDate";
+import { calendarFutureWindowIso } from "../lib/syncDate";
+import { readHistoryWindow, revalidateHistoryWindow } from "../lib/historyPolicy";
+import { HistoryImportNotice } from "./HistoryImportNotice";
 import { supabase } from "../lib/supabaseClient";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
 import { loadActivitySyncLimitValues, type ActivitySyncLimitValues } from "../lib/usageLimitSettings";
@@ -139,6 +141,7 @@ export function GoogleInteractionsSyncPanel({
   const [state, setState] = useState<GoogleInteractionsState>(initialState);
   const [gmailLabelsReloadKey, setGmailLabelsReloadKey] = useState(0);
   const [historicalImportOpen, setHistoricalImportOpen] = useState(false);
+  const [historyMonths, setHistoryMonths] = useState<number | null>(null);
   const activeResource = state.activeResource ?? "mail";
   const previewChanges = interactionPreviewChanges(state.lastRun);
   const effectiveAccessToken = googleAccessToken?.trim() || state.accessToken;
@@ -368,9 +371,12 @@ export function GoogleInteractionsSyncPanel({
         });
       };
       logStep("Inicio", "Revision historica solicitada.", "running");
-      const historicalStart = await requireNetworkingStartIso();
+      const historyWindow = await readHistoryWindow();
+      setHistoryMonths(historyWindow.max_months);
+      const historicalStart = historyWindow.effective_start;
       const syncLimits = await loadActivitySyncLimitValues();
       const reviewed = await reviewGoogleGmailHistoricalBootstrap({
+        historyWindow,
         accessToken: googleConnection.accessToken,
         connectedAccountId: googleConnection.account?.id ?? null,
         label: { id: selectedLabel.id, name: selectedLabel.name },
@@ -417,6 +423,8 @@ export function GoogleInteractionsSyncPanel({
         error: "",
         message: "Sincronizando correos seleccionados..."
       }));
+      if (!snapshot.historyWindow) throw new Error("Vuelve a revisar Gmail antes de aplicar.");
+      await revalidateHistoryWindow(snapshot.historyWindow);
       const result = await applyGoogleGmailHistoricalBootstrap({
         connectedAccountId: state.connectedAccountId,
         externalIds,
@@ -578,7 +586,11 @@ export function GoogleInteractionsSyncPanel({
     logStep("Inicio", dryRun ? "Revision solicitada." : `${externalIds.length} elemento(s) seleccionados.`, "running");
 
     try {
-      const historicalStart = await requireNetworkingStartIso();
+      const previousWindow = state.lastRun?.historyWindow;
+      if (!dryRun && !previousWindow) throw new Error("Vuelve a revisar antes de aplicar.");
+      const historyWindow = dryRun ? await readHistoryWindow() : await revalidateHistoryWindow(previousWindow!);
+      setHistoryMonths(historyWindow.max_months);
+      const historicalStart = historyWindow.effective_start;
       const calendarFutureWindow = calendarFutureWindowIso();
       const syncLimits = await loadActivitySyncLimitValues();
       logStep("Parametros", `Fecha inicio: ${formatLogDate(historicalStart)}.`, "info", {
@@ -586,6 +598,7 @@ export function GoogleInteractionsSyncPanel({
         mail_messages_limit: syncLimits.mailMessages
       });
       const result = await syncGoogleInteractions({
+        historyWindow,
         accessToken: googleConnection.accessToken,
         connectedAccountId: googleConnection.account?.id ?? null,
         calendarFutureTimeMax: calendarFutureWindow.until,
@@ -605,6 +618,7 @@ export function GoogleInteractionsSyncPanel({
         ...(externalIds.length ? { externalIds } : {}),
         userEmail: googleConnection.userEmail
       });
+      result.historyWindow = historyWindow;
       if (hasGoogleInteractionAuthFailure(result)) {
         invalidateActiveGoogleDataAuthorization();
         setState((current) => ({
@@ -732,6 +746,7 @@ export function GoogleInteractionsSyncPanel({
   if (compact) {
     return (
       <>
+        <HistoryImportNotice months={historyMonths} />
         <div className="account-source-row gmail-history-source">
           <div className="account-source-main">
             <span className="connected-service-logo active" title="Google"><ProviderIcon name="google" /></span>
@@ -839,6 +854,7 @@ export function GoogleInteractionsSyncPanel({
 
   return (
     <section className="panel">
+      <HistoryImportNotice months={historyMonths} />
       <div className="panel-header">
         <div>
           <h2 className="panel-title">Importar actividad</h2>
@@ -880,7 +896,7 @@ function googleResourceDisabledReason(input: {
   if (input.loading) return "Estamos verificando la autorización de Google.";
   if (!input.connected || !input.accessToken) return "Autoriza Google para importar.";
   if (!input.available) return `Actualiza la autorización de Google para habilitar ${input.serviceLabel}.`;
-  if (!input.networkingStartReady) return "Define primero la fecha de inicio de networking.";
+  if (!input.networkingStartReady) return "Configura el inicio de tu proceso en Objetivos antes de importar correos o citas.";
   return "";
 }
 

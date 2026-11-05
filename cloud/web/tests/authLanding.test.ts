@@ -14,7 +14,7 @@ test("landing no autenticada usa copy y asset oficiales de Coffeecito", () => {
     /Coffeecito te ayuda a organizar tus contactos, dar seguimiento a tus relaciones y avanzar hacia tus[\s\S]*objetivos profesionales\./
   );
   assert.match(authGateSource, /src="\/brand\/coffeecito-isotipo\.svg"/);
-  assert.match(authGateSource, /className="auth-brand-wordmark">Coffeecito</);
+  assert.match(authGateSource, /<BrandBetaWordmark className="auth-brand-wordmark" \/>/);
 });
 
 test("landing conserva una sola implementacion de los flujos Google y email", () => {

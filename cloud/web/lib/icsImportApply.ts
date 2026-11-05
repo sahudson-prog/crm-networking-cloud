@@ -3,6 +3,7 @@
 import type { NormalizedIcsEvent } from "./icsImport.ts";
 import type { IcsImportReviewSnapshot, IcsReviewCategory } from "./icsImportReview.ts";
 import { supabase } from "./supabaseClient.ts";
+import { revalidateHistoryWindow, type HistoryWindow } from "./historyPolicy.ts";
 
 export const MAX_ICS_APPLY_ITEMS = 500;
 export const MAX_ICS_APPLY_PAYLOAD_BYTES = 5 * 1024 * 1024;
@@ -41,7 +42,7 @@ export type IcsApplyRpcItem = {
 };
 
 export type IcsImportApplyGateway = {
-  apply(items: IcsApplyRpcItem[]): Promise<unknown>;
+  apply(items: IcsApplyRpcItem[], context?: HistoryWindow): Promise<unknown>;
 };
 
 export class IcsImportApplyError extends Error {
@@ -74,8 +75,12 @@ export async function applyIcsImportSelection(input: {
   }
   assertApplyLimits(items);
 
+  if (!input.gateway) {
+    if (!input.snapshot.historyWindow) throw new IcsImportApplyError("stale_review", "Vuelve a revisar el archivo antes de aplicar.");
+    await revalidateHistoryWindow(input.snapshot.historyWindow);
+  }
   try {
-    return parseApplyResult(await (input.gateway ?? supabaseIcsImportApplyGateway).apply(items));
+    return parseApplyResult(await (input.gateway ?? supabaseIcsImportApplyGateway).apply(items, input.snapshot.historyWindow));
   } catch (error) {
     if (error instanceof IcsImportApplyError) throw error;
     throw sanitizedApplyError(error);
@@ -135,9 +140,10 @@ export function assertApplyLimits(items: IcsApplyRpcItem[]) {
 }
 
 export const supabaseIcsImportApplyGateway: IcsImportApplyGateway = {
-  async apply(items) {
+  async apply(items, context) {
     if (!supabase) throw new IcsImportApplyError("apply_failed", "Supabase no está configurado.");
-    const { data, error } = await supabase.rpc("apply_ics_import_v1", { p_items: items });
+    if (!context) throw new IcsImportApplyError("stale_review", "Vuelve a revisar el archivo antes de aplicar.");
+    const { data, error } = await supabase.rpc("apply_ics_import_v2", { p_items: items, p_context: context });
     if (error) throw error;
     return data;
   }
@@ -206,25 +212,28 @@ function parseApplyResult(value: unknown): IcsApplyResult {
 
 function sanitizedApplyError(error: unknown) {
   const message = errorMessage(error);
+  if (message.includes("history_context_stale")) {
+    return new IcsImportApplyError("stale_review", "El proceso o el límite cambió. Vuelve a revisar el archivo antes de aplicar.");
+  }
   if (message.includes("ICS_IMPORT_NOT_AUTHENTICATED")) {
     return new IcsImportApplyError("not_authenticated", "Tu sesión ya no está disponible. Vuelve a ingresar.");
   }
-  if (message.includes("ICS_IMPORT_ACCESS_DENIED")) {
+  if (message.includes("ICS_IMPORT_ACCESS_DENIED") || message.includes("app_access_denied")) {
     return new IcsImportApplyError("access_denied", "Tu cuenta no tiene acceso para importar citas.");
   }
   if (message.includes("ICS_IMPORT_LIMIT_EXCEEDED")) {
     return new IcsImportApplyError("limit_exceeded", "La selección supera los límites seguros de importación.");
   }
-  if (message.includes("ICS_IMPORT_NETWORKING_START_REQUIRED")) {
+  if (/ICS_IMPORT_NETWORKING_START_REQUIRED|history_active_cycle_required|history_cycle_start_required/.test(message)) {
     return new IcsImportApplyError(
       "networking_start_required",
-      "Revisa la fecha de inicio de networking en Cuenta antes de importar citas."
+      "Configura el inicio de tu proceso en Objetivos antes de importar citas."
     );
   }
   if (message.includes("ICS_IMPORT_BEFORE_NETWORKING_START")) {
     return new IcsImportApplyError(
       "before_networking_start",
-      "La selección contiene una cita anterior al inicio de networking. Vuelve a revisar el archivo."
+      "La selección contiene una cita anterior a la ventana vigente. Vuelve a revisar el archivo."
     );
   }
   if (message.includes("ICS_IMPORT_STALE_REVIEW")) {
@@ -239,7 +248,7 @@ function sanitizedApplyError(error: unknown) {
   if (message.includes("ICS_IMPORT_INVALID_PAYLOAD")) {
     return new IcsImportApplyError("invalid_selection", "La selección contiene una cita no válida para importar.");
   }
-  return new IcsImportApplyError("apply_failed", "No pudimos completar la importación. No se guardó ningún cambio.");
+  return new IcsImportApplyError("apply_failed", "No pudimos confirmar la importación. Vuelve a revisar el archivo antes de reintentar.");
 }
 
 function errorMessage(error: unknown) {

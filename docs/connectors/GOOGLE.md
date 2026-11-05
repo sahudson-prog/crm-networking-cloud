@@ -111,12 +111,14 @@ Lectura histórica:
 - usa una o más búsquedas Gmail;
 - lee cada mensaje encontrado en formato `full` antes de construir el preview seleccionable;
 - puede usar fecha mínima mediante `after:<timestamp>`;
-- desde Cuenta, el Historical Bootstrap exige una etiqueta Gmail de usuario (`type=user` en la respuesta de la API) elegida por el usuario y combina su `labelId` con la fecha de inicio de networking;
+- desde Cuenta, el Historical Bootstrap exige una etiqueta Gmail de usuario (`type=user` en la respuesta de la API) elegida por el usuario y combina su `labelId` con el límite histórico; en el candidato UX-DATE-01 este límite viene del ciclo activo y la política global, no de la clave legacy;
 - el Historical Bootstrap captura un `historyId` base antes de leer, conserva un snapshot normalizado solo en memoria y aplica la selección sin volver a consultar Gmail;
 - el cursor Gmail global se inicializa después del Apply únicamente cuando la lectura fue completa y todos los elementos seleccionados se aplicaron sin error;
 - puede acotar por emails de contactos cuando el flujo está en scope de foco o contacto específico;
 - en lectura histórica scoped, divide los emails únicos en búsquedas de hasta 20 direcciones y deduplica por `messageId` antes de leer el detalle entre búsquedas;
 - el máximo de correos se aplica tanto al total consolidado como al total de lecturas de detalle de la revisión. El presupuesto de páginas se comparte de forma conservadora, reservando al menos la primera página necesaria para cada búsqueda scoped.
+UX-DATE-01 (solo candidato local) conserva el contexto/revisión de la ventana entre Review y Apply y lo envía en cada escritura histórica a `apply_google_history_v1`. La ruta periódica usa `apply_google_periodic_v1` sin imponer el máximo histórico. Ambas delegan al núcleo Google ya existente; no cambian scopes, OAuth, cuenta conectada ni permisos de operación. No se prueba server-side la procedencia histórica/incremental del lote: esa ampliación fue expresamente excluida. Detalle y compatibilidad en INGESTION_SYNC y PROD_CONTRACTS.
+
 Lectura incremental:
 - usa Gmail History API;
 - el sync global parte desde el `historyId` global (`cursor_label=''`) solo cuando pertenece a la cuenta Google conectada actual;

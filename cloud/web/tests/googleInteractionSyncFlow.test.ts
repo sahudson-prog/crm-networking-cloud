@@ -2807,8 +2807,9 @@ function gmailRead(input: {
   };
 }
 
-async function bootstrapReviewFixture(complete = true) {
+async function bootstrapReviewFixture(complete = true, historyWindow?: import("../lib/historyPolicy.ts").HistoryWindow) {
   return reviewGoogleGmailHistoricalBootstrap({
+    historyWindow,
     accessToken: "token",
     connectedAccountId: "account-1",
     label: { id: "Label_networking", name: "Networking" },
@@ -2836,6 +2837,21 @@ async function bootstrapReviewFixture(complete = true) {
     syncMail: async (input) => syncResult({ ...input, resourceType: "mail" as const }, "bootstrap-review")
   });
 }
+
+test("Gmail histórico conserva contexto por fila y no avanza cursor ante rechazo de política", async () => {
+  const context = {cycle_id:"synthetic",context:"active:synthetic",max_months:6,revision:1,timezone:"UTC",effective_start:"2026-08-01T00:00:00Z"};
+  const review = await bootstrapReviewFixture(true, context);
+  assert.deepEqual(review.snapshot.historyWindow,context);
+  assert.ok(review.snapshot.items.length>0);
+  assert.ok(review.snapshot.items.every(item=>item.historyWindow===context));
+  let writes=0;
+  await assert.rejects(applyGoogleGmailHistoricalBootstrap({connectedAccountId:"account-1",externalIds:[review.snapshot.items[0].externalId],snapshot:review.snapshot}, {
+    authorizeConnectedSync:async()=>{},
+    syncMail:async input=>{assert.deepEqual(input.items[0].historyWindow,context);throw new Error("history_context_stale");},
+    writeCursor:async()=>{writes++;}
+  }),/history_context_stale/);
+  assert.equal(writes,0);
+});
 
 function syncResult(input: ExternalInteractionBatchInput, interactionId: string): SyncRunResult {
   return {

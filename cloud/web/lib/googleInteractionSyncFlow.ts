@@ -31,6 +31,7 @@ import type { ContactRow } from "./readModel.ts";
 import { requireGoogleConnectedSyncAuthorization } from "./googleSyncAuthorization.ts";
 import { latestIsoInstant } from "./syncDate.ts";
 import { supabase } from "./supabaseClient.ts";
+import type { HistoryWindow } from "./historyPolicy.ts";
 
 const GOOGLE_PROVIDER = "google";
 const GMAIL_SCOPED_EMAILS_PER_BATCH = 20;
@@ -38,6 +39,7 @@ const GMAIL_FOCUSED_RECOVERY_DAYS = 14;
 const GMAIL_CONTACT_BACKFILL_DAYS = 14;
 
 export type SyncGoogleInteractionsInput = {
+  historyWindow?: HistoryWindow;
   accessToken: string;
   userEmail: string;
   connectedAccountId?: string | null;
@@ -70,6 +72,7 @@ export type SyncGoogleInteractionsInput = {
 };
 
 export type SyncGoogleInteractionsResult = {
+  historyWindow?: HistoryWindow;
   ok: boolean;
   mail: SyncRunResult | null;
   calendar: SyncRunResult | null;
@@ -165,6 +168,7 @@ export type ApplyGoogleGmailFocusedSyncInput = {
 };
 
 export type GoogleGmailHistoricalBootstrapSnapshot = {
+  historyWindow?: HistoryWindow;
   baselineHistoryId: string;
   complete: boolean;
   items: ExternalInteractionInput[];
@@ -180,6 +184,7 @@ export type GoogleGmailHistoricalBootstrapSnapshot = {
 };
 
 export type ReviewGoogleGmailHistoricalBootstrapInput = {
+  historyWindow?: HistoryWindow;
   accessToken: string;
   connectedAccountId?: string | null;
   label: {
@@ -365,7 +370,7 @@ export async function syncGoogleInteractions(
             input.gmailSince
           );
           const mailPreview = await buildInteractionSyncPreview(deps, {
-            items: mailItems,
+            items: mailItems.map(item => ({ ...item, historyWindow: input.historyWindow })),
             provider: GOOGLE_PROVIDER,
             sourceService: "gmail"
           });
@@ -374,7 +379,7 @@ export async function syncGoogleInteractions(
             cursorAfter: mailRead.nextCursor,
             cursorBefore: mailCursor,
             dryRun: input.dryRun,
-            items: mailItems,
+            items: mailItems.map(item => ({ ...item, historyWindow: input.historyWindow })),
             mode: mailRead.mode === "incremental" ? "incremental" : "historical",
             provider: GOOGLE_PROVIDER,
             scope: { externalIds: input.externalIds, limit: input.maxMailMessages ?? null, reason: "google_gmail_sync" },
@@ -480,7 +485,7 @@ export async function syncGoogleInteractions(
             cursorAfter: input.calendarRollingWindowSync ? null : calendarRead.nextSyncToken,
             cursorBefore: input.calendarRollingWindowSync ? null : calendarCursor,
             dryRun: input.dryRun,
-            items: calendarItems,
+            items: calendarItems.map(item => ({ ...item, historyWindow: input.historyWindow })),
             mode: input.calendarRollingWindowSync === "contact"
               ? "single_contact"
               : (input.calendarRollingWindowSync || calendarCursor ? "incremental" : "historical"),
@@ -600,9 +605,10 @@ export async function reviewGoogleGmailHistoricalBootstrap(
     snapshotWarnings.push("La lectura alcanzo un limite y no recorrio completamente la etiqueta seleccionada.");
   }
   const snapshot: GoogleGmailHistoricalBootstrapSnapshot = {
+    historyWindow: input.historyWindow,
     baselineHistoryId,
     complete: mailRead.complete === true,
-    items,
+    items: items.map(item => ({ ...item, historyWindow: input.historyWindow })),
     label: { id: labelId, name: labelName },
     pagesRead: mailRead.pagesRead,
     preview,

@@ -41,13 +41,11 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
           <OnboardingIntroSlide className="onboarding-intro-slide-concept">
             <div className="onboarding-intro-slide-opening">
               <h2>
-                Networking no es acumular contactos. Es construir relaciones que amplían tu acceso a información,
-                personas y oportunidades relevantes.
+                Hay un diamante en bruto en tu red.
               </h2>
               <p>
-                Bien hecho, puede ayudarte a encontrar una nueva posición, desarrollar negocios, entrar a nuevos círculos
-                profesionales o fortalecer tu posicionamiento. Su valor no está sólo en cuántos contactos tienes, sino en la
-                relevancia de esas relaciones, los círculos a los que te conectan y tu capacidad de movilizarlas cuando importa.
+                Tus contactos pueden ser el punto de partida de tu próximo trabajo, negocio o marca profesional.
+                El networking te ayuda a descubrir y desarrollar ese potencial. Coffeecito está para acompañarte en ese camino.
               </p>
             </div>
           </OnboardingIntroSlide>
@@ -56,24 +54,21 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
         <SwiperSlide>
           <OnboardingIntroSlide className="onboarding-intro-slide-benefits">
             <div className="onboarding-intro-slide-benefits-content">
-              <h2>Una buena red profesional amplía tu alcance y abre nuevas posibilidades.</h2>
-              <div className="onboarding-intro-benefits">
-                <article>
-                  <h3>Más efectividad en procesos de selección</h3>
-                  <p>
-                    Los candidatos referidos tienen más probabilidades de llegar a entrevistas y recibir ofertas - incluso hasta{" "}
-                    <strong>7x</strong> según benchmarks
-                  </p>
-                </article>
-                <article>
-                  <h3>Más negocios y alianzas</h3>
-                  <p>Las relaciones correctas pueden abrir puertas a nuevos clientes, alianzas y oportunidades fuera de tu círculo directo.</p>
-                </article>
-                <article>
-                  <h3>Más crecimiento y posicionamiento</h3>
-                  <p>Una red relevante puede ampliar tu movilidad, desarrollo y visibilidad profesional.</p>
-                </article>
-              </div>
+              <h2>Una red bien cultivada abre oportunidades.</h2>
+              <ul className="onboarding-intro-benefits">
+                <li>
+                  <h3>Encontrar tu próximo trabajo:</h3>
+                  <p>enterarte de oportunidades laborales y conectar con quienes pueden recomendarte.</p>
+                </li>
+                <li>
+                  <h3>Generar nuevos negocios:</h3>
+                  <p>acercarte a nuevos clientes y aliados.</p>
+                </li>
+                <li>
+                  <h3>Fortalecer tu posicionamiento:</h3>
+                  <p>compartir lo que haces y ampliar tu alcance profesional.</p>
+                </li>
+              </ul>
             </div>
           </OnboardingIntroSlide>
         </SwiperSlide>
@@ -81,18 +76,11 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
         <SwiperSlide>
           <OnboardingIntroSlide className="onboarding-intro-slide-practice">
             <div className="onboarding-intro-slide-practice-content">
-              <h2>Gestionar tu red no debería convertirse en otro trabajo.</h2>
+              <h2>Que organizar tu red no te quite tiempo para conectar.</h2>
               <p>
-                A medida que tu red crece, también crecen los contactos, conversaciones y pendientes. Coffeecito mantiene
-                esa información ordenada y visible para que puedas responder:
+                Coffeecito reúne tus contactos, conversaciones y pendientes para que no tengas que llevar todo en la cabeza.
               </p>
-              <div className="onboarding-intro-questions" aria-label="Preguntas para gestionar tu red">
-                <p>¿Con quién debería reconectar?</p>
-                <p>¿Estoy expandiendo mi círculo actual?</p>
-                <p>¿Qué objetivos todavía no están cubiertos por mi red?</p>
-                <p>¿Qué conversaciones o compromisos quedaron pendientes?</p>
-                <p>¿Estoy haciendo networking de forma efectiva?</p>
-              </div>
+              <p>Así puedes dedicar menos tiempo a ordenar información y más a saber con quién hablar y dar el siguiente paso.</p>
             </div>
           </OnboardingIntroSlide>
         </SwiperSlide>
@@ -127,7 +115,7 @@ export function OnboardingIntroSlides({ onExit, onStart }: { onExit?: () => void
       </div>
       {onExit ? (
         <div className="onboarding-intro-replay-exit">
-          <Button onClick={onExit} tone="ghost">Salir</Button>
+          <Button onClick={onExit} tone="ghost">Salir del tutorial</Button>
         </div>
       ) : null}
     </section>

@@ -1,5 +1,6 @@
 import type { IcsParseResult, IcsTemporalValue, NormalizedIcsEvent } from "./icsImport.ts";
 import type { SyncPreviewChange, SyncPreviewFieldChange } from "./syncOrchestrator.ts";
+import type { HistoryWindow } from "./historyPolicy.ts";
 
 export type IcsReviewCategory = "new" | "modified" | "possible_duplicate" | "unchanged" | "skipped";
 
@@ -32,6 +33,7 @@ export type CalendarInteractionForIcsReview = {
 };
 
 export type IcsImportReviewSnapshot = {
+  historyWindow?: HistoryWindow;
   events: Array<{ changeId: string; event: NormalizedIcsEvent; focusContactIds: string[] }>;
   changes: SyncPreviewChange[];
   sourceCounts: IcsParseResult["counts"];
@@ -68,7 +70,6 @@ export function buildIcsImportReviewSnapshot(input: {
     other: 0,
     recurrent: input.parsed.counts.recurrent
   };
-  const minimumStartDate = input.minimumStartIso.slice(0, 10);
   let focusOmittedCount = 0;
 
   for (const event of stableNewestFirst(input.parsed.events)) {
@@ -76,7 +77,7 @@ export function buildIcsImportReviewSnapshot(input: {
       omissionCounts.other += 1;
       continue;
     }
-    if (utcCivilDate(event.start.instant) < minimumStartDate) {
+    if (Date.parse(event.start.instant!) < Date.parse(input.minimumStartIso)) {
       omissionCounts.beforeNetworkingStart += 1;
       continue;
     }
@@ -158,7 +159,7 @@ export function icsReviewDescription(snapshot: IcsImportReviewSnapshot) {
     notices.push(`${snapshot.omissionCounts.invalid} ${noun(snapshot.omissionCounts.invalid, "cita inválida fue omitida", "citas inválidas fueron omitidas")}.`);
   }
   if (snapshot.omissionCounts.beforeNetworkingStart) {
-    notices.push(`${snapshot.omissionCounts.beforeNetworkingStart} ${noun(snapshot.omissionCounts.beforeNetworkingStart, "cita anterior al inicio de networking fue omitida", "citas anteriores al inicio de networking fueron omitidas")}.`);
+    notices.push(`${snapshot.omissionCounts.beforeNetworkingStart} ${noun(snapshot.omissionCounts.beforeNetworkingStart, "cita anterior a la ventana vigente fue omitida", "citas anteriores a la ventana vigente fueron omitidas")}.`);
   }
   if (snapshot.omissionCounts.focus) {
     notices.push(`${snapshot.omissionCounts.focus} ${noun(snapshot.omissionCounts.focus, "cita sin contactos Foco fue omitida", "citas sin contactos Foco fueron omitidas")}.`);
@@ -374,12 +375,6 @@ function summaryFields(event: NormalizedIcsEvent): SyncPreviewFieldChange[] {
 
 function isApplicableTemporal(start: IcsTemporalValue) {
   return start.valueType === "date-time" && Boolean(start.instant);
-}
-
-function utcCivilDate(instant: string | null) {
-  if (!instant) return "";
-  const timestamp = new Date(instant);
-  return Number.isNaN(timestamp.getTime()) ? "" : timestamp.toISOString().slice(0, 10);
 }
 
 function stableNewestFirst(events: NormalizedIcsEvent[]) {
