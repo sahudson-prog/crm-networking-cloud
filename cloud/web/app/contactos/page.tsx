@@ -1,14 +1,14 @@
 "use client";
 
 import { AuthGate } from "../../components/AuthGate";
-import { ReadOnlyContacts } from "../../components/ReadOnlyContacts";
+import { ContactsView } from "../../components/StructuralViews";
 import { Shell } from "../../components/Shell";
 
 export default function ContactosPage() {
   return (
     <AuthGate>
       <Shell>
-        <ReadOnlyContacts />
+        <ContactsView />
       </Shell>
     </AuthGate>
   );

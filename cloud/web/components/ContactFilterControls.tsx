@@ -15,6 +15,7 @@ type ContactFilterControlsProps = {
   summary?: string;
   quickSearchLabel?: string;
   quickSearchDisabled?: boolean;
+  showQuickSearch?: boolean;
   focusLocked?: boolean;
   showStatusFilter?: boolean;
   onFiltersChange: (filters: ContactFilters) => void;
@@ -30,6 +31,7 @@ export function ContactFilterControls({
   summary,
   quickSearchLabel,
   quickSearchDisabled = false,
+  showQuickSearch = true,
   focusLocked = false,
   showStatusFilter = true,
   onFiltersChange,
@@ -65,7 +67,7 @@ export function ContactFilterControls({
   return (
     <div className="contact-filter-controls">
       <div className="contacts-filter-main">
-        <ContactQuickSearch value={quickQuery} onChange={onQuickQueryChange} label={quickSearchLabel} disabled={quickSearchDisabled} />
+        {showQuickSearch ? <ContactQuickSearch value={quickQuery} onChange={onQuickQueryChange} label={quickSearchLabel} disabled={quickSearchDisabled} /> : null}
         <TriStateFilterSelect
           label="Foco"
           value={filters.networkingFocus}

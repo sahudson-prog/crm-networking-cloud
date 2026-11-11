@@ -6098,12 +6098,14 @@ textarea::placeholder {
 }
 
 .contacts-table th:first-child,
-.contacts-table td:first-child {
+.contacts-table td:first-child,
+.companies-table th:first-child,
+.companies-table td:first-child {
   width: 42px;
   text-align: center;
 }
 
-.contacts-table thead th {
+.contacts-table thead th, .companies-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -6136,7 +6138,7 @@ textarea::placeholder {
   height: 14px;
 }
 
-.contacts-table input[type="checkbox"] {
+.contacts-table input[type="checkbox"], .companies-table input[type="checkbox"] {
   width: 16px;
   height: 16px;
   margin: 0;

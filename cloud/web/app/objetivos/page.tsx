@@ -8,7 +8,7 @@ export default function ObjetivosPage() {
   return (
     <AuthGate>
       <Shell>
-        <ObjectivesPage />
+        <ObjectivesPage showOpportunities={false} />
       </Shell>
     </AuthGate>
   );

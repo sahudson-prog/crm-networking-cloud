@@ -1,14 +1,14 @@
 "use client";
 
 import { AuthGate } from "../../components/AuthGate";
-import { ReadOnlyDashboard } from "../../components/ReadOnlyDashboard";
+import { HomeView } from "../../components/StructuralViews";
 import { Shell } from "../../components/Shell";
 
 export default function DashboardPage() {
   return (
     <AuthGate>
       <Shell>
-        <ReadOnlyDashboard />
+        <HomeView />
       </Shell>
     </AuthGate>
   );

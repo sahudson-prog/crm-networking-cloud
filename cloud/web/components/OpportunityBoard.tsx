@@ -12,7 +12,7 @@ import { OpportunityCardPopover, type OpportunityCardAction } from "./Opportunit
 import { StatusBoard, StatusBoardCard, type BoardDropTarget } from "./ui/StatusBoard";
 import { useDeferredBoardSave, omitKeys, applyStatusToIds, removeUnchangedPending, removeSettledOptimistic } from "../lib/useDeferredBoardSave";
 
-function WingedBriefcase() {
+export function WingedBriefcase() {
   return <svg className="opportunity-winged-icon" aria-hidden="true" width="34" height="28" viewBox="0 0 34 28"
     fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 11C18 5 12 5 9 2C7 0 6 3 7 5C8 7 10 8 11 8C8 7 8 10 10 11C12 13 15 14 18 11Z" />

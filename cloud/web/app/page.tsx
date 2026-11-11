@@ -1,14 +1,14 @@
 "use client";
 
 import { AuthGate } from "../components/AuthGate";
-import { ReadOnlyContacts } from "../components/ReadOnlyContacts";
+import { HomeView } from "../components/StructuralViews";
 import { Shell } from "../components/Shell";
 
 export default function Page() {
   return (
     <AuthGate>
       <Shell>
-        <ReadOnlyContacts />
+        <HomeView />
       </Shell>
     </AuthGate>
   );

@@ -4,6 +4,7 @@ import type { IconName } from "./Icon";
 
 type PanelProps = {
   title: string;
+  icon?: ReactNode;
   caption?: ReactNode;
   action?: {
     label: string;
@@ -13,12 +14,12 @@ type PanelProps = {
   className?: string;
 };
 
-export function Panel({ title, caption, action, children, className = "" }: PanelProps) {
+export function Panel({ title, icon, caption, action, children, className = "" }: PanelProps) {
   return (
     <section className={`panel ${className}`}>
       <div className="panel-header">
         <div>
-          <h2 className="panel-title">{title}</h2>
+          <h2 className="panel-title">{icon}{title}</h2>
           {caption ? <span className="panel-caption">{caption}</span> : null}
         </div>
         {action ? <Button icon={action.icon} square aria-label={action.label} /> : null}

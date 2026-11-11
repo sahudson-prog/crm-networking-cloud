@@ -22,7 +22,13 @@ export function TrackingView({ model, groupHeadhunters, onGroupChange }: {
   model: ReadyTracking; groupHeadhunters: boolean; onGroupChange: (value: boolean) => void;
 }) {
   return <div className="tracking-overview">
-    <ol className="tracking-pyramid" aria-label="Avances, de base a cima">
+    <TrackingPyramid model={model} />
+    <TrackingBars model={model} groupHeadhunters={groupHeadhunters} onGroupChange={onGroupChange} />
+  </div>;
+}
+
+export function TrackingPyramid({ model }: { model: ReadyTracking }) {
+  return <ol className="tracking-pyramid" aria-label="Avances, de base a cima">
       {model.counts.map((count, i) => <li key={labels[i]}>
         <div className="tracking-level-row">
           <span className="tracking-level-label">{labels[i]}</span>
@@ -38,13 +44,11 @@ export function TrackingView({ model, groupHeadhunters, onGroupChange }: {
           </HelpTooltip>
         </div> : null}
       </li>)}
-    </ol>
-    <TrackingBars model={model} groupHeadhunters={groupHeadhunters} onGroupChange={onGroupChange} />
-  </div>;
+    </ol>;
 }
 
-function TrackingBars({ model, groupHeadhunters, onGroupChange }: {
-  model: ReadyTracking; groupHeadhunters: boolean; onGroupChange: (value: boolean) => void;
+export function TrackingBars({ model, groupHeadhunters, onGroupChange, standalone = false }: {
+  model: ReadyTracking; groupHeadhunters: boolean; onGroupChange: (value: boolean) => void; standalone?: boolean;
 }) {
   const [mode, setMode] = useState<PeriodMode>("weekly");
   const [clock, setClock] = useState(model.now);
@@ -73,8 +77,8 @@ function TrackingBars({ model, groupHeadhunters, onGroupChange }: {
   const axisLabel = (key: string) => mode === "weekly"
     ? `${Number(key.slice(8))} ${months[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}`
     : months[Number(key.slice(5, 7)) - 1];
-  return <section className="tracking-coffee" aria-labelledby="tracking-bars-title">
-    <header className="section-toolbar"><h3 id="tracking-bars-title">Total cafés</h3>
+  return <section className={`tracking-coffee ${standalone ? "tracking-coffee-standalone" : ""}`} aria-label="Total cafés">
+    <header className="section-toolbar">{standalone ? null : <h3 id="tracking-bars-title">Total cafés</h3>}
       <div className="tracking-chart-controls">
         <Button className="tracking-group-toggle" icon={groupHeadhunters ? "users" : "circleDot"}
           aria-pressed={groupHeadhunters} onClick={() => onGroupChange(!groupHeadhunters)}>Agrupar Headhunters</Button>

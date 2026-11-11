@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Coffee, Users } from "lucide-react";
 import type { DragEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { deactivateContacts, NETWORKING_STATUSES, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
@@ -19,6 +20,8 @@ import { ContactDeactivationButton } from "./ContactDeactivationButton";
 import { ContactDeactivationConfirmDialog } from "./ContactDeactivationConfirmDialog";
 import { ContactEditorDialog } from "./ContactEditorDialog";
 import { ContactFilterControls } from "./ContactFilterControls";
+import { CompaniesTable } from "./CompaniesTable";
+import { formatLastInteractionAge } from "./ContactInteractionAge";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
@@ -29,6 +32,7 @@ import { useDeferredBoardSave, omitKeys, applyStatusToIds, removeUnchangedPendin
 type ContactTableProps = {
   contacts: ContactListRow[];
   onReload?: () => Promise<void> | void;
+  view?: "all" | "states" | "contacts";
 };
 
 type SortKey = "name" | "companyRole" | "status" | "daysSince";
@@ -51,11 +55,12 @@ type ContactBoardCard = {
   extraCount: number;
 };
 
-export function ContactTable({ contacts, onReload }: ContactTableProps) {
+export function ContactTable({ contacts, onReload, view = "all" }: ContactTableProps) {
   const [quickQuery, setQuickQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("Pendiente");
   const [bulkObjectiveIds, setBulkObjectiveIds] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>({ key: "name", direction: "asc" });
@@ -86,7 +91,10 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
     () => allObjectives.length ? allObjectives : objectiveOptionsForContacts(visibleContacts),
     [allObjectives, visibleContacts]
   );
-  const sortedContacts = useMemo(() => sortContacts(filtered, sort), [filtered, sort]);
+  const companyFiltered = useMemo(() => view === "contacts" && selectedCompanies.size
+    ? filtered.filter(contact => selectedCompanies.has(cleanContactCompany(contact.company))) : filtered,
+  [filtered, selectedCompanies, view]);
+  const sortedContacts = useMemo(() => sortContacts(companyFiltered, sort), [companyFiltered, sort]);
   const boardCards = useMemo(() => buildContactBoardCards(sortedContacts, headhuntersGrouped), [headhuntersGrouped, sortedContacts]);
   const boardCardsByStatus = useMemo(() => groupBoardCardsByStatus(boardCards), [boardCards]);
   const boardCardsById = useMemo(() => new Map(boardCards.map((card) => [card.id, card])), [boardCards]);
@@ -302,15 +310,15 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         onFiltersOpenChange={setFiltersOpen}
         onQuickQueryChange={setQuickQuery}
       />
-      <section className="panel contacts-workspace">
+      <section className={`panel contacts-workspace ${view === "all" ? "" : "functional-block"}`}>
         <div className="panel-header contacts-header">
           <div>
-            <h2 className="panel-title">Contactos</h2>
+            <h2 className="panel-title">{view === "states" ? <Coffee aria-hidden="true" /> : view === "contacts" ? <Users aria-hidden="true" /> : null}{view === "states" ? "Estados de networking" : "Contactos"}</h2>
           </div>
         </div>
 
       <div className="contacts-status-toolbar">
-        <Button
+        {view !== "contacts" ? <Button
           icon={headhuntersGrouped ? "users" : "circleDot"}
           onClick={() => {
             if (headhuntersGrouped) {
@@ -321,16 +329,16 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
           }}
         >
           {headhuntersGrouped ? "Desagrupar Headhunters" : "Agrupar Headhunters"}
-        </Button>
+        </Button> : null}
         <p className={`contacts-status-feedback ${feedback.includes("No pude") ? "form-error" : "form-success"}`}>
           {feedback}
         </p>
-        <Button className="contacts-create-button" icon="plus" onClick={() => setContactEditorOpen(true)}>
+        {view !== "states" ? <Button className="contacts-create-button" icon="plus" onClick={() => setContactEditorOpen(true)}>
           Crear contacto
-        </Button>
+        </Button> : null}
       </div>
 
-      <ContactStatusBoard
+      {view !== "contacts" ? <ContactStatusBoard
         cardsByStatus={boardCardsByStatus}
         draggingContactId={draggingContactId}
         dropTarget={boardDropTarget}
@@ -346,8 +354,9 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         }}
         onDropContact={applyBoardStatus}
         onDropTargetChange={setBoardDropTarget}
-      />
+      /> : null}
 
+      {view !== "states" ? <>
       <div className="contacts-bulk-bar">
         <div className="contacts-selection-summary">
           <strong>{sortedContacts.length}</strong> contactos en tabla · <strong>{selectedCount}</strong> seleccionados
@@ -474,7 +483,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
                 </tr>
               );
             })}
-            {!filtered.length ? (
+            {!sortedContacts.length ? (
               <tr>
                 <td colSpan={5}>
                   <div className="contacts-empty-state">No hay contactos para los filtros actuales.</div>
@@ -485,6 +494,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         </table>
       </div>
 
+      </> : null}
       {showGroupConfirm ? (
         <div className="modal-backdrop" role="presentation">
           <section className="modal-card contacts-group-dialog" role="dialog" aria-modal="true" aria-labelledby="contacts-group-title">
@@ -522,6 +532,7 @@ export function ContactTable({ contacts, onReload }: ContactTableProps) {
         />
       ) : null}
       </section>
+      {view === "contacts" ? <CompaniesTable contacts={filtered} selected={selectedCompanies} onSelectionChange={setSelectedCompanies} /> : null}
       <ContactEditorDialog
         open={contactEditorOpen}
         onClose={() => setContactEditorOpen(false)}
@@ -948,17 +959,4 @@ function buildHeadhunterResolutionMap(contacts: ContactListRow[], master: Headhu
     result.set(contact.id, resolveHeadhunterCompany(contact, master));
   }
   return result;
-}
-
-function formatLastInteractionAge(days: number | null, lastInteractionAt: string | null) {
-  if (days === null) return <EmptyValue>sin interacciones</EmptyValue>;
-  const title = lastInteractionAt ? new Date(lastInteractionAt).toLocaleDateString("es-CL") : undefined;
-  if (days === 0) return <span title={title}>Hoy</span>;
-  const months = Math.floor(days / 30);
-  const remainingDays = days % 30;
-  const parts = [
-    months ? `${months}m` : "",
-    remainingDays ? `${remainingDays}d` : ""
-  ].filter(Boolean);
-  return <span title={title}>{parts.join(" ")}</span>;
 }

@@ -2,15 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
+import { Binoculars, Building2, ChartColumn, ChartSpline, Handshake, MessagesSquare } from "lucide-react";
 import { readTrackingSnapshot } from "../lib/trackingRead";
 import { buildTracking, defaultTrackingFilters, type TrackingSnapshot } from "../lib/trackingModel";
+import { useTrackingViewFilters } from "./useTrackingViewFilters";
 import { readDashboardDetails, type DashboardDetails } from "../lib/dashboardDetails";
 import { buildHeadhunterCompanies } from "../lib/cloudData";
 import { DEFAULT_CONTACT_FILTERS, filterContacts, type ContactFilters } from "../lib/contactFilters";
 import { buildObjectiveMetrics, type ObjectiveMetricRow } from "../lib/objectiveMetrics";
 import type { ObjectiveRow } from "../lib/readModel";
 import { ContactFilterControls } from "./ContactFilterControls";
-import { TrackingView } from "./TrackingView";
+import { TrackingView, TrackingPyramid, TrackingBars } from "./TrackingView";
 import { ObjectiveMetricsTable } from "./ObjectiveMetricsTable";
 import { HeadhunterCompanies } from "./HeadhunterCompanies";
 import { InteractionTimelineList, groupParticipantsByInteraction, groupSourcesByInteraction } from "./InteractionTimelineList";
@@ -18,15 +20,22 @@ import { ReferralActions } from "./ReferralActions";
 import { Button } from "./ui/Button";
 import { Panel } from "./ui/Panel";
 
-export function ReadOnlyDashboard() {
+const noSelectedDomains = new Set<string>();
+
+export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "planning" | "interactions" | "referrals" } = {}) {
   const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
     getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
   const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null);
   const [details, setDetails] = useState<DashboardDetails | null>(null);
-  const [filters, setFilters] = useState(defaultTrackingFilters);
+  const savedFilters = useTrackingViewFilters();
+  const { setFilters, setQuickQuery, setSelectedDomains } = savedFilters;
+  const hideFilters = view === "interactions" || view === "referrals";
+  // These embedded blocks have no filter controls. Ignore optional URL selections
+  // without clearing the state still editable in Inicio/Planificar. Foco and cycle rules remain below.
+  const filters = hideFilters ? defaultTrackingFilters : savedFilters.filters;
+  const quickQuery = hideFilters ? "" : savedFilters.quickQuery;
+  const selectedDomains = hideFilters ? noSelectedDomains : savedFilters.selectedDomains;
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [quickQuery, setQuickQuery] = useState("");
-  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true), [error, setError] = useState(false);
   const [detailLoading, setDetailLoading] = useState(true), [detailError, setDetailError] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -94,41 +103,57 @@ export function ReadOnlyDashboard() {
     {detailError ? <span role="alert" className="danger-text">No pudimos actualizar el detalle. {details ? "Se conserva la lectura anterior." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar detalle</Button></span>
       : detailLoading ? (details ? "Actualizando detalle..." : "Leyendo detalle...") : null}
   </div>;
-  return <div className="grid tracking-dashboard" aria-label="Seguimiento">
-    <div className="dashboard-filter-bar">
+  const cycleFeedback = <>
+    {model?.state === "no_cycle" ? <p className="empty-value">No hay una búsqueda activa. Puedes iniciarla en Objetivos.</p> : null}
+    {model?.state === "unknown_start" ? <p className="empty-value">Configura el inicio y la zona horaria en Objetivos para ver tus avances.</p> : null}
+  </>;
+  const blockClass = view === "all" ? "" : "functional-block";
+  return <div className={`grid tracking-dashboard ${view === "all" ? "" : "structural-view"}`} aria-label={view === "all" ? "Seguimiento" : "Filtros y bloques de seguimiento"}>
+    {!hideFilters ? <div className="dashboard-filter-bar">
       <ContactFilterControls filters={contactFilterValues} filtersOpen={filtersOpen} onFiltersOpenChange={setFiltersOpen}
         objectiveOptions={objectives} quickQuery={quickQuery} onQuickQueryChange={setQuickQuery}
         quickSearchLabel="Buscar en interacciones y empresas" quickSearchDisabled={!details}
         focusLocked showStatusFilter={false}
         onFiltersChange={next => setFilters(current => ({ ...current, priorityIds: next.objectiveIds,
           headhunters: next.isHeadhunter === "true" ? "only" : next.isHeadhunter === "false" ? "exclude" : "all" }))} />
-    </div>
+      {view === "home" ? <p className="filter-scope-note">La búsqueda se aplica a interacciones, empresas headhunter y referidos. No cambia estos indicadores.</p> : null}
+    </div> : null}
     <div className="tracking-feedback" aria-live="polite">
       {error ? <span role="alert" className="danger-text">No pudimos verificar todos los datos. {snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar</Button></span>
         : loading ? (snapshot ? "Actualizando..." : "Leyendo seguimiento...") : null}
     </div>
-    <Panel title="¿Cómo voy?" className="tracking-main-panel">
+    {view === "home" ? <div className="structural-home-blocks">
+      <Panel title="Indicadores de avance" icon={<ChartColumn aria-hidden="true" />} className={blockClass}>
+        {model?.state === "ready" ? <TrackingPyramid model={model} /> : cycleFeedback}
+      </Panel>
+      <Panel title="Evolución de contactos Coffeecitados" icon={<ChartSpline aria-hidden="true" />} className={blockClass}>
+        {model?.state === "ready" ? <TrackingBars key={snapshot!.cycle!.id} model={model} standalone
+          groupHeadhunters={filters.groupHeadhunters}
+          onGroupChange={value => setFilters(current => ({ ...current, groupHeadhunters: value }))} /> : cycleFeedback}
+      </Panel>
+    </div> : null}
+    {view === "all" ? <Panel title="¿Cómo voy?" className="tracking-main-panel">
       {model?.state === "ready" ? <TrackingView key={snapshot!.cycle!.id} model={model}
         groupHeadhunters={filters.groupHeadhunters}
         onGroupChange={value => setFilters(current => ({ ...current, groupHeadhunters: value }))} /> : null}
       {model?.state === "no_cycle" ? <p className="empty-value">No hay una búsqueda activa. Puedes iniciarla en Objetivos.</p> : null}
       {model?.state === "unknown_start" ? <p className="empty-value">Configura el inicio y la zona horaria en Objetivos para ver tus avances.</p> : null}
-    </Panel>
-    <Panel title="Objetivos" caption="Resumen según filtros actuales">
+    </Panel> : null}
+    {view === "all" || view === "planning" ? <Panel title={view === "all" ? "Objetivos" : "Progreso de tus prioridades - ¿dónde debo enfocarme?"} icon={<Binoculars aria-hidden="true" />} className={blockClass} caption="Resumen según filtros actuales">
       {model?.state === "ready" ? <ObjectiveMetricsTable rows={rows} opportunityCounts={opportunityCounts} supplementalUnavailable={!details || detailError} /> : <span className="empty-value">Sin indicadores disponibles.</span>}
-    </Panel>
-    {detailFeedback}
-    <Panel title="Últimas interacciones" caption={selectedDomains.size ? "Filtradas por empresas headhunter seleccionadas" : "Interacciones según filtros actuales"}>
+    </Panel> : null}
+    {view !== "home" ? detailFeedback : null}
+    {view === "all" || view === "interactions" ? <Panel title="Últimas interacciones" icon={<MessagesSquare aria-hidden="true" />} className={blockClass} caption={hideFilters ? "Interacciones de contactos en foco" : selectedDomains.size ? "Filtradas por empresas headhunter seleccionadas" : "Interacciones según filtros actuales"}>
       {details ? <InteractionTimelineList contactsById={contactMap} interactions={latest} participantsByInteraction={participantMap} sourcesByInteraction={sourceMap} showContactContext
         emptyMessage="Sin interacciones para los filtros actuales." /> : <span className="empty-value">{detailLoading ? "Leyendo interacciones..." : "Detalle no disponible."}</span>}
-    </Panel>
-    <Panel title="Empresas headhunter" caption="Resumen por empresa/dominio headhunter">
+    </Panel> : null}
+    {view === "all" || view === "planning" ? <Panel title={view === "all" ? "Empresas headhunter" : "Último contacto con Headhunters"} icon={<Building2 aria-hidden="true" />} className={blockClass} caption="Resumen por empresa/dominio headhunter">
       {details ? <HeadhunterCompanies rows={companies} selectedDomains={selectedDomains}
         onToggleDomain={domain => setSelectedDomains(old => { const next = new Set(old); if (next.has(domain)) next.delete(domain); else next.add(domain); return next; })}
         onClearSelection={() => setSelectedDomains(new Set())} /> : <span className="empty-value">{detailLoading ? "Leyendo empresas..." : "Detalle no disponible."}</span>}
-    </Panel>
-    <Panel title="Contactos referidos" caption="Referidos según filtros actuales">
+    </Panel> : null}
+    {view === "all" || view === "referrals" ? <Panel title={view === "all" ? "Contactos referidos" : "Referidos"} icon={<Handshake aria-hidden="true" />} className={blockClass} caption={hideFilters ? "Referidos de contactos en foco" : "Referidos según filtros actuales"}>
       {details ? <ReferralActions rows={referrals} /> : <span className="empty-value">{detailLoading ? "Leyendo referidos..." : "Detalle no disponible."}</span>}
-    </Panel>
+    </Panel> : null}
   </div>;
 }
