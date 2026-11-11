@@ -65,6 +65,21 @@ test("servicios OFF se omiten y ambos OFF muestran una sola fila", () => {
   }]);
 });
 
+test("partial authorization failure retains new counts and protected-association notice", () => {
+  const notice = "Se conservaron vínculos usados por Oportunidades. Revisa sus asociaciones.";
+  for (const reauthorizationRequired of [true, false]) {
+    const rows = buildGlobalActivitySyncRows({
+      freshness: { calendar: "2026-11-06T12:00:00Z", mail: null },
+      outcomes: [{ ...failure("calendar", "Actualización parcial"), created: 2, reauthorizationRequired, notice }],
+      preferences: { calendarEnabled: true, gmailEnabled: false }, services: authorizedServices
+    });
+    assert.match(rows[0].status, /\+2 nuevas/);
+    assert.ok(rows[0].status.includes(notice));
+    assert.ok(rows[0].lastSuccess);
+    assert.equal(rows[0].tone, "error");
+  }
+});
+
 test("resultados quedan en filas por servicio con counts persistidos y error parcial", () => {
   const rows = buildGlobalActivitySyncRows({
     freshness: { calendar: null, mail: null },
@@ -119,7 +134,7 @@ test("acción contextual depende del estado sin activar servicios OFF", () => {
     label: "Actualizar ahora"
   });
   assert.equal(globalActivityPrimaryAction({ anyServiceEnabled: false, iconState: "normal", ready: true }), null);
-  assert.equal(globalActivityPrimaryAction({ anyServiceEnabled: true, iconState: "auth_required", ready: true })?.label, "Autorizar y actualizar");
+  assert.equal(globalActivityPrimaryAction({ anyServiceEnabled: true, iconState: "auth_required", ready: true })?.label, "Reconectar Google");
   assert.equal(globalActivityPrimaryAction({ anyServiceEnabled: true, iconState: "error", ready: true })?.label, "Reintentar");
   assert.deepEqual(globalActivityPrimaryAction({ anyServiceEnabled: true, iconState: "syncing", ready: true }), {
     disabled: true,

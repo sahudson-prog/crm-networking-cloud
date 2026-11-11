@@ -5,6 +5,7 @@ import type {
 import { buildContactSyncPreview, type ContactSyncPreviewInput } from "./contactSyncPreview.ts";
 import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers.ts";
 import type { ContactRow } from "./readModel.ts";
+import { SyncItemFailure, syncItemDiagnostic, type SyncItemPhase, type SyncItemOutcome } from "./syncItemDiagnostics.ts";
 
 export type SyncProvider = "google" | "microsoft" | "apple" | "csv" | string;
 export type SyncResourceType = "contacts" | "mail" | "calendar" | "messages";
@@ -42,6 +43,9 @@ export type SyncCounts = {
 };
 
 export type SyncIssue = {
+  phase?: SyncItemPhase;
+  outcome?: SyncItemOutcome;
+  httpStatus?: number | null;
   code: string;
   message: string;
   externalId?: string | null;
@@ -169,7 +173,12 @@ export async function syncExternalInteractionBatch(
 
   for (const item of items) {
     try {
-      const itemResult = await handler(item);
+      const batchAccount = input.connectedAccountId?.trim() || null;
+      const itemAccount = item.connectedAccountId?.trim() || null;
+      if (batchAccount && itemAccount && batchAccount !== itemAccount) {
+        throw new SyncItemFailure("context", "SYNC_ACCOUNT_MISMATCH", "not_sent");
+      }
+      const itemResult = await handler({ ...item, connectedAccountId: batchAccount ?? itemAccount });
       if (itemResult.status === "created") result.counts.created += 1;
       if (itemResult.status === "updated") result.counts.updated += 1;
       if (itemResult.status === "skipped_prevent_reimport") result.counts.skipped += 1;
@@ -182,8 +191,9 @@ export async function syncExternalInteractionBatch(
     } catch (error) {
       result.counts.failed += 1;
       result.errors.push({
-        code: "SYNC_ITEM_FAILED",
-        message: error instanceof Error ? error.message : "No pude sincronizar el objeto.",
+        ...syncItemDiagnostic(error),
+        message: input.resourceType === "calendar" ? "No pude guardar la cita."
+          : error instanceof Error ? error.message : "No pude sincronizar el objeto.",
         externalId: item.externalId
       });
     }
@@ -200,7 +210,9 @@ export async function syncExternalInteractionBatch(
 }
 
 async function defaultExternalInteractionSyncHandler(item: ExternalInteractionInput) {
-  const { syncExternalInteraction } = await import("./externalInteractionSync");
+  const { syncExternalInteraction } = await import("./externalInteractionSync").catch(() => {
+    throw new SyncItemFailure("writer_load", "SYNC_WRITER_LOAD_FAILED", "not_sent");
+  });
   return syncExternalInteraction(item);
 }
 

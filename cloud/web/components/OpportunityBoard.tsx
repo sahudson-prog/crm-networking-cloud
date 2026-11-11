@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { BriefcaseBusiness, MessageSquare, Users } from "lucide-react";
 import { readOpportunities, saveOpportunity } from "../lib/opportunityActions";
 import { OPPORTUNITY_STAGES, opportunityClosureValid, opportunityMoveIntent, opportunityResultLabel, type Opportunity, type OpportunityResult, type OpportunityStage } from "../lib/opportunityModel";
@@ -23,6 +24,9 @@ function WingedBriefcase() {
 export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadComplete }: {
   revision?: number; enabled?: boolean; onInitialLoadComplete?: () => void;
 }) {
+  const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
+    getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
+  const previousCalendarSuccess = useRef(calendarSyncedAt);
   const [rows, setRows] = useState<Opportunity[]>([]);
   const [filter, setFilter] = useState<"active" | "finalized" | "all">("active");
   const [loading, setLoading] = useState(true);
@@ -59,6 +63,11 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
     void load();
     return () => { generation.current += 1; loadVersion.current += 1; };
   }, [revision]);
+  useEffect(() => {
+    if (previousCalendarSuccess.current === calendarSyncedAt || loading || pendingCount || savingIds.size || editor || cardAction) return;
+    previousCalendarSuccess.current = calendarSyncedAt;
+    void load();
+  }, [calendarSyncedAt, loading, pendingCount, savingIds.size, editor, cardAction]);
   useEffect(() => {
     if (!enabled) {
       generation.current += 1;
@@ -213,7 +222,7 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
               <div className="opportunity-card-footer">
                 <div className="opportunity-counts" aria-label="Relaciones">
                   <span title="Contactos" aria-label={`${row.contact_ids.length} contactos`}><Users size={12} aria-hidden="true" />{row.contact_ids.length}</span>
-                  <span title="Interacciones" aria-label={`${row.interaction_ids.length} interacciones`}><MessageSquare size={12} aria-hidden="true" />{row.interaction_ids.length}</span>
+                  <span title="Interacciones" aria-label={`${row.visible_interaction_count ?? row.interaction_ids.length} interacciones`}><MessageSquare size={12} aria-hidden="true" />{row.visible_interaction_count ?? row.interaction_ids.length}</span>
                   <span title="Prioridades" aria-label={`${row.objective_ids.length} prioridades`}><Icon name="tag" />{row.objective_ids.length}</span>
                 </div>
                 <div className="opportunity-card-actions">

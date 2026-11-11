@@ -495,7 +495,7 @@ function GoogleImportSection({
 
       {includeOtherSources ? (
         <section className="account-data-group" aria-labelledby="account-auto-sync-title">
-          <h3 id="account-auto-sync-title">Sincronización automática</h3>
+          <h3 id="account-auto-sync-title">Incluir al actualizar</h3>
           <div className="account-provider-sync-grid">
             <section className="account-data-block account-provider-sync-block" aria-label="Google">
               <div className="account-provider-sync-heading">
@@ -505,11 +505,11 @@ function GoogleImportSection({
               <div className="account-provider-sync-options">
                 {calendarEligibility === "enabled" ? (
                   <InteractionSyncPreferenceToggle
-                    checked={syncPreferences.preferences.calendarEnabled}
+                    checked={account.googleSyncEligibility.calendar && syncPreferences.preferences.calendarEnabled}
                     description={!account.googleDataAuthorizationAllowed
                       ? "No disponible para esta sesión"
-                      : googleServices.calendar ? "Autorizado" : "Requiere autorización"}
-                    disabled={syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
+                      : googleServices.calendar ? "Conectado · calendario principal" : "Requiere reconexión"}
+                    disabled={!account.googleSyncEligibility.calendar || syncPreferences.loading || syncPreferences.saving || account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
                     icon="calendar"
                     label="Citas de Google Calendar"
                     onChange={(enabled) => void changeSyncPreference("calendar", enabled)}
@@ -521,6 +521,12 @@ function GoogleImportSection({
                     title="Google Calendar"
                   />
                 )}
+                {calendarEligibility === "enabled" && syncPreferences.preferences.calendarEnabled && !googleServices.calendar ? (
+                  <Button disabled={account.googleAuthorizationVerifying || !account.googleDataAuthorizationAllowed}
+                    onClick={() => void changeSyncPreference("calendar", true)} tone="secondary">
+                    Reconectar Calendar
+                  </Button>
+                ) : null}
                 {emailEligibility === "enabled" ? (
                   <InteractionSyncPreferenceToggle
                     checked={syncPreferences.preferences.gmailEnabled}

@@ -1,8 +1,9 @@
 import type { GoogleCalendarEvent, GoogleGmailMessage } from "./googleInteractionAdapter.ts";
 import { GMAIL_QUOTA_UNITS_PER_MINUTE_USER } from "./usageLimitCatalog.ts";
+import { GOOGLE_CALENDAR_OWNED_SCOPE as GOOGLE_CALENDAR_READONLY_SCOPE } from "./googleProductPolicy.ts";
 
 export const GOOGLE_GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
-export const GOOGLE_CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+export { GOOGLE_CALENDAR_READONLY_SCOPE };
 export const GOOGLE_INTERACTIONS_READONLY_SCOPES = [
   GOOGLE_GMAIL_READONLY_SCOPE,
   GOOGLE_CALENDAR_READONLY_SCOPE
@@ -342,7 +343,7 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
 
   while (events.length < maxEvents) {
     pagesRead += 1;
-    const response = await fetchGoogleCalendarWithTimeout(
+    const { response, body } = await fetchGoogleCalendarWithTimeout(
       fetchImpl,
       calendarEventsUrl({
         maxResults: Math.min(maxEvents - events.length, CALENDAR_MAX_RESULTS_PER_PAGE),
@@ -355,7 +356,6 @@ export async function readGoogleCalendarEvents(input: GoogleCalendarReadInput): 
       accessToken,
       input.requestTimeoutMs
     );
-    const body = await parseJson(response);
     if (!response.ok) throw googleInteractionError(response.status, body, "Google Calendar");
 
     const payload = body as CalendarEventsResponse;
@@ -405,10 +405,12 @@ async function fetchGoogleCalendarWithTimeout(
   );
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, {
+    const response = await fetchImpl(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: controller.signal
     });
+    const body = await parseJson(response);
+    return { response, body };
   } catch (error) {
     if (controller.signal.aborted) {
       throw new GoogleInteractionClientError(

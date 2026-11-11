@@ -69,6 +69,9 @@ export async function readGoogleOAuthSession(): Promise<GoogleOAuthSession> {
 export async function reconnectGoogle(scopes: string | string[], redirectTo?: string) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   const scopeList = normalizeGoogleScopeList(scopes);
+  if (scopeList.some((scope) => scope.includes("/auth/gmail.") || scope === "https://mail.google.com/")) {
+    throw new Error("Gmail no está disponible en esta versión.");
+  }
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
   const session = data.session;

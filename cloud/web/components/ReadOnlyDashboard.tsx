@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { readTrackingSnapshot } from "../lib/trackingRead";
 import { buildTracking, defaultTrackingFilters, type TrackingSnapshot } from "../lib/trackingModel";
 import { readDashboardDetails, type DashboardDetails } from "../lib/dashboardDetails";
@@ -18,6 +19,8 @@ import { Button } from "./ui/Button";
 import { Panel } from "./ui/Panel";
 
 export function ReadOnlyDashboard() {
+  const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
+    getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
   const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null);
   const [details, setDetails] = useState<DashboardDetails | null>(null);
   const [filters, setFilters] = useState(defaultTrackingFilters);
@@ -42,7 +45,7 @@ export function ReadOnlyDashboard() {
       .catch(() => { if (generation.current === current) setDetailError(true); })
       .finally(() => { if (generation.current === current) setDetailLoading(false); });
     return () => { generation.current++; };
-  }, [revision]);
+  }, [revision, calendarSyncedAt]);
   const model = useMemo(() => snapshot ? buildTracking(snapshot, filters) : null, [snapshot, filters]);
   const objectives = useMemo<ObjectiveRow[]>(() => (snapshot?.priorities ?? []).map(p => ({
     ...p, objective_name_normalized: p.objective_name, objective_description: "", is_active: true, created_at: "", updated_at: ""

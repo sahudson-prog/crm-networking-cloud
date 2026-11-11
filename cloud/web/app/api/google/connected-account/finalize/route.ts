@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { parseAppAccessRpcResponse } from "../../../../../lib/appAccess";
+import { calendarScopeGranted, googleProductOperationEnabled, GOOGLE_CALENDAR_OWNED_SCOPE } from "../../../../../lib/googleProductPolicy";
 import {
   verifyGoogleAuthorizationEvidence,
   type GoogleTokenInfo,
@@ -19,7 +20,7 @@ const GOOGLE_OPERATION_CAPABILITIES: Record<GoogleSyncOperation, string> = {
 };
 
 const GOOGLE_OPERATION_SCOPES: Record<GoogleSyncOperation, string> = {
-  calendar: "https://www.googleapis.com/auth/calendar.readonly",
+  calendar: GOOGLE_CALENDAR_OWNED_SCOPE,
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
   email: "https://www.googleapis.com/auth/gmail.readonly"
 };
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
     return jsonError("missing_google_token", "No pudimos verificar Google.", 400);
   }
   const { providerToken, requestedOperations } = finalizeRequest;
+  if (requestedOperations.some((operation) => !googleProductOperationEnabled(operation))) {
+    return jsonError("google_operation_disabled", "Esta fuente no está disponible en esta versión.", 403);
+  }
 
   const userClient = createClient(config.supabaseUrl, config.supabasePublicKey, {
     auth: {
@@ -94,6 +98,12 @@ export async function POST(request: NextRequest) {
       );
     }
   }
+  if (requestedOperations.includes("calendar")) {
+    const { data: adminAllowed, error: adminError } = await userClient.rpc("current_user_can_use_calendar_admin_v1");
+    if (adminError || adminAllowed !== true) {
+      return jsonError("calendar_admin_required", "Calendar solo está disponible para administradores.", 403);
+    }
+  }
 
   const googleEvidence = await readGoogleEvidence(providerToken);
   if (!googleEvidence.ok) {
@@ -110,9 +120,19 @@ export async function POST(request: NextRequest) {
     return jsonError(verification.code, verification.message, 403);
   }
   if (requestedOperations.some((operation) => (
-    !verification.effectiveScopes.includes(GOOGLE_OPERATION_SCOPES[operation])
+    operation === "calendar" ? !calendarScopeGranted(verification.effectiveScopes)
+      : !verification.effectiveScopes.includes(GOOGLE_OPERATION_SCOPES[operation])
   ))) {
     return jsonError("google_scope_missing", "Google no confirmó el permiso solicitado.", 403);
+  }
+  // Google may carry an earlier grant even when this request only asks for Contacts.
+  // Never persist Calendar capability for a non-admin through that shared path.
+  let effectiveScopes = verification.effectiveScopes;
+  if (calendarScopeGranted(effectiveScopes) && !requestedOperations.includes("calendar")) {
+    const { data: adminAllowed, error: adminError } = await userClient.rpc("current_user_can_use_calendar_admin_v1");
+    if (adminError) return jsonError("access_check_failed", "No pudimos verificar acceso.", 403);
+    if (adminAllowed !== true) effectiveScopes = effectiveScopes.filter(scope =>
+      scope !== GOOGLE_CALENDAR_OWNED_SCOPE && scope !== "https://www.googleapis.com/auth/calendar.readonly");
   }
 
   const adminClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
@@ -125,7 +145,7 @@ export async function POST(request: NextRequest) {
   const { data: account, error: finalizeError } = await adminClient
     .rpc("finalize_google_connected_account_verified", {
       p_account_email: verification.accountEmail,
-      p_effective_scopes: verification.effectiveScopes,
+      p_effective_scopes: effectiveScopes.filter((scope) => scope !== "https://www.googleapis.com/auth/gmail.readonly"),
       p_user_id: user.id
     })
     .single();

@@ -38,6 +38,8 @@ export type GoogleCalendarEvent = {
   created?: string | null;
   updated?: string | null;
   status?: string | null;
+  attendeesOmitted?: boolean;
+  recurringEventId?: string | null;
   start?: {
     dateTime?: string | null;
     date?: string | null;
@@ -131,6 +133,7 @@ export function mapCalendarEventToExternalInteraction(input: {
 }): ExternalInteractionInput | null {
   const eventId = clean(input.event.id);
   if (!eventId) return null;
+  if (input.event.status === "cancelled") return null;
 
   const userEmail = normalizeEmail(input.userEmail);
   const contactIndex = normalizeContactIndex(input.contactsByEmail);

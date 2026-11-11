@@ -1,7 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { readContactListRows, readContactProfile } from "../lib/cloudData";
 import type { ContactListRow, ContactProfileData } from "../lib/readModel";
 import { ContactProfile } from "./ContactProfile";
@@ -33,6 +34,8 @@ export function ReadOnlyContacts({
   const [profile, setProfile] = useState<ContactProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync,
+    getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
 
   const loadProfile = useCallback(async () => {
     if (!contactId) return;
@@ -76,7 +79,7 @@ export function ReadOnlyContacts({
     return () => {
       cancelled = true;
     };
-  }, [contactId, onContactsResolved]);
+  }, [contactId, onContactsResolved, calendarSyncedAt]);
 
   if (loading) return <section className="panel">Leyendo contactos...</section>;
   if (error) return <section className="panel">Error: {error}</section>;

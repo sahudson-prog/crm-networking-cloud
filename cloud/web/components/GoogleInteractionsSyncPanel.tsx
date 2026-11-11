@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
+import { GOOGLE_GMAIL_ENABLED } from "../lib/googleProductPolicy";
 import {
   GOOGLE_CALENDAR_READONLY_SCOPE,
   GoogleInteractionClientError,
@@ -138,6 +140,9 @@ export function GoogleInteractionsSyncPanel({
   resumeMailImport = false,
   showCalendarAction = true
 }: GoogleInteractionsSyncPanelProps) {
+  const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
+    getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
+  const previousCalendarSuccess = useRef(calendarSyncedAt);
   const [state, setState] = useState<GoogleInteractionsState>(initialState);
   const [gmailLabelsReloadKey, setGmailLabelsReloadKey] = useState(0);
   const [historicalImportOpen, setHistoricalImportOpen] = useState(false);
@@ -189,9 +194,21 @@ export function GoogleInteractionsSyncPanel({
   }, [registerRememberedScopes]);
 
   useEffect(() => {
+    if (previousCalendarSuccess.current === calendarSyncedAt) return;
+    previousCalendarSuccess.current = calendarSyncedAt;
+    let active = true;
+    void loadActivityImportStats().then(stats => {
+      if (active) setState(current => ({ ...current, stats }));
+    }).catch(() => {
+      if (active) setState(current => ({ ...current, error: "No pudimos actualizar el resumen de interacciones." }));
+    });
+    return () => { active = false; };
+  }, [calendarSyncedAt]);
+
+  useEffect(() => {
     let active = true;
     const accessToken = effectiveAccessToken.trim();
-    if (!accessToken || !googleMailAvailable) {
+    if (!GOOGLE_GMAIL_ENABLED || !accessToken || !googleMailAvailable) {
       setState((current) => ({
         ...current,
         gmailLabels: [],
@@ -244,7 +261,7 @@ export function GoogleInteractionsSyncPanel({
   }, [effectiveAccessToken, gmailLabelsReloadKey, googleMailAvailable]);
 
   useEffect(() => {
-    if (!resumeMailImport || googleConnectionLoading) return;
+    if (!GOOGLE_GMAIL_ENABLED || !resumeMailImport || googleConnectionLoading) return;
     if (googleMailAvailable && effectiveAccessToken) {
       setState((current) => ({
         ...current,
@@ -302,6 +319,7 @@ export function GoogleInteractionsSyncPanel({
   }
 
   async function runMailBootstrapReview() {
+    if (!GOOGLE_GMAIL_ENABLED) return;
     if (mailActionDisabledReason) {
       setState((current) => ({
         ...current,
@@ -747,7 +765,7 @@ export function GoogleInteractionsSyncPanel({
     return (
       <>
         <HistoryImportNotice months={historyMonths} />
-        <div className="account-source-row gmail-history-source">
+        {GOOGLE_GMAIL_ENABLED ? <><div className="account-source-row gmail-history-source">
           <div className="account-source-main">
             <span className="connected-service-logo active" title="Google"><ProviderIcon name="google" /></span>
             <div>
@@ -767,10 +785,11 @@ export function GoogleInteractionsSyncPanel({
             />
           </div>
         </div>
-        {mailActionDisabledReason && !state.loading ? (
+        </> : null}
+        {GOOGLE_GMAIL_ENABLED && mailActionDisabledReason && !state.loading ? (
           <p className="connected-service-action-reason">{mailActionDisabledReason}</p>
         ) : null}
-        {historicalImportOpen ? (
+        {GOOGLE_GMAIL_ENABLED && historicalImportOpen ? (
           <div className="modal-backdrop" role="presentation">
             <section
               aria-describedby="gmail-history-description"
@@ -861,17 +880,17 @@ export function GoogleInteractionsSyncPanel({
           <span className="panel-caption">Fuerza una nueva lectura de datos de Google para contactos en foco. Puede reemplazar datos fuente ya vinculados; tus minutas se conservan.</span>
         </div>
         <div className="toolbar">
-          <ProviderButton label={state.accessToken ? "Reconectar Google" : "Conectar Google"} name="google" onClick={() => connectGoogle("mail")} />
-          <Button disabled={state.loading || state.applying || (Boolean(state.accessToken) && !state.selectedGmailLabelId)} icon="mail" onClick={reviewMail} tone="primary">
+          <ProviderButton label={state.accessToken ? "Reconectar Calendar" : "Conectar Calendar"} name="google" onClick={() => connectGoogle("calendar")} />
+          {GOOGLE_GMAIL_ENABLED ? <Button disabled={state.loading || state.applying || (Boolean(state.accessToken) && !state.selectedGmailLabelId)} icon="mail" onClick={reviewMail} tone="primary">
             {state.loading && activeResource === "mail" ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
-          </Button>
+          </Button> : null}
           <Button disabled={state.loading || state.applying} icon="calendar" onClick={state.accessToken ? reviewCalendar : () => connectGoogle("calendar")} tone="primary">
             {state.loading && activeResource === "calendar" ? "Revisando..." : state.accessToken ? "Importar" : "Conectar Google"}
           </Button>
         </div>
       </div>
 
-      {gmailLabelPicker}
+      {GOOGLE_GMAIL_ENABLED ? gmailLabelPicker : null}
 
       <div className="activity-import-stats" aria-label="Resumen de actividad importada">
         <span><strong>{state.stats.totalContacts}</strong> contactos</span>
@@ -928,15 +947,16 @@ async function loadActivityImportStats(): Promise<ActivityImportStats> {
     countRows("contacts", { is_active: true }),
     countRows("contacts", { is_active: true, networking_focus: true }),
     countRows("external_interaction_sources", { is_active: true, provider: "google", source_service: "gmail" }),
-    countRows("external_interaction_sources", { is_active: true, provider: "google", source_service: "calendar" })
+    countRows("external_interaction_sources", { is_active: true, provider: "google", source_service: "calendar" }, true)
   ]);
 
   return { contactsInScope, linkedCalendar, linkedMail, totalContacts };
 }
 
-async function countRows(table: string, filters: Record<string, string | boolean>) {
+async function countRows(table: string, filters: Record<string, string | boolean>, excludeCancelled = false) {
   if (!supabase) return 0;
   let query = supabase.from(table).select("id", { count: "exact", head: true });
+  if (excludeCancelled) query = query.or("sync_status.is.null,sync_status.neq.deleted_at_source");
   Object.entries(filters).forEach(([column, value]) => {
     query = query.eq(column, value);
   });

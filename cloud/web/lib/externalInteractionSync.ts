@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 import type { InteractionRow } from "./readModel";
 import type { HistoryWindow } from "./historyPolicy";
+import { SyncItemFailure, syncRpcCode } from "./syncItemDiagnostics.ts";
 
 const INTERACTION_TYPES = new Set(["email", "calendar", "call", "message", "manual"]);
 const DIRECTIONS = new Set(["inbound", "outbound", "internal", "unknown"]);
@@ -50,7 +51,9 @@ export type InteractionReviewStateInput = {
 export async function syncExternalInteraction(input: ExternalInteractionInput): Promise<ExternalInteractionSyncResult> {
   if (!supabase) throw new Error("Supabase no esta configurado.");
 
-  const normalized = await normalizeExternalInteractionInput(input);
+  const normalized = await normalizeExternalInteractionInput(input).catch(() => {
+    throw new SyncItemFailure("normalize", "SYNC_NORMALIZATION_FAILED", "not_sent");
+  });
   if (normalized.provider === "google") {
     return syncGoogleInteraction(normalized);
   }
@@ -93,17 +96,23 @@ async function syncGoogleInteraction(
   input: Awaited<ReturnType<typeof normalizeExternalInteractionInput>>
 ): Promise<ExternalInteractionSyncResult> {
   if (!supabase) throw new Error("Supabase no esta configurado.");
-  if (!input.connectedAccountId) throw new Error("La sincronizacion Google requiere una cuenta conectada.");
-  const { data, error } = await supabase.rpc(input.historyWindow ? "apply_google_history_v1" : "apply_google_periodic_v1", {
+  if (!input.connectedAccountId) throw new SyncItemFailure("context", "SYNC_ACCOUNT_REQUIRED", "not_sent");
+  if (input.sourceService !== "gmail" || input.interactionType !== "email") {
+    throw new SyncItemFailure("context", "GOOGLE_LEGACY_CALENDAR_DENIED", "not_sent");
+  }
+  const { data, error, status: httpStatus } = await Promise.resolve(supabase.rpc(input.historyWindow ? "apply_google_history_v1" : "apply_google_periodic_v1", {
     p_connected_account_id: input.connectedAccountId,
     p_item: input,
     ...(input.historyWindow ? { p_context: input.historyWindow } : {})
-  });
-  if (error) throw error;
+  })).catch(() => { throw new SyncItemFailure("rpc", "SYNC_TRANSPORT_UNCERTAIN", "uncertain"); });
+  if (error) {
+    const uncertain = !httpStatus || httpStatus >= 500;
+    throw new SyncItemFailure("rpc", syncRpcCode(error), uncertain ? "uncertain" : "rejected", httpStatus ?? null);
+  }
   const result = (data ?? {}) as Record<string, unknown>;
   const status = result.status;
   if (status !== "created" && status !== "updated" && status !== "skipped_prevent_reimport") {
-    throw new Error("La base no devolvio un resultado valido para la sincronizacion Google.");
+    throw new SyncItemFailure("response", "SYNC_RESPONSE_INVALID", "uncertain", httpStatus ?? null);
   }
   return {
     status,

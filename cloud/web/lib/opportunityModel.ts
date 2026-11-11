@@ -51,6 +51,7 @@ export type Opportunity = {
   contact_ids: string[];
   objective_ids: string[];
   interaction_ids: string[];
+  visible_interaction_count?: number;
 };
 
 export function opportunityCounts(opportunities: Opportunity[]) {

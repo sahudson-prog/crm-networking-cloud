@@ -24,6 +24,7 @@ export type GlobalActivitySyncRow = {
   label: string;
   status: string;
   tone: "default" | "error" | "muted" | "success";
+  lastSuccess?: string;
 };
 
 export type GlobalActivityPrimaryAction = {
@@ -77,7 +78,7 @@ export function globalActivityPrimaryAction(input: {
     return { disabled: true, kind: "sync", label: "Actualizando…" };
   }
   if (input.iconState === "auth_required") {
-    return { disabled: !input.ready, kind: "authorize", label: "Autorizar y actualizar" };
+    return { disabled: !input.ready, kind: "authorize", label: "Reconectar Google" };
   }
   if (input.iconState === "error") {
     return { disabled: !input.ready, kind: "retry", label: "Reintentar" };
@@ -107,7 +108,7 @@ export function buildGlobalActivitySyncRows(input: {
   const outcomes = new Map((input.outcomes ?? []).map((outcome) => [outcome.service, outcome]));
   return enabledServices.map((service) => {
     const outcome = outcomes.get(service);
-    if (outcome) return rowFromOutcome(outcome);
+    if (outcome) return { ...rowFromOutcome(outcome), lastSuccess: formatActivityServiceFreshness(input.freshness[service], input.now) };
 
     const serviceState = input.services[service];
     if (input.globalError) {
@@ -148,19 +149,21 @@ export function formatActivityServiceFreshness(value: string | null, now = new D
 }
 
 function rowFromOutcome(outcome: ActivitySyncServiceOutcome): GlobalActivitySyncRow {
+  const partialCount = outcome.created ? `+${outcome.created} nuevas · ` : "";
+  const notice = outcome.notice ? ` · ${outcome.notice}` : "";
   if (outcome.reauthorizationRequired) {
-    return serviceRow(outcome.service, "Requiere autorización", "error");
+    return serviceRow(outcome.service, `${partialCount}Requiere autorización${notice}`, "error");
   }
   if (!outcome.success) {
-    return serviceRow(outcome.service, outcome.error || "Error al actualizar", "error");
+    return serviceRow(outcome.service, `${partialCount}${outcome.error || "Error al actualizar"}${notice}`, "error");
   }
   if (outcome.created === 0) {
-    return serviceRow(outcome.service, "Sin novedades", "success");
+    return serviceRow(outcome.service, `Sin novedades${notice}`, "success");
   }
   const noun = outcome.service === "mail"
     ? outcome.created === 1 ? "correo" : "correos"
     : outcome.created === 1 ? "cita" : "citas";
-  return serviceRow(outcome.service, `+${outcome.created} ${noun}`, "success");
+  return serviceRow(outcome.service, `+${outcome.created} ${noun}${notice}`, "success");
 }
 
 function serviceRow(

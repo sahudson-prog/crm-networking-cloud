@@ -12,7 +12,6 @@ import type {
   ContactRow,
   InteractionRow
 } from "../lib/readModel";
-import { ActivitySyncButton, type ActivitySyncNotice } from "./ActivitySyncButton";
 import { CoachModule } from "./CoachPreview";
 import { ContactDataSyncButton, type ContactDataSyncNotice } from "./ContactDataSyncButton";
 import { ContactEditorDialog } from "./ContactEditorDialog";
@@ -62,7 +61,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
   const [savingFlag, setSavingFlag] = useState<"networking_focus" | "is_headhunter" | null>(null);
   const [flagFeedback, setFlagFeedback] = useState("");
   const [contactDataSyncNotice, setContactDataSyncNotice] = useState<ContactDataSyncNotice | null>(null);
-  const [activitySyncNotice, setActivitySyncNotice] = useState<ActivitySyncNotice | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [interactionEditorOpen, setInteractionEditorOpen] = useState(false);
   const [editingInteraction, setEditingInteraction] = useState<InteractionRow | null>(null);
@@ -74,7 +72,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
     setStatusFeedback("");
     setFlagFeedback("");
     setContactDataSyncNotice(null);
-    setActivitySyncNotice(null);
     setExpandedInteractions(new Set());
   }, [contact.id, contact.networking_focus, contact.is_headhunter, contact.networking_status]);
 
@@ -227,13 +224,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
           <div className="panel-header">
             <h2 className="panel-title">Ultimas interacciones</h2>
             <div className="toolbar">
-              <ActivitySyncButton
-                contact={contact}
-                onNoticeChange={setActivitySyncNotice}
-                onSynced={onReload}
-                square
-                variant="single_contact"
-              />
               <Button
                 aria-label="Expandir todas"
                 icon="expand"
@@ -244,14 +234,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
               <Button aria-label="Agregar interaccion" icon="plus" onClick={() => openInteractionEditor(null)} square />
             </div>
           </div>
-          {activitySyncNotice ? (
-            <div
-              className={`contact-sync-notice ${activitySyncNotice.tone} ${activitySyncNotice.busy ? "busy" : ""}`}
-              role={activitySyncNotice.tone === "error" ? "alert" : "status"}
-            >
-              {activitySyncNotice.text}
-            </div>
-          ) : null}
           <InteractionTimelineList
             expandedIds={expandedInteractions}
             interactions={interactions}

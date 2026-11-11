@@ -44,6 +44,7 @@ export type GlobalActivityServiceFreshness = {
 };
 
 type SupabaseLike = {
+  rpc?: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: any; error: any }>;
   auth: {
     getUser: () => Promise<{ data: { user: { id: string } | null }; error?: unknown }>;
   };
@@ -126,8 +127,16 @@ export async function readGlobalActivityServiceFreshness(
     readSyncCursor({ cursorLabel: "", provider: "google", resourceType: "mail" }, client),
     readSyncCursor({ cursorLabel: "", provider: "google", resourceType: "calendar" }, client)
   ]);
+  let calendarTime = matchingCursorTimestamp(calendar, connectedAccountId);
+  if (connectedAccountId && client?.rpc) {
+    const { data, error } = await client.rpc("calendar_manual_sync_v2", {
+      p_account: connectedAccountId, p_run: crypto.randomUUID(), p_action: "status", p_payload: {}
+    });
+    if (error && error.code !== "42501") throw new Error("No pudimos leer el ultimo resultado de Calendar.");
+    calendarTime = error ? null : data?.synced_at ?? null;
+  }
   return {
-    calendar: matchingCursorTimestamp(calendar, connectedAccountId),
+    calendar: calendarTime,
     mail: matchingCursorTimestamp(mail, connectedAccountId)
   };
 }

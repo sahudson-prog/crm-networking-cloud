@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { GOOGLE_GMAIL_ENABLED } from "../lib/googleProductPolicy";
 import {
   DEFAULT_INTERACTION_SYNC_PREFERENCES,
   withInteractionSyncService,
@@ -28,6 +29,7 @@ export function InteractionSyncPreferencesProvider({ children }: { children: Rea
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const preferencesRef = useRef(preferences);
+  const effectivePreferences = useMemo(() => ({ ...preferences, gmailEnabled: GOOGLE_GMAIL_ENABLED && preferences.gmailEnabled }), [preferences]);
 
   useEffect(() => {
     let active = true;
@@ -72,7 +74,7 @@ export function InteractionSyncPreferencesProvider({ children }: { children: Rea
   }, []);
 
   return (
-    <InteractionSyncPreferencesContext.Provider value={{ error, loading, preferences, saving, setServiceEnabled }}>
+    <InteractionSyncPreferencesContext.Provider value={{ error, loading, preferences: effectivePreferences, saving, setServiceEnabled }}>
       {children}
     </InteractionSyncPreferencesContext.Provider>
   );

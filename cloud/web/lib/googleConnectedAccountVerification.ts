@@ -1,12 +1,14 @@
 import { normalizeEmail } from "./googleAuthLoginConfig.ts";
+import { GOOGLE_CALENDAR_OWNED_SCOPE as GOOGLE_CALENDAR_READONLY_SCOPE, GOOGLE_CALENDAR_LEGACY_SCOPE } from "./googleProductPolicy.ts";
+export { GOOGLE_CALENDAR_OWNED_SCOPE as GOOGLE_CALENDAR_READONLY_SCOPE, GOOGLE_CALENDAR_LEGACY_SCOPE } from "./googleProductPolicy.ts";
 
 export const GOOGLE_CONTACTS_READONLY_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
 export const GOOGLE_GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
-export const GOOGLE_CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 export const GOOGLE_DATA_READONLY_SCOPES = [
   GOOGLE_CONTACTS_READONLY_SCOPE,
   GOOGLE_GMAIL_READONLY_SCOPE,
-  GOOGLE_CALENDAR_READONLY_SCOPE
+  GOOGLE_CALENDAR_READONLY_SCOPE,
+  GOOGLE_CALENDAR_LEGACY_SCOPE
 ] as const;
 
 export type GoogleDataCapabilityKey = "contacts_read" | "gmail_read" | "calendar_read";
@@ -59,7 +61,7 @@ export function effectiveGoogleDataScopesFromTokenScope(scope: unknown): string[
 export function googleDataCapabilitiesFromEffectiveScopes(scopes: string[]): GoogleDataCapabilities {
   const effective = new Set(scopes);
   return {
-    calendar_read: effective.has(GOOGLE_CALENDAR_READONLY_SCOPE),
+    calendar_read: effective.has(GOOGLE_CALENDAR_READONLY_SCOPE) || effective.has(GOOGLE_CALENDAR_LEGACY_SCOPE),
     contacts_read: effective.has(GOOGLE_CONTACTS_READONLY_SCOPE),
     gmail_read: effective.has(GOOGLE_GMAIL_READONLY_SCOPE)
   };

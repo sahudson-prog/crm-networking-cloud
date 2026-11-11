@@ -201,6 +201,16 @@ test("coordinador global libera single-flight en finally ante error inesperado",
   resetGlobalActivitySyncCoordinatorForTests();
 });
 
+test("freshness never replaces a newer server read with older in-memory feedback", () => {
+  const newer = "2026-11-06T14:00:00Z", older = "2026-11-06T12:00:00Z";
+  assert.deepEqual(freshnessAfterActivitySync({ calendar: newer, mail: null }, [
+    { ...success("calendar", 0), syncedAt: older }
+  ], { calendar: older }), { calendar: newer, mail: null });
+  assert.equal(freshnessAfterActivitySync({ calendar: older, mail: null }, [
+    { ...success("calendar", 0), syncedAt: newer }
+  ]).calendar, newer);
+});
+
 function success(service: ActivitySyncServiceOutcome["service"], created: number): ActivitySyncServiceOutcome {
   return {
     created,
