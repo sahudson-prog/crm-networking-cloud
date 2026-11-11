@@ -1,6 +1,7 @@
 export type ActivitySyncService = "mail" | "calendar";
 
 export type ActivitySyncServiceOutcome = {
+  notice?: string;
   created: number;
   error: string;
   reauthorizationRequired: boolean;
@@ -10,6 +11,8 @@ export type ActivitySyncServiceOutcome = {
 };
 
 export type GlobalActivitySyncSnapshot = {
+  progress?: string;
+  lastSuccess?: Partial<Record<ActivitySyncService, string>>;
   completedAt: number | null;
   error: string;
   outcomes: ActivitySyncServiceOutcome[];
@@ -30,6 +33,38 @@ const idleGlobalActivitySyncSnapshot: GlobalActivitySyncSnapshot = {
 let globalActivitySyncSnapshot = idleGlobalActivitySyncSnapshot;
 let activeGlobalActivitySync: Promise<ActivitySyncServiceOutcome[]> | null = null;
 const globalActivitySyncListeners = new Set<GlobalActivitySyncListener>();
+let activityScope = "";
+let scopeRevision = 0;
+let calendarAbort: AbortController | null = null;
+
+export function startCalendarRunControl() {
+  calendarAbort = new AbortController();
+  return calendarAbort.signal;
+}
+export function cancelCalendarRun() { calendarAbort?.abort(); }
+export function endCalendarRunControl() { calendarAbort = null; }
+export function setCalendarRunProgress(account: string, progress: string) {
+  if (activityScope === account && globalActivitySyncSnapshot.running) publishGlobalActivitySync({ ...globalActivitySyncSnapshot, progress });
+}
+
+export function bindGlobalActivitySyncScope(connectedAccountId: string | null) {
+  const next = connectedAccountId ?? "";
+  if (activityScope === next) return;
+  cancelCalendarRun();
+  activityScope = next;
+  scopeRevision += 1;
+  activeGlobalActivitySync = null;
+  publishGlobalActivitySync({ ...idleGlobalActivitySyncSnapshot });
+}
+
+export async function withActivitySyncLock<T>(scope: string, operation: () => Promise<T>): Promise<T> {
+  if (typeof window === "undefined") return operation();
+  if (!scope || !navigator.locks) throw new Error("No podemos coordinar esta actualización. Usa un navegador compatible.");
+  return navigator.locks.request(`coffeecito-calendar:${scope}`, { ifAvailable: true }, async (lock) => {
+    if (!lock) throw new Error("Ya hay una actualización en otra pestaña. Espera a que termine.");
+    return operation();
+  });
+}
 
 export function getGlobalActivitySyncSnapshot() {
   return globalActivitySyncSnapshot;
@@ -52,7 +87,10 @@ export function startGlobalActivitySync(
   }
 
   const runId = globalActivitySyncSnapshot.runId + 1;
+  const revision = scopeRevision;
+  const scope = activityScope;
   publishGlobalActivitySync({
+    lastSuccess: globalActivitySyncSnapshot.lastSuccess,
     completedAt: null,
     error: "",
     outcomes: [],
@@ -61,9 +99,14 @@ export function startGlobalActivitySync(
   });
 
   const promise = Promise.resolve()
-    .then(operation)
+    .then(() => withActivitySyncLock(scope, operation))
     .then((outcomes) => {
-      publishGlobalActivitySync({
+      const lastSuccess = { ...globalActivitySyncSnapshot.lastSuccess };
+      for (const outcome of outcomes) {
+        if (outcome.success && outcome.syncedAt) lastSuccess[outcome.service] = outcome.syncedAt;
+      }
+      if (revision === scopeRevision) publishGlobalActivitySync({
+        lastSuccess,
         completedAt: Date.now(),
         error: "",
         outcomes,
@@ -73,7 +116,8 @@ export function startGlobalActivitySync(
       return outcomes;
     })
     .catch((error: unknown) => {
-      publishGlobalActivitySync({
+      if (revision === scopeRevision) publishGlobalActivitySync({
+        lastSuccess: globalActivitySyncSnapshot.lastSuccess,
         completedAt: Date.now(),
         error: error instanceof Error ? error.message : "No pude actualizar las interacciones.",
         outcomes: [],
@@ -83,7 +127,7 @@ export function startGlobalActivitySync(
       return [];
     })
     .finally(() => {
-      activeGlobalActivitySync = null;
+      if (revision === scopeRevision) activeGlobalActivitySync = null;
     });
 
   activeGlobalActivitySync = promise;
@@ -95,11 +139,14 @@ export function clearGlobalActivitySyncFeedback() {
   publishGlobalActivitySync({
     ...globalActivitySyncSnapshot,
     completedAt: null,
-    outcomes: globalActivitySyncSnapshot.outcomes.filter((outcome) => !outcome.success)
+    // Only the badge expires; the last confirmed counts remain available in the popover.
+    outcomes: globalActivitySyncSnapshot.outcomes
   });
 }
 
 export function resetGlobalActivitySyncCoordinatorForTests() {
+  activityScope = "";
+  scopeRevision += 1;
   activeGlobalActivitySync = null;
   globalActivitySyncSnapshot = idleGlobalActivitySyncSnapshot;
   globalActivitySyncListeners.clear();
@@ -160,12 +207,17 @@ export function activitySyncExecutionHasErrors(outcomes: ActivitySyncServiceOutc
 
 export function freshnessAfterActivitySync(
   current: { calendar: string | null; mail: string | null },
-  outcomes: ActivitySyncServiceOutcome[]
+  outcomes: ActivitySyncServiceOutcome[],
+  confirmed: Partial<Record<ActivitySyncService, string>> = {}
 ) {
-  return outcomes.reduce((freshness, outcome) => {
-    if (!outcome.success || !outcome.syncedAt) return freshness;
-    return { ...freshness, [outcome.service]: outcome.syncedAt };
-  }, current);
+  const freshness = { ...current };
+  const accept = (service: ActivitySyncService, value: string | null | undefined) => {
+    if (value && Number.isFinite(Date.parse(value))
+      && (!freshness[service] || Date.parse(value) > Date.parse(freshness[service]!))) freshness[service] = value;
+  };
+  for (const service of ["calendar", "mail"] as const) accept(service, confirmed[service]);
+  for (const outcome of outcomes) if (outcome.success) accept(outcome.service, outcome.syncedAt);
+  return freshness;
 }
 
 function createdSummary(service: ActivitySyncService, created: number) {

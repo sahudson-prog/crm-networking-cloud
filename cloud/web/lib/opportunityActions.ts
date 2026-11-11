@@ -4,6 +4,7 @@ import { expectedNetworkingContext, networkingContextFromCycles, readNetworkingC
 import { collectOpportunityPages, opportunityClosureValid, type Opportunity, type OpportunityResult, type OpportunityStage } from "./opportunityModel";
 import { supabase } from "./supabaseClient";
 import { OpportunityFailure, opportunityFailure, opportunityPhase } from "./opportunityDiagnostics";
+import { CALENDAR_VISIBILITY_JOIN, withoutCancelledCalendar } from "./interactionState";
 
 function client() {
   if (!supabase) throw new Error("Supabase no está configurado.");
@@ -55,6 +56,19 @@ export async function readOpportunities(): Promise<Opportunity[]> {
     readLinks("opportunity_objectives", "objective_id", owner, ids),
     readLinks("opportunity_interactions", "interaction_id", owner, ids)
   ]);
+  // Keep technical IDs for later edits; a cancelled source must not inflate the visible counter.
+  const interactionIds = [...new Set(interactions.map(link => link.interaction_id))];
+  const visibleIds = new Set<string>();
+  for (let index = 0; index < interactionIds.length; index += 100) {
+    const visible = await collectOpportunityPages<{ id: string }>(async (from, to) => {
+      const { data, error, count } = await withoutCancelledCalendar(client().from("interactions")
+        .select(`id,${CALENDAR_VISIBILITY_JOIN}`, { count: "exact" }))
+        .eq("user_id", owner).in("id", interactionIds.slice(index, index + 100)).order("id").range(from, to);
+      if (error) throw error;
+      return { rows: data ?? [], total: count };
+    });
+    visible.forEach(row => visibleIds.add(row.id));
+  }
   // Separate paged reads must not combine old fields with newly replaced links.
   for (let index = 0; index < ids.length; index += 100) {
     const { data, error } = await client().from("opportunities").select("id,updated_at")
@@ -68,7 +82,8 @@ export async function readOpportunities(): Promise<Opportunity[]> {
   return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((row) => ({ ...row,
     contact_ids: contacts.filter((link) => link.opportunity_id === row.id).map((link) => link.contact_id),
     objective_ids: objectives.filter((link) => link.opportunity_id === row.id).map((link) => link.objective_id),
-    interaction_ids: interactions.filter((link) => link.opportunity_id === row.id).map((link) => link.interaction_id)
+    interaction_ids: interactions.filter((link) => link.opportunity_id === row.id).map((link) => link.interaction_id),
+    visible_interaction_count: interactions.filter(link => link.opportunity_id === row.id && visibleIds.has(link.interaction_id)).length
   }));
 }
 

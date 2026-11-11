@@ -1,5 +1,42 @@
 # Contratos persistentes de PROD
 
+## Calendar admin-only y frontera de escritura 005
+
+`PROD CONTRACT CHANGE`. El owner confirma 001-005 y sus verifiers PASS en DEV, incluido el gate admin-only, sin una nueva comprobacion remota. Calendar exige rol `system_admin` vigente, `admin.manage_access` e `interactions.sync_calendar`; finalize y RPC rechazan no-admin. Login Google, Contacts y Gmail no reciben este gate. PROD no se presume actualizado.
+
+005 esta instalado y verificado PASS en DEV segun el owner; sigue pendiente de promocion a PROD. Separa `apply_google_interaction_sync_internal_v2(uuid,jsonb)` privado del wrapper legacy `apply_google_interaction_sync_v1(uuid,jsonb)`, ahora exclusivo Gmail/email. Conserva firmas y ACL de `apply_google_periodic_v1` y `apply_google_history_v1`, incluida la validacion del contexto historico. `apply_calendar_discovery_v1` llama directamente al nucleo privado; solo `calendar_manual_sync_v2` y sus helpers pueden escribir Calendar desde el runtime. No hay flag, GUC ni modo cliente que habilite ese camino. Los helpers siguen sin EXECUTE de cliente/service_role; finalize conserva su permiso server-side existente.
+
+El nucleo rechaza identidades/fuentes cruzadas o aliases ambiguos, incluso inactivos, antes de escribir. El lock transversal por usuario precede los locks de identidad/filas; v2 lo toma antes del lock de cuenta/estado. Se mantienen leases, huellas, ownership, Foco, notas y procedencia. No transforma datos ni elimina fuentes compartidas: preflight STOP exige revision del owner, nunca reparacion automatica. El verifier compuesto certifica cuerpos/ACL finales de 004 y 005 y el estado privado v2; no exige los cuerpos 001/002/003 que 005 reemplaza deliberadamente.
+
+Archivos 005: `cloud/supabase/preflight/202611060005_preflight_calendar_write_boundary.sql`, `cloud/supabase/migrations/202611060005_calendar_write_boundary.sql`, `cloud/supabase/verifiers/202611060005_verify_calendar_write_boundary.sql`.
+
+DEV: preflight, migration y verifier 005 PASS, runtime posterior activo y smoke post-005 PASS confirmados por el owner: primer clic completo y segundo clic sin novedades, duplicados, errores ni continuaciones manuales. No es una nueva inspeccion remota. Para una futura instalacion: terminar las ejecuciones Google admitidas y no iniciar otras durante el cambio; preflight -> autorizacion SQL -> migration -> verifier compuesto -> runtime -> smoke autorizado. La migration revalida drift/datos bajo locks de tablas y falla si no obtiene el lock en cinco segundos. Esos locks no sustituyen el drenaje de solicitudes que ya ejecutaban cuerpos antiguos. No se prescribe cambiar gate, Data API, tester o grants sin una necesidad operacional comprobada. No repetir 001-005 ya certificadas sin evidencia de regresion. PROD requiere backup recuperable/restore PASS y gates independientes de SQL, runtime/deployment y smoke.
+
+Rollback: antes de COMMIT revierte; despues conservar datos, cursor y recibos, y usar forward-fix. Runtime v2/004 es compatible con 005; un runtime pre-v2 conserva Gmail/Histórico para sus recursos, pero Calendar legacy falla cerrado. Nunca restaurar su escritor compartido ni reotorgar helpers como rollback. La cadena promocionable es 001 -> 002 -> 003 -> 004 -> 005; variantes DEV-only multi-tester y credenciales QA no forman parte de ella.
+
+## Calendar independiente: preparación local autorizada
+
+`PROD CONTRACT CHANGE`. El owner confirma SQL/verifiers 202611060001 y 202611060002 PASS en DEV y EXECUTE de finalize exclusivamente service_role; no es una nueva certificacion remota. 001 admite Calendar owned con capability efectiva/denies y corrige created real; 002 incorpora reconciliacion update-only/procedencia y preserva notas/vinculos. Los archivos aplicados permanecen intactos. PROD no se presume actualizado.
+
+Incremento instalado en DEV con verifier PASS confirmado por el owner: `202611060003_calendar_manual_sync_v2.sql`. Agrega cuatro tablas privadas (estado, runs, recibos de lote y huellas de fuente), helper privado y RPC estrecha `calendar_manual_sync_v2(uuid,uuid,text,jsonb)`. Usuario/cuenta/primary/version 2, RLS sin DML cliente, ownership y capability revalidados despues del lock. Lease caducable de cinco minutos; un run desplazado no puede escribir/confirmar. Commit atomico del cursor, ultimo exito y conteos. Los recibos hacen recuperable la perdida de respuesta de Apply/finish. No guarda payloads de citas ni tokens OAuth; las FKs preservan limpieza por cuenta/fuente.
+
+Reutiliza internamente writers 002 y revoca su EXECUTE autenticado. 003 bloquea el reconciliador directo anterior y protege el cursor; la clausura adicional del writer compartido periodic/history corresponde a 005, no a 003. Es un cutover incompatible de Calendar legacy, no una pausa requerida de toda la app. No modifica permisos de finalize, scopes, gate R2-B, tester, Data API ni Google Cloud. Gmail/Historico conservan sus recursos no-Calendar.
+
+Archivos operacionales completos:
+- `cloud/supabase/preflight/202611060003_preflight_calendar_manual_sync_v2.sql`
+- `cloud/supabase/migrations/202611060003_calendar_manual_sync_v2.sql`
+- `cloud/supabase/verifiers/202611060003_verify_calendar_manual_sync_v2.sql`
+
+El cutover 001-005 y el smoke funcional DEV estan cerrados segun el owner. Los siguientes gates son publicacion del candidato, PR manual y preparacion independiente del cutover PROD; no repetir comprobaciones DEV sin evidencia de cambio.
+
+PROD: captura/backup recuperable y restore PASS antes de SQL, secuencia de expansion ya instalada comprobada mediante preflight, autorizacion SQL separada, verifier, runtime/deployment y smoke como gates distintos. No operar PROD desde esta preparacion local. En una instalacion conjunta futura ejecutar 001 -> 002 -> 003 -> 004 -> 005, cada una con su preflight/verifier antes de continuar; 005 es el verifier compuesto final.
+
+Fallo antes de COMMIT revierte; despues conservar datos/recibos y aplicar forward-fix o mantener Calendar fuera de servicio hasta corregir. No hacer DROP, borrar progreso ni reotorgar RPCs antiguas como rollback. Volver solo al runtime anterior conserva datos pero NO restablece sync Calendar. El cursor v2 no utiliza ni sobrescribe el cursor legacy.
+
+Preflight exige 002 exacto y ausencia de colisiones. Verifier certifica cuerpos LF/CRLF, firmas, owner, search_path, ACL, tablas privadas, columnas/constraints y revocacion del escritor anterior. Las pruebas usan PostgreSQL 17 aislado, roles efectivos, motor y writers reales con respuestas Google sinteticas. No certifican OAuth publico ni E2E remoto.
+
+Cancelaciones solo explicitas, sin cambiar metricas. Interacciones compartidas ambiguas siguen bloqueadas; no se modifica ni se infiere su identidad. 403/404 y ausencia no cancelan; trabajo exigible sin resolver impide exito completo. Recuperacion de 410 puede exigir lecturas excepcionales de fuentes ya vinculadas fuera de ventana, no importacion historica masiva.
+
 ## Propósito y alcance
 
 Proteger el estado persistente de Coffeecito al promover versiones completas de software. Este documento define clasificación y revisión de cambios; no congela todo el schema ni reemplaza los documentos de datos, seguridad o arquitectura.

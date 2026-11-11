@@ -63,6 +63,7 @@ export async function exerciseLifecycleHttp({root,docker,sql,name,label,run,user
     };
     const model=load('opportunityModel',{}),diagnostics=load('opportunityDiagnostics',{});
     const actions=load('opportunityActions',{'./opportunityModel':model,'./opportunityDiagnostics':diagnostics,
+      './interactionState':load('interactionState',{}),
       './supabaseClient':{supabase:{auth:{getUser:async()=>({data:{user:{id:user}},error:null})},from:rest.from.bind(rest),rpc:rest.rpc.bind(rest)}},
       './networkingCycles':{expectedNetworkingContext:async()=>({cycleId:cycle,token})}});
     const first=await rest.from('interaction_participants').select('id,interaction_id',{count:'exact'})

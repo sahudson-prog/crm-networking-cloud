@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { updateCalendarV2 } from "../lib/calendarManualSyncData";
+import { CalendarV2Error, calendarV2Diagnostic } from "../lib/calendarManualSync";
+import { startCalendarRunControl, endCalendarRunControl, cancelCalendarRun, setCalendarRunProgress } from "../lib/activitySyncExecution";
 import {
   GoogleInteractionClientError
 } from "../lib/googleInteractionClient";
@@ -26,6 +29,7 @@ import {
   activitySyncExecutionHasErrors,
   activitySyncExecutionSummary,
   allActivitySyncServicesSucceeded,
+  bindGlobalActivitySyncScope,
   clearGlobalActivitySyncFeedback,
   executeActivitySyncServices,
   freshnessAfterActivitySync,
@@ -47,12 +51,14 @@ import {
   clearPendingActivitySyncAuthorization,
   readPendingActivitySyncAuthorization
 } from "../lib/activitySyncAuthorization";
-import { requireGoogleConnectedSyncOperations } from "../lib/googleSyncAuthorization";
+import { readGoogleOAuthOperationEligibility, requireGoogleConnectedSyncOperations } from "../lib/googleSyncAuthorization";
+import { GOOGLE_GMAIL_ENABLED } from "../lib/googleProductPolicy";
 import type { ContactRow } from "../lib/readModel";
 import {
   calendarRollingWindowIso,
   latestIsoInstant,
   NetworkingStartConfigurationError,
+  readCalendarPeriodicStartIso,
   requirePeriodicNetworkingStartIso
 } from "../lib/syncDate";
 import { createSyncRunId, writeSyncRunLogStep } from "../lib/syncRunLog";
@@ -133,6 +139,14 @@ export function ActivitySyncButton({
 }: ActivitySyncButtonProps) {
   const syncPreferences = useInteractionSyncPreferences();
   const [state, setState] = useState<ActivitySyncState>(initialState);
+  const [calendarAdminEligible, setCalendarAdminEligible] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void readGoogleOAuthOperationEligibility("calendar").then(allowed => {
+      if (active) setCalendarAdminEligible(allowed);
+    }).catch(() => { if (active) setCalendarAdminEligible(false); });
+    return () => { active = false; };
+  }, []);
   const globalSync = useSyncExternalStore(
     subscribeGlobalActivitySync,
     getGlobalActivitySyncSnapshot,
@@ -159,10 +173,10 @@ export function ActivitySyncButton({
     () => activityServicesFromPreferences(syncPreferences.preferences),
     [syncPreferences.preferences]
   );
-  const globalOutcomes = globalSync.outcomes;
+  const globalOutcomes = state.connectionKnown ? globalSync.outcomes : [];
   const globalFreshness = useMemo(
-    () => freshnessAfterActivitySync(state.serviceFreshness, globalOutcomes),
-    [globalOutcomes, state.serviceFreshness]
+    () => freshnessAfterActivitySync(state.serviceFreshness, globalOutcomes, globalSync.lastSuccess),
+    [globalOutcomes, state.serviceFreshness, globalSync.lastSuccess]
   );
   const globalServiceStates = useMemo(() => ({
     calendar: {
@@ -203,7 +217,7 @@ export function ActivitySyncButton({
     authorizationRequired,
     hasError: globalHasError,
     running: globalSync.running,
-    successFeedback: globalOutcomes.length > 0
+    successFeedback: Boolean(globalSync.completedAt) && globalOutcomes.length > 0
       && allActivitySyncServicesSucceeded(globalOutcomes)
   });
   const globalRows = useMemo(() => buildGlobalActivitySyncRows({
@@ -236,9 +250,10 @@ export function ActivitySyncButton({
     };
     readCurrentGoogleConnectionState({ registerRememberedScopes: true }).then(async (googleConnection) => {
         const serviceFreshness = variant === "focus_incremental"
-          ? await readGlobalActivityServiceFreshness(googleConnection.account?.id ?? null).catch(() => ({ calendar: null, mail: null }))
+          ? await readGlobalActivityServiceFreshness(googleConnection.account?.id ?? null)
           : { calendar: null, mail: null };
         if (!active) return;
+        bindGlobalActivitySyncScope(googleConnection.account?.id ?? null);
         setState((current) => ({
           ...current,
           accessToken: googleConnection.accessToken,
@@ -299,13 +314,8 @@ export function ActivitySyncButton({
           if (!active) return;
           resumeAuthorizationRef.current = true;
           clearPendingActivitySyncAuthorization();
-          await startGlobalActivitySync(() => runGlobalSync({
-              accessToken: googleConnection.accessToken,
-              connectedAccountId: googleConnection.account?.id ?? null,
-              includeCalendar: requestedServices.includes("calendar"),
-              includeMail: requestedServices.includes("mail"),
-              userEmail: googleConnection.userEmail
-            })).promise;
+          // OAuth only restores authorization. Data reads/writes require a new click.
+          setState((current) => ({ ...current, message: "Conexión lista. Pulsa Actualizar." }));
         } catch (error) {
           if (!active) return;
           clearPendingActivitySyncAuthorization();
@@ -515,6 +525,9 @@ export function ActivitySyncButton({
     }));
     await startGlobalActivitySync(async () => {
       const googleConnection = await readCurrentGoogleConnectionState({ registerRememberedScopes: true });
+      if ((googleConnection.account?.id ?? null) !== state.connectedAccountId) {
+        throw new Error("La cuenta Google cambió. Vuelve a abrir Actualizar.");
+      }
       const currentSelection = resolveActivitySyncSelection({
         calendarAvailable: googleConnectionHasCapability(googleConnection, "calendar_read"),
         gmailAvailable: googleConnectionHasCapability(googleConnection, "gmail_read"),
@@ -665,10 +678,35 @@ export function ActivitySyncButton({
     scope: "global" | "contact",
     service: ActivitySyncService
   ): Promise<ActivitySyncServiceOutcome> {
+    if (service === "calendar") {
+      const signal = startCalendarRunControl();
+      const runId = createSyncRunId();
+      try {
+        if (scope !== "global") throw new CalendarV2Error("CALENDAR_MANUAL_V2_REQUIRED", "begin");
+        if (!input.connectedAccountId) throw new CalendarV2Error("CALENDAR_ACCOUNT_REQUIRED", "begin");
+        const window = calendarRollingWindowIso();
+        const since = latestIsoInstant(window.since, await readCalendarPeriodicStartIso());
+        const result = await updateCalendarV2({ accessToken: input.accessToken, connectedAccountId: input.connectedAccountId,
+          timeMin: since!, timeMax: window.until, signal,
+          progress: ({ phase, pages, processed }) => setCalendarRunProgress(input.connectedAccountId!,
+            phase === "saving" ? `Guardando citas: ${processed} procesadas.` : `Leyendo Calendar: ${pages} paginas.`) });
+        await writeSyncRunLogStep({ provider: "google", resourceType: "calendar", operation: "apply", runId,
+          scopeLabel: "foco", step: "Calendar completo", stepOrder: 1, status: "success",
+          detail: `${result.created} citas nuevas; ${result.updated} actualizadas.`, metadata: { created: result.created, updated: result.updated, skipped: result.skipped } });
+        return { service, created: result.created, error: "", reauthorizationRequired: false, success: true, syncedAt: result.synced_at,
+          notice: result.associations_preserved ? "Se conservaron vinculos protegidos por Oportunidades." : undefined };
+      } catch (error) {
+        const failure = error instanceof CalendarV2Error ? error : new CalendarV2Error("CALENDAR_UNCERTAIN", "runtime", error, "calendar.runtime");
+        await writeSyncRunLogStep({ provider: "google", resourceType: "calendar", operation: "apply", runId,
+          scopeLabel: "foco", step: "Calendar incompleto", stepOrder: 1, status: "warning", detail: failure.message,
+          metadata: calendarV2Diagnostic(failure) });
+        return { service, created: failure.created, error: failure.message, reauthorizationRequired: failure.code === "CALENDAR_AUTH", success: false, syncedAt: null };
+      } finally { endCalendarRunControl(); }
+    }
     const serviceInput = {
       ...input,
-      includeCalendar: service === "calendar",
-      includeMail: service === "mail"
+      includeCalendar: false,
+      includeMail: true
     };
     if (scope === "contact") {
       setState((current) => ({ ...current, applying: false, loading: true, message: "Actualizando…" }));
@@ -712,7 +750,7 @@ export function ActivitySyncButton({
       return failedServiceOutcome(service, applied);
     }
 
-    const serviceResult = service === "mail" ? applied.result.mail : applied.result.calendar;
+    const serviceResult = applied.result.mail;
     return {
       created: serviceResult?.counts.created ?? 0,
       error: "",
@@ -798,7 +836,9 @@ export function ActivitySyncButton({
     logStep("Inicio", input.dryRun ? "Actualizacion solicitada." : `${input.externalIds?.length ?? 0} elemento(s) seleccionados.`, "running");
 
     try {
-      const networkingStart = await requirePeriodicNetworkingStartIso();
+      const networkingStart = input.includeMail
+        ? await requirePeriodicNetworkingStartIso()
+        : await readCalendarPeriodicStartIso();
       const calendarWindow = input.includeCalendar ? calendarRollingWindowIso() : null;
       const calendarTimeMin = latestIsoInstant(calendarWindow?.since, networkingStart);
       const syncLimits = await loadActivitySyncLimitValues();
@@ -885,6 +925,7 @@ export function ActivitySyncButton({
   }
 
   if (variant === "focus_incremental") {
+    if (!calendarAdminEligible && !GOOGLE_GMAIL_ENABLED) return null;
     const accessibleState = globalIconState === "syncing"
       ? "actualizando"
       : globalIconState === "auth_required"
@@ -927,16 +968,18 @@ export function ActivitySyncButton({
               <span className="sr-only" role="status">{accessibleState}</span>
             </div>
             <div className="activity-sync-service-list">
+              {globalSync.running && globalSync.progress ? <p className="meta" role="status">{globalSync.progress}</p> : null}
               {globalRows.map((row) => (
                 <div className={`activity-sync-service-row ${row.tone}`} key={row.key}>
                   <span className="activity-sync-service-icon" aria-hidden="true">
                     <Icon name={row.icon} />
                   </span>
                   {row.label ? <strong>{row.label}</strong> : null}
-                  <span>{row.status}</span>
+                  <span>{row.status}{row.lastSuccess ? <small className="meta"> · {row.lastSuccess}</small> : null}</span>
                 </div>
               ))}
             </div>
+            {globalSync.running && globalSync.progress ? <Button tone="secondary" onClick={cancelCalendarRun}>Cancelar</Button> : null}
             {globalPrimaryAction ? (
               <Button
                 disabled={globalPrimaryAction.disabled}
@@ -1032,7 +1075,7 @@ function updateServiceAuthorizationState(
 
 function failedServiceOutcome(service: ActivitySyncService, attempt: ActivitySyncAttempt): ActivitySyncServiceOutcome {
   return {
-    created: 0,
+    created: (service === "calendar" ? attempt.result?.calendar : attempt.result?.mail)?.counts.created ?? 0,
     error: attempt.error || `Error al actualizar ${activityServiceLabel(service)}`,
     reauthorizationRequired: attempt.reauthorizationRequired,
     service,
@@ -1052,6 +1095,9 @@ function serviceSyncErrorMessage(result: SyncGoogleInteractionsResult, service: 
     ...(serviceResult?.errors ?? []).map((error) => error.code)
   ]);
   const label = activityServiceLabel(service);
+  if (codes.has("GOOGLE_CALENDAR_RECONCILIATION_PENDING")) {
+    return result.errors.find(error => error.code === "GOOGLE_CALENDAR_RECONCILIATION_PENDING")!.message;
+  }
   if (codes.has("GOOGLE_INTERACTIONS_AUTH_REQUIRED")) return `${label} requiere reconexión.`;
   if (codes.has("GOOGLE_INTERACTIONS_RATE_LIMITED")) {
     return `${label} alcanzó temporalmente su límite de uso. Intenta nuevamente más tarde.`;

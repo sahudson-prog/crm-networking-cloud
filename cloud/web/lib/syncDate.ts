@@ -45,6 +45,16 @@ export async function requirePeriodicNetworkingStartIso(now = new Date()) {
   return resolvePeriodicNetworkingStartIso(await readNetworkingStartValue(), now);
 }
 
+export function resolveCalendarPeriodicStartIso(value: string | null | undefined, now = new Date()) {
+  // New accounts have no legacy setting. Absence is not an invalid configured date.
+  if (value == null || value.trim() === "") return null;
+  return resolvePeriodicNetworkingStartIso(value, now);
+}
+
+export async function readCalendarPeriodicStartIso(now = new Date()) {
+  return resolveCalendarPeriodicStartIso(await readNetworkingStartValue(), now);
+}
+
 export function resolveHistoricalNetworkingStartIso(value: string | null | undefined, now = new Date()) {
   return historicalNetworkingStartIso(networkingStartStatus(value, now));
 }

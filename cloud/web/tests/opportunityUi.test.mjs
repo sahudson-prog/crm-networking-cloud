@@ -163,6 +163,7 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
   const model = load('opportunityModel', () => { throw new Error('Unexpected model import'); });
   const diagnostics = load('opportunityDiagnostics', () => { throw new Error('Unexpected diagnostics import'); });
   const actions = load('opportunityActions', (name) => {
+    if (name === './interactionState') return load('interactionState', () => { throw new Error('Unexpected visibility import'); });
     if (name === './supabaseClient') return { supabase: client };
     if (name === './opportunityModel') return model;
     if (name === './opportunityDiagnostics') return diagnostics;

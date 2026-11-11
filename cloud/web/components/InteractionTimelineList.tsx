@@ -8,6 +8,7 @@ import type {
   InteractionRow
 } from "../lib/readModel";
 import { interactionLabel, shortDate } from "../lib/format";
+import { isCalendarDeletedAtSource } from "../lib/interactionState";
 import { Button } from "./ui/Button";
 import { Icon, type IconName } from "./ui/Icon";
 import { ProviderIcon } from "./ui/ProviderIcon";
@@ -35,11 +36,12 @@ export function InteractionTimelineList({
   onEdit,
   onOpenChange
 }: InteractionTimelineListProps) {
-  if (!interactions.length) return <div className="empty">{emptyMessage}</div>;
+  const visible = interactions.filter(interaction => !isCalendarDeletedAtSource(sourcesByInteraction.get(interaction.id) ?? []));
+  if (!visible.length) return <div className="empty">{emptyMessage}</div>;
 
   return (
     <div className={`contact-interaction-list ${showContactContext ? "dashboard-interaction-list" : ""}`}>
-      {interactions.map((interaction) => (
+      {visible.map((interaction) => (
         <InteractionTimelineItem
           contactsById={contactsById}
           interaction={interaction}

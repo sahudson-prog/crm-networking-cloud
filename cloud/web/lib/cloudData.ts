@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { readCompletePages } from "./completeRead";
-import { activeInteractions } from "./interactionState";
+import { activeInteractions, CALENDAR_VISIBILITY_JOIN, withoutCancelledCalendar } from "./interactionState";
 import { buildDashboardKpis, parseLocalDate } from "./kpiCalculations";
 import { readObjectiveAssignmentsForContacts } from "./cycleObjectiveActions";
 import type {
@@ -52,7 +52,7 @@ export async function readAppSummary(): Promise<AppSummary> {
     countRows("contacts", (query) => query.eq("is_active", true)),
     countRows("contacts", (query) => query.eq("networking_focus", true).eq("is_active", true)),
     countRows("contacts", (query) => query.eq("is_headhunter", true).eq("is_active", true)),
-    countRows("interactions"),
+    countVisibleInteractions(),
     countRows("todos", (query) => query.eq("status", "active")),
     countRows("import_batches")
   ]);
@@ -120,10 +120,11 @@ export async function readRecentContacts(limit = 8): Promise<ContactRow[]> {
 
 export async function readRecentInteractions(limit = 8): Promise<InteractionRow[]> {
   const client = requireSupabase();
-  const { data, error } = await client
+  const { data, error } = await withoutCancelledCalendar(client
     .from("interactions")
-    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
+    .select(`id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata,${CALENDAR_VISIBILITY_JOIN}`))
     .order("occurred_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
     .limit(limit);
 
   if (error) throw error;
@@ -132,13 +133,20 @@ export async function readRecentInteractions(limit = 8): Promise<InteractionRow[
 
 export async function readAllInteractions(): Promise<InteractionRow[]> {
   const client = requireSupabase();
-  const data = await readCompletePages<InteractionRow>(async (from, to) => await client
+  const data = await readCompletePages<InteractionRow>(async (from, to) => await withoutCancelledCalendar(client
     .from("interactions")
-    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata", { count: "exact" })
+    .select(`id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata,${CALENDAR_VISIBILITY_JOIN}`, { count: "exact" }))
     .order("occurred_at", { ascending: false, nullsFirst: false })
     .order("id", { ascending: true })
     .range(from, to));
   return activeInteractions(data);
+}
+
+async function countVisibleInteractions() {
+  const { count, error } = await withoutCancelledCalendar(requireSupabase().from("interactions")
+    .select(`id,${CALENDAR_VISIBILITY_JOIN}`, { count: "exact", head: true }));
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function readInteractionParticipants(complete = false): Promise<InteractionParticipantRow[]> {
@@ -328,24 +336,12 @@ export async function readContactById(contactId: string): Promise<ContactRow | n
 
 export async function readContactInteractions(contactId: string, limit = 60): Promise<InteractionRow[]> {
   const client = requireSupabase();
-  const { data: participantData, error: participantError } = await client
-    .from("interaction_participants")
-    .select("interaction_id")
-    .eq("contact_id", contactId)
-    .limit(limit * 3);
-
-  if (participantError) throw participantError;
-  const interactionIds = Array.from(
-    new Set(((participantData ?? []) as Array<{ interaction_id: string }>).map((row) => row.interaction_id).filter(Boolean))
-  ).slice(0, limit);
-
-  if (!interactionIds.length) return [];
-
-  const { data, error } = await client
+  const { data, error } = await withoutCancelledCalendar(client
     .from("interactions")
-    .select("id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata")
-    .in("id", interactionIds)
+    .select(`id,interaction_type,direction,occurred_at,subject,user_notes_raw,updated_at,metadata,contact_participants:interaction_participants!inner(contact_id),${CALENDAR_VISIBILITY_JOIN}`))
+    .eq("contact_participants.contact_id", contactId)
     .order("occurred_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
     .limit(limit);
 
   if (error) throw error;

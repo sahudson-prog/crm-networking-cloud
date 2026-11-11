@@ -32,6 +32,7 @@ import { requireGoogleConnectedSyncAuthorization } from "./googleSyncAuthorizati
 import { latestIsoInstant } from "./syncDate.ts";
 import { supabase } from "./supabaseClient.ts";
 import type { HistoryWindow } from "./historyPolicy.ts";
+import { SyncItemFailure, summarizeSyncItemErrors, syncItemDiagnostic } from "./syncItemDiagnostics.ts";
 
 const GOOGLE_PROVIDER = "google";
 const GMAIL_SCOPED_EMAILS_PER_BATCH = 20;
@@ -90,6 +91,7 @@ export type SyncGoogleInteractionsResult = {
 };
 
 export type GoogleCalendarRollingSnapshot = {
+  receivedEvents?: GoogleCalendarReadResult["events"];
   complete: boolean;
   connectedAccountId: string | null;
   eventsRead: number;
@@ -268,6 +270,7 @@ type ExternalInteractionSourcePreviewRow = {
 };
 
 type ScopedCalendarReadResult = GoogleCalendarReadResult & {
+  receivedEvents?: GoogleCalendarReadResult["events"];
   matchedContactEmailsByEventKey?: Record<string, string[]>;
 };
 
@@ -495,7 +498,8 @@ export async function syncGoogleInteractions(
           });
           calendar.preview = calendarPreview;
           warnings.push(...calendar.warnings);
-          if (calendar.ok && !input.dryRun && shouldUseCursors) {
+          errors.push(...summarizeSyncItemErrors(calendar.errors));
+          if (calendar.ok && !input.dryRun && shouldUseCursors && !errors.length) {
             if (input.calendarRollingWindowSync === "global") {
               await writeRollingCalendarFreshness(deps, input, calendarRead.pagesRead);
             } else if (!input.calendarRollingWindowSync && (calendarRead.nextSyncToken || input.globalFocusedMailSync)) {
@@ -1161,6 +1165,7 @@ function createCalendarRollingSnapshot(
     throw new Error("La lectura rolling de Calendar no tiene una ventana valida.");
   }
   return {
+    receivedEvents: calendarRead.receivedEvents ?? calendarRead.events,
     complete: calendarRead.complete !== false,
     connectedAccountId: input.connectedAccountId ?? null,
     eventsRead: calendarRead.events.length,
@@ -1193,6 +1198,7 @@ function requireCalendarRollingSnapshot(
 function calendarReadFromRollingSnapshot(snapshot: GoogleCalendarRollingSnapshot): ScopedCalendarReadResult {
   return {
     complete: snapshot.complete,
+    receivedEvents: snapshot.receivedEvents,
     events: [],
     mode: "full",
     nextSyncToken: null,
@@ -1236,6 +1242,7 @@ async function readCalendarForScope(
     }
     return {
       ...result,
+      receivedEvents: result.events,
       events: Array.from(relevantEvents.values()),
       matchedContactEmailsByEventKey
     };
@@ -1693,7 +1700,7 @@ async function readExternalSourcesForPreview(input: { items: ExternalInteraction
   return (data ?? []) as ExternalInteractionSourcePreviewRow[];
 }
 
-export function externalInteractionSourceIdsForPreview(items: Array<{ externalId: string }>) {
+export function externalInteractionSourceIdsForPreview(items: Array<{ externalId: string; source?: string }>) {
   return Array.from(new Set(items.map((item) => item.externalId.toLowerCase()).filter(Boolean)));
 }
 
@@ -1903,6 +1910,7 @@ function filterContactsForSync(contacts: ContactRow[], input: SyncGoogleInteract
 }
 
 function normalizeGoogleSyncError(error: unknown) {
+  if (error instanceof SyncItemFailure) return { ...syncItemDiagnostic(error), message: error.message };
   if (error instanceof GoogleInteractionClientError) {
     return { code: error.code, message: error.message };
   }

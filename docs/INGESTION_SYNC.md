@@ -1,5 +1,21 @@
 # Ingestión y sincronización
 
+## Candidato Calendar independiente, validado en DEV
+
+SQL 001-005 y smoke post-005 PASS en DEV confirmados por el owner, incluido admin-only; PROD sigue pendiente. Calendar requiere `system_admin` vigente y capabilities efectivas; no modifica el login Google ni habilita Gmail/Contacts. Un clic en Actualizar completa automaticamente paginas y lotes: no divide el trabajo en tandas que exijan nuevos clics. Reconectar, recargar y navegar no ejecutan sync.
+
+005 instalado en DEV cierra las escrituras Calendar por rutas legacy periodic/history. Su wrapper solo admite Gmail/email y comprueba la identidad persistida bajo locks antes de modificar datos. Calendar v2 usa el nucleo privado mediante discovery/reconciliacion, sin un flag de bypass. El frontend elimina el reconciliador v1 y su continuacion manual; los helpers SQL de 002 usados por v2 se conservan privados. Fuentes compartidas/aliases ambiguos producen STOP, sin inferir procedencia ni reparar datos. Cadena funcional promocionable 001-005; SQL multi-tester y herramientas QA son DEV-only y quedan fuera.
+
+Se combinan cambios incrementales con una lectura de descubrimiento acotada -7/+30 por ejecucion. Solo nuevas citas exigen contactos activos en Foco y el limite legacy valido; no se amplia Historico. Una fuente vinculada puede actualizarse fuera de ventana o Foco. La lectura de ventana detecta cambios de elegibilidad locales y avance temporal aunque Google no haya modificado el evento. No se almacenan interacciones ajenas a ese alcance.
+
+Se unifican identidades/versiones antes de guardar. El servidor compara contenido y huellas locales: no reescribe citas sin cambios ni ignora nuevas asociaciones. Preserva notas y procedencia de vinculos, con los controles de 002. Las consultas por ID son excepcionales (adopcion, token invalido, evidencia ambigua), no barridos rutinarios. Ausencia/403/404 nunca equivalen a cancelacion. La cancelacion explicita conserva el lifecycle vigente y no cambia metricas.
+
+El estado v2 se aísla por usuario/cuenta/calendario y version. Leases renovables y caducables coordinan dispositivos; cada escritura/finalizacion comprueba que la ejecucion no haya sido desplazada. Recibos de lote y confirmacion final son idempotentes. Solo la finalizacion completa confirma juntos cursor, timestamp del servidor y conteos reales. Un fallo conserva cambios confirmados y ultimo exito anterior; cerrar la pestaña exige recuperacion en una futura accion manual, no crea un scheduler. El resultado duradero permite recuperar una respuesta final perdida sin repetir inserciones.
+
+Las tablas nuevas no almacenan cuerpos de citas ni tokens OAuth. Los registros contienen hashes, IDs operacionales, cursor, conteos y tiempos, con acceso por RPC y cascadas de cuenta/fuente. Google transitorio puede devolver cambios fuera de ventana: se descartan si no corresponden a fuentes vinculadas o nuevas citas elegibles.
+
+Google Historico conserva Review/Apply. El contrato detallado de parametros, errores, permisos, compatibilidad y cutover vive en [Google](connectors/GOOGLE.md#candidato-local-calendar-independiente) y [PROD](PROD_CONTRACTS.md#calendar-independiente-preparacion-local-autorizada).
+
 ## Propósito
 
 Este documento describe cómo CRM Networking lee datos externos, los convierte en estructuras internas o propuestas de cambio, y mantiene continuidad entre proveedor, cuenta conectada, identidad externa, snapshot externo y objeto local.
