@@ -8,8 +8,8 @@ let server, browser;
 async function main() {
   const component = fs.readFileSync(path.join(root, 'components/VCardHelp.tsx'), 'utf8');
   assert.doesNotMatch(component, /supabase|fetch\(|moveTo\(|localStorage|sessionStorage/);
-  assert.match(fs.readFileSync(path.join(root, 'components/OnboardingRoutePage.tsx'), 'utf8'), /<VCardHelp onboarding \/>/);
-  assert.match(fs.readFileSync(path.join(root, 'components/AccountPage.tsx'), 'utf8'), /sourceHelp=\{<VCardHelp \/>\}/);
+  assert.match(fs.readFileSync(path.join(root, 'components/OnboardingRoutePage.tsx'), 'utf8'), /Empieza importando tus contactos y, después/);
+  assert.match(fs.readFileSync(path.join(root, 'components/ContactImportDialog.tsx'), 'utf8'), /sourceHelp=\{<VCardHelp inline \/>\}/);
   fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${JSON.stringify(path.join(root, 'node_modules/typescript'))});module.exports=s=>ts.transpileModule(s,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;`);
   fs.writeFileSync(path.join(out, 'entry.tsx'), `import React from 'react';import {createRoot} from 'react-dom/client';import {VCardHelp} from ${JSON.stringify(path.join(root, 'components/VCardHelp').replaceAll('\\','/'))};createRoot(document.getElementById('root')).render(<main className="app-shell"><section className="panel"><h2>Comienza con tus contactos.</h2><VCardHelp onboarding/></section><section className="panel"><h2>Contactos</h2><div className="vcard-source-title"><strong>vCard (.vcf)</strong><VCardHelp/></div></section></main>);`);
   await new Promise((resolve, reject) => {

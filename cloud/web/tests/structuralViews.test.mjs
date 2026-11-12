@@ -58,16 +58,18 @@ test('five routes and dashboard compatibility alias retain the private AuthGate 
       } }
     };
     const Page = load(`app/${route}page.tsx`, dependencies).default;
-    assert.equal(renderToStaticMarkup(React.createElement(Page)), 'access-gate', route);
+    const {ApplicationFrame}=load('components/ApplicationFrame.tsx',{'react':React,'next/navigation':{usePathname:()=>'/'+route.replace(/\/$/,'')},'./AuthGate':dependencies[prefix+'AuthGate'],'./Shell':dependencies[prefix+'Shell']});
+    const render=()=>renderToStaticMarkup(React.createElement(ApplicationFrame,null,React.createElement(Page)));
+    assert.ok(render().includes('access-gate'),route);
     allowed = true;
-    const html = renderToStaticMarkup(React.createElement(Page));
+    const html = render();
     assert.ok(html.includes('data-auth="allowed"') && html.includes('data-shell="original"') && html.includes('data-block='), route);
   }
 });
 
 test('temporary navigation has five destinations, preserves filter context and highlights legacy/onboarding paths', () => {
   for (const [pathname, active] of [['/', 'Inicio'], ['/dashboard', 'Inicio'], ['/onboarding/objetivos', 'Objetivos y prioridades'], ['/onboarding/contacto', 'Contactos']]) {
-    const { WorkspaceNavigation } = load('components/WorkspaceNavigation.tsx', {
+    const { OnboardingNavigation: WorkspaceNavigation } = load('components/OnboardingNavigation.tsx', {
       'next/link': { default: ({children, ...props}) => React.createElement('a', props, children) },
       'next/navigation': { usePathname: () => pathname },
       './useTrackingViewFilters': { TRACKING_QUERY_KEY: 'ux-tracking', useTrackingViewFilters: () => ({ query: '{"domains":["@synthetic.invalid"]}' }) }

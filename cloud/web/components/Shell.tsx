@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import { OnboardingNavigation } from "./OnboardingNavigation";
+import { ApplicationShellContent } from "./ApplicationShellContent";
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
 import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
@@ -35,7 +36,12 @@ export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?
   );
 }
 
-function ShellContent({ children }: { children: ReactNode }) {
+function ShellContent({children}:{children:ReactNode}) {
+  const path=usePathname();
+  return path.startsWith("/onboarding")?<LegacyShellContent>{children}</LegacyShellContent>:<ApplicationShellContent>{children}</ApplicationShellContent>;
+}
+
+function LegacyShellContent({ children }: { children: ReactNode }) {
   const utilities = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
   const onboarding = useOnboarding();
@@ -74,7 +80,7 @@ function ShellContent({ children }: { children: ReactNode }) {
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
           <BrandBetaWordmark />
         </Link>
-        <WorkspaceNavigation />
+        <OnboardingNavigation />
         <div className="nav-utility">
           {!isOnboarding ? <InvitationButton /> : null}
           <details ref={utilities} className="shell-utility-overflow" onKeyDown={(event) => {

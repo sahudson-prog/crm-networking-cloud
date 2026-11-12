@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Coffee, Users } from "lucide-react";
+import { Coffee, Plus, Users } from "lucide-react";
 import type { DragEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { deactivateContacts, NETWORKING_STATUSES, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
@@ -18,12 +18,15 @@ import {
 import type { ContactListRow, ObjectiveRow } from "../lib/readModel";
 import { ContactDeactivationButton } from "./ContactDeactivationButton";
 import { ContactDeactivationConfirmDialog } from "./ContactDeactivationConfirmDialog";
+import { ContactImportButton } from "./ContactImportDialog";
 import { ContactEditorDialog } from "./ContactEditorDialog";
+import { useWorkspace } from "./WorkspaceState";
 import { ContactFilterControls } from "./ContactFilterControls";
 import { CompaniesTable } from "./CompaniesTable";
 import { formatLastInteractionAge } from "./ContactInteractionAge";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
+import { TableSortHeader as SortHeader } from "./ui/TableSortHeader";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon, type IconName } from "./ui/Icon";
 import { StatusBoard, StatusBoardCard, type BoardDropTarget } from "./ui/StatusBoard";
@@ -56,9 +59,15 @@ type ContactBoardCard = {
 };
 
 export function ContactTable({ contacts, onReload, view = "all" }: ContactTableProps) {
-  const [quickQuery, setQuickQuery] = useState("");
+  const workspace=useWorkspace();
+  const scope=view === "states" ? "states" : "contacts";
+  const [localQuery, setLocalQuery] = useState("");
+  const quickQuery=workspace?.filters[scope].query ?? localQuery;
+  const setQuickQuery=(query:string)=>workspace?workspace.setFilters(s=>({...s,[scope]:{...s[scope],query}})):setLocalQuery(query);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS);
+  const [localFilters, setLocalFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS);
+  const filters=workspace?.filters[scope].filters ?? localFilters;
+  const setFilters=(filters:ContactFilters)=>workspace?workspace.setFilters(s=>({...s,[scope]:{...s[scope],filters}})):setLocalFilters(filters);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("Pendiente");
@@ -300,7 +309,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
 
   return (
     <>
-      <ContactFilterControls
+      {!workspace ? <ContactFilterControls
         filters={filters}
         filtersOpen={filtersOpen}
         objectiveOptions={objectiveOptions}
@@ -309,7 +318,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         onFiltersChange={setFilters}
         onFiltersOpenChange={setFiltersOpen}
         onQuickQueryChange={setQuickQuery}
-      />
+      /> : null}
       <section className={`panel contacts-workspace ${view === "all" ? "" : "functional-block"}`}>
         <div className="panel-header contacts-header">
           <div>
@@ -333,9 +342,10 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         <p className={`contacts-status-feedback ${feedback.includes("No pude") ? "form-error" : "form-success"}`}>
           {feedback}
         </p>
-        {view !== "states" ? <Button className="contacts-create-button" icon="plus" onClick={() => setContactEditorOpen(true)}>
-          Crear contacto
-        </Button> : null}
+        {view !== "states" ? <div className="contacts-import-actions">
+          <Button onClick={() => setContactEditorOpen(true)}><Plus aria-hidden="true" size={16} />Crear contacto</Button>
+          <ContactImportButton />
+        </div> : null}
       </div>
 
       {view !== "contacts" ? <ContactStatusBoard
@@ -719,32 +729,6 @@ function ContactStatusCard({
   );
 }
 
-function SortHeader({
-  current,
-  label,
-  onSort,
-  sortKey
-}: {
-  current: SortState;
-  label: string;
-  onSort: (key: SortKey) => void;
-  sortKey: SortKey;
-}) {
-  const active = current.key === sortKey;
-  return (
-    <th>
-      <button
-        className={`contacts-sort-header ${active ? "active" : ""}`}
-        onClick={() => onSort(sortKey)}
-        title={`Ordenar por ${label}`}
-        type="button"
-      >
-        <span>{label}</span>
-        {active ? <Icon name={current.direction === "asc" ? "sortAsc" : "sortDesc"} /> : null}
-      </button>
-    </th>
-  );
-}
 
 function sortContacts(contacts: ContactListRow[], sort: SortState) {
   const factor = sort.direction === "asc" ? 1 : -1;

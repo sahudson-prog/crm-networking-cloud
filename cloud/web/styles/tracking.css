@@ -30,11 +30,18 @@
 .filter-scope-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--crm-muted); }
 .companies-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .companies-toolbar .meta { flex: 1 1 240px; line-height: 1.5; }
-.companies-table { min-width: 840px; }
-.companies-table td:nth-child(2) { overflow-wrap: anywhere; white-space: normal; }
-.companies-table th:nth-child(3) { width: 116px; }
-.companies-table th:nth-child(4) { width: 216px; }
-.companies-table th:last-child { width: 160px; }
+.companies-table-wrap {container-type:inline-size;}
+/* Container lengths avoid percentage calc being treated as auto by table layout.
+   BF-11: allocate the data area after the unchanged 42px ContactTable checkbox. */
+.companies-table {table-layout:fixed;min-width:840px;}
+.companies-select-col {width:42px;}
+.companies-name-col {width:max(287.28px, calc(36cqw - 15.12px));}
+.companies-count-col {width:max(95.76px, calc(12cqw - 5.04px));}
+.companies-status-col {width:max(223.44px, calc(28cqw - 11.76px));}
+.companies-interaction-col {width:max(191.52px, calc(24cqw - 10.08px));}
+.companies-name-value {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.companies-table th:last-child .contacts-sort-header {white-space:nowrap;}
+
 .companies-table .contacts-sort-header { white-space: normal; text-align: left; }
 .companies-table .contacts-sort-header .icon { flex: 0 0 14px; }
 @media (max-width: 600px) {

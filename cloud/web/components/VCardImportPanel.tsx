@@ -35,13 +35,15 @@ export function VCardImportPanel({
   compactAction = false,
   description = "Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios.",
   sourceLabel = "Importar contactos desde archivo vCard",
-  sourceHelp
+  sourceHelp,
+  presentation = "source"
 }: {
   actionLabel?: string;
   compactAction?: boolean;
   description?: string;
   sourceLabel?: string;
   sourceHelp?: ReactNode;
+  presentation?: "source" | "dialog";
 } = {}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [applying, setApplying] = useState(false);
@@ -75,6 +77,11 @@ export function VCardImportPanel({
       return;
     }
 
+    await preparePreview(file);
+  }
+
+  async function preparePreview(file: File) {
+    setFeedbackMessage("");
     setLoading(true);
     try {
       const parsed = parseVCardContacts(await file.text());
@@ -117,9 +124,21 @@ export function VCardImportPanel({
     }
   }
 
+  const feedback = feedbackMessage ? (
+    <p className={feedbackTone === "error" ? "form-error" : "meta"} role={feedbackTone === "error" ? "alert" : "status"}>
+      {feedbackMessage}
+    </p>
+  ) : null;
+
   return (
     <>
-      <div className="account-source-row">
+      {presentation === "dialog" ? <div className="contact-import-file">
+        <input accept=".vcf,text/vcard,text/x-vcard" aria-label="Seleccionar archivo vCard" hidden onChange={(event) => void handleFileSelection(event)} ref={inputRef} type="file" />
+        <div className="contact-import-instructions">{sourceHelp}{feedback}</div>
+        <footer className="modal-actions contact-import-file-actions">
+          <Button disabled={loading || applying} onClick={() => inputRef.current?.click()} tone="primary">{loading ? "Leyendo..." : "Subir archivo"}</Button>
+        </footer>
+      </div> : <div className="account-source-row">
         <div className="account-source-main">
           <span className="connected-service-logo active">
             <Icon name="file" />
@@ -149,13 +168,9 @@ export function VCardImportPanel({
             {compactAction ? null : loading ? "Leyendo..." : actionLabel}
           </Button>
         </div>
-      </div>
+      </div>}
 
-      {feedbackMessage ? (
-        <p className={feedbackTone === "error" ? "form-error" : "meta"} role={feedbackTone === "error" ? "alert" : "status"}>
-          {feedbackMessage}
-        </p>
-      ) : null}
+      {presentation !== "dialog" ? feedback : null}
 
       <SyncPreviewDialog
         applyLabel="Importar selección"

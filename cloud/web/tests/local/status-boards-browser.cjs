@@ -24,6 +24,7 @@ export async function updateContactNetworkingStatus(id,status){window.fixture.co
 export const deactivateContacts=async()=>{throw Error('outside scope')};export const updateContactFlags=deactivateContacts;
 `);
   write('stubs.tsx', `import React from 'react';
+export const useWorkspace=()=>null;
 export const ContactEditorDialog=()=>null;export const ContactFilterControls=()=>null;
 export const ContactDeactivationButton=()=>null;export const ContactDeactivationConfirmDialog=()=>null;
 export const triggerCoachRuleReviewForContacts=async()=>{};export const readHeadhunterCompanyMaster=async()=>[];
@@ -76,7 +77,7 @@ createRoot(document.getElementById('root')).render(<App/>);
       module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(output,'loader.cjs')]}]},
       plugins:[new webpack.NormalModuleReplacementPlugin(/opportunityActions$/,path.join(output,'actions.ts')),
         new webpack.NormalModuleReplacementPlugin(/contactActions$/,path.join(output,'contact-actions.ts')),
-        new webpack.NormalModuleReplacementPlugin(/(cycleObjectiveActions|cloudData|coachRuleTriggers|headhunterCompanyActions|ContactEditorDialog|ContactDeactivationButton|ContactDeactivationConfirmDialog|next\/link)$/,path.join(output,'stubs.tsx')),
+        new webpack.NormalModuleReplacementPlugin(/(WorkspaceState|cycleObjectiveActions|cloudData|coachRuleTriggers|headhunterCompanyActions|ContactEditorDialog|ContactDeactivationButton|ContactDeactivationConfirmDialog|next\/link)$/,path.join(output,'stubs.tsx')),
         new webpack.NormalModuleReplacementPlugin(/(networkingCycles|networkingPlanNotice|historyPolicy)(\.ts)?$/,path.join(output,'cycles.ts')),
         new webpack.NormalModuleReplacementPlugin(/supabaseClient(\.ts)?$/,()=>{throw Error('Real transport forbidden in mounted fixture');})]});
     compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||new Error(stats.toString({all:false,errors:true}))):resolve()));

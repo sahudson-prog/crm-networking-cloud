@@ -8,6 +8,8 @@ import type { ObjectiveRow } from "../lib/readModel";
 import { Icon } from "./ui/Icon";
 
 type ContactFilterControlsProps = {
+  embedded?: boolean;
+  statusDisabled?: boolean;
   filters: ContactFilters;
   filtersOpen: boolean;
   quickQuery: string;
@@ -24,6 +26,7 @@ type ContactFilterControlsProps = {
 };
 
 export function ContactFilterControls({
+  embedded = false, statusDisabled = false,
   filters,
   filtersOpen,
   objectiveOptions = [],
@@ -79,15 +82,15 @@ export function ContactFilterControls({
           value={filters.isHeadhunter}
           onChange={(value) => updateTriStateFilter("isHeadhunter", value)}
         />
-        <button className="contacts-filter-toggle" onClick={() => onFiltersOpenChange(!filtersOpen)} type="button">
+        {!embedded ? <button className="contacts-filter-toggle" onClick={() => onFiltersOpenChange(!filtersOpen)} type="button">
           <Icon name={filtersOpen ? "collapse" : "expand"} />
           <span>Más filtros</span>
-        </button>
+        </button> : null}
         {summary ? <span className="contacts-filter-summary">{summary}</span> : null}
       </div>
       {filtersOpen ? (
         <div className="contacts-filter-expanded">
-          {showStatusFilter ? <div className="contacts-expanded-filter-row">
+          {showStatusFilter ? <fieldset disabled={statusDisabled} className="contacts-expanded-filter-row shell-status-fieldset">
             <span>Estado</span>
             <div className="contacts-status-filter-row" aria-label="Filtrar por estado networking">
               {NETWORKING_STATUSES.map((status) => (
@@ -100,7 +103,7 @@ export function ContactFilterControls({
                 />
               ))}
             </div>
-          </div> : null}
+          </fieldset> : null}
           <div className="contacts-hashtag-filter" aria-label="Filtro por prioridades">
             <span>Prioridades</span>
             <div className="contacts-hashtag-scroll">
@@ -167,7 +170,7 @@ function TriStateFilterSelect({
   return (
     <label className="contacts-filter-select">
       <span>{label}</span>
-      <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as "all" | "true" | "false")}>
+      <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as "all" | "true" | "false")}>
         <option value="true">Si</option>
         <option value="false">No</option>
         <option value="all">Todos</option>
@@ -189,7 +192,7 @@ function StatusFilterButton({
 }) {
   const className = `contacts-status-filter ${statusClass(status)} ${active ? "active" : ""}`;
   return (
-    <button className={className} onClick={onClick} type="button">
+    <button className={className} aria-pressed={active} onClick={onClick} type="button">
       {label}
     </button>
   );

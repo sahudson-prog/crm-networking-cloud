@@ -12,6 +12,7 @@ import type {
   ContactRow,
   InteractionRow
 } from "../lib/readModel";
+import { useWorkspace } from "./WorkspaceState";
 import { CoachModule } from "./CoachPreview";
 import { ContactDataSyncButton, type ContactDataSyncNotice } from "./ContactDataSyncButton";
 import { ContactEditorDialog } from "./ContactEditorDialog";
@@ -38,6 +39,8 @@ const NETWORKING_STATUSES = [
 ];
 
 export function ContactProfile({ onboardingCoach, profile, onReload }: ContactProfileProps) {
+  const workspace=useWorkspace();
+  useEffect(()=>{workspace?.setProfile({profile,onReload});return()=>workspace?.setProfile(null);},[profile,onReload,workspace?.setProfile]);
   const { contact, interactions, interactionParticipants, externalInteractionSources, referrals, todos } = profile;
   const emails = contact.contact_emails ?? [];
   const phones = contact.contact_phones ?? [];
@@ -133,7 +136,7 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
 
   return (
     <div className="contact-profile-page">
-      <section className="contact-profile-coach" aria-label="Coach IA">
+      {(!workspace || onboardingCoach) ? <section className="contact-profile-coach" aria-label="Coach IA">
         {onboardingCoach ?? (
           <CoachModule
             contactId={contact.id}
@@ -145,7 +148,7 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
             variant="contact"
           />
         )}
-      </section>
+      </section> : null}
 
       <div className={`contact-profile-grid ${onboardingCoach ? "onboarding-contact-profile-grid" : ""}`}>
         <section className="panel contact-identity-panel">

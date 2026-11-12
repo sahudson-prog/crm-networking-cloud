@@ -1,29 +1,25 @@
 "use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { TRACKING_QUERY_KEY, useTrackingViewFilters } from "./useTrackingViewFilters";
-
-const destinations = [
-  ["/", "Inicio"],
-  ["/registrar-avances", "Registrar avances"],
-  ["/planificar", "Planificar"],
-  ["/contactos", "Contactos"],
-  ["/objetivos", "Objetivos y prioridades"]
-] as const;
-
-/** Temporary links only: existing shell, utilities and global Actualizar stay intact. */
+import {usePathname} from "next/navigation";
+import * as Menu from "@radix-ui/react-dropdown-menu";
+import {House,Coffee,CalendarDays,Menu as MenuIcon,Target,Users,BookOpen} from "lucide-react";
+import {useOnboarding} from "./OnboardingProvider";
+import {useTrackingViewFilters,TRACKING_QUERY_KEY} from "./useTrackingViewFilters";
 export function WorkspaceNavigation() {
-  const pathname = usePathname();
-  const { query } = useTrackingViewFilters();
-  const suffix = query ? `?${new URLSearchParams({ [TRACKING_QUERY_KEY]: query })}` : "";
-  return <nav className="nav-primary structural-navigation" aria-label="Navegacion principal">
-    {destinations.map(([href, label]) => {
-      const active = pathname === href || (href === "/" && pathname === "/dashboard")
-        || (href === "/objetivos" && pathname === "/onboarding/objetivos")
-        || (href === "/contactos" && (pathname === "/onboarding/contactos" || pathname === "/onboarding/contacto"));
-      return <Link key={href} href={`${href}${suffix}`} className={`nav-link ${active ? "active" : ""}`}
-        aria-current={active ? "page" : undefined}>{label}</Link>;
-    })}
-  </nav>;
+ const path=usePathname(),onboarding=useOnboarding(),{query}=useTrackingViewFilters();
+ const href=(route:string)=>query?`${route}?${TRACKING_QUERY_KEY}=${encodeURIComponent(query)}`:route;
+ const more=path==='/objetivos'||path==='/contactos';
+ return <nav className="workspace-nav-v2" aria-label="Navegación principal">
+  {[{route:'/',label:'Inicio',Icon:House},{route:'/registrar-avances',label:'Producir',Icon:Coffee},{route:'/planificar',label:'Planificar',Icon:CalendarDays}].map(({route,label,Icon})=>{
+    const active=path===route||(route==='/'&&path==='/dashboard');
+    return <Link key={route} href={href(route)} className="workspace-destination" aria-label={label} aria-current={active?'page':undefined}><Icon aria-hidden="true"/><span>{label}</span></Link>;
+  })}
+  <Menu.Root modal={false}><Menu.Trigger asChild><button className="workspace-destination" aria-label="Más" data-active={more||undefined}><MenuIcon aria-hidden="true"/><span>Más</span></button></Menu.Trigger>
+   <Menu.Portal><Menu.Content className="shell-menu" sideOffset={6} collisionPadding={12} align="end">
+    <Menu.Item asChild><Link href={href('/objetivos')} aria-current={path==='/objetivos'?'page':undefined}><Target aria-hidden="true"/>Objetivos</Link></Menu.Item>
+    <Menu.Item asChild><Link href={href('/contactos')} aria-current={path==='/contactos'?'page':undefined}><Users aria-hidden="true"/>Contactos</Link></Menu.Item>
+    <Menu.Item onSelect={()=>onboarding.replay()}><BookOpen aria-hidden="true"/>Tutorial</Menu.Item>
+   </Menu.Content></Menu.Portal>
+  </Menu.Root>
+ </nav>;
 }

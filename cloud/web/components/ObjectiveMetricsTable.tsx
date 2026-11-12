@@ -3,13 +3,22 @@ import { objectivePriorityLabel, objectiveTypeLabel } from "../lib/cycleObjectiv
 import type { ObjectiveMetricRow } from "../lib/objectiveMetrics";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
+import { TableSortHeader } from "./ui/TableSortHeader";
+import { sortPriorityRows, type PrioritySortKey, type SortSelection } from "../lib/planningTableSort";
 import { StatusBadge } from "./StatusBadge";
 
 export function ObjectiveMetricsTable({ rows, opportunityCounts, supplementalUnavailable = false }: {
   rows: ObjectiveMetricRow[]; opportunityCounts?: ReadonlyMap<string, number>; supplementalUnavailable?: boolean;
 }) {
   const [showInactiveObjectives, setShowInactiveObjectives] = useState(false);
-  const visibleRows = showInactiveObjectives ? rows : rows.filter((row) => row.contactCount > 0 || row.coffeeCount > 0 || (opportunityCounts?.get(row.objectiveId) ?? 0) > 0);
+  const [sort, setSort] = useState<SortSelection<PrioritySortKey> | null>(null);
+  const currentSort: SortSelection<PrioritySortKey> = sort ?? { key: "priorityLevel", direction: "desc" };
+  const filteredRows = showInactiveObjectives ? rows : rows.filter((row) => row.contactCount > 0 || row.coffeeCount > 0 || (opportunityCounts?.get(row.objectiveId) ?? 0) > 0);
+  const visibleRows = sortPriorityRows(filteredRows, opportunityCounts, sort, supplementalUnavailable);
+  function toggleSort(key: PrioritySortKey) {
+    setSort({ key, direction: currentSort.key === key && currentSort.direction === "asc" ? "desc" : "asc" });
+  }
+  const header = (key: PrioritySortKey, label: string) => <TableSortHeader sortKey={key} label={label} current={currentSort} onSort={toggleSort} />;
 
   if (!rows.length) {
     return <EmptyValue>sin prioridades para mostrar</EmptyValue>;
@@ -30,14 +39,14 @@ export function ObjectiveMetricsTable({ rows, opportunityCounts, supplementalUna
           <table className="objective-metrics-table">
             <thead>
               <tr>
-                <th>Objetivo</th>
-                <th>Tipo</th>
-                <th>Prioridad</th>
-                {opportunityCounts ? <th>Oportunidades</th> : null}
-                <th>Contactos</th>
-                <th>Cafes</th>
-                <th>Ultima actividad</th>
-                <th>Mayor estado</th>
+                {header("objectiveName", "Objetivo")}
+                {header("objectiveType", "Tipo")}
+                {header("priorityLevel", "Prioridad")}
+                {opportunityCounts ? header("opportunities", "Oportunidades") : null}
+                {header("contactCount", "Contactos")}
+                {header("coffeeCount", "Cafes")}
+                {header("lastInteractionAt", "Ultima actividad")}
+                {header("networkingStatus", "Mayor estado")}
               </tr>
             </thead>
             <tbody>

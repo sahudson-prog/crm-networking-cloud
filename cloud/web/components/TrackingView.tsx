@@ -47,7 +47,8 @@ export function TrackingPyramid({ model }: { model: ReadyTracking }) {
     </ol>;
 }
 
-export function TrackingBars({ model, groupHeadhunters, onGroupChange, standalone = false }: {
+export function TrackingBars({ model, groupHeadhunters, onGroupChange, standalone = false, headhunterFilter, onHeadhunterFilterChange }: {
+  headhunterFilter?: "all"|"only"|"exclude"; onHeadhunterFilterChange?: (v:"all"|"only"|"exclude")=>void;
   model: ReadyTracking; groupHeadhunters: boolean; onGroupChange: (value: boolean) => void; standalone?: boolean;
 }) {
   const [mode, setMode] = useState<PeriodMode>("weekly");
@@ -80,6 +81,7 @@ export function TrackingBars({ model, groupHeadhunters, onGroupChange, standalon
   return <section className={`tracking-coffee ${standalone ? "tracking-coffee-standalone" : ""}`} aria-label="Total cafés">
     <header className="section-toolbar">{standalone ? null : <h3 id="tracking-bars-title">Total cafés</h3>}
       <div className="tracking-chart-controls">
+        {onHeadhunterFilterChange?<label className="contacts-filter-select"><span>Headhunter</span><select aria-label="Headhunter del gráfico" value={headhunterFilter} onChange={e=>onHeadhunterFilterChange(e.target.value as "all"|"only"|"exclude")}><option value="all">Todos</option><option value="only">Sí</option><option value="exclude">No</option></select></label>:null}
         <Button className="tracking-group-toggle" icon={groupHeadhunters ? "users" : "circleDot"}
           aria-pressed={groupHeadhunters} onClick={() => onGroupChange(!groupHeadhunters)}>Agrupar Headhunters</Button>
         <div className="tracking-period-switch" role="group" aria-label="Períodos">

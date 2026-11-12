@@ -1,5 +1,5 @@
 "use client";
-import { VCardHelp } from "./VCardHelp";
+import { ContactImportButton } from "./ContactImportDialog";
 
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { resetCurrentUserAppData } from "../lib/accountDataActions";
@@ -38,14 +38,12 @@ import {
 } from "../lib/interactionSyncPreferences";
 import { supabase } from "../lib/supabaseClient";
 import { ContactDuplicateReviewPanel } from "./ContactDuplicateReviewPanel";
-import { GoogleContactsSyncPanel } from "./GoogleContactsSyncPanel";
 import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { IcsImportPanel } from "./IcsImportPanel";
 import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
 import { StartingPointFields } from "./StartingPointFields";
 import { useShellActions } from "./Shell";
 import { useOnboarding } from "./OnboardingProvider";
-import { VCardImportPanel } from "./VCardImportPanel";
 import { Button } from "./ui/Button";
 import { Icon, type IconName } from "./ui/Icon";
 import { ProviderIcon, type ProviderIconName } from "./ui/ProviderIcon";
@@ -155,7 +153,6 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
         <GoogleImportSection
           account={accountWithHistory}
           includeOtherSources={false}
-          includeVCard
           redirectPath="/onboarding/google"
           setAccount={setAccount}
         />
@@ -270,13 +267,11 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
 function GoogleImportSection({
   account,
   includeOtherSources,
-  includeVCard = false,
   redirectPath,
   setAccount
 }: {
   account: AccountState;
   includeOtherSources: boolean;
-  includeVCard?: boolean;
   redirectPath: "/cuenta" | "/onboarding/google";
   setAccount: Dispatch<SetStateAction<AccountState>>;
 }) {
@@ -413,83 +408,54 @@ function GoogleImportSection({
 
       <section className="account-data-group" aria-labelledby="account-import-data-title">
         <h3 id="account-import-data-title">Importar datos</h3>
-        <div className={`account-data-grid ${includeOtherSources ? "" : "single"}`}>
+        <div className="account-data-grid">
           <AccountDataBlock title="Contactos">
-            <div className="account-data-options">
-              {includeOtherSources || includeVCard ? (
-                <VCardImportPanel
-                  actionLabel="Importar archivo vCard"
-                  compactAction={includeOtherSources}
-                  description={includeOtherSources ? "Selecciona un archivo de contactos." : undefined}
-                  sourceLabel="vCard (.vcf)"
-                  sourceHelp={<VCardHelp />}
-                />
-              ) : null}
-              {contactsEligibility === "enabled" ? (
-                <GoogleContactsSyncPanel
-                  authorizationRedirectPath={redirectPath}
-                  compact
-                  googleAccessToken={account.googleAccessToken}
-                  googleCapabilityAvailable={googleServices.contacts}
-                  googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                  googleDisabledReason={googleImportDisabledReason(account, "contacts")}
-                  iconOnlyActions={includeOtherSources}
-                  onResumeImportHandled={() => setResumeAction(null)}
-                  registerRememberedScopes={false}
-                  resumeImport={resumeAction === "import_contacts"}
-                />
-              ) : (
-                <SourcePlaceholder
-                  provider="google"
-                  status={googlePlaceholderStatus(contactsEligibility)}
-                  title="Google Contacts"
-                />
-              )}
-              {includeOtherSources ? (
-                <>
-                  <SourcePlaceholder provider="apple" title="Apple Contacts" />
-                  <SourcePlaceholder provider="microsoft" title="Microsoft Contacts" />
-                </>
-              ) : null}
-            </div>
+            <ContactImportButton
+              google={{
+                enabled: contactsEligibility === "enabled",
+                authorizationRedirectPath: redirectPath,
+                googleAccessToken: account.googleAccessToken,
+                googleCapabilityAvailable: googleServices.contacts,
+                googleConnectionLoading: account.googleConnectionLoading || account.googleAuthorizationVerifying,
+                googleDisabledReason: googleImportDisabledReason(account, "contacts"),
+                onResumeImportHandled: () => setResumeAction(null),
+                resumeImport: resumeAction === "import_contacts"
+              }}
+            />
           </AccountDataBlock>
 
-          {includeOtherSources ? (
-            <AccountDataBlock title="Citas">
-              {isIcsImportEnabled()
-                ? <IcsImportPanel />
-                : <SourcePlaceholder icon="file" title="iCalendar (.ics)" />}
-            </AccountDataBlock>
-          ) : null}
+          <AccountDataBlock title="Citas">
+            {isIcsImportEnabled()
+              ? <IcsImportPanel />
+              : <SourcePlaceholder icon="file" title="iCalendar (.ics)" />}
+          </AccountDataBlock>
 
-          {includeOtherSources ? (
-            <AccountDataBlock title="Correos">
-              {emailEligibility === "enabled" ? (
-                <GoogleInteractionsSyncPanel
-                  authorizationRedirectPath={redirectPath}
-                  compact
-                  googleAccessToken={account.googleAccessToken}
-                  googleCalendarAvailable={googleServices.calendar}
-                  googleConnected={account.googleConnected}
-                  googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
-                  googleMailAvailable={googleServices.mail}
-                  onResumeMailImportHandled={() => setResumeAction(null)}
-                  registerRememberedScopes={false}
-                  calendarDisabledReason={googleImportDisabledReason(account, "calendar")}
-                  mailDisabledReason={googleImportDisabledReason(account, "mail")}
-                  networkingStartReady={account.networkingStartReady}
-                  resumeMailImport={resumeAction === "import_gmail_history"}
-                  showCalendarAction={false}
-                />
-              ) : (
-                <SourcePlaceholder
-                  provider="gmail"
-                  status={googlePlaceholderStatus(emailEligibility)}
-                  title="Gmail"
-                />
-              )}
-            </AccountDataBlock>
-          ) : null}
+          <AccountDataBlock title="Correos">
+            {emailEligibility === "enabled" ? (
+              <GoogleInteractionsSyncPanel
+                authorizationRedirectPath={redirectPath}
+                compact
+                googleAccessToken={account.googleAccessToken}
+                googleCalendarAvailable={googleServices.calendar}
+                googleConnected={account.googleConnected}
+                googleConnectionLoading={account.googleConnectionLoading || account.googleAuthorizationVerifying}
+                googleMailAvailable={googleServices.mail}
+                onResumeMailImportHandled={() => setResumeAction(null)}
+                registerRememberedScopes={false}
+                calendarDisabledReason={googleImportDisabledReason(account, "calendar")}
+                mailDisabledReason={googleImportDisabledReason(account, "mail")}
+                networkingStartReady={account.networkingStartReady}
+                resumeMailImport={resumeAction === "import_gmail_history"}
+                showCalendarAction={false}
+              />
+            ) : (
+              <SourcePlaceholder
+                provider="gmail"
+                status={googlePlaceholderStatus(emailEligibility)}
+                title="Gmail"
+              />
+            )}
+          </AccountDataBlock>
         </div>
       </section>
 

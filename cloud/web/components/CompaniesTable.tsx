@@ -57,13 +57,17 @@ export function CompaniesTable({ contacts, selected, onSelectionChange }: {
       <span className="meta" aria-live="polite">{selected.size ? `${selected.size} grupos seleccionados para filtrar la tabla superior.` : "Selecciona empresas para filtrar la tabla superior."} La selección masiva de contactos se conserva.</span>
       <Button onClick={() => onSelectionChange(new Set())} disabled={!selected.size}>Limpiar selección de empresas</Button>
     </div>
-    <div className="table-wrap contacts-table-wrap">
+    <div className="table-wrap contacts-table-wrap companies-table-wrap">
       <table className="table companies-table" aria-label="Empresas de los contactos">
+        <colgroup>
+          <col className="companies-select-col"/><col className="companies-name-col"/>
+          <col className="companies-count-col"/><col className="companies-status-col"/><col className="companies-interaction-col"/>
+        </colgroup>
         <thead><tr><th aria-label="Filtrar contactos por empresa" />{header("company", "Empresa")}{header("count", "Contactos")}{header("status", "Estado más avanzado")}{header("lastInteraction", "Última interacción")}</tr></thead>
         <tbody>{rows.map(row => <tr key={row.company} className={selected.has(row.company) ? "selected-row" : ""}>
           <td><input type="checkbox" aria-label={`Filtrar contactos de ${row.company || "Sin empresa"}`}
             checked={selected.has(row.company)} onChange={() => toggle(row.company)} /></td>
-          <td>{row.company || <span className="empty-value">Sin empresa</span>}</td><td>{row.count}</td>
+          <td><span className="companies-name-value" title={row.company || "Sin empresa"}>{row.company || <span className="empty-value">Sin empresa</span>}</span></td><td>{row.count}</td>
           <td><StatusBadge status={NETWORKING_STATUSES[row.statusRank] ?? ""} /></td>
           <td>{formatLastInteractionAge(row.latest?.days_since_last_interaction ?? null, row.latest?.last_interaction_at ?? null)}</td>
         </tr>)}
