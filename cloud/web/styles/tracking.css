@@ -1,4 +1,58 @@
 .tracking-dashboard { min-width: 0; }
+/* UI-STRUCT: composition only; inner cards, tables and boards retain their styles. */
+.structural-view { --block-gap: 24px; display: grid; gap: var(--block-gap); min-width: 0; }
+.structural-view[hidden] { display: none; }
+.structural-view > *, .structural-home-blocks > * { min-width: 0; }
+.structural-view .contact-filter-controls { margin-bottom: 0; }
+.structural-home-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--block-gap, 24px); align-items: stretch; }
+.structural-home-blocks .panel { margin: 0; }
+.functional-block.panel, .structural-view .opportunities-section {
+  display: grid; align-content: start; gap: 16px; min-width: 0; padding: 24px;
+}
+.functional-block > .panel-header, .structural-view .opportunities-section > .panel-header { margin: 0; align-items: flex-start; }
+.functional-block .panel-header > div { min-width: 0; }
+.functional-block .panel-title, .structural-view .opportunities-section .panel-title {
+  display: flex; align-items: flex-start; gap: 8px; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.functional-block .panel-title > svg, .structural-view .opportunities-section .panel-title > svg {
+  width: 20px; height: 24px; flex: 0 0 20px; stroke-width: 1.8;
+}
+.functional-block .panel-caption { display: block; margin-top: 4px; line-height: 1.5; }
+.functional-block > p { margin: 0; }
+.functional-block .contacts-status-toolbar, .structural-view .opportunity-status-toolbar { height: auto; min-height: 0; flex-wrap: wrap; }
+.functional-block .contacts-status-feedback, .structural-view .opportunity-status-toolbar .contacts-status-feedback { min-height: 0; }
+.functional-block .contacts-status-feedback:empty, .structural-view .tracking-feedback:empty,
+.functional-block .contacts-status-toolbar:has(> .contacts-status-feedback:empty):not(:has(button)),
+.structural-view .opportunity-status-toolbar:has(> .contacts-status-feedback:empty):not(:has(button)) { display: none; }
+.structural-view .tracking-feedback { min-height: 0; }
+.functional-block .tracking-coffee .section-toolbar { justify-content: flex-start; }
+.functional-block .tracking-chart { margin-top: 16px; }
+.filter-scope-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--crm-muted); }
+.companies-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.companies-toolbar .meta { flex: 1 1 240px; line-height: 1.5; }
+.companies-table-wrap {container-type:inline-size;}
+/* Container lengths avoid percentage calc being treated as auto by table layout.
+   BF-11: allocate the data area after the unchanged 42px ContactTable checkbox. */
+.companies-table {table-layout:fixed;min-width:840px;}
+.companies-select-col {width:42px;}
+.companies-name-col {width:max(287.28px, calc(36cqw - 15.12px));}
+.companies-count-col {width:max(95.76px, calc(12cqw - 5.04px));}
+.companies-status-col {width:max(223.44px, calc(28cqw - 11.76px));}
+.companies-interaction-col {width:max(191.52px, calc(24cqw - 10.08px));}
+.companies-name-value {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.companies-table th:last-child .contacts-sort-header {white-space:nowrap;}
+
+.companies-table .contacts-sort-header { white-space: normal; text-align: left; }
+.companies-table .contacts-sort-header .icon { flex: 0 0 14px; }
+@media (max-width: 600px) {
+  .structural-view { --block-gap: 20px; }
+  .functional-block.panel, .structural-view .opportunities-section { padding: 16px; }
+}
+.tracking-coffee.tracking-coffee-standalone { border-left: 0; padding-left: 0; }
+.nav-primary.structural-navigation { flex-wrap: wrap; }
+.structural-priorities .objectives-group { min-width: 0; padding: 12px; border: 1px solid var(--crm-border); border-radius: var(--crm-radius-sm); }
+.networking-cycle-panel.panel .networking-plan { box-shadow: none; }
+.networking-cycle-panel.panel .networking-plan:not(.is-unavailable) { background: transparent; }
 .tracking-dashboard > *, .tracking-overview > * { min-width: 0; }
 .tracking-dashboard .dashboard-filter-bar { display: grid; gap: 12px; }
 .tracking-feedback { min-height: 18px; font-size: 12px; color: var(--crm-muted); }
@@ -60,13 +114,13 @@
   .tracking-coffee { border-left: 0; border-top: 1px solid var(--crm-border); padding: 18px 0 0; }
 }
 @media (max-width: 760px) {
-  .tracking-dashboard .contacts-filter-main { flex-wrap: wrap; overflow-x: visible; }
-  .tracking-dashboard .contacts-quick-search { flex: 1 1 100%; }
-  .tracking-dashboard .contacts-filter-select { flex: 1 1 120px; }
+  :is(.tracking-dashboard, .structural-view) .contacts-filter-main { flex-wrap: wrap; overflow-x: visible; }
+  :is(.tracking-dashboard, .structural-view) .contacts-quick-search { flex: 1 1 100%; }
+  :is(.tracking-dashboard, .structural-view) .contacts-filter-select { flex: 1 1 120px; }
 }
 @media (max-width: 400px) {
-  .tracking-dashboard .contacts-filter-select { flex: 1 1 calc(50% - 4px); min-width: 0; gap: 3px; padding-inline: 5px; font-size: 11px; }
-  .tracking-dashboard .contacts-filter-select select { flex: 1 1 auto; min-width: 0; font-size: 11px; }
+  :is(.tracking-dashboard, .structural-view) .contacts-filter-select { flex: 1 1 calc(50% - 4px); min-width: 0; gap: 3px; padding-inline: 5px; font-size: 11px; }
+  :is(.tracking-dashboard, .structural-view) .contacts-filter-select select { flex: 1 1 auto; min-width: 0; font-size: 11px; }
   .tracking-pyramid li { grid-template-columns: minmax(0, 1fr) 62px; gap: 5px; }
   .tracking-level-row { grid-template-columns: 88px minmax(0, 1fr); gap: 6px; }
   .tracking-level-label { font-size: 11px; line-height: 1.2; }

@@ -1,7 +1,11 @@
+import { useState } from "react";
 import type { HeadhunterCompanyRow } from "../lib/readModel";
 import { interactionLabel, shortDate } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
+
+import { TableSortHeader } from "./ui/TableSortHeader";
+import { planningDate, sortHeadhunterRows, type HeadhunterSortKey, type SortSelection } from "../lib/planningTableSort";
 
 type HeadhunterCompaniesProps = {
   rows: HeadhunterCompanyRow[];
@@ -16,6 +20,13 @@ export function HeadhunterCompanies({
   onToggleDomain,
   onClearSelection
 }: HeadhunterCompaniesProps) {
+  const [sort, setSort] = useState<SortSelection<HeadhunterSortKey> | null>(null);
+  const currentSort: SortSelection<HeadhunterSortKey> = sort ?? { key: "lastInteractionAt", direction: "asc" };
+  const sortedRows = sortHeadhunterRows(rows, sort);
+  function toggleSort(key: HeadhunterSortKey) {
+    setSort({ key, direction: currentSort.key === key && currentSort.direction === "asc" ? "desc" : "asc" });
+  }
+  const header = (key: HeadhunterSortKey, label: string) => <TableSortHeader sortKey={key} label={label} current={currentSort} onSort={toggleSort} />;
   if (!rows.length) return <span className="empty">Sin empresas headhunter para mostrar.</span>;
   const selectedCount = selectedDomains.size;
 
@@ -34,17 +45,17 @@ export function HeadhunterCompanies({
           <thead>
             <tr>
               <th className="select-col">Filtrar</th>
-              <th>Empresa headhunter</th>
-              <th>Contactos</th>
-              <th>Estado</th>
-              <th>Ultimo contacto</th>
-              <th>Dias</th>
-              <th>Tipo</th>
-              <th>Asunto</th>
+              {header("domain", "Empresa headhunter")}
+              {header("contactCount", "Contactos")}
+              {header("status", "Estado")}
+              {header("lastInteractionAt", "Ultimo contacto")}
+              {header("daysSince", "Dias")}
+              {header("type", "Tipo")}
+              {header("subject", "Asunto")}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const selected = selectedDomains.has(row.domain);
               return (
                 <tr className={selected ? "selected-row" : ""} key={row.domain}>
@@ -59,8 +70,8 @@ export function HeadhunterCompanies({
                   <td className={row.domain === "NO EMAIL" ? "danger-text" : ""}>{displayDomain(row.domain)}</td>
                   <td>{row.contactCount}</td>
                   <td><StatusBadge status={row.status} /></td>
-                  <td>{shortDate(row.lastInteractionAt)}</td>
-                  <td>{row.daysSince ?? "sin registro"}</td>
+                  <td>{planningDate(row.lastInteractionAt) === null ? "Sin registro" : shortDate(row.lastInteractionAt)}</td>
+                  <td>{row.daysSince ?? "Sin registro"}</td>
                   <td>{interactionLabel(row.type)}</td>
                   <td>{row.subject || "sin asunto"}</td>
                 </tr>

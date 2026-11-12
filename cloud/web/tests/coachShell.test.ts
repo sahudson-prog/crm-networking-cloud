@@ -58,45 +58,28 @@ test("Seguimiento no monta Coach; su implementación agrupada y detallada sigue 
   assert.match(coach, /<section[\s\S]*aria-label="Coach IA"[\s\S]*className=\{`coach-module/);
 });
 
-test("Seguimiento conserva gates privados y vuelve a la navegación sin renombrar rutas", () => {
-  const shell = source("../components/Shell.tsx");
-  const dashboardRoute = source("../app/dashboard/page.tsx");
-
-  assert.match(dashboardRoute, /<AuthGate>[\s\S]*<Shell>[\s\S]*<ReadOnlyDashboard \/>/);
-  assert.match(shell, /href="\/dashboard"[\s\S]*Seguimiento/);
-  assert.doesNotMatch(shell, />\s*Dashboard\s*</);
+test("la ruta histórica conserva el gate compartido y el contenido de Inicio", () => {
+  const frame = source("../components/ApplicationFrame.tsx");
+  assert.match(frame, /'\/dashboard'/);
+  assert.match(frame, /<AuthGate><Shell>\{children\}<\/Shell><\/AuthGate>/);
+  assert.match(source("../app/dashboard/page.tsx"), /<HomeView/);
 });
 
-test("Shell usa el lockup oficial de Coffeecito sin texto legacy", () => {
-  const shell = source("../components/Shell.tsx");
-  const css = source("../styles/components.css");
-
-  assert.doesNotMatch(shell, /CRM Networking/);
-  assert.match(shell, /className="shell-brand-lockup" href="\/contactos"/);
-  assert.doesNotMatch(shell, /className="shell-brand-lockup" href="\/"/);
+test("el shell compartido conserva marca, Sync existente y gate efectivo de Sistema", () => {
+  const shell = source("../components/ShellChrome.tsx");
+  assert.match(shell, /href="\/" aria-label=\{BRAND_ACCESSIBLE_NAME\}/);
   assert.match(shell, /src="\/brand\/coffeecito-isotipo\.svg"/);
-  assert.match(shell, /<BrandBetaWordmark \/>/);
-  assert.match(css, /\.shell-brand-lockup > span[\s\S]*var\(--font-coffeecito-wordmark\)[\s\S]*font-weight: 900[\s\S]*letter-spacing: -0\.015em/);
+  assert.match(shell, /<BrandBetaWordmark\s*\//);
+  assert.equal(shell.match(/<ActivitySyncButton/g)?.length, 1);
+  assert.match(shell, /canRenderSystemSurface\(access,'system'\)/);
+  assert.match(shell, /onSignOut\?\.\(\)/);
 });
 
-test("Shell separa marca, navegacion primaria y utilidades para el header responsive", () => {
-  const shell = source("../components/Shell.tsx");
-  const css = source("../styles/components.css");
-  const utilityStart = shell.indexOf('className="nav-utility"');
-  const systemPosition = shell.indexOf('aria-label="Sistema"', utilityStart);
-  const syncPosition = shell.indexOf('<ActivitySyncButton variant="focus_incremental" square />', utilityStart);
-  const accountPosition = shell.indexOf('aria-label="Cuenta"', utilityStart);
-
-  assert.match(shell, /<nav className="nav-primary" aria-label="Navegacion principal">/);
-  assert.match(shell, /Objetivos[\s\S]*Contactos/);
-  assert.match(shell, /className="nav-utility"[\s\S]*nav-tutorial-link[\s\S]*Ver tutorial/);
-  assert.ok(systemPosition > utilityStart && syncPosition > systemPosition && accountPosition > syncPosition);
-  assert.doesNotMatch(shell, /aria-label="Cerrar sesión"/);
-  assert.match(source("../components/AccountPage.tsx"), /<h2 id="account-session-title">Sesión<\/h2>[\s\S]*Cerrar sesión/);
-  assert.match(shell, /showSystem \? \([\s\S]*aria-label="Sistema"/);
-  assert.match(css, /\.topbar\s*\{[\s\S]*grid-template-areas: "brand primary utility"[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
-  assert.match(css, /@media \(max-width: 780px\)[\s\S]*\.topbar\s*\{[\s\S]*"brand utility"[\s\S]*"primary primary"/);
-  assert.match(css, /@media \(max-width: 330px\)\s*\{\s*\.topbar\s*\{\s*column-gap: 6px[\s\S]*\.nav-utility\s*\{\s*gap: 2px/);
+test("Coach compartido conserva configuración e historial fuera del recorte del popover", () => {
+  const coach = source("../components/CoachPreview.tsx");
+  assert.match(coach, /createPortal[\s\S]*data-coach-overlay/);
+  assert.match(coach, /onOpenHistory[\s\S]*setLogOpen\(true\)/);
+  assert.match(source("../components/ShellChrome.tsx"), /onInteractOutside/);
 });
 
 function source(path: string) {

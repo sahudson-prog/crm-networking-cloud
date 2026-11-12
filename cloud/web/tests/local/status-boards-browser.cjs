@@ -24,6 +24,7 @@ export async function updateContactNetworkingStatus(id,status){window.fixture.co
 export const deactivateContacts=async()=>{throw Error('outside scope')};export const updateContactFlags=deactivateContacts;
 `);
   write('stubs.tsx', `import React from 'react';
+export const useWorkspace=()=>null;
 export const ContactEditorDialog=()=>null;export const ContactFilterControls=()=>null;
 export const ContactDeactivationButton=()=>null;export const ContactDeactivationConfirmDialog=()=>null;
 export const triggerCoachRuleReviewForContacts=async()=>{};export const readHeadhunterCompanyMaster=async()=>[];
@@ -37,12 +38,13 @@ export default function Link({children,href,...props}){return <a href={href} {..
 `);
   write('cycles.ts', `
 export async function readNetworkingCycles(){const f=window.fixture;f.cycleReads++;if(f.holdCycles)await new Promise(resolve=>f.cycleResolvers.push(resolve));if(f.failCycles)throw Error('synthetic cycle');return structuredClone(f.cycles);}
-export const expectedNetworkingContext=async()=>({token:'synthetic',cycleId:'cycle'});
+export const expectedNetworkingContext=async()=>({token:window.fixture.staleCycle?'stale':'synthetic',cycleId:'cycle'});
 export const networkingContextFromCycles=()=>({token:'synthetic',cycleId:'cycle'});
 export const localDateTimeValue=()=> '2026-10-29T12:00';
 export const startNetworkingCycle=async()=>{throw Error('outside scope')};export const closeNetworkingCycle=startNetworkingCycle;export const adoptConfirmedOwnClose=()=>{};
 export async function readMyNetworkingPlanNotices(){const f=window.fixture;f.noticeReads++;if(f.holdNotices)await new Promise(resolve=>f.noticeResolvers.push(resolve));if(f.failNotices)throw Error('synthetic notices');return new Set();}
 export const requestNetworkingPlanNotice=startNetworkingCycle;export const withdrawNetworkingPlanNotice=startNetworkingCycle;
+export const readHistoryPolicy=async()=>({max_months:6,revision:1,earliest_start:'2026-04-29T00:00:00Z',as_of:'2026-10-29T12:00:00Z'});
 `);
   write('actions.ts', `
 export async function readOpportunities(){const f=window.fixture;f.opportunityReads++;if(f.failRead)throw Error('synthetic read');if(f.holdRead)await new Promise(resolve=>f.readResolvers.push(resolve));return structuredClone(f.rows);}
@@ -56,6 +58,7 @@ import React,{useState} from 'react';import {createRoot} from 'react-dom/client'
 import {ContactTable} from ${imp('components/ContactTable.tsx')};import {ContactTable as Baseline} from './Baseline';
 import {OpportunityBoard} from ${imp('components/OpportunityBoard.tsx')};
 import {ObjectivesPage} from ${imp('components/ObjectivesPage.tsx')};
+import {OpportunityWorkspace} from ${imp('components/OpportunityWorkspace.tsx')};
 const row=(id,title,stage='identified')=>({id,title,stage,situation:'active',result:null,updated_at:'0',contact_ids:[],objective_ids:[],interaction_ids:[]});
 const contact=(id,display_name,hh=false)=>({id,display_name,company:hh?'Synthetic HH':'Synthetic',role:'Role',networking_status:'Pendiente',networking_focus:true,is_headhunter:hh,contact_emails:[],contact_phones:[],headhunter_domains:[],contact_objective_assignments:[],objectives:[],hashtags:[],last_interaction_at:null,days_since_last_interaction:null});
 const delay=new URLSearchParams(location.search).has('delay');
@@ -63,9 +66,9 @@ window.fixture={rows:[row('o1','Alpha opportunity'),row('o2','Beta opportunity',
 priorities:[{id:'p1',objective_name:'Synthetic priority',objective_type:'COMPANY',priority_level:'HIGH',is_active:true}],priorityReads:0,prioritySaves:0,priorityResolvers:[],holdPriorities:delay,failPriorities:false,
 cycles:[{id:'cycle',objective_type:'JOB_SEARCH',status:'active',started_at:'2026-10-01T12:00:00Z',timezone_name:'UTC',cycle_name:'Synthetic cycle'}],cycleReads:0,cycleResolvers:[],holdCycles:delay,failCycles:false,
 noticeReads:0,noticeResolvers:[],holdNotices:delay,failNotices:false,opportunityReads:0};
-function App(){const [revision,setRevision]=useState(0);const [show,setShow]=useState(true);const [contacts,setContacts]=useState(window.fixture.contacts);window.reloadBoard=()=>setRevision(r=>r+1);window.hideBoard=()=>setShow(false);window.showBoard=()=>setShow(true);
+function App(){const [revision,setRevision]=useState(0);const [show,setShow]=useState(true);const [contacts,setContacts]=useState(window.fixture.contacts);window.setContacts=setContacts;window.reloadBoard=()=>setRevision(r=>r+1);window.hideBoard=()=>setShow(false);window.showBoard=()=>setShow(true);
 const mode=new URLSearchParams(location.search).get('mode');const Table=mode==='baseline'?Baseline:ContactTable;
-return <main className="app-shell">{mode==='objectives'||mode==='onboarding'?<ObjectivesPage onboardingCoach={mode==='onboarding'?<p>Coach fixture</p>:undefined}/>:mode==='contacts'||mode==='baseline'?<Table contacts={contacts} onReload={()=>setContacts([...window.fixture.contacts])}/>:show?<OpportunityBoard revision={revision}/>:null}</main>}
+return <main className={"app-shell "+(["states","contact-list","workspace"].includes(mode)?"structural-view":"")}>{mode==='objectives'||mode==='onboarding'||mode==='priorities'?<ObjectivesPage showOpportunities={mode!=='priorities'} onboardingCoach={mode==='onboarding'?<p>Coach fixture</p>:undefined}/>:mode==='contacts'||mode==='baseline'||mode==='states'||mode==='contact-list'?<Table view={mode==='states'?'states':mode==='contact-list'?'contacts':'all'} contacts={contacts} onReload={()=>setContacts([...window.fixture.contacts])}/>:show?(mode==='workspace'?<OpportunityWorkspace/>:<OpportunityBoard revision={revision}/>):null}</main>}
 createRoot(document.getElementById('root')).render(<App/>);
 `);
   await new Promise((resolve, reject) => {
@@ -74,15 +77,15 @@ createRoot(document.getElementById('root')).render(<App/>);
       module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(output,'loader.cjs')]}]},
       plugins:[new webpack.NormalModuleReplacementPlugin(/opportunityActions$/,path.join(output,'actions.ts')),
         new webpack.NormalModuleReplacementPlugin(/contactActions$/,path.join(output,'contact-actions.ts')),
-        new webpack.NormalModuleReplacementPlugin(/(cycleObjectiveActions|cloudData|coachRuleTriggers|headhunterCompanyActions|ContactEditorDialog|ContactFilterControls|ContactDeactivationButton|ContactDeactivationConfirmDialog|next\/link)$/,path.join(output,'stubs.tsx')),
-        new webpack.NormalModuleReplacementPlugin(/(networkingCycles|networkingPlanNotice)(\.ts)?$/,path.join(output,'cycles.ts')),
+        new webpack.NormalModuleReplacementPlugin(/(WorkspaceState|cycleObjectiveActions|cloudData|coachRuleTriggers|headhunterCompanyActions|ContactEditorDialog|ContactDeactivationButton|ContactDeactivationConfirmDialog|next\/link)$/,path.join(output,'stubs.tsx')),
+        new webpack.NormalModuleReplacementPlugin(/(networkingCycles|networkingPlanNotice|historyPolicy)(\.ts)?$/,path.join(output,'cycles.ts')),
         new webpack.NormalModuleReplacementPlugin(/supabaseClient(\.ts)?$/,()=>{throw Error('Real transport forbidden in mounted fixture');})]});
     compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||new Error(stats.toString({all:false,errors:true}))):resolve()));
   });
   server=http.createServer((request,response)=>{
     const pathname=new URL(request.url,'http://localhost').pathname;
     const files={'/bundle.js':[path.join(output,'bundle.js'),'text/javascript'],'/app/globals.css':[path.join(root,'app/globals.css'),'text/css'],
-      '/styles/tokens.css':[path.join(root,'styles/tokens.css'),'text/css'],'/styles/components.css':[path.join(root,'styles/components.css'),'text/css'],'/styles/invitations.css':[path.join(root,'styles/invitations.css'),'text/css']};
+      '/styles/tokens.css':[path.join(root,'styles/tokens.css'),'text/css'],'/styles/components.css':[path.join(root,'styles/components.css'),'text/css'],'/styles/invitations.css':[path.join(root,'styles/invitations.css'),'text/css'],'/styles/tracking.css':[path.join(root,'styles/tracking.css'),'text/css']};
     if(files[pathname]){response.setHeader('Content-Type',files[pathname][1]);response.end(fs.readFileSync(files[pathname][0]));}
     else if(pathname==='/'){response.setHeader('Content-Type','text/html; charset=utf-8');response.end('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app/globals.css"><div id="root"></div><script src="/bundle.js"></script></html>');}
     else{response.statusCode=404;response.end();}
@@ -102,6 +105,7 @@ createRoot(document.getElementById('root')).render(<App/>);
   const status=()=>page.locator('.contacts-status-board [data-board-card="o1"]').evaluate(el=>el.closest('[data-board-status]').getAttribute('data-board-status'));
   const layout=()=>page.locator('.contacts-status-board').evaluate(el=>({y:el.getBoundingClientRect().y,height:el.getBoundingClientRect().height}));
   async function drop(cardSelector,columnSelector){const transfer=await page.evaluateHandle(()=>new DataTransfer());await page.locator(cardSelector).dispatchEvent('dragstart',{dataTransfer:transfer});await page.locator(columnSelector).dispatchEvent('dragover',{dataTransfer:transfer});await page.locator(columnSelector).dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();}
+  if(!process.env.UI_STRUCT_ONLY){
   await ready();
   assert.deepEqual(await page.locator('.opportunity-column').evaluateAll(columns=>columns.map(column=>getComputedStyle(column).backgroundColor)),
     ['rgb(242, 244, 247)','rgb(240, 246, 250)','rgb(244, 240, 248)','rgb(237, 247, 240)']);
@@ -292,6 +296,154 @@ createRoot(document.getElementById('root')).render(<App/>);
   await release('cycles');await release('priorities');await page.getByText('Coach fixture',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.fixture.opportunityReads),0);assert.equal(await page.locator('.opportunities-section').count(),0);
   console.log('PASS onboarding waits for its own critical sources without mounting/fetching opportunities');
+  }
+  await page.goto(url+'?mode=contact-list');
+  await page.getByRole('heading',{name:'Empresas',exact:true}).waitFor();
+  await page.evaluate(()=>{
+    const base=window.fixture.contacts[0];
+    window.fixture.contacts.push({...base,id:'c4',display_name:'No company A',company:''},
+      {...base,id:'c5',display_name:'No company B',company:'sin empresa'},
+      {...base,id:'c6',display_name:'Case variant',company:'synthetic'},
+      {...base,id:'c7',display_name:'Trimmed company',company:' Synthetic '},
+      {...base,id:'c8',display_name:'Outside focus',company:'Other',networking_focus:false});
+    window.setContacts([...window.fixture.contacts]);
+  });
+  const companyRow=name=>page.locator('.companies-table tbody tr').filter({has:page.getByRole('checkbox',{name:'Filtrar contactos de '+name,exact:true})});
+  await companyRow('Sin empresa').waitFor();
+  assert.equal(await companyRow('Synthetic').locator('td').nth(2).innerText(),'2');
+  assert.equal(await companyRow('Sin empresa').locator('td').nth(2).innerText(),'2');
+  assert.equal(await companyRow('synthetic').locator('td').nth(2).innerText(),'1','exact names stay separate');
+  assert.equal(await companyRow('Other').count(),0,'company counts respect focus');
+  await page.getByRole('checkbox',{name:'Seleccionar Alpha contact',exact:true}).check();
+  await page.getByRole('checkbox',{name:'Filtrar contactos de Synthetic HH',exact:true}).check();
+  assert.equal(await page.locator('.contacts-table tbody tr').count(),2);
+  assert.match(await page.locator('.contacts-selection-summary').innerText(),/1 seleccionados/);
+  assert.equal(await page.locator('.companies-table tbody tr').count(),4,'selection does not shrink available companies');
+  await page.getByRole('checkbox',{name:'Filtrar contactos de Sin empresa',exact:true}).check();
+  assert.equal(await page.locator('.contacts-table tbody tr').count(),4,'selected companies are OR within contact filters');
+  await page.getByRole('textbox',{name:'Buscador universal'}).fill('Alpha');
+  await page.locator('.contacts-empty-state').waitFor();
+  assert.equal(await companyRow('Synthetic').locator('td').nth(2).innerText(),'1','counts follow search before company selection');
+  await page.getByRole('button',{name:'Limpiar selección de empresas',exact:true}).click();
+  assert.equal(await page.getByRole('checkbox',{name:'Seleccionar Alpha contact',exact:true}).isChecked(),true);
+  await page.getByRole('textbox',{name:'Buscador universal'}).fill('');
+  await page.getByRole('button',{name:'Contactos',exact:true}).click();
+  assert.equal(await page.locator('.companies-table tbody tr').first().locator('td').nth(2).innerText(),'1');
+  await page.getByRole('button',{name:'Contactos',exact:true}).click();
+  assert.equal(await page.locator('.companies-table tbody tr').first().locator('td').nth(2).innerText(),'2');
+  await page.getByRole('button',{name:'Empresa',exact:true}).click();
+  assert.equal((await page.locator('.companies-table th[aria-sort="ascending"]').textContent()).trim(),'Empresa');
+  assert.deepEqual(await page.evaluate(()=>window.fixture.contactSaves),[],'company filters never mutate contacts');
+  console.log('PASS BF-11: exact/trimmed/missing company, counts, focus/search intersection, OR selection, sorting, bulk selection retained and no writes');
+  await page.evaluate(()=>{
+    const statuses={c1:'Pendiente',c2:'Contactado',c3:'Agendado',c4:'invalid',c5:'',c6:'Agradecimiento enviado',c7:'Cita concretada',c8:'Agradecimiento enviado'};
+    const dates={c1:['2026-10-01T12:00:00Z',40],c2:['2026-11-03T12:00:00Z',7],c3:['2026-11-10T12:00:00Z',0],c6:['2026-09-10T12:00:00Z',61],c7:['2026-11-09T09:00:00-03:00',1],c8:['2026-11-10T12:00:00Z',0]};
+    window.fixture.contacts=window.fixture.contacts.map(c=>({...c,networking_status:statuses[c.id],company:c.id==='c8'?'Synthetic':c.company,last_interaction_at:dates[c.id]?.[0]??null,days_since_last_interaction:dates[c.id]?.[1]??null}));
+    window.setContacts([...window.fixture.contacts]);
+    window.contactsBeforeCompanyFilters=JSON.stringify(window.fixture.contacts);
+  });
+  const companyState=name=>companyRow(name).locator('.status');
+  const companyAge=name=>companyRow(name).locator('td').nth(4);
+  await page.getByRole('button',{name:'Estado más avanzado',exact:true}).waitFor();
+  assert.equal(await companyState('Synthetic').innerText(),'Cita concretada');
+  assert.equal(await companyState('Synthetic').getAttribute('class'),'status cita');
+  assert.equal(await companyState('Synthetic HH').innerText(),'Agendado');
+  assert.equal(await companyState('Sin empresa').innerText(),'sin estado','invalid values never become Pendiente');
+  assert.equal(await companyState('synthetic').innerText(),'Agradecimiento enviado');
+  assert.equal(await companyAge('Synthetic').innerText(),'1d');
+  assert.equal(await companyAge('Synthetic HH').innerText(),'Hoy');
+  assert.equal(await companyAge('Sin empresa').innerText(),'sin interacciones');
+  assert.equal(await companyAge('Sin empresa').locator('.empty-value').count(),1);
+  assert.equal(await companyAge('synthetic').innerText(),'2m 1d');
+  await page.getByRole('textbox',{name:'Buscador universal'}).fill('Alpha');
+  assert.equal(await companyState('Synthetic').innerText(),'Pendiente','state and count use the same search subset');
+  assert.equal(await companyRow('Synthetic').locator('td').nth(2).innerText(),'1');
+  assert.equal(await companyAge('Synthetic').innerText(),'1m 10d','latest interaction follows the same filtered contacts');
+  await page.getByRole('textbox',{name:'Buscador universal'}).fill('');
+  await page.locator('.contacts-filter-select').filter({hasText:'Foco'}).locator('select').selectOption('all');
+  assert.equal(await companyState('Synthetic').innerText(),'Agradecimiento enviado');
+  assert.equal(await companyAge('Synthetic').innerText(),'Hoy');
+  await page.locator('.contacts-filter-select').filter({hasText:'Foco'}).locator('select').selectOption('true');
+  assert.equal(await companyState('Synthetic').innerText(),'Cita concretada');
+  assert.equal(await companyAge('Synthetic').innerText(),'1d');
+  await page.getByRole('button',{name:'Más filtros',exact:true}).click();
+  await page.getByRole('button',{name:'Contactado',exact:true}).click();
+  assert.equal(await companyState('Synthetic HH').innerText(),'Contactado','status filter precedes the maximum');
+  assert.equal(await companyRow('Synthetic HH').locator('td').nth(2).innerText(),'1');
+  assert.equal(await companyAge('Synthetic HH').innerText(),'7d');
+  await page.getByRole('button',{name:'Contactado',exact:true}).click();
+  await page.getByRole('button',{name:'Más filtros',exact:true}).click();
+  await page.getByRole('checkbox',{name:'Filtrar contactos de Synthetic HH',exact:true}).check();
+  assert.equal(await companyState('Synthetic').innerText(),'Cita concretada','company selection does not change company aggregates');
+  assert.equal(await companyAge('Synthetic').innerText(),'1d');
+  await page.getByRole('checkbox',{name:'Filtrar contactos de Sin empresa',exact:true}).check();
+  assert.equal(await page.locator('.contacts-table tbody tr').count(),4);
+  await page.getByRole('button',{name:'Estado más avanzado',exact:true}).click();
+  assert.deepEqual(await page.locator('.companies-table tbody .status').allTextContents(),['sin estado','Agendado','Cita concretada','Agradecimiento enviado']);
+  await page.getByRole('button',{name:'Estado más avanzado',exact:true}).click();
+  assert.deepEqual(await page.locator('.companies-table tbody .status').allTextContents(),['Agradecimiento enviado','Cita concretada','Agendado','sin estado']);
+  const ages=()=>page.locator('.companies-table tbody tr td:nth-child(5)').allTextContents();
+  await page.getByRole('button',{name:'Última interacción',exact:true}).click();
+  assert.deepEqual(await ages(),['sin interacciones','2m 1d','1d','Hoy']);
+  await page.getByRole('button',{name:'Última interacción',exact:true}).click();
+  assert.deepEqual(await ages(),['Hoy','1d','2m 1d','sin interacciones']);
+  assert.equal(await page.evaluate(()=>JSON.stringify(window.fixture.contacts)===window.contactsBeforeCompanyFilters),true);
+  assert.deepEqual(await page.evaluate(()=>window.fixture.contactSaves),[]);
+  await page.getByRole('button',{name:'Limpiar selección de empresas',exact:true}).click();
+  await page.locator('.companies-block').screenshot({path:path.join(shots,'companies-advanced-state.png')});
+  console.log('PASS BF-11 advanced state: canonical progress, invalid/empty, shared badges, search/focus/status scope, stable aggregates under multi-selection, ordinal sort and no mutation');
+  console.log('PASS BF-11 latest interaction: same source/format as Contactos, most recent eligible contact, empty/Today/months/days, filtered aggregation and bidirectional age sort');
+  for(const [width,height] of [[1440,900],[768,1024],[375,812],[390,844],[320,812]]){
+    await page.setViewportSize({width,height});
+    await page.goto(url+'?mode=states');
+    await page.getByRole('heading',{name:'Estados de networking',exact:true}).waitFor();
+    assert.equal(await page.locator('.contacts-status-board').count(),1);
+    assert.equal(await page.locator('.contacts-table').count(),0);
+    assert.equal(await page.getByRole('button',{name:'Crear contacto',exact:true}).count(),0);
+    assert.ok(await page.locator('a[href*="contactId="]').count()>0);
+    assert.equal(await page.locator('.contacts-filter-main').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'all contact filter controls fit without horizontal scrolling');
+    await page.screenshot({path:path.join(shots,`ui-struct-states-${width}.png`)});
+    await page.goto(url+'?mode=contact-list');
+    await page.getByRole('heading',{name:'Contactos',exact:true}).waitFor();
+    assert.equal(await page.locator('.contacts-status-board').count(),0);
+    assert.equal(await page.locator('.contacts-table').count(),1);
+    assert.equal(await page.getByRole('button',{name:'Crear contacto',exact:true}).count(),1);
+    assert.equal(await page.locator('.contacts-bulk-bar').count(),1);
+    assert.equal(await page.locator('.companies-block').count(),1);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    assert.equal(await page.locator('.companies-block .table-wrap').evaluate(el=>getComputedStyle(el).overflowX),'auto','company columns retain contained horizontal scroll');
+    await page.screenshot({path:path.join(shots,`ui-struct-contacts-${width}.png`)});
+    await page.locator('.companies-block').screenshot({path:path.join(shots,`ui-struct-companies-${width}.png`)});
+    await page.goto(url+'?mode=priorities');
+    await page.getByRole('heading',{name:'Mis objetivos',exact:true}).waitFor();
+    assert.equal(await page.locator('.opportunities-section').count(),0);
+    assert.equal(await page.evaluate(()=>window.fixture.opportunityReads),0);
+    assert.equal(await page.locator('.structural-priorities .panel').count(),0);
+    assert.equal(await page.locator('.objectives-priorities').count(),1);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.screenshot({path:path.join(shots,`ui-struct-priorities-${width}.png`)});
+  }
+  await page.goto(url+'?mode=workspace');
+  await page.locator('.opportunities-section').waitFor();
+  const initialReads=await page.evaluate(()=>window.fixture.opportunityReads);
+  for(const condition of ['unknown_start','empty','stale','error']){
+    await page.evaluate(()=>window.hideBoard());
+    await page.waitForFunction(()=>!document.querySelector('.opportunities-section'));
+    await page.evaluate(condition=>{
+      window.fixture.cycles=condition==='empty'?[]:[{id:'cycle',status:'active',started_at:condition==='unknown_start'?null:'2026-10-01T12:00:00Z'}];
+      window.fixture.staleCycle=condition==='stale';window.fixture.failCycles=condition==='error';window.showBoard();
+    },condition);
+    const messages={unknown_start:'Configura el inicio en Objetivos para ver tus oportunidades.',empty:'No hay una búsqueda activa. Puedes iniciarla en Objetivos.',stale:'El ciclo cambió en otra pestaña. Actualiza esta página antes de guardar.',error:'No pudimos verificar la búsqueda activa.'};
+    await page.getByText(messages[condition],{exact:false}).waitFor();
+    assert.equal(await page.locator('.opportunities-section').count(),0);
+    assert.equal(await page.evaluate(()=>window.fixture.opportunityReads),initialReads);
+    if(condition==='error'){
+      await page.evaluate(()=>window.fixture.failCycles=false);
+      await page.getByRole('button',{name:'Reintentar',exact:true}).click();
+      await page.locator('.opportunities-section').waitFor();
+    }
+  }
+  console.log('PASS UI-STRUCT-01: states/list separation, original actions and links, priorities without opportunities or nested panels at 1440/768/375/390; cycle gate no start/empty/stale/error/retry');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('PASS no browser errors, no external requests');console.log(`Screenshots: ${shots}`);
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{

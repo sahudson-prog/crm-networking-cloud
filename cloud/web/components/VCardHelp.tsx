@@ -36,8 +36,8 @@ const instructions: Record<Provider, { caption: string; steps: ReactNode[]; url?
   ] }
 };
 
-export function VCardHelp({ onboarding = false }: { onboarding?: boolean }) {
-  const [provider, setProvider] = useState<Provider | null>(null);
+export function VCardHelp({ onboarding = false, inline = false }: { onboarding?: boolean; inline?: boolean }) {
+  const [provider, setProvider] = useState<Provider | null>(inline ? "Google" : null);
   const dialog = useRef<HTMLDialogElement>(null);
   const origin = useRef<HTMLElement | null>(null);
   const id = useId();
@@ -57,6 +57,24 @@ export function VCardHelp({ onboarding = false }: { onboarding?: boolean }) {
     return <button type="button" className="vcard-help-link" aria-haspopup="dialog" onClick={event => open(initial, event.currentTarget)}>{label}</button>;
   }
   const content = provider ? instructions[provider] : null;
+  const providerContent = <>
+      <div role="tablist" aria-label="Origen de los contactos" className="vcard-help-tabs">
+        {providers.map((item, index) => <button type="button" role="tab" id={`${id}-${item}`} aria-selected={provider === item} aria-controls={`${id}-panel`} tabIndex={provider === item ? 0 : -1} key={item} className={`button ${provider === item ? "primary" : "secondary"}`} onClick={() => setProvider(item)} onKeyDown={event => {
+          const next = event.key === "Home" ? 0 : event.key === "End" ? 3 : event.key === "ArrowRight" ? (index + 1) % 4 : event.key === "ArrowLeft" ? (index + 3) % 4 : null;
+          if (next !== null) { event.preventDefault(); setProvider(providers[next]); document.getElementById(`${id}-${providers[next]}`)?.focus(); }
+        }}>{item}</button>)}
+      </div>
+      {content && <section role="tabpanel" tabIndex={0} id={`${id}-panel`} aria-labelledby={`${id}-${provider}`}>
+        <p className="meta">{content.caption}</p>
+        <ol>{content.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
+        {provider === "Samsung" && <p className="meta">One UI 7 o posterior. Los menús pueden variar según la versión de One UI.</p>}
+        {content.url && <a href={content.url} target="_blank" rel="noopener noreferrer">Abrir Contactos de {provider}</a>}
+      </section>}
+  </>;
+  if (inline) return <details className="contact-import-help">
+    <summary>¿Cómo obtengo el archivo?</summary>
+    {providerContent}
+  </details>;
   return <>
     {onboarding ? <p>Puedes importar tus contactos desde un archivo vCard o crearlos uno a uno en Coffeecito. Aquí puedes ver cómo exportar contactos desde {trigger("Google", "Google")}, {trigger("Apple", "iCloud")} o {trigger("Samsung", "Samsung")}.</p> : trigger("(cómo?)", "Google")}
     {provider && createPortal(<dialog className="modal-card vcard-help-dialog" ref={dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-subtitle`} onCancel={event => { event.preventDefault(); close(); }} onKeyDown={event => {
@@ -70,18 +88,7 @@ export function VCardHelp({ onboarding = false }: { onboarding?: boolean }) {
         <div><h2 id={`${id}-title`}>Cómo descargar tus contactos</h2><p id={`${id}-subtitle`}>Obtén un archivo vCard (.vcf) para importar tus contactos a Coffeecito.</p></div>
         <Button aria-label="Cerrar ayuda" icon="close" square onClick={close} />
       </header>
-      <div role="tablist" aria-label="Origen de los contactos" className="vcard-help-tabs">
-        {providers.map((item, index) => <button type="button" role="tab" id={`${id}-${item}`} aria-selected={provider === item} aria-controls={`${id}-panel`} tabIndex={provider === item ? 0 : -1} key={item} className={`button ${provider === item ? "primary" : "secondary"}`} onClick={() => setProvider(item)} onKeyDown={event => {
-          const next = event.key === "Home" ? 0 : event.key === "End" ? 3 : event.key === "ArrowRight" ? (index + 1) % 4 : event.key === "ArrowLeft" ? (index + 3) % 4 : null;
-          if (next !== null) { event.preventDefault(); setProvider(providers[next]); document.getElementById(`${id}-${providers[next]}`)?.focus(); }
-        }}>{item}</button>)}
-      </div>
-      {content && <section role="tabpanel" tabIndex={0} id={`${id}-panel`} aria-labelledby={`${id}-${provider}`}>
-        <p className="meta">{content.caption}</p>
-        <ol>{content.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
-        {provider === "Samsung" && <p className="meta">One UI 7 o posterior. Los menús pueden variar según la versión de One UI.</p>}
-        {content.url && <a href={content.url} target="_blank" rel="noopener noreferrer">Abrir Contactos de {provider}</a>}
-      </section>}
+      {providerContent}
       <p className="meta">Cuando tengas el archivo, vuelve a Coffeecito y selecciona «Importar archivo vCard».</p>
       <footer className="modal-actions"><Button onClick={close}>Entendido</Button></footer>
     </dialog>, document.body)}

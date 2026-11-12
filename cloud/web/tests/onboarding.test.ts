@@ -315,10 +315,10 @@ test("URL arbitraria no reemplaza lastStep ni permite final prematuro", () => {
 });
 
 test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido", () => {
-  const shellSource = source("../components/Shell.tsx");
+  const navigationSource = source("../components/OnboardingNavigation.tsx");
 
-  assert.match(shellSource, /pathname === "\/objetivos" \|\| pathname === "\/onboarding\/objetivos"/);
-  assert.match(shellSource, /pathname === "\/"[\s\S]*pathname === "\/contactos"[\s\S]*pathname === "\/onboarding\/contactos"[\s\S]*pathname === "\/onboarding\/contacto"/);
+  assert.match(navigationSource, /href === "\/objetivos" && pathname === "\/onboarding\/objetivos"/);
+  assert.match(navigationSource, /href === "\/contactos"[\s\S]*pathname === "\/onboarding\/contactos" \|\| pathname === "\/onboarding\/contacto"/);
 });
 
 test("Objetivos y Contactos reutilizan las vistas reales sin duplicar páginas", () => {
@@ -418,7 +418,8 @@ test("Contactos se muestra incluso vacío y continúa a ficha o final según con
   const contactsSource = source("../components/ReadOnlyContacts.tsx");
 
   assert.match(routeSource, /<ReadOnlyContacts[\s\S]*beforeList=/);
-  assert.match(contactsSource, /const table = <ContactTable contacts=\{contacts\} onReload=\{loadContacts\} \/>/);
+  assert.match(contactsSource, /const table = <ContactTable contacts=\{contacts\} onReload=\{loadContacts\} view=\{view\} \/>/);
+  assert.match(contactsSource, /view = "all"/);
   assert.match(routeSource, /setFirstContactId\(contacts\[0\]\?\.id \?\? ""\)/);
   assert.match(routeSource, /moveTo\(firstContactId \? "contact" : "final"\)/);
   assert.match(routeSource, /const contacts = await readContactListRows\(\)/);
@@ -464,19 +465,20 @@ test("el paso de importación monta el importador vCard real junto a Google", ()
   const vcardSource = source("../components/VCardImportPanel.tsx");
 
   assert.match(routeSource, /title="Comienza con tus contactos\."/);
-  assert.match(routeSource, /<VCardHelp onboarding \/>/);
+  assert.match(routeSource, /Empieza importando tus contactos y, después/);
+  assert.match(routeSource, /No necesitas hacerlo todo ahora/);
   assert.doesNotMatch(routeSource, /Te explicamos|aquí.*obtener el archivo/);
   assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
-  assert.match(accountSource, /includeVCard[\s\S]*redirectPath="\/onboarding\/google"/);
-  assert.match(accountSource, /<VCardImportPanel[\s\S]*actionLabel="Importar archivo vCard"[\s\S]*sourceLabel="vCard \(\.vcf\)"/);
+  assert.match(accountSource, /<ContactImportButton/);
+  assert.match(source("../components/ContactImportDialog.tsx"), /<VCardImportPanel presentation="dialog"/);
   assert.doesNotMatch(accountSource, /OnboardingVCardImportPreview/);
   assert.match(vcardSource, /accept="\.vcf,text\/vcard,text\/x-vcard"/);
   assert.match(vcardSource, /parseVCardContacts\(await file\.text\(\)\)/);
   assert.match(vcardSource, /<SyncPreviewDialog[\s\S]*onApply=\{\(selectedChanges\) => void applySelection\(selectedChanges\)\}/);
   assert.match(vcardSource, /importSelectedVCardContacts\(selectedContacts, saveContactFromEditor\)/);
   assert.match(accountSource, /redirectPath="\/onboarding\/google"/);
-  assert.match(accountSource, /authorizationRedirectPath=\{redirectPath\}/);
-  assert.match(accountSource, /resumeImport=\{resumeAction === "import_contacts"\}/);
+  assert.match(accountSource, /authorizationRedirectPath: redirectPath/);
+  assert.match(accountSource, /resumeImport: resumeAction === "import_contacts"/);
 });
 
 test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
@@ -509,16 +511,16 @@ test("mandatory no ofrece salida y replay completed conserva salida descartable"
   assert.match(providerSource, /function complete\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
 });
 
-test("Seguimiento está en la navegación sin reemplazar la portada de Contactos", () => {
+test("UI-STRUCT-01 distribuye las cinco vistas y conserva el alias dashboard y los deep links", () => {
   const shellSource = source("../components/Shell.tsx");
   const rootRoute = source("../app/page.tsx");
   const dashboardRoute = source("../app/dashboard/page.tsx");
-
-  assert.doesNotMatch(shellSource, />\s*Dashboard\s*</);
-  assert.match(shellSource, /href="\/dashboard"[\s\S]*<Icon name="chart" \/>[\s\S]*Seguimiento/);
-  assert.match(rootRoute, /<ReadOnlyContacts \/>/);
-  assert.doesNotMatch(rootRoute, /ReadOnlyDashboard/);
-  assert.match(dashboardRoute, /<ReadOnlyDashboard \/>/);
+  const navigation = source("../components/WorkspaceNavigation.tsx");
+  assert.match(source("../components/ShellChrome.tsx"), /<WorkspaceNavigation\s*\/>/);
+  for (const label of ["Inicio", "Producir", "Planificar", "Contactos", "Objetivos"]) assert.ok(navigation.includes(label));
+  assert.match(rootRoute, /<HomeView \/>/);
+  assert.match(dashboardRoute, /<HomeView \/>/);
+  assert.match(source("../components/StructuralViews.tsx"), /contactId \? <ReadOnlyContacts view="contacts" \/> : <ReadOnlyDashboard view="home" \/>/);
 });
 
 test("el replay preserva completed, stale replay se limpia y Cuenta no ofrece navegación de producto", () => {

@@ -23,10 +23,12 @@ async function retryOnce<T>(read: () => Promise<T>): Promise<T> {
 
 export function ReadOnlyContacts({
   beforeList,
-  onContactsResolved
+  onContactsResolved,
+  view = "all"
 }: {
   beforeList?: ReactNode;
   onContactsResolved?: (contacts: ContactListRow[]) => void;
+  view?: "all" | "states" | "contacts";
 } = {}) {
   const searchParams = useSearchParams();
   const contactId = searchParams.get("contactId") ?? "";
@@ -88,7 +90,7 @@ export function ReadOnlyContacts({
     return <ContactProfile profile={profile} onReload={loadProfile} />;
   }
 
-  const table = <ContactTable contacts={contacts} onReload={loadContacts} />;
+  const table = <ContactTable contacts={contacts} onReload={loadContacts} view={view} />;
   if (!beforeList) return table;
   return <div className="onboarding-contacts-view">{beforeList}{table}</div>;
 }

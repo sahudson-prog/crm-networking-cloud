@@ -21,7 +21,6 @@ import { ReadOnlyContacts } from "./ReadOnlyContacts";
 import { Shell } from "./Shell";
 import { StartingPointFields, type StartingPointFieldsHandle } from "./StartingPointFields";
 import { Button } from "./ui/Button";
-import { VCardHelp } from "./VCardHelp";
 
 export function OnboardingRoutePage({ routeId }: { routeId: OnboardingRouteId }) {
   return (
@@ -254,7 +253,8 @@ function OnboardingGoogleStep() {
   return (
     <div className="onboarding-google-step">
       <OnboardingCoach routeId="google" title="Comienza con tus contactos.">
-        <VCardHelp onboarding />
+        <p>Empieza importando tus contactos y, después, incorpora las interacciones que hayas tenido con ellos desde que comenzaste tu plan.</p>
+        <p>No necesitas hacerlo todo ahora: puedes volver cuando quieras desde <strong>Cuenta → Configuración</strong>.</p>
       </OnboardingCoach>
       <AccountPage view="google-onboarding" />
     </div>

@@ -26,6 +26,10 @@ async function main(){
     import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
     import {ReadOnlyDashboard} from ${imp('components/ReadOnlyDashboard.tsx')};
     import {Shell} from ${imp('components/Shell.tsx')};
+    import {bindGlobalActivitySyncScope,startGlobalActivitySync,clearGlobalActivitySyncFeedback} from ${imp('lib/activitySyncExecution.ts')};
+    let syncSequence=0;
+    window.completeCalendar=async(success=true)=>{bindGlobalActivitySyncScope('synthetic-ui-struct');await startGlobalActivitySync(async()=>[{service:'calendar',created:0,error:success?'':'synthetic failure',reauthorizationRequired:false,success,syncedAt:success?String(++syncSequence):null}]).promise;};
+    window.clearCalendarFeedback=clearGlobalActivitySyncFeedback;
     import {trackingFixture,coffee} from ${imp('tests/trackingFixtures.ts')};
     window.data=trackingFixture();coffee(window.data,'a','2026-10-28T12:00:00Z');coffee(window.data,'b','2026-10-31T12:00:00Z','b');
     window.data.contacts[2].networking_status='Agradecimiento enviado';
@@ -37,7 +41,7 @@ async function main(){
       interactions:window.data.interactions.map(i=>({...i,subject:'Café sintético',direction:'unknown',user_notes_raw:null})),participants:window.data.participants,referrals:[],sources:[]};
     window.detailReads=0;window.detailHold=false;window.detailFail=false;window.detailWaiters=[];
     window.reads=0;window.hold=true;window.fail=false;window.waiters=[];
-    function App(){const [visible,setVisible]=useState(true);window.hide=()=>setVisible(false);window.show=()=>setVisible(true);return <Shell>{visible?<ReadOnlyDashboard/>:null}</Shell>;}
+    function App(){const [visible,setVisible]=useState(true);const [view,setView]=useState('all');window.setView=setView;window.hide=()=>setVisible(false);window.show=()=>setVisible(true);return <Shell>{visible?<ReadOnlyDashboard view={view}/>:null}</Shell>;}
     createRoot(document.getElementById('root')).render(<App/>);`);
   await new Promise((resolve,reject)=>{
     const compiler=webpack({mode:'development',devtool:false,context:root,entry:path.join(output,'entry.tsx'),
@@ -65,6 +69,54 @@ async function main(){
   await context.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():(external.push('blocked'),r.abort()));
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install({time:new Date('2026-10-30T16:00:00Z')});
+  if(process.env.HIDDEN_FILTERS_ONLY){
+    await page.goto(url);
+    await page.getByText('Leyendo seguimiento...', {exact:true}).waitFor();
+    await page.evaluate(()=>window.hide());
+    await page.waitForFunction(()=>!document.querySelector('.tracking-dashboard'));
+    await page.evaluate(()=>{
+      window.hold=false;window.waiters.splice(0).forEach(r=>r());
+      const base=window.details.contacts[0];
+      window.details.contacts.push({...base,id:'outside-focus',display_name:'Fuera de foco',networking_focus:false});
+      const ids=['a','b','c','outside-focus'];
+      window.details.interactions=ids.map(id=>({id:'interaction-'+id,interaction_type:'manual',occurred_at:'2026-10-29T12:00:00Z',subject:'Actividad '+id,metadata:{}}));
+      window.details.interactions.push({id:'before-cycle',interaction_type:'manual',occurred_at:'2010-01-01T12:00:00Z',subject:'Anterior al ciclo',metadata:{}});
+      window.details.participants=ids.map(id=>({interaction_id:'interaction-'+id,contact_id:id}));
+      window.details.participants.push({interaction_id:'before-cycle',contact_id:'a'});
+      window.details.referrals=ids.map(id=>({id:'referral-'+id,referredByContactId:id,referrerName:'Persona '+id,referrerStatus:'Pendiente',referredName:'Referido '+id,linkedContactId:null}));
+      window.restrictiveQuery=JSON.stringify({filters:{priorityIds:['p'],headhunters:'only',groupHeadhunters:true},quickQuery:'sin coincidencias',domains:['@missing.invalid']});
+      window.history.replaceState(null,'','/?'+new URLSearchParams({'ux-tracking':window.restrictiveQuery}));
+      window.dispatchEvent(new PopStateEvent('popstate'));window.setView('interactions');window.show();
+    });
+    await page.waitForFunction(()=>document.querySelectorAll('.dashboard-interaction-list details').length===3);
+    for(const [width,height] of [[1440,900],[375,812]]){
+      await page.setViewportSize({width,height});
+      await page.evaluate(()=>window.setView('interactions'));
+      await page.getByRole('heading',{name:'Últimas interacciones',exact:true}).waitFor();
+      assert.equal(await page.locator('.dashboard-filter-bar,.contact-filter-controls').count(),0);
+      assert.equal(await page.locator('.dashboard-interaction-list details').count(),3,'optional filters ignored; focus and cycle still enforced');
+      assert.equal(await page.getByText('Anterior al ciclo',{exact:true}).count(),0);
+      await page.screenshot({path:path.join(shots,`no-lower-filters-interactions-${width}.png`)});
+      await page.evaluate(()=>window.setView('referrals'));
+      await page.getByRole('heading',{name:'Referidos',exact:true}).waitFor();
+      assert.equal(await page.locator('.dashboard-filter-bar,.contact-filter-controls').count(),0);
+      assert.deepEqual(await page.locator('.dashboard-referral-referred strong').allTextContents(),['Referido a','Referido b','Referido c']);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      await page.screenshot({path:path.join(shots,`no-lower-filters-referrals-${width}.png`)});
+    }
+    for(const view of ['home','planning']){
+      await page.evaluate(view=>window.setView(view),view);
+      await page.getByRole('textbox',{name:'Buscar en interacciones y empresas'}).waitFor();
+      assert.equal(await page.locator('.contact-filter-controls').count(),1);
+      assert.equal(await page.getByRole('textbox',{name:'Buscar en interacciones y empresas'}).inputValue(),'sin coincidencias');
+      assert.equal(await page.locator('.contacts-filter-select').filter({hasText:'Headhunter'}).locator('select').inputValue(),'true');
+    }
+    assert.equal(await page.evaluate(()=>new URLSearchParams(location.search).get('ux-tracking')===window.restrictiveQuery),true,'editable filter context is not cleared');
+    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+    console.log('PASS hidden lower filters: bars absent, interactions/referrals remain populated despite stale URL filters, focus/cycle preserved, Inicio/Planificar context retained, no errors/external requests');
+    console.log('Screenshots: '+shots);
+    return;
+  }
   await page.goto(url);await page.getByText('Leyendo seguimiento...', {exact:true}).waitFor();
   assert.equal(await page.locator('.tracking-pyramid').count(),0);
   await page.evaluate(()=>{window.hold=false;window.waiters.splice(0).forEach(r=>r());});
@@ -170,7 +222,7 @@ async function main(){
   }
   await page.setViewportSize({width:1280,height:900});
   await page.waitForFunction(()=>Math.abs(document.querySelector('.tracking-chart svg').viewBox.baseVal.width-document.querySelector('.tracking-chart').getBoundingClientRect().width)<1);
-  assert.ok((await page.locator('.kpi-axis-label').first().getAttribute('transform')).startsWith('rotate(-45 '));
+  await page.waitForFunction(()=>document.querySelector('.kpi-axis-label')?.getAttribute('transform')?.startsWith('rotate(-45 '));
   await page.locator('.kpi-chart-hit').nth(9).hover();await page.getByRole('tooltip').waitFor();
   assert.match(await page.getByRole('tooltip').innerText(),/1 con cita pasada, 1 con fecha estimada, 1 proyectados\. Total 3\./);
   await page.mouse.move(0,0);
@@ -245,7 +297,7 @@ async function main(){
   await page.waitForFunction(()=>!document.querySelector('[role=alert]'));
   await page.setViewportSize({width:320,height:850});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=320),'no viewport overflow');
-  assert.ok((await page.locator('.kpi-axis-label').first().getAttribute('transform')).startsWith('rotate(-45 '));
+  await page.waitForFunction(()=>document.querySelector('.kpi-axis-label')?.getAttribute('transform')?.startsWith('rotate(-65 '));
   await page.getByRole('button',{name:'Semanal',exact:true}).click();
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(e=>e.textContent==='Semanal'&&e.getAttribute('aria-pressed')==='true'));
   await page.getByRole('button',{name:'Semanal',exact:true}).evaluate(e=>e.blur());await page.mouse.move(0,0);
@@ -260,8 +312,9 @@ async function main(){
   const pyramidHelp=await page.getByRole('tooltip').boundingBox();
   assert.ok(pyramidHelp.x>=0&&pyramidHelp.x+pyramidHelp.width<=320,'mobile pyramid help fits viewport');
   await page.getByRole('button',{name:'Más filtros'}).click();
+  const priorityWasSelected=await page.getByRole('button',{name:'Tecnología',exact:true}).getAttribute('aria-pressed');
   await page.getByRole('button',{name:'Tecnología',exact:true}).focus();await page.keyboard.press('Enter');
-  assert.equal(await page.getByRole('button',{name:'Tecnología',exact:true}).getAttribute('aria-pressed'),'true');
+  assert.notEqual(await page.getByRole('button',{name:'Tecnología',exact:true}).getAttribute('aria-pressed'),priorityWasSelected);
   await page.evaluate(()=>{window.hold=true;window.hide();});
   await page.waitForFunction(()=>!document.querySelector('.tracking-dashboard'));
   await page.evaluate(()=>window.show());
@@ -302,6 +355,70 @@ async function main(){
     assert.equal(await page.evaluate(()=>window.detailReads),before.detail+1,`${route}: one detail read on return`);
     assert.equal(await page.locator('.tracking-pyramid strong').nth(route==='Contactos'?1:2).innerText(),'0',`${route}: changed data visible after return`);
   }
+  // UI-STRUCT-01: real presentation variants, shared filter context and independent cards.
+  await page.evaluate(()=>{window.history.replaceState(null,'','/');window.dispatchEvent(new PopStateEvent('popstate'));window.setView('home');});
+  for(const [width,height] of [[1440,900],[768,1024],[375,812],[390,844],[320,812]]){
+    await page.setViewportSize({width,height});
+    await page.getByRole('heading',{name:'Indicadores de avance',exact:true}).waitFor();
+    assert.equal(await page.locator('.structural-home-blocks > .panel').count(),2);
+    assert.equal(await page.locator('.structural-home-blocks .panel .panel').count(),0);
+    const boxes=await page.locator('.structural-home-blocks > .panel').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y};}));
+    assert.equal(Math.abs(boxes[0].y-boxes[1].y)<2,width>=768);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    assert.equal(await page.locator('.tracking-dashboard .contacts-quick-search').count(),1);
+    assert.equal(await page.locator('.functional-block .panel-title > svg').count(),2);
+    const beforeSearch=await page.locator('.tracking-pyramid strong').allTextContents();
+    await page.getByRole('textbox',{name:'Buscar en interacciones y empresas'}).fill('sin coincidencias');
+    assert.deepEqual(await page.locator('.tracking-pyramid strong').allTextContents(),beforeSearch,'home search retains detail-only semantics');
+    await page.getByRole('textbox',{name:'Buscar en interacciones y empresas'}).fill('');
+    await page.getByRole('button',{name:'Mensual',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'Mensual',exact:true}).getAttribute('aria-pressed'),'true');
+    await page.screenshot({path:path.join(shots,`ui-struct-home-${width}.png`)});
+  }
+  await page.setViewportSize({width:1440,height:900});
+  await page.evaluate(()=>window.setView('planning'));
+  await page.getByRole('heading',{name:'Progreso de tus prioridades - ¿dónde debo enfocarme?',exact:true}).waitFor();
+  assert.equal(await page.locator('.tracking-pyramid').count(),0);
+  assert.equal(await page.getByRole('heading',{name:'Últimas interacciones',exact:true}).count(),0);
+  await page.locator('.contacts-filter-select').filter({hasText:'Headhunter'}).locator('select').selectOption('true');
+  await page.locator('.hh-company-table input[type="checkbox"]').first().check();
+  const carried = await page.getByRole('link',{name:'Registrar avances',exact:true}).getAttribute('href');
+  assert.ok(carried.includes('ux-tracking='));
+  await page.screenshot({path:path.join(shots,'ui-struct-planning-1440.png')});
+  for(const [width,height] of [[768,1024],[390,844],[375,812],[320,812]]){
+    await page.setViewportSize({width,height});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    const heading=page.getByRole('heading',{name:'Progreso de tus prioridades - ¿dónde debo enfocarme?',exact:true});
+    assert.equal(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)),16);
+    assert.equal(await heading.evaluate(el=>el.getBoundingClientRect().right<=innerWidth),true);
+    await page.screenshot({path:path.join(shots,`ui-struct-planning-${width}.png`)});
+  }
+  await page.evaluate(()=>{window.hide();});
+  await page.waitForFunction(()=>!document.querySelector('.tracking-dashboard'));
+  await page.evaluate(url=>{window.history.pushState(null,'',url);window.dispatchEvent(new PopStateEvent('popstate'));window.setView('interactions');window.show();},carried);
+  await page.getByRole('heading',{name:'Últimas interacciones',exact:true}).waitFor();
+  assert.equal(await page.locator('.contact-filter-controls').count(),0);
+  await page.getByText('Interacciones de contactos en foco',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Empresas headhunter',exact:true}).count(),0);
+  await page.evaluate(()=>window.setView('referrals'));
+  await page.getByRole('heading',{name:'Referidos',exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Últimas interacciones',exact:true}).count(),0);
+  assert.equal(await page.getByRole('navigation',{name:'Navegacion principal'}).getByRole('link').count(),5);
+  for (const view of ['home','planning','interactions','referrals']) {
+    await page.evaluate(view=>window.setView(view),view);
+    await page.waitForTimeout(100);
+    const before=await page.evaluate(()=>[window.reads,window.detailReads]);
+    await page.evaluate(()=>window.completeCalendar());
+    await page.waitForFunction(([a,b])=>window.reads===a+1&&window.detailReads===b+1,before);
+    await page.waitForTimeout(100);
+    const after=await page.evaluate(()=>[window.reads,window.detailReads]);
+    assert.deepEqual(after,before.map(n=>n+1),'one snapshot/detail refresh after Calendar success: '+view);
+    await page.evaluate(async()=>{window.clearCalendarFeedback();await window.completeCalendar(false);});
+    await page.waitForTimeout(100);
+    assert.deepEqual(await page.evaluate(()=>[window.reads,window.detailReads]),after,'no refresh for feedback expiry/error: '+view);
+  }
+  console.log('PASS reconciled Calendar refresh: home/planning/interactions/referrals refresh once per success, none for errors or expired feedback');
+  console.log('PASS UI-STRUCT-01: two home cards at 1440/768 and stacked 375/390, planning/activity/referral variants, temporal controls, carried filters and five links');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   console.log('PASS mounted Edge: initial load, Contactos/Oportunidades return reads, retry, unmount/late response, empty/legacy, 320px, keyboard, no external transport');
   console.log('Screenshots: '+shots);

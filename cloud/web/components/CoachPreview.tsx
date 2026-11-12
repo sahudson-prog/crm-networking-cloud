@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TodoRow } from "../lib/readModel";
 import type { InteractionRow } from "../lib/readModel";
@@ -286,6 +287,7 @@ function CoachSuggestionsContent({
           )}
         </div>
       </CoachFrame>
+      {(configOpen || logOpen) && typeof document !== "undefined" ? createPortal(<div data-coach-overlay>
       <CoachConfigDialog
         open={configOpen}
         onClose={() => setConfigOpen(false)}
@@ -296,6 +298,7 @@ function CoachSuggestionsContent({
         onSaved={onExecuted}
       />
       <CoachActionLogDialog open={logOpen} contactId={contactId} onClose={() => setLogOpen(false)} />
+      </div>, document.body) : null}
     </>
   );
 }
@@ -428,11 +431,7 @@ function CoachMascot({ size, speaking = false }: { size: "normal" | "mini"; spea
     >
       <div className="coach-bot">
         <div className="coach-bot-antenna" />
-        <div className="coach-bot-head">
-          <div className="coach-bot-eye" />
-          <div className="coach-bot-eye" />
-          <div className="coach-bot-mouth" />
-        </div>
+        <CoachFace />
         <div className="coach-bot-neck" />
         <div className="coach-bot-body">
           <div className="coach-bot-panel" aria-hidden="true">
@@ -605,3 +604,5 @@ function todoTime(todo: Pick<TodoRow, "created_at">) {
   const time = new Date(todo.created_at).getTime();
   return Number.isNaN(time) ? 0 : time;
 }
+
+export function CoachFace() { return <div className="coach-bot-head"><div className="coach-bot-eye"/><div className="coach-bot-eye"/><div className="coach-bot-mouth"/></div>; }

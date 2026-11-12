@@ -25,10 +25,12 @@ const futurePlans: Array<{ code: FutureNetworkingPlan; label: string }> = [
   { code: "PERSONAL_BRAND", label: "Posicionamiento o marca personal" }
 ];
 
-export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingChange }: {
+export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingChange, title = "Mi objetivo", className = "" }: {
   onReadyChange?: (ready: boolean) => void;
   onCycleChange?: () => void;
   onLoadingChange?: (loading: boolean) => void;
+  title?: string;
+  className?: string;
 }) {
   const [cycles, setCycles] = useState<NetworkingCycle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,9 +252,9 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   }
 
   return (
-    <section className="networking-cycle-panel" aria-labelledby="my-cycle-title">
+    <section className={`networking-cycle-panel ${className}`} aria-labelledby="my-cycle-title">
       <div className="panel-header">
-        <h2 className="panel-title" id="my-cycle-title"><Icon name="target" /> Mi objetivo</h2>
+        <h2 className="panel-title" id="my-cycle-title"><Icon name="target" /> {title}</h2>
       </div>
       {loading ? <p role="status">Leyendo tu ciclo...</p> : null}
       <div className="networking-plan-grid">

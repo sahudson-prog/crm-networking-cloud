@@ -32,9 +32,10 @@ const emptyDraft: ObjectiveEditorInput = {
   isActive: true
 };
 
-export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
+export function ObjectivesPage({ onboardingCoach, onCycleReadyChange, showOpportunities = true }: {
   onboardingCoach?: ReactNode;
   onCycleReadyChange?: (ready: boolean) => void;
+  showOpportunities?: boolean;
 } = {}) {
   const [objectives, setObjectives] = useState<ObjectiveRow[]>([]);
   const [draft, setDraft] = useState<ObjectiveEditorInput>(emptyDraft);
@@ -65,8 +66,8 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
     return () => { priorityLoadVersion.current += 1; };
   }, []);
   useEffect(() => {
-    if (!cycleLoading && !loading && (onboardingCoach || !cycleReady || opportunitiesLoaded)) setInitialComplete(true);
-  }, [cycleLoading, cycleReady, loading, onboardingCoach, opportunitiesLoaded]);
+    if (!cycleLoading && !loading && (!showOpportunities || onboardingCoach || !cycleReady || opportunitiesLoaded)) setInitialComplete(true);
+  }, [cycleLoading, cycleReady, loading, onboardingCoach, opportunitiesLoaded, showOpportunities]);
   useEffect(() => { onCycleReadyChange?.(initialComplete && cycleReady && !priorityReadError); },
     [initialComplete, cycleReady, priorityReadError, onCycleReadyChange]);
   useEffect(() => { if (editorOpen && !editorDialog.current?.open) editorDialog.current?.showModal(); }, [editorOpen]);
@@ -179,12 +180,17 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
   return (
     <>
     {!initialComplete ? <section className="panel" role="status">Leyendo objetivos...</section> : null}
-    <div hidden={!initialComplete} className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""}`}>
+    <div hidden={!initialComplete} className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""} ${showOpportunities ? "" : "structural-view"}`}>
       {onboardingCoach ? <div className="objectives-onboarding-coach">{onboardingCoach}</div> : null}
       <NetworkingCyclePanel onReadyChange={setCycleReady} onLoadingChange={setCycleLoading}
+        title={showOpportunities ? "Mi objetivo" : "Mis objetivos"} className={showOpportunities ? "" : "panel functional-block"}
         onCycleChange={() => { void loadObjectives(); setOpportunityRevision((value) => value + 1); }} />
+      {!cycleReady && !showOpportunities ? <section className="panel functional-block" aria-labelledby="priorities-unavailable-title">
+        <h2 className="panel-title" id="priorities-unavailable-title"><Icon name="tag" />Prioridades</h2>
+        <p className="empty-value">Las prioridades requieren un proceso activo con inicio confirmado.</p>
+      </section> : null}
       {cycleReady ? <>
-      <section className="objectives-priorities" aria-labelledby="priorities-title">
+      <section className={`objectives-priorities ${showOpportunities ? "" : "panel structural-priorities functional-block"}`} aria-labelledby="priorities-title">
         <div className="panel-header">
           <h2 className="panel-title" id="priorities-title"><Icon name="tag" /> Prioridades</h2>
         </div>
@@ -200,7 +206,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
           {OBJECTIVE_PAGE_TYPES.map((type) => {
             const rows = grouped.get(type) ?? [];
             return (
-              <div className="panel objectives-group" key={type}>
+              <div className={`${showOpportunities ? "panel " : ""}objectives-group`} key={type}>
                 <div className="objectives-group-head">
                   <h3>{objectiveTypeLabel(type)}</h3>
                   <span>{rows.length}</span>
@@ -323,7 +329,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange }: {
         }}
       />
       </> : null}
-      {!onboardingCoach ? <div hidden={!cycleReady}>
+      {showOpportunities && !onboardingCoach ? <div hidden={!cycleReady}>
         <OpportunityBoard revision={opportunityRevision} enabled={cycleReady} onInitialLoadComplete={handleOpportunitiesLoaded} />
       </div> : null}
     </div>

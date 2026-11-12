@@ -1,3 +1,4 @@
+import { ApplicationFrame } from "../components/ApplicationFrame";
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
 import type { ReactNode } from "react";
@@ -24,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={lato.variable}>{children}</body>
+      <body className={lato.variable}><ApplicationFrame>{children}</ApplicationFrame></body>
     </html>
   );
 }

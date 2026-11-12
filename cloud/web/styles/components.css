@@ -6098,12 +6098,14 @@ textarea::placeholder {
 }
 
 .contacts-table th:first-child,
-.contacts-table td:first-child {
+.contacts-table td:first-child,
+.companies-table th:first-child,
+.companies-table td:first-child {
   width: 42px;
   text-align: center;
 }
 
-.contacts-table thead th {
+.contacts-table thead th, .companies-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -6136,7 +6138,7 @@ textarea::placeholder {
   height: 14px;
 }
 
-.contacts-table input[type="checkbox"] {
+.contacts-table input[type="checkbox"], .companies-table input[type="checkbox"] {
   width: 16px;
   height: 16px;
   margin: 0;
@@ -9371,4 +9373,74 @@ code {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }
+}
+
+/* Shared contacts import surface; existing preview/merge dialogs retain their styles. */
+.contacts-import-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-left: auto; max-width: 100%; }
+.contacts-import-actions > .button { width: 100%; min-width: 0; min-height: 36px; height: auto; }
+.contacts-import-actions > .button > span, .contact-import-dialog .button > span:has(svg) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.contacts-import-actions svg { flex-shrink: 0; }
+/* Stable header / body / footer. Preview and merge surfaces keep their own styles. */
+.contact-import-dialog:not([open]) { display: none; }
+.contact-import-dialog {
+  width: min(720px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  height: min(520px, 85dvh);
+  min-height: min(520px, 85dvh);
+  max-height: 85dvh;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow: visible;
+  background: var(--brand-warm-white);
+  border: 1px solid var(--brand-cream);
+  color: var(--brand-espresso);
+  box-shadow: none;
+}
+.contact-import-dialog::backdrop { background: color-mix(in srgb, var(--brand-espresso) 32%, transparent); }
+.contact-import-dialog > .modal-head { flex: none; align-items: center; min-height: 36px; }
+.contact-import-dialog > .modal-head h2 { font-size: 20px; color: var(--brand-espresso); }
+.contact-import-dialog > [role="tablist"] { flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.contact-import-content { flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: 14px; line-height: 1.5; }
+.contact-import-content [hidden] { display: none; }
+.contact-import-file-panel, .contact-import-google-panel { flex: 1; min-height: 0; }
+.contact-import-file { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 16px; }
+.contact-import-instructions { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.contact-import-help { min-height: 100%; margin: 0; }
+.contact-import-help summary { cursor: pointer; color: var(--brand-coffee); padding-block: 4px; }
+.contact-import-help .vcard-help-tabs { margin-top: 16px; gap: 6px; }
+.contact-import-help ol { padding-left: 24px; margin-block: 12px; }
+.contact-import-help li + li { margin-top: 10px; }
+.contact-import-help .meta { color: var(--brand-coffee); }
+.contact-import-help a { color: var(--brand-coffee); text-decoration: underline; }
+.contact-import-file-actions { flex: none; justify-content: flex-end; margin: 0; padding: 0; background: var(--brand-warm-white); }
+.contact-import-google-panel > .connected-service-action { height: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 0; border: 0; }
+.contact-import-google-panel > .connected-service-action > .toolbar { order: 3; flex: none; margin: auto 0 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.contact-import-google-panel > .connected-service-action > .toolbar > .primary { order: 1; }
+.contact-import-google-panel > .connected-service-action > .connected-service-feedback { flex: 1; min-height: 0; overflow-y: auto; }
+.contact-import-google-panel > .connected-service-action > .connected-service-reason { flex: none; color: var(--brand-coffee); }
+.contact-import-google-panel .connected-service-action-main :is(strong, span) { color: var(--brand-espresso); }
+/* Scope controls explicitly so nested previews do not inherit this visual treatment. */
+.contact-import-dialog :where(.contact-import-dialog > .modal-head, .contact-import-dialog > [role="tablist"], .contact-import-file-actions, .contact-import-help .vcard-help-tabs, .contact-import-google-panel > .connected-service-action > .toolbar) > .button {
+  background: var(--brand-warm-white); color: var(--brand-espresso); border: 1px solid var(--brand-cream); border-radius: var(--crm-radius); box-shadow: none; transform: none; min-height: 40px; height: 40px; transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.contact-import-dialog :where(.contact-import-dialog > .modal-head, .contact-import-dialog > [role="tablist"], .contact-import-file-actions, .contact-import-help .vcard-help-tabs, .contact-import-google-panel > .connected-service-action > .toolbar) > .button:not(:disabled):hover { border-color: var(--brand-coffee); box-shadow: none; transform: none; }
+.contact-import-dialog :where(.contact-import-dialog > .modal-head, .contact-import-dialog > [role="tablist"], .contact-import-file-actions, .contact-import-help .vcard-help-tabs, .contact-import-google-panel > .connected-service-action > .toolbar) > .button:focus-visible,
+.contact-import-help summary:focus-visible { outline: 2px solid var(--brand-coffee); outline-offset: 2px; }
+.contact-import-dialog > .modal-head > .button { border-color: transparent; min-height: 36px; height: 36px; color: var(--brand-coffee); }
+.contact-import-dialog > [role="tablist"] > .button[aria-selected="true"],
+.contact-import-file-actions > .button.primary,
+.contact-import-google-panel > .connected-service-action > .toolbar > .button.primary { background: var(--brand-espresso); color: var(--brand-warm-white); border-color: var(--brand-espresso); }
+.contact-import-file-actions > .button, .contact-import-google-panel > .connected-service-action > .toolbar > .button.primary { min-width: 112px; }
+.contact-import-help .vcard-help-tabs > .button { min-height: 32px; height: 32px; padding: 0 10px; font-size: 13px; background: var(--brand-cream); color: var(--brand-coffee); }
+.contact-import-help .vcard-help-tabs > .button[aria-selected="true"] { background: var(--brand-cream); border-color: var(--brand-coffee); color: var(--brand-espresso); }
+.contact-import-google-panel > .connected-service-action > .toolbar > .button.danger { border-color: transparent; color: var(--brand-coffee); }
+@media (max-width: 480px) {
+  .contacts-import-actions { width: 100%; }
+  .contacts-import-actions > .button { padding-inline: 8px; white-space: normal; }
+  .contact-import-dialog { padding: 16px; gap: 12px; }
+  .contact-import-dialog > .modal-head h2 { font-size: 18px; }
+  .contact-import-file { gap: 12px; }
 }

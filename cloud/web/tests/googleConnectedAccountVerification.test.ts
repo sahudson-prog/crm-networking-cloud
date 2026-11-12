@@ -404,8 +404,7 @@ test("Cuenta concentra integraciones en importacion y elimina el resumen de acce
   assert.doesNotMatch(source, /Acceso a Coffeecito/);
   assert.doesNotMatch(source, /Email por link/);
   assert.match(source, /Importación y sincronización/);
-  assert.match(source, /Microsoft/);
-  assert.match(source, /Apple/);
+  assert.match(source, /<ContactImportButton/);
   assert.match(source, /Próximamente/);
 });
 
@@ -415,7 +414,7 @@ test("Cuenta muestra Próximamente para Google no elegible y conserva controles 
   assert.match(source, /readGoogleOAuthOperationEligibility\("contacts"\)/);
   assert.match(source, /readGoogleOAuthOperationEligibility\("email"\)/);
   assert.match(source, /readGoogleOAuthOperationEligibility\("calendar"\)/);
-  assert.match(source, /contactsEligibility === "enabled"[\s\S]*GoogleContactsSyncPanel[\s\S]*SourcePlaceholder[\s\S]*title="Google Contacts"/);
+  assert.match(source, /<ContactImportButton[\s\S]*enabled: contactsEligibility === "enabled"/);
   assert.match(source, /emailEligibility === "enabled"[\s\S]*GoogleInteractionsSyncPanel[\s\S]*SourcePlaceholder[\s\S]*provider="gmail"[\s\S]*title="Gmail"/);
   assert.match(source, /calendarEligibility === "enabled"[\s\S]*InteractionSyncPreferenceToggle[\s\S]*SourcePlaceholder[\s\S]*provider="googleCalendar"[\s\S]*title="Google Calendar"/);
   assert.match(source, /status = "Próximamente"/);
@@ -491,14 +490,14 @@ test("Cuenta bloquea todas las autorizaciones de datos para una sesion no Google
 
   assert.match(accountSource, /googleDataSessionEligibility\(data\.session\?\.user\)\.allowed/);
   assert.match(accountSource, /!account\.googleDataAuthorizationAllowed[\s\S]*GOOGLE_DATA_SESSION_REQUIRED_MESSAGE/);
-  assert.match(accountSource, /googleDisabledReason=\{googleImportDisabledReason\(account, "contacts"\)\}/);
+  assert.match(accountSource, /googleDisabledReason: googleImportDisabledReason\(account, "contacts"\)/);
   assert.match(accountSource, /calendarDisabledReason=\{googleImportDisabledReason\(account, "calendar"\)\}/);
   assert.match(accountSource, /mailDisabledReason=\{googleImportDisabledReason\(account, "mail"\)\}/);
   assert.match(accountSource, /disabled=\{syncPreferences\.loading \|\| syncPreferences\.saving \|\| account\.googleAuthorizationVerifying \|\| !account\.googleDataAuthorizationAllowed\}/);
   assert.match(contactsSource, /disabled=\{Boolean\(compactDisabledReason\) \|\| state\.loading\}/);
   assert.match(interactionsSource, /aria-label="Seleccionar correos de Gmail"[\s\S]*disabled=\{Boolean\(mailActionDisabledReason\)\}/);
   assert.match(interactionsSource, /disabled=\{googleConnectionLoading \|\| Boolean\(mailActionDisabledReason\)\}/);
-  assert.match(accountSource, /<VCardImportPanel/);
+  assert.match(accountSource, /<ContactImportButton/);
 });
 
 test("guard central impide iniciar OAuth de datos antes de signInWithOAuth", () => {
@@ -604,7 +603,7 @@ test("vCard queda como import one-shot sin Connected Account", () => {
   const accountSource = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
   const vcardSource = readFileSync(new URL("../components/VCardImportPanel.tsx", import.meta.url), "utf8");
 
-  assert.match(accountSource, /VCardImportPanel/);
+  assert.match(accountSource, /ContactImportButton/);
   assert.match(vcardSource, /Importar contactos desde archivo vCard/);
   assert.match(vcardSource, /Compatible con exportaciones de Google, Apple Contacts, Outlook y otros servicios/);
   assert.match(vcardSource, /Importar selección/);
@@ -612,14 +611,14 @@ test("vCard queda como import one-shot sin Connected Account", () => {
   assert.equal(vcardSource.includes("readCurrentGoogleConnectionState"), false);
 });
 
-test("Cuenta presenta vCard antes de Google y conserva proveedores futuros", () => {
+test("Cuenta centraliza contactos en el modal y conserva Citas y Correos", () => {
   const source = readFileSync(new URL("../components/AccountPage.tsx", import.meta.url), "utf8");
-
-  assert.ok(source.indexOf("<VCardImportPanel") < source.indexOf("<GoogleContactsSyncPanel"));
-  assert.match(source, /<VCardImportPanel[\s\S]*actionLabel="Importar archivo vCard"[\s\S]*sourceLabel="vCard \(\.vcf\)"/);
-  assert.ok(source.indexOf('title="Apple Contacts"') > source.indexOf("<GoogleContactsSyncPanel"));
-  assert.ok(source.indexOf('title="Microsoft Contacts"') > source.indexOf('title="Apple Contacts"'));
-  assert.match(source, /status = "Próximamente"[\s\S]*account-source-status">\{status\}/);
+  const dialog = readFileSync(new URL("../components/ContactImportDialog.tsx", import.meta.url), "utf8");
+  assert.match(source, /<ContactImportButton/);
+  assert.doesNotMatch(source, /title="Apple Contacts"|title="Microsoft Contacts"|<VCardImportPanel/);
+  assert.ok(dialog.indexOf("<VCardImportPanel") < dialog.indexOf("<GoogleContactsSyncPanel"));
+  assert.match(source, /title="Citas"[\s\S]*isIcsImportEnabled/);
+  assert.match(source, /title="Correos"[\s\S]*emailEligibility === "enabled"/);
 });
 
 test("AccountPage protege contra lecturas stale y logout durante finalize", () => {
@@ -673,8 +672,24 @@ test("ActivitySyncButton ejecuta servicios independientes conservando snapshots 
   assert.match(source, /startGlobalActivitySync\(async \(\) =>/);
   assert.match(source, /executeActivitySyncServices\(\{/);
   assert.match(source, /runService: \(service\) => runActivityService\(input, scope, service\)/);
-  assert.match(source, /includeCalendar: service === "calendar"/);
-  assert.match(source, /includeMail: service === "mail"/);
+  const calendarStart = source.indexOf('if (service === "calendar") {');
+  const gmailStart = source.indexOf("const serviceInput =", calendarStart);
+  assert.ok(calendarStart >= 0 && gmailStart > calendarStart);
+  const calendar = source.slice(calendarStart, gmailStart);
+  const gmail = source.slice(gmailStart, source.indexOf("async function runSync", gmailStart));
+  assert.match(calendar, /scope !== "global"[\s\S]*CALENDAR_MANUAL_V2_REQUIRED/);
+  assert.match(calendar, /!input.connectedAccountId[\s\S]*CALENDAR_ACCOUNT_REQUIRED/);
+  assert.equal((calendar.match(/await updateCalendarV2\(/g) ?? []).length, 1);
+  assert.match(calendar, /startCalendarRunControl\(\)/);
+  assert.match(calendar, /timeMin: since!, timeMax: window.until, signal/);
+  assert.match(calendar, /setCalendarRunProgress/);
+  assert.match(calendar, /success: true, syncedAt: result.synced_at/);
+  assert.match(calendar, /success: false, syncedAt: null/);
+  assert.match(calendar, /finally \{ endCalendarRunControl\(\); \}/);
+  assert.doesNotMatch(calendar, /await runSync\(|await syncGoogleInteractions\(/);
+  assert.match(gmail, /const serviceInput = \{[\s\S]*includeCalendar: false,[\s\S]*includeMail: true/);
+  assert.doesNotMatch(gmail, /updateCalendarV2\(/);
+  assert.match(gmail, /if \(!snapshot\?\.complete\)/);
   assert.match(source, /const reviewed = await runSync\(\{ \.\.\.serviceInput, dryRun: true \}\)/);
   assert.match(source, /const applied = await runSync\(\{[\s\S]*dryRun: false,[\s\S]*gmailFocusedSnapshot: scope === "global" \? reviewed\.result\.gmailFocusedSnapshot/);
   assert.match(source, /gmailFocusedSnapshot: input\.dryRun \? null : input\.gmailFocusedSnapshot/);
@@ -762,8 +777,7 @@ test("Cuenta separa importacion manual de sincronizacion automatica", () => {
   assert.match(accountSource, /AccountDataBlock title="Citas"/);
   assert.match(accountSource, /AccountDataBlock title="Correos"/);
   assert.match(accountSource, /iCalendar \(\.ics\)/);
-  assert.match(accountSource, /Apple Contacts/);
-  assert.match(accountSource, /Microsoft Contacts/);
+  assert.match(accountSource, /ContactImportButton/);
   assert.doesNotMatch(accountSource, /Otros proveedores|Apple \/ iCloud Mail|Microsoft Outlook/);
   assert.match(accountSource, /account-provider-sync-block[\s\S]*ProviderIcon name="google"/);
   assert.match(accountSource, /icon="calendar"[\s\S]*label="Citas de Google Calendar"/);
@@ -780,9 +794,7 @@ test("Importar datos homologa proveedor, documento y botones plus accesibles", (
   const interactionsSource = readFileSync(new URL("../components/GoogleInteractionsSyncPanel.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../styles/components.css", import.meta.url), "utf8");
 
-  assert.match(accountSource, /compactAction=\{includeOtherSources\}/);
-  assert.match(accountSource, /iconOnlyActions=\{includeOtherSources\}/);
-  assert.match(accountSource, /actionLabel="Importar archivo vCard"/);
+  assert.match(accountSource, /<ContactImportButton/);
   assert.match(accountSource, /AccountDataBlock title="Citas">[\s\S]*SourcePlaceholder icon="file" title="iCalendar \(\.ics\)"/);
   assert.match(contactsSource, /ProviderIcon name="google"/);
   assert.match(contactsSource, /aria-label=.*Importar contactos de Google[\s\S]*icon="plus"/);
@@ -842,7 +854,7 @@ test("callback completa solo la intención pendiente y OFF no revoca permisos", 
 
   assert.match(accountSource, /pendingAction === "import_contacts" \|\| pendingAction === "import_gmail_history"/);
   assert.match(accountSource, /pendingAction === "enable_gmail_sync" \? "gmail" : "calendar"/);
-  assert.match(accountSource, /resumeImport=\{resumeAction === "import_contacts"\}/);
+  assert.match(accountSource, /resumeImport: resumeAction === "import_contacts"/);
   assert.match(accountSource, /resumeMailImport=\{resumeAction === "import_gmail_history"\}/);
   assert.match(preferencesSource, /if \(!input\.enabled\) return "disable"/);
   assert.doesNotMatch(accountSource, /disconnectConnectedAccount/);

@@ -26,7 +26,7 @@ const service: InvitationService = {
   }
 };
 
-export function InvitationButton({ api = service }: { api?: InvitationService }) {
+export function InvitationButton({ api = service, openRequest = 0, hideTrigger = false, onDialogClose }: { api?: InvitationService; openRequest?: number; hideTrigger?: boolean; onDialogClose?: () => void }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -165,18 +165,19 @@ export function InvitationButton({ api = service }: { api?: InvitationService })
     }
   }
 
+  useEffect(() => { if (openRequest > 0) open(); }, [openRequest]);
   if (denied) return null;
   const blocked = loading || saving || uncertain || !state || !canAuthorizeInvitation(state);
   const paused = state && (!state.invitations_enabled || !state.registrations_enabled || state.used_capacity >= state.global_capacity);
   const links = sharing && typeof window !== "undefined" ? invitationShareLinks(sharing.email ?? "", window.location.origin) : null;
   return <>
-    <button ref={trigger} type="button" className="button secondary invitation-trigger" aria-haspopup="dialog"
+    {!hideTrigger ? <button ref={trigger} type="button" className="button secondary invitation-trigger" aria-haspopup="dialog"
       title="Invitar a Coffeecito" aria-label={`Invitar a Coffeecito. ${loading ? "Cargando cupos" : state ? `${state.available_slots} cupos disponibles${paused ? ". Programa en pausa" : ""}` : "Reintentar carga"}`} onClick={open}>
       <span className="invitation-cup"><Icon name="coffee" />{paused ? <span className="invitation-pause" aria-hidden="true">Ⅱ</span> : null}</span>
       <span className="invitation-count">{loading ? "…" : state?.available_slots ?? "!"}</span>
-    </button>
+    </button> : null}
     <dialog ref={dialog} className="invitation-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-slots`}
-      onClose={() => { setSharing(null); trigger.current?.focus(); }}
+      onClose={() => { setSharing(null); trigger.current?.focus(); onDialogClose?.(); }}
       onCancel={(event) => { if (sharing) { event.preventDefault(); closeSharing(); } }}
       onKeyDown={(event) => {
         if (event.key !== "Tab") return;

@@ -12,7 +12,8 @@ const lockupPaths = [
   "LegalAcceptanceGate.tsx",
   "OnboardingRoutePage.tsx",
   "PublicContactPage.tsx",
-  "Shell.tsx"
+  "Shell.tsx",
+  "ShellChrome.tsx"
 ];
 
 function source(path: string) {
@@ -50,7 +51,7 @@ test("one toggle renders the beta badge or the exact original wordmark", () => {
   assert.equal(renderVariant(false, "auth-brand-wordmark").markup, '<span class="auth-brand-wordmark">Coffeecito</span>');
 });
 
-test("all five live logo lockups share the badge and accessible name", () => {
+test("all live logo lockups share the badge and accessible name", () => {
   const components = new URL("../components/", import.meta.url);
   const paths = readdirSync(components, { recursive: true })
     .filter((path): path is string => typeof path === "string" && path.endsWith(".tsx"))

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { OnboardingNavigation } from "./OnboardingNavigation";
+import { ApplicationShellContent } from "./ApplicationShellContent";
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { ActivitySyncButton } from "./ActivitySyncButton";
 import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
@@ -34,7 +36,12 @@ export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?
   );
 }
 
-function ShellContent({ children }: { children: ReactNode }) {
+function ShellContent({children}:{children:ReactNode}) {
+  const path=usePathname();
+  return path.startsWith("/onboarding")?<LegacyShellContent>{children}</LegacyShellContent>:<ApplicationShellContent>{children}</ApplicationShellContent>;
+}
+
+function LegacyShellContent({ children }: { children: ReactNode }) {
   const utilities = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
   const onboarding = useOnboarding();
@@ -42,11 +49,6 @@ function ShellContent({ children }: { children: ReactNode }) {
   const isOnboarding = pathname.startsWith("/onboarding");
   const isSystem = pathname.startsWith("/sistema");
   const isAccount = pathname.startsWith("/cuenta");
-  const isObjectives = pathname === "/objetivos" || pathname === "/onboarding/objetivos";
-  const isContacts = pathname === "/"
-    || pathname === "/contactos"
-    || pathname === "/onboarding/contactos"
-    || pathname === "/onboarding/contacto";
   const showSystem = canRenderSystemSurface(systemAccess, "system");
   const headerReady = !onboarding.loading && onboarding.routeReady && !onboarding.loadFailed;
   useEffect(() => { void expectedNetworkingCycleId().catch(() => undefined); }, []);
@@ -78,20 +80,7 @@ function ShellContent({ children }: { children: ReactNode }) {
           <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
           <BrandBetaWordmark />
         </Link>
-        <nav className="nav-primary" aria-label="Navegacion principal">
-          <Link className={`nav-link ${isObjectives ? "active" : ""}`} href="/objetivos">
-            <Icon name="target" />
-            Objetivos
-          </Link>
-          <Link className={`nav-link ${isContacts ? "active" : ""}`} href="/contactos">
-            <Icon name="users" />
-            Contactos
-          </Link>
-          <Link className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`} href="/dashboard">
-            <Icon name="chart" />
-            Seguimiento
-          </Link>
-        </nav>
+        <OnboardingNavigation />
         <div className="nav-utility">
           {!isOnboarding ? <InvitationButton /> : null}
           <details ref={utilities} className="shell-utility-overflow" onKeyDown={(event) => {
