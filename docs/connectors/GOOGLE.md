@@ -1,10 +1,10 @@
 # Conector Google
 
-## Candidato local: Calendar independiente
+## Calendar V2 independiente: integrado y validado en PROD
 
-SQL 001-005, sus verificadores y finalize en DEV: PASS confirmado por el owner; no se repitieron controles remotos. El owner certifico qa-admin permitido y qa-user rechazado en finalize (403/calendar_admin_required), sync (403/42501) y Cuenta. Turnstile DEV real restaurado. El runtime posterior a 005 y su smoke funcional estan PASS segun el owner; PROD permanece pendiente. La causa original del incidente del admin no se da por certificada. OAuth independiente conserva `calendar.events.owned.readonly` para `primary`, validacion server-side de identidad/audience/scopes, capability efectiva y denies. El flujo Calendar exige perfil `system_admin` vigente, `admin.manage_access` e `interactions.sync_calendar`; UI, finalize y RPC de sync comprueban el gate. Google login no depende de Calendar. No incorpora scopes de Contacts/Gmail, refresh tokens ni renovacion silenciosa. Gmail sigue deshabilitado en el runtime publico, incluido Historico/admin; no se revocan permisos remotos.
+SQL 001-005, sus verificadores y finalize en DEV: PASS confirmado por el owner; no se repitieron controles remotos. El owner certifico qa-admin permitido y qa-user rechazado en finalize (403/calendar_admin_required), sync (403/42501) y Cuenta. Turnstile DEV real restaurado. El runtime posterior a 005 y su smoke funcional estan PASS en DEV segun el owner. Calendar V2 independiente, migrations 001-005 y sus verificaciones fueron integrados, desplegados y validados en PROD segun confirmacion del owner. La causa original del incidente del admin no se da por certificada. OAuth independiente conserva `calendar.events.owned.readonly` para `primary`, validacion server-side de identidad/audience/scopes, capability efectiva y denies. El flujo Calendar exige perfil `system_admin` vigente, `admin.manage_access` e `interactions.sync_calendar`; UI, finalize y RPC de sync comprueban el gate. Google login no depende de Calendar. No incorpora scopes de Contacts/Gmail, refresh tokens ni renovacion silenciosa. Gmail sigue deshabilitado en el runtime publico, incluido Historico/admin; no se revocan permisos remotos.
 
-Solo Actualizar en cabecera inicia la ejecucion. OAuth, recarga, navegacion y fichas no sincronizan. El coordinador compartido permite navegar y cancelar entre operaciones; cancelar no revierte transacciones confirmadas. La ficha conserva interacciones sin controles de sync.
+Solo Actualizar en cabecera inicia la ejecucion. OAuth, recarga, navegacion y fichas no sincronizan. El coordinador compartido permite navegar y cancelar entre operaciones; cancelar no revierte transacciones confirmadas. La ficha conserva interacciones sin controles de sync Calendar; la actualización contextual de Google Contacts es independiente.
 
 ### Una ejecucion completa por clic (v2)
 
@@ -23,7 +23,7 @@ Cancelacion solo con status=cancelled del ID/ocurrencia exacto. Un tombstone min
 
 003 revoca EXECUTE cliente de las cuatro RPC de reconciliacion 002, reutilizadas internamente por el nuevo escritor. 005 cierra ademas la entrada Calendar por periodic/history: el wrapper compartido queda limitado a Gmail/email; discovery usa un nucleo privado con validacion de identidad/interaccion/fuentes bajo locks. Los aliases ambiguos o recursos cruzados producen STOP antes de escribir, no se reasignan. No hay flags/GUC cliente de bypass. El reconciliador frontend v1 y sus mensajes de continuacion manual se retiran; los helpers SQL aun consumidos por v2 no se eliminan. No retirar estas protecciones como rollback. Los scopes y los contratos Gmail/Historico para sus recursos no se amplian.
 
-DEV 001-005 y smoke post-005 cerrados por confirmacion del owner. No repetir SQL, verifiers, grants o smokes ya acreditados sin evidencia de regresion. Para ambientes pendientes, la secuencia sigue siendo: drenar operaciones Google admitidas -> preflight -> migration autorizada -> verifier -> runtime -> smoke. Mantener test_only/Data API ON sin cambios globales por defecto; los locks y su timeout abortan ante contencion, pero no sustituyen el drenaje de solicitudes antiguas. Runtime v2/004 compatible; Calendar pre-v2 falla cerrado y Gmail/Historico conserva sus recursos. No cambiar gate, tester, Data API ni Google Cloud. En PROD: backup recuperable/restore PASS, cadena 001 -> 002 -> 003 -> 004 -> 005 y gates separados de SQL, deployment y smoke. No incluir SQL DEV-only multi-tester.
+DEV 001-005 y smoke post-005 cerrados por confirmacion del owner. No repetir SQL, verifiers, grants o smokes ya acreditados sin evidencia de regresion. Para ambientes todavia no actualizados, la secuencia sigue siendo: drenar operaciones Google admitidas -> preflight -> migration autorizada -> verifier -> runtime -> smoke. Mantener test_only/Data API ON sin cambios globales por defecto; los locks y su timeout abortan ante contencion, pero no sustituyen el drenaje de solicitudes antiguas. Runtime v2/004 compatible; Calendar pre-v2 falla cerrado y Gmail/Historico conserva sus recursos. No cambiar gate, tester, Data API ni Google Cloud. En el cutover PROD ya ejecutado se exigieron backup recuperable/restore PASS, cadena 001 -> 002 -> 003 -> 004 -> 005 y gates separados de SQL, deployment y smoke. No incluir SQL DEV-only multi-tester.
 
 Fallo antes de COMMIT revierte. Despues: conservar datos/recibos, corregir hacia adelante o mantener Calendar inhabilitado operacionalmente; rollback de runtime no recupera funcionalidad de sync y no autoriza reotorgar RPCs. Verificacion OAuth publica y E2E real siguen siendo gates manuales.
 
@@ -146,7 +146,7 @@ Lectura histórica:
 - puede acotar por emails de contactos cuando el flujo está en scope de foco o contacto específico;
 - en lectura histórica scoped, divide los emails únicos en búsquedas de hasta 20 direcciones y deduplica por `messageId` antes de leer el detalle entre búsquedas;
 - el máximo de correos se aplica tanto al total consolidado como al total de lecturas de detalle de la revisión. El presupuesto de páginas se comparte de forma conservadora, reservando al menos la primera página necesaria para cada búsqueda scoped.
-UX-DATE-01 (solo candidato local) conserva el contexto/revisión de la ventana entre Review y Apply y lo envía en cada escritura histórica a `apply_google_history_v1`. La ruta periódica usa `apply_google_periodic_v1` sin imponer el máximo histórico. Ambas delegan al núcleo Google ya existente; no cambian scopes, OAuth, cuenta conectada ni permisos de operación. No se prueba server-side la procedencia histórica/incremental del lote: esa ampliación fue expresamente excluida. Detalle y compatibilidad en INGESTION_SYNC y PROD_CONTRACTS.
+UX-DATE-01 (integrado y validado en PROD) conserva el contexto/revisión de la ventana entre Review y Apply y lo envía en cada escritura histórica a `apply_google_history_v1`. La ruta periódica usa `apply_google_periodic_v1` sin imponer el máximo histórico. Ambas delegan al núcleo Google ya existente; no cambian scopes, OAuth, cuenta conectada ni permisos de operación. No se prueba server-side la procedencia histórica/incremental del lote: esa ampliación fue expresamente excluida. Detalle y compatibilidad en INGESTION_SYNC y PROD_CONTRACTS.
 
 Lectura incremental:
 - usa Gmail History API;
@@ -180,10 +180,13 @@ Identificadores externos generados y persistidos por el flujo:
 - `GMAIL_THREAD_{threadId}` se persiste como `external_thread_id` cuando existe.
 Fuera del Historical Bootstrap, un correo solo se convierte en interacción si puede vincularse con al menos un contacto local conocido por email. El Bootstrap puede conservar correos delimitados por la etiqueta elegida aunque todavía no exista un contacto asociado; sus participantes se guardan por email normalizado y los contactos existentes siguen vinculándose por coincidencia exacta.
 
-## Calendar
+## Calendar legacy: flujos periódicos y de ficha inactivos
+
+Esta sección conserva los parámetros y cursores de los flujos anteriores para referencia histórica. Calendar V2 vigente se ejecuta únicamente desde Actualizar global, con su escritor privado; los flujos periódicos antiguos de ficha y Cuenta no son accesos operativos ni pueden reactivar el escritor Calendar legacy.
+
 Calendar usa Google Calendar API.
 El calendario actual es `primary`.
-El sync periódico manual global consulta solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha consulta solo el contacto Foco actual. Ambos leen una vez el calendario `primary` dentro de una ventana móvil de como máximo 7 días antes de la corrida hasta 30 días después; una fecha de inicio de networking posterior acorta el límite inferior. Paginan esa lectura y filtran localmente por asistentes u organizador que coincidan con emails Foco. La cantidad de requests depende de las páginas de la ventana y no del número de emails Foco. No usan `syncToken` y deduplican eventos por ID antes de aplicar idempotentemente.
+El sync periódico manual global legacy consultaba solo contactos activos Foco y sus emails utilizables. El sync periódico de ficha legacy consultaba solo el contacto Foco actual. Ambos leen una vez el calendario `primary` dentro de una ventana móvil de como máximo 7 días antes de la corrida hasta 30 días después; una fecha de inicio de networking posterior acorta el límite inferior. Paginan esa lectura y filtran localmente por asistentes u organizador que coincidan con emails Foco. La cantidad de requests depende de las páginas de la ventana y no del número de emails Foco. No usan `syncToken` y deduplican eventos por ID antes de aplicar idempotentemente.
 Lectura por ventana:
 - usa Events API;
 - usa `singleEvents=true`;
@@ -209,7 +212,7 @@ Datos leídos y usados:
 El adaptador conserva asunto desde `summary`, fecha desde `start.dateTime` o `start.date`, descripción como detalle, ubicación agregada al detalle, URL externa desde `htmlLink`, participantes y metadata con ID de evento Google.
 La identidad externa generada y persistida por el flujo es `CALENDAR_{eventId}` como `external_id`.
 Un evento solo se convierte en interacción si puede vincularse con al menos un contacto local conocido.
-La UI de Cuenta no ofrece la importación Calendar histórica legacy: presenta `.ics` como opción futura y mantiene Google Calendar únicamente como preferencia de sync periódico. La implementación legacy puede permanecer internamente mientras no sea necesaria para la ruta principal.
+La UI de Cuenta no ofrece la importación Calendar histórica legacy: presenta `.ics` como opción futura y mantiene Google Calendar como preferencia de la actualización global V2. La implementación histórica de Cuenta y de ficha permanece inactiva; su escritor Calendar legacy no puede reactivarse.
 
 ## Mapping hacia estructuras internas
 Contacts produce contactos externos normalizados que luego entran al flujo genérico de revisión de contactos.
@@ -242,8 +245,8 @@ Fallback implementado:
 - para otros scopes existentes, conservar su fallback específico mientras no migren al contrato global.
 
 ### Calendar
-El sync periódico global y de ficha no usa `syncToken`. La fila global Calendar (`cursor_label=''`) conserva `cursor_value=null` y registra `connected_account_id` y `last_synced_at` solo después de una lectura completa y un Apply exitoso; un no-op por ausencia de contactos Foco o emails también cuenta como éxito. La ficha no lee ni escribe cursores Calendar y no modifica esa fila global.
-El flujo histórico legacy de Cuenta todavía puede usar `syncToken`, guardar `nextSyncToken` y aplicar su fallback mientras no sea reemplazado por importación `.ics`.
+El sync periódico global y de ficha legacy no usaba `syncToken`. En ese contrato histórico, la fila global Calendar (`cursor_label=''`) conservaba `cursor_value=null` y registraba `connected_account_id` y `last_synced_at` solo después de una lectura completa y un Apply exitoso; un no-op por ausencia de contactos Foco o emails también cuenta como éxito. La ficha legacy no leía ni escribía cursores Calendar ni modificaba esa fila global.
+El flujo histórico legacy de Cuenta podía usar `syncToken`, guardar `nextSyncToken` y aplicar su fallback; permanece inactivo y no habilita importación Calendar en Cuenta.
 Condición especial observada:
 - status 410 se trata como sync token vencido.
 Fallback implementado:

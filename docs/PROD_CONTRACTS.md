@@ -2,9 +2,9 @@
 
 ## Calendar admin-only y frontera de escritura 005
 
-`PROD CONTRACT CHANGE`. El owner confirma 001-005 y sus verifiers PASS en DEV, incluido el gate admin-only, sin una nueva comprobacion remota. Calendar exige rol `system_admin` vigente, `admin.manage_access` e `interactions.sync_calendar`; finalize y RPC rechazan no-admin. Login Google, Contacts y Gmail no reciben este gate. PROD no se presume actualizado.
+`PROD CONTRACT CHANGE`. El owner confirma 001-005 y sus verifiers PASS en DEV, incluido el gate admin-only, sin una nueva comprobacion remota. Calendar exige rol `system_admin` vigente, `admin.manage_access` e `interactions.sync_calendar`; finalize y RPC rechazan no-admin. Login Google, Contacts y Gmail no reciben este gate. Calendar V2 independiente, migrations 001-005 y sus verificaciones fueron integrados, desplegados y validados en PROD segun confirmacion del owner.
 
-005 esta instalado y verificado PASS en DEV segun el owner; sigue pendiente de promocion a PROD. Separa `apply_google_interaction_sync_internal_v2(uuid,jsonb)` privado del wrapper legacy `apply_google_interaction_sync_v1(uuid,jsonb)`, ahora exclusivo Gmail/email. Conserva firmas y ACL de `apply_google_periodic_v1` y `apply_google_history_v1`, incluida la validacion del contexto historico. `apply_calendar_discovery_v1` llama directamente al nucleo privado; solo `calendar_manual_sync_v2` y sus helpers pueden escribir Calendar desde el runtime. No hay flag, GUC ni modo cliente que habilite ese camino. Los helpers siguen sin EXECUTE de cliente/service_role; finalize conserva su permiso server-side existente.
+005 esta instalado y verificado PASS en DEV y PROD segun confirmacion del owner. Separa `apply_google_interaction_sync_internal_v2(uuid,jsonb)` privado del wrapper legacy `apply_google_interaction_sync_v1(uuid,jsonb)`, ahora exclusivo Gmail/email. Conserva firmas y ACL de `apply_google_periodic_v1` y `apply_google_history_v1`, incluida la validacion del contexto historico. `apply_calendar_discovery_v1` llama directamente al nucleo privado; solo `calendar_manual_sync_v2` y sus helpers pueden escribir Calendar desde el runtime. No hay flag, GUC ni modo cliente que habilite ese camino. Los helpers siguen sin EXECUTE de cliente/service_role; finalize conserva su permiso server-side existente.
 
 El nucleo rechaza identidades/fuentes cruzadas o aliases ambiguos, incluso inactivos, antes de escribir. El lock transversal por usuario precede los locks de identidad/filas; v2 lo toma antes del lock de cuenta/estado. Se mantienen leases, huellas, ownership, Foco, notas y procedencia. No transforma datos ni elimina fuentes compartidas: preflight STOP exige revision del owner, nunca reparacion automatica. El verifier compuesto certifica cuerpos/ACL finales de 004 y 005 y el estado privado v2; no exige los cuerpos 001/002/003 que 005 reemplaza deliberadamente.
 
@@ -14,9 +14,9 @@ DEV: preflight, migration y verifier 005 PASS, runtime posterior activo y smoke 
 
 Rollback: antes de COMMIT revierte; despues conservar datos, cursor y recibos, y usar forward-fix. Runtime v2/004 es compatible con 005; un runtime pre-v2 conserva Gmail/Histórico para sus recursos, pero Calendar legacy falla cerrado. Nunca restaurar su escritor compartido ni reotorgar helpers como rollback. La cadena promocionable es 001 -> 002 -> 003 -> 004 -> 005; variantes DEV-only multi-tester y credenciales QA no forman parte de ella.
 
-## Calendar independiente: preparación local autorizada
+## Calendar independiente: contrato integrado en PROD
 
-`PROD CONTRACT CHANGE`. El owner confirma SQL/verifiers 202611060001 y 202611060002 PASS en DEV y EXECUTE de finalize exclusivamente service_role; no es una nueva certificacion remota. 001 admite Calendar owned con capability efectiva/denies y corrige created real; 002 incorpora reconciliacion update-only/procedencia y preserva notas/vinculos. Los archivos aplicados permanecen intactos. PROD no se presume actualizado.
+`PROD CONTRACT CHANGE`. El owner confirma SQL/verifiers 202611060001 y 202611060002 PASS en DEV y EXECUTE de finalize exclusivamente service_role; no es una nueva certificacion remota. 001 admite Calendar owned con capability efectiva/denies y corrige created real; 002 incorpora reconciliacion update-only/procedencia y preserva notas/vinculos. Los archivos aplicados permanecen intactos. Calendar V2 independiente, migrations 001-005 y sus verificaciones fueron integrados, desplegados y validados en PROD segun confirmacion del owner.
 
 Incremento instalado en DEV con verifier PASS confirmado por el owner: `202611060003_calendar_manual_sync_v2.sql`. Agrega cuatro tablas privadas (estado, runs, recibos de lote y huellas de fuente), helper privado y RPC estrecha `calendar_manual_sync_v2(uuid,uuid,text,jsonb)`. Usuario/cuenta/primary/version 2, RLS sin DML cliente, ownership y capability revalidados despues del lock. Lease caducable de cinco minutos; un run desplazado no puede escribir/confirmar. Commit atomico del cursor, ultimo exito y conteos. Los recibos hacen recuperable la perdida de respuesta de Apply/finish. No guarda payloads de citas ni tokens OAuth; las FKs preservan limpieza por cuenta/fuente.
 
@@ -27,9 +27,9 @@ Archivos operacionales completos:
 - `cloud/supabase/migrations/202611060003_calendar_manual_sync_v2.sql`
 - `cloud/supabase/verifiers/202611060003_verify_calendar_manual_sync_v2.sql`
 
-El cutover 001-005 y el smoke funcional DEV estan cerrados segun el owner. Los siguientes gates son publicacion del candidato, PR manual y preparacion independiente del cutover PROD; no repetir comprobaciones DEV sin evidencia de cambio.
+El cutover 001-005 y el smoke funcional DEV estan cerrados segun el owner. La publicacion del candidato, PR, cutover y smoke PROD tambien se completaron segun su confirmacion; no repetir comprobaciones ya acreditadas sin evidencia de cambio.
 
-PROD: captura/backup recuperable y restore PASS antes de SQL, secuencia de expansion ya instalada comprobada mediante preflight, autorizacion SQL separada, verifier, runtime/deployment y smoke como gates distintos. No operar PROD desde esta preparacion local. En una instalacion conjunta futura ejecutar 001 -> 002 -> 003 -> 004 -> 005, cada una con su preflight/verifier antes de continuar; 005 es el verifier compuesto final.
+Para ambientes todavia no actualizados: captura/backup recuperable y restore PASS antes de SQL, secuencia de expansion comprobada mediante preflight, autorizacion SQL separada, verifier, runtime/deployment y smoke como gates distintos. La instalacion conjunta sigue el orden 001 -> 002 -> 003 -> 004 -> 005, cada una con su preflight/verifier antes de continuar; 005 es el verifier compuesto final. En PROD esta secuencia ya se completo segun confirmacion del owner.
 
 Fallo antes de COMMIT revierte; despues conservar datos/recibos y aplicar forward-fix o mantener Calendar fuera de servicio hasta corregir. No hacer DROP, borrar progreso ni reotorgar RPCs antiguas como rollback. Volver solo al runtime anterior conserva datos pero NO restablece sync Calendar. El cursor v2 no utiliza ni sobrescribe el cursor legacy.
 
@@ -43,11 +43,11 @@ Proteger el estado persistente de Coffeecito al promover versiones completas de 
 
 Los contratos se identificaron en código y SQL locales. Esto no certifica por sí solo la paridad continua con DEV remoto. La baseline y sus controles automáticos viven en `cloud/supabase`; fueron validados sobre bases vacías desechables y aplicados en PROD, donde los verificadores estructural, de acceso, Google y reset/merge pasaron.
 
-## UX-DATE-01: candidato integrado; PROD pendiente
+## UX-DATE-01: integrado y validado en PROD
 
-El owner confirma migrations/verifiers 001/002 y smoke funcional PASS en DEV, cerrado después en paused con Data API OFF. PROD no tiene estos cambios. Esa evidencia es reportada por el owner, no una nueva inspección remota de esta integración.
+El owner confirma migrations/verifiers 001/002 y smoke funcional PASS en DEV, cerrado después en paused con Data API OFF. Las migrations/verifiers 001/002 y el smoke PROD pasaron posteriormente según confirmación del owner; no se realizó una nueva inspección remota en este cierre documental.
 
-`PROD CONTRACT CHANGE` autorizado para implementación local. `202611040001_networking_history_policy_v1.sql` agrega singleton global M (1–12, default 6), revisión, RPCs de lectura/administración y guarda DB de inicio inmutable. No transforma datos. Puede rechazar nuevos ciclos antiguos que el runtime anterior admitía; fechas legacy conocidas no se reescriben. Configuración legacy desconocida sigue permitiendo su inicio real una vez.
+`PROD CONTRACT CHANGE` integrado y validado en PROD según el owner. `202611040001_networking_history_policy_v1.sql` agrega singleton global M (1–12, default 6), revisión, RPCs de lectura/administración y guarda DB de inicio inmutable. No transforma datos. Puede rechazar nuevos ciclos antiguos que el runtime anterior admitía; fechas legacy conocidas no se reescriben. Configuración legacy desconocida sigue permitiendo su inicio real una vez.
 
 `202611040002_history_import_context_v1.sql` exige el cuerpo exacto de los writers ICS/Google antes del primer DDL. Añade wrappers históricos con contexto de ciclo/política y un wrapper periódico sin ventana; revoca EXECUTE cliente de las entradas antiguas. Reutiliza todo el writer ICS salvo su gate civil UTC antiguo y no reemplaza el núcleo Google. Conserva ownership, RLS, ACL internas, validación, scopes y search_path vacío. Sin excepciones legacy personales; la ventana móvil no altera cursores ni fechas persistidas. No garantiza que un cliente manipulado declare correctamente el modo Google: el owner aprobó regular las operaciones históricas y preservar incremental, sin ampliar a verificación de procedencia.
 
@@ -59,7 +59,7 @@ Tras 002, el runtime anterior falla al escribir Google/ICS: no es un rollback fu
 
 La guarda de inicio rechaza fechas infinitas tanto en INSERT como en UPDATE, incluida configuración legacy. La migration 001 bloquea escritores de ciclos durante su comprobación de datos previos y la instalación de la guarda; ante incompatibilidad falla sin reparación. Los verifiers certifican estructura exacta del singleton, constraints/FK validados, owner, ACL (incluidas columnas y helpers privados), firmas, cuerpos y propiedades de seguridad. Un PASS no sustituye el drenaje operativo ni el smoke del runtime.
 
-Los verificadores antiguos de EXECUTE V1 y límite ICS legacy quedan superados solo para esos contratos por los nuevos verifiers. No reejecutar migrations previas ni forzar verificadores obsoletos. Pruebas locales aisladas no certifican drift remoto, Review/Apply real ni el futuro release conjunto Beta UX V1.
+Los verificadores antiguos de EXECUTE V1 y límite ICS legacy quedan superados solo para esos contratos por los nuevos verifiers. No reejecutar migrations previas ni forzar verificadores obsoletos. Las pruebas locales aisladas no certificaban drift remoto ni Review/Apply real; el release Beta UX V1 y su smoke PROD fueron confirmados posteriormente por el owner.
 
 ## Qué se promueve y qué permanece
 

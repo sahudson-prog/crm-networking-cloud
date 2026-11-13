@@ -30,6 +30,7 @@ Este archivo contiene solo instrucciones transversales para trabajar en este rep
 ## Validación
 
 - Validar proporcionalmente al riesgo y alcance del cambio.
+- Codex no debe solicitar ni proponer pruebas visuales en navegadores externos a su entorno integrado.
 - Ejecutar primero la validación más específica y barata relacionada con el cambio.
 - Ampliar a `npm run typecheck`, tests más amplios o `npm run build` cuando el alcance o riesgo lo justifique.
 - Si no se puede ejecutar una validación importante, reportarlo claramente junto con el riesgo residual.

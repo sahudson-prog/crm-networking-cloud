@@ -1,12 +1,12 @@
-# CRM Networking
+# Coffeecito
 
-CRM Networking es una aplicación para ordenar y accionar una búsqueda profesional basada en red de contactos. Ayuda al usuario a centralizar contactos, objetivos, interacciones, referidos y sugerencias de seguimiento en un solo lugar.
+Coffeecito es una aplicación para ordenar y accionar una búsqueda profesional basada en red de contactos. Ayuda al usuario a centralizar contactos, objetivos, interacciones, referidos y sugerencias de seguimiento en un solo lugar.
 
 El producto busca convertir información dispersa, como contactos, correos, citas y notas, en una vista operativa: a quién contactar, qué conversaciones ya ocurrieron, qué seguimiento corresponde hacer y qué oportunidades o referidos aparecieron durante el proceso.
 
 ## Propósito
 
-El propósito de CRM Networking es ayudar a una persona en búsqueda profesional activa a gestionar su networking con continuidad y foco.
+El propósito de Coffeecito es ayudar a una persona en búsqueda profesional activa a gestionar su networking con continuidad y foco.
 
 La aplicación permite:
 
@@ -32,19 +32,18 @@ Los roles administrativos, perfiles beta, permisos internos o planes comerciales
 
 ## Producto vigente
 
-La experiencia normal visible del usuario se organiza actualmente en tres áreas principales:
+La experiencia privada integrada se organiza en cinco vistas: Inicio (`/`), Producir (`/registrar-avances`), Planificar (`/planificar`), Contactos (`/contactos`) y Objetivos (`/objetivos`). La navegación persistente muestra Inicio, Producir, Planificar y Más; este menú abre Contactos, Objetivos y el tutorial. Cuenta y las superficies administrativas autorizadas se abren desde el header. `/dashboard` permanece como ruta profunda compatible.
 
-- Contactos.
-- Objetivos.
-- Cuenta.
+- **Inicio:** «Información y novedades» (BF-12), pirámide de avance y evolución de contactos Coffeecitados en bloques independientes. El feed editorial usa contenido público configurado del lado servidor y muestra un estado de respaldo si falta la fuente.
+- **Producir:** estados de networking, tablero de Oportunidades y últimas interacciones.
+- **Planificar:** progreso de Prioridades y último contacto con empresas headhunter, con tablas ordenables.
+- **Contactos:** tabla y tablero de personas, tabla Empresas (BF-11) y Referidos; las empresas se agrupan según los contactos filtrados, con conteo, Estado más avanzado y Última interacción.
+- **Objetivos:** ciclo de búsqueda profesional y gestión de Prioridades.
+- **Cuenta:** perfil, configuración, importación de datos, preferencias de actualización, servicios conectados y sesión.
 
-Contactos permite operar la base de personas y es la página principal autenticada tanto en `/` como en `/contactos`. Objetivos permite declarar prioridades profesionales y vincularlas a contactos. Cuenta concentra perfil, servicios conectados, permisos e importaciones. El Dashboard sigue implementado en `/dashboard` y disponible por acceso directo para desarrollo y revisión, pero está temporalmente oculto de la navegación normal.
+El shell ofrece búsqueda global para abrir fichas de contactos y un solo panel visual de filtros. La búsqueda global no modifica indicadores. Los filtros conservan efectos distintos: en Contactos afectan personas y Empresas, no Referidos; en Producir afectan Estados de networking, no Oportunidades ni Últimas interacciones; en Planificar Foco=Sí es obligatorio, Headhunter/Prioridades afectan los resúmenes y el texto solo empresas. En las demás vistas el panel explica que no se aplican. BF-06B tiene selector Headhunter propio. No hay una semántica única de filtro para todos los bloques.
 
-La aplicación también incluye capacidades administrativas restringidas para operar la beta, mantener parámetros, revisar logs de sincronización y gestionar maestros globales necesarios para el funcionamiento del producto.
-
-La aplicación actual funciona como producto cloud con autenticación de usuario y acceso cerrado por invitación. La entrada visible principal es Google login con scopes mínimos de identidad, manteniendo magic link por email como alternativa técnica. Tener una sesión activa no basta para entrar: la app valida el acceso efectivo antes de mostrar la experiencia privada.
-
-Google también es el proveedor conectado disponible hoy para lectura e importación/sincronización de contactos, correos y citas. Google login y Google Connected Account son intents distintos: entrar con Google no conecta datos Google. Otros proveedores no forman parte del alcance vigente.
+La aplicación funciona como producto cloud con autenticación y control de acceso. Google login usa scopes de identidad y no conecta datos Google; Connected Account requiere consentimiento separado. El usuario conserva el control de operaciones de importación o actualización según los gates de cada flujo.
 
 ## Gestión de contactos
 
@@ -52,7 +51,7 @@ La sección Contactos permite buscar, filtrar, revisar y actualizar la base de c
 
 El usuario puede:
 
-- buscar contactos con un buscador universal;
+- buscar y filtrar personas dentro de Contactos; la búsqueda global del shell abre una ficha sin filtrar indicadores;
 - filtrar por foco networking;
 - filtrar por marca headhunter;
 - filtrar por estado de networking;
@@ -64,7 +63,8 @@ El usuario puede:
 - abrir la ficha individual de un contacto;
 - revisar contactos en un tablero por estado;
 - mover contactos entre estados;
-- agrupar contactos headhunter por empresa cuando corresponde.
+- agrupar contactos headhunter por empresa cuando corresponde;
+- seleccionar una o varias filas de BF-11 Empresas para restringir la tabla de personas dentro de sus filtros vigentes.
 
 Las acciones masivas permiten cambiar marcas o estados sobre los contactos seleccionados. También permiten asociar objetivos a varios contactos al mismo tiempo.
 
@@ -89,7 +89,7 @@ Durante el ciclo activo, el usuario puede crear, editar, activar, desactivar, ar
 
 Un contacto puede estar asociado a uno o más objetivos. Esto permite filtrar contactos por objetivos y construir indicadores sobre el avance de la búsqueda profesional.
 
-El Dashboard muestra un resumen por objetivo según los filtros actuales. Ese resumen permite ver, entre otros datos, cuántos contactos están asociados, cuánta actividad existe, cuándo fue la última actividad y cuál es el mayor estado observado dentro del objetivo.
+Planificar muestra progreso por Prioridad según los filtros aplicables, con oportunidades, cafés y contactos; la tabla de empresas headhunter presenta el último contacto. Estas tablas se ordenan por valores de datos, no por texto formateado.
 
 Por defecto, el producto prioriza la lectura operativa de objetivos vigentes. Las vistas avanzadas de gestión, scoring o análisis estratégico por objetivo no forman parte del alcance funcional actual.
 
@@ -97,13 +97,13 @@ Por defecto, el producto prioriza la lectura operativa de objetivos vigentes. La
 
 Las interacciones representan actividad relevante con contactos: correos, citas, reuniones, llamadas, mensajes o registros manuales, según esté disponible en la aplicación.
 
-El usuario puede ver interacciones desde el Dashboard y desde la ficha de cada contacto. En la ficha individual, las interacciones aparecen como historial asociado al contacto.
+El usuario puede ver últimas interacciones en Producir y el historial asociado en cada ficha de contacto.
 
-La aplicación permite importar correos y citas desde el proveedor conectado vigente. Antes de guardar cambios, el usuario revisa una vista previa de resultados, con elementos nuevos, modificados u omitidos cuando corresponde.
+La importación histórica de correos y citas conserva flujos de revisión cuando están habilitados por sus gates; Gmail está deshabilitado en el runtime público y la importación Calendar histórica no se ofrece actualmente en Cuenta. Calendar V2 es una actualización global independiente de esa importación histórica.
 
-En el candidato local UX-DATE-01, el único inicio configurable visible es el del ciclo en Objetivos, inmutable después de crearlo. Los nuevos ciclos admiten hasta M meses atrás (default 6, administrable entre 1 y 12). Los legacy sin fecha permiten completar su inicio real una vez. Las importaciones históricas requieren ciclo activo e inicio conocido y usan el máximo entre ese inicio y el día local de hoy menos M meses calendario. No se borran interacciones anteriores ni se cambia el sync periódico. Este contrato todavía requiere cutover DEV/PROD; la clave anterior permanece internamente por compatibilidad, sin editor visible.
+La política UX-DATE-01 integrada usa el inicio del ciclo en Objetivos. Los ciclos nuevos admiten el horizonte histórico configurado (default 6 meses, administrable entre 1 y 12); un ciclo legacy sin fecha permite completar su inicio real una vez. La importación histórica requiere ciclo activo e inicio conocido. El sync periódico conserva su contrato independiente.
 
-La actualización de actividad puede ejecutarse de manera global para contactos en foco o desde la ficha de un contacto específico. La actualización desde una ficha se acota al contexto de ese contacto.
+La actualización global se inicia desde el control y popup Sync existente. Calendar V2 se ejecuta únicamente mediante Actualizar global, en un flujo manual admin-only independiente de Gmail, con elegibilidad y consentimiento propios. La ficha ofrece una actualización contextual de datos de Google Contacts, separada del Sync Calendar V2. Abrir una vista o el popup no ejecuta Sync. La verificación focal de Calendar posterior a UI-STRUCT-02 sigue pendiente, sin invalidar el release Calendar ya aprobado.
 
 ## Referidos
 
@@ -113,13 +113,13 @@ Un referido puede contener datos propios, como nombre, empresa, cargo, correo, t
 
 El referido no reemplaza automáticamente la información del contacto vinculado. Sirve para conservar el apunte recibido y permitir que el usuario decida cómo convertirlo en contacto gestionable dentro del CRM.
 
-En el Dashboard se muestran referidos según los filtros actuales, permitiendo revisar oportunidades o personas recomendadas dentro del proceso de networking.
+Referidos se muestra en Contactos como bloque propio; los filtros superiores de personas/Empresas no lo restringen.
 
 ## Coach
 
 El Coach presenta sugerencias accionables para ayudar al usuario a avanzar su networking.
 
-Actualmente puede mostrar sugerencias asociadas a contactos o al Dashboard general. Las sugerencias pueden seleccionarse, ejecutarse o descartarse. También pueden agruparse o revisarse de manera individual cuando existen varias recomendaciones similares.
+El shell ofrece Coach global expandido y la ficha presenta sugerencias contextuales del contacto. Las sugerencias pueden seleccionarse, ejecutarse o descartarse, según las acciones disponibles y confirmaciones del usuario. El Coach del tutorial guía el recorrido, sin ejecutar sugerencias de negocio.
 
 Las sugerencias se presentan con lenguaje de acción, por ejemplo cambios de estado o marcas relevantes para el seguimiento. Cuando corresponde, incluyen acceso al contacto relacionado.
 
@@ -135,10 +135,10 @@ Desde Cuenta el usuario puede:
 - revisar servicios conectados;
 - conectar o desvincular Google;
 - ver permisos disponibles para contactos, correos y calendario;
-- editar nombre y situación profesional; el inicio del proceso se establece en Objetivos, no en Cuenta (candidato UX-DATE-01);
-- importar contactos;
-- importar correos;
-- importar citas de calendario;
+- editar nombre y situación profesional; el inicio del proceso se establece en Objetivos, no en Cuenta;
+- abrir el mismo modal de «Importar contactos» que Contactos y tutorial: archivo `.vcf` para todos los perfiles elegibles, Google Contacts solo cuando sus permisos efectivos lo habilitan;
+- seleccionar correos históricos de Gmail cuando esa capacidad está habilitada;
+- gestionar la opción de Citas, cuyo importador `.ics` permanece condicionado por su feature gate;
 - revisar datos antes de guardarlos;
 - reiniciar sus datos personales dentro de la aplicación.
 
@@ -146,7 +146,7 @@ La desvinculación de un servicio conectado corta la conexión en la aplicación
 
 El reinicio de datos personales borra el espacio de trabajo del usuario dentro de la app, incluyendo contactos, interacciones, objetivos, sugerencias, conexiones, logs y configuración personal. No borra por sí solo el usuario ni su plan.
 
-Las importaciones desde Cuenta son acciones sensibles porque pueden traer o actualizar datos desde una fuente externa. Por eso el producto muestra una revisión previa antes de guardar cambios relevantes.
+La pestaña de archivo del modal abre el selector nativo desde «Subir archivo»; un archivo válido pasa al preview, selección y confirmación antes de aplicar contactos. Cancelar el selector no cambia datos. El método Google reutiliza su gate y preview. Importar manualmente contactos y actualizar mediante Sync son acciones distintas; el modal no ejecuta Sync global. En Cuenta y tutorial permanecen las categorías Contactos, Citas y Correos, incluso si alguna acción está disponible solo como placeholder o bajo gate.
 
 El login Google sirve para autenticar identidad con scopes mínimos. La conexión Google para datos requiere consentimiento explícito posterior y scopes de lectura de Contacts, Gmail o Calendar.
 

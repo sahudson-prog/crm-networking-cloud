@@ -1,4 +1,7 @@
-# UI-STRUCT-02 y BF-12: operación y revisión local
+# UI-STRUCT-02 y BF-12: operación y revisión
+
+PR #54 integró UI-STRUCT-02 y BF-12 en `main` (`657e37d7d3e984d884204cb80e4f02534014151d`). Según el owner, Vercel Production y el smoke PROD pasaron; `COFFEECITO_EDITORIAL_CSV_URL` quedó configurada en Production. No hubo migrations nuevas. Los apartados que describen `localhost:3002` y la configuración DEV registran la validación histórica del candidato, no el estado operativo actual de PROD. La limitación de Escape con foco dentro del iframe editorial sigue aceptada para este release.
+
 
 ## Alcance implementado
 
@@ -37,7 +40,7 @@ Límites: respuesta 512 KiB, 500 filas, 64.000 bytes por HTML, 80.000 caracteres
 8. Reiniciar o desplegar solo el runtime autorizado si cambió la variable. Las posteriores ediciones de filas no requieren deployment, sujetas a caché/publicación.
 9. Revisar 0/1/N slides, error, vigencia, enlaces y legibilidad en mobile. No declarar el feed conectado hasta completar esa comprobación con la URL real.
 
-**Requisito futuro de configuración PROD:** requiere aprobación separada de cutover. No hay cambio SQL, migración, RLS, Auth ni transformación de datos. Compatible con ausencia de variable; rollback editorial: retirar la variable y volver al respaldo o desactivar filas, según autorización. No requiere backup/mantenimiento de DB por esta configuración; conservar una copia editorial antes de modificar la hoja. No se ha aplicado ningún cambio PROD.
+**Estado PROD de PR #54:** el owner confirma que la variable server-only se configuró en Vercel Production y el smoke PROD pasó. No hubo cambio SQL, migration, RLS, Auth ni transformación de datos en este release. La ausencia de variable conserva el estado de respaldo; cualquier retirada o edición posterior de la fuente requiere su autorización operativa. Conservar una copia editorial antes de modificar la hoja.
 
 ## Contenido permitido y reglas para generar slides con IA
 
@@ -75,7 +78,7 @@ Añadir `--real-editorial` únicamente con el runtime candidato y la fuente púb
 
 Pruebas sintéticas: `tests/editorial.test.ts`, `tests/structuralViews.test.mjs`, `tests/onboarding.test.ts`, `tests/coachShell.test.ts`, `tests/local/shell-browser.mjs` y el modo UI_STRUCT_ONLY de `tests/local/status-boards-browser.cjs`. El harness local del shell usa datos ficticios, Edge limpio, rutas interceptadas y transporte Supabase nulo; un enlace HTTPS explícito se simula sin conectarse. No sustituye el smoke autenticado.
 
-Smoke manual en el candidato `http://localhost:3002`:
+Recorrido histórico de smoke del candidato DEV `http://localhost:3002` (no es una instrucción para ejecutar pruebas sin solicitud explícita):
 
 1. Inicio → Producir → Planificar → Más/Contactos → Más/Objetivos; comprobar títulos, bloques, barra activa, contexto y volver atrás.
 2. Buscar un contacto sintético y abrir ficha; abrir/cerrar filtros y verificar la explicación de alcance real. Cambiar BF-06B entre Todos/Sí/No sin alterar la pirámide.
@@ -135,4 +138,4 @@ No se han modificado ActivitySyncButton, coordinador Calendar, OAuth, permisos, 
 - `cloud/web/tests/structuralViews.test.mjs`
 - `docs/UI_STRUCT_02_BF12.md`
 
-Validación local: 119 tests focales PASS; refuerzo posterior de enlaces codificados 7/7 PASS; typecheck y build Webpack aislado PASS. Smoke del shell/BF-12 sintético PASS en 1440/768/390/375/320. BF-11/tableros: smoke sintético UI_STRUCT_ONLY PASS. Sin smoke remoto ejecutado.
+Validación local: 119 tests focales PASS; refuerzo posterior de enlaces codificados 7/7 PASS; typecheck y build Webpack aislado PASS. Smoke del shell/BF-12 sintético PASS en 1440/768/390/375/320. BF-11/tableros: smoke sintético UI_STRUCT_ONLY PASS. El smoke PROD fue confirmado PASS posteriormente por el owner; la verificación focal de Calendar tras los cambios UI permanece pendiente.

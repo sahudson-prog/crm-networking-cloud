@@ -29,7 +29,9 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
-- Último PR integrado y última release de producto completada: Beta UX V1, PR #50, SHA `d71bd96b5d5a00c2058b73a1ed0e7ea7f1304d8d`. OBJ-02 (PR #47 producto y #48 documentación) permanece completada como release anterior; PR #46 cerró sin merge.
+- Último PR integrado y última release de producto completada: UI-STRUCT-02, PR #54, SHA `657e37d7d3e984d884204cb80e4f02534014151d`. El owner confirma Vercel Production success y smoke PROD PASS; los bugs menores observados no bloquean este cierre y no tienen tarea contratada. OBJ-02 y Beta UX V1 conservan sus cierres anteriores.
+- Calendar V2 independiente se integró antes de UI-STRUCT; UI-STRUCT-01 y UI-STRUCT-02 están completados. BF-12 y el modal único de importación de contactos están desplegados. La verificación focal de Calendar posterior a los cambios de UI sigue pendiente; no reabre el release Calendar aprobado.
+- El owner confirma backup PROD `obj02-pr47-20261112-182947Z` y restore local aislado PASS para este cutover. UI-STRUCT-02 no agregó migrations ni cambió contratos persistentes. Canonical `main` quedó sincronizado y limpio en el SHA de PR #54.
 - Para OBJ-02, el owner confirmó las siete migrations y sus verificadores PROD PASS, backup lógico y restauración local aislada PASS, Vercel Production Ready/Current para `4f28f46c2c817f5c6ca23572605bcf44f1000421` y smoke PROD PASS el 2026-11-02. OBJ-02 quedó COMPLETED operacionalmente según esa confirmación. El estado GitHub Vercel de ese SHA fue `success`; no se verificó directamente en Vercel que siguiera siendo Current.
 - Al cierre documental de OBJ-02, canonical `main` y `origin/main` quedaron alineados y limpios en `37f41606a51a33186ee79059dad45f58d524fcd5`. El baseline de trabajo posterior figura en el checkpoint activo.
 - Beta UX V1 integra BRAND-BETA-01, UX-ONB-COPY-01 y UX-DATE-01. El owner confirma en PROD migrations/verifiers `202611040001` y `202611040002` PASS, backup lógico `20261105-150016Z` con restauración local aislada PASS, Vercel Production Ready/Current, smoke PROD PASS, gate `open` y Data API ON. DEV permanece operativo en `test_only` con Data API ON. Estas son confirmaciones del owner, no verificaciones remotas de este checkpoint.
@@ -44,7 +46,7 @@ Prompt de recuperación copy/paste-safe:
 - `SYNC-INC-01` cerrado: PR #29 integrado, Vercel Production success y smoke funcional PROD PASS.
 - Al cierre de SYNC-INC-01, el límite histórico era de 12 meses para importaciones históricas; una `Fecha_Inicio_Networking` antigua ya no bloqueaba el sync periódico. Beta UX V1 sustituyó ese límite histórico por la política global de UX-DATE-01, sin cambiar el contrato del sync periódico.
 - `SEC-DEV-01`: reconciliación de grants y funciones de validación verificada en DEV; verificadores SQL y smoke de lectura PASS. No hubo cambios PROD.
-- `SEC-GOOGLE-01`: expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. Calendar PROD continúa con persistencia no declarada PASS y diagnóstico diferido. El contract permanece separado en `NO-GO`, sin autorización nueva en INV-01.
+- `SEC-GOOGLE-01` (estado histórico al cierre de esa iniciativa, anterior a Calendar V2): expand/runtime integrados y desplegados. El riesgo de una operación ya autorizada que persiste después de un deny mientras espera un lock fue aceptado y diferido para la cohorte inicial; no está corregido. En aquel checkpoint, la persistencia Calendar PROD no estaba declarada PASS y su diagnóstico quedó diferido; el contract permanecía separado en `NO-GO`, sin autorización nueva en INV-01. Para el estado vigente de Calendar V2 y UI-STRUCT-02, véase el checkpoint actual arriba.
 
 - INV-01 cerrado: PR #39 y PR #40 integrados; release b5f37cf78254de556bfe5f66d50c2fce5f515676; SQL 202610250001 y 202610250002 aplicadas y verificadas en PROD; smoke real de invitación y registro PASS. El invitado queda free/user sin Google Sync. PROD conserva ambos controles en false y capacidad 10; DEV conserva ambos controles en false. La retención operacional de PII sigue pendiente.
 
@@ -57,15 +59,15 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint de tarea activa
 
-- Current phase: Beta UX V1 `COMPLETED`; checkpoint documental post-release en `codex/beta-ux-v1-closeout`, basado en `d71bd96b5d5a00c2058b73a1ed0e7ea7f1304d8d`.
-- Confirmado por el owner: PR #50 integrado, SQL/verifiers 001/002 PROD PASS, backup `20261105-150016Z` y restauración aislada PASS, Vercel Production Ready/Current, smoke PROD PASS y gate PROD `open` con Data API ON. DEV conserva `test_only` y Data API ON.
-- Verificado localmente: canonical `main` limpio, sincronizado con `origin/main` en el SHA integrado; migrations y verifiers presentes. No se repitieron pruebas, SQL, backups ni despliegues en este cierre.
-- Pendiente de cobertura: Google histórico/periódico E2E no certificado. QA-UX-01 es siguiente en el orden aprobado, pero sigue `NOT CONTRACTED / DECISION REQUIRED`; no se inicia por cerrar Beta UX V1.
-- Immediate next action: decisión explícita del owner sobre contratar QA-UX-01 y sus gates; no hay nueva implementación autorizada por este checkpoint.
+- Current phase: UI-STRUCT-02 `COMPLETED` operacionalmente según el owner; PR #54 integrado en `657e37d7d3e984d884204cb80e4f02534014151d`.
+- Completado: Calendar V2 independiente previo; UI-STRUCT-01 y UI-STRUCT-02; BF-12 y modal de importación de contactos. El owner confirma Vercel Production success, backup PROD `obj02-pr47-20261112-182947Z`, restore local aislado PASS y smoke PROD PASS. No hubo migrations nuevas en este release.
+- Verificado localmente después del release: canonical `main = origin/main = 657e37d7d3e984d884204cb80e4f02534014151d`, working tree limpio y archivos integrados presentes. Esta documentación se prepara en un worktree separado; no cambia el canonical.
+- Pendiente: verificación focal de Calendar después de los cambios UI. Bugs menores de UI observados por el owner son no bloqueantes y no están contratados; no se detallan ni se corrigen en el cierre documental. La cobertura histórica Google E2E conserva su estado previo.
+- Immediate next action: revisión del cierre documental y decisión separada sobre la verificación focal Calendar o una iniciativa posterior. El release UI-STRUCT-02 no autoriza implementar esas tareas.
 
 ## Pipeline confirmado
 
-`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED) → `Beta UX V1` (COMPLETED) → `QA-UX-01` (siguiente en orden, NOT CONTRACTED).
+`OPS-LOCAL-01` → `REL-01` → `ONB-01` → `INV-01` (COMPLETED) → `OBJ-02` (COMPLETED) → `Beta UX V1` (COMPLETED). Calendar V2 independiente, UI-STRUCT-01 y UI-STRUCT-02 se integraron después. `QA-UX-01` conserva su estado `NOT CONTRACTED`; este cierre no lo declara completado ni altera el resto del backlog.
 
 Orden de preparación beta aprobado: `BRAND-BETA-01` → `UX-ONB-COPY-01` → `UX-DATE-01` → `QA-UX-01` → `UX-SAVE-01` → `UX-COPY-01` → resto del backlog. Las tres primeras se integraron en Beta UX V1. El orden no contrata las restantes ni desplaza gates de seguridad, privacidad y operación.
 
