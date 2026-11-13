@@ -1,10 +1,10 @@
 # Ingestión y sincronización
 
-## Candidato Calendar independiente, validado en DEV
+## Calendar V2 independiente: integrado y validado en PROD
 
-SQL 001-005 y smoke post-005 PASS en DEV confirmados por el owner, incluido admin-only; PROD sigue pendiente. Calendar requiere `system_admin` vigente y capabilities efectivas; no modifica el login Google ni habilita Gmail/Contacts. Un clic en Actualizar completa automaticamente paginas y lotes: no divide el trabajo en tandas que exijan nuevos clics. Reconectar, recargar y navegar no ejecutan sync.
+Calendar V2 independiente, migrations 001-005 y sus verificaciones fueron integrados, desplegados y validados en PROD según confirmación del owner; el smoke post-005 y admin-only ya habían pasado en DEV. Calendar requiere `system_admin` vigente y capabilities efectivas; no modifica el login Google ni habilita Gmail/Contacts. Un clic en Actualizar completa automaticamente paginas y lotes: no divide el trabajo en tandas que exijan nuevos clics. Reconectar, recargar y navegar no ejecutan sync.
 
-005 instalado en DEV cierra las escrituras Calendar por rutas legacy periodic/history. Su wrapper solo admite Gmail/email y comprueba la identidad persistida bajo locks antes de modificar datos. Calendar v2 usa el nucleo privado mediante discovery/reconciliacion, sin un flag de bypass. El frontend elimina el reconciliador v1 y su continuacion manual; los helpers SQL de 002 usados por v2 se conservan privados. Fuentes compartidas/aliases ambiguos producen STOP, sin inferir procedencia ni reparar datos. Cadena funcional promocionable 001-005; SQL multi-tester y herramientas QA son DEV-only y quedan fuera.
+005, instalado y verificado en DEV y PROD según el owner, cierra las escrituras Calendar por rutas legacy periodic/history. Su wrapper solo admite Gmail/email y comprueba la identidad persistida bajo locks antes de modificar datos. Calendar v2 usa el nucleo privado mediante discovery/reconciliacion, sin un flag de bypass. El frontend elimina el reconciliador v1 y su continuacion manual; los helpers SQL de 002 usados por v2 se conservan privados. Fuentes compartidas/aliases ambiguos producen STOP, sin inferir procedencia ni reparar datos. Cadena funcional instalada 001-005; SQL multi-tester y herramientas QA son DEV-only y quedan fuera.
 
 Se combinan cambios incrementales con una lectura de descubrimiento acotada -7/+30 por ejecucion. Solo nuevas citas exigen contactos activos en Foco y el limite legacy valido; no se amplia Historico. Una fuente vinculada puede actualizarse fuera de ventana o Foco. La lectura de ventana detecta cambios de elegibilidad locales y avance temporal aunque Google no haya modificado el evento. No se almacenan interacciones ajenas a ese alcance.
 
@@ -14,7 +14,7 @@ El estado v2 se aísla por usuario/cuenta/calendario y version. Leases renovable
 
 Las tablas nuevas no almacenan cuerpos de citas ni tokens OAuth. Los registros contienen hashes, IDs operacionales, cursor, conteos y tiempos, con acceso por RPC y cascadas de cuenta/fuente. Google transitorio puede devolver cambios fuera de ventana: se descartan si no corresponden a fuentes vinculadas o nuevas citas elegibles.
 
-Google Historico conserva Review/Apply. El contrato detallado de parametros, errores, permisos, compatibilidad y cutover vive en [Google](connectors/GOOGLE.md#candidato-local-calendar-independiente) y [PROD](PROD_CONTRACTS.md#calendar-independiente-preparacion-local-autorizada).
+Google Historico conserva Review/Apply. El contrato detallado de parametros, errores, permisos, compatibilidad y cutover vive en [Google](connectors/GOOGLE.md#calendar-v2-independiente-integrado-y-validado-en-prod) y [PROD](PROD_CONTRACTS.md#calendar-independiente-contrato-integrado-en-prod).
 
 ## Propósito
 
@@ -58,13 +58,13 @@ Este patrón no significa que exista un pipeline único universal. Contactos e i
 
 Contactos tienen una separación explícita entre cálculo de preview y aplicación. Interacciones también pueden usar preview, pero su continuidad principal se apoya en fuentes externas vinculadas a interacciones locales.
 
-## Ventana histórica UX-DATE-01 (candidato local)
+## Ventana histórica UX-DATE-01 (integrada y validada en PROD)
 
 Las nuevas operaciones históricas de Gmail/Calendar/ICS toman `current_user_history_window_v1()`: máximo entre inicio del ciclo activo y comienzo del día local de hoy menos M meses calendario, en zona IANA del ciclo (M global 1–12, default 6). Sin ciclo o inicio conocido se bloquean; no se restringen contactos. No se conserva un límite individual legacy más restrictivo ni se importa automáticamente.
 
 Review conserva contexto de ciclo, revisión de política y límite efectivo. Apply revalida en cliente y en SQL bajo bloqueo de ciclo y política. Cambios de ciclo, política o día efectivo exigen nueva revisión. ICS usa `apply_ics_import_v2` atómica por lote y compara instantes, no fechas UTC truncadas. Google usa `apply_google_history_v1` por ítem; un fallo posterior no revierte ítems anteriores pero impide avanzar cursor y permite revisión/reintento idempotente.
 
-`apply_google_periodic_v1` conserva el writer común, permisos, ownership y comportamiento periódico/incremental. No impone M ni exige ciclo. La clave legacy y las ventanas de recuperación siguen internas; no se alteran cursores. El contrato aprobado limita operaciones históricas, no certifica procedencia del lote frente a un cliente que invoque la operación periódica. Las RPC antiguas dejan de ser entradas cliente; requiere cutover coordinado según PROD_CONTRACTS, todavía no realizado.
+`apply_google_periodic_v1` conserva el writer común, permisos, ownership y comportamiento periódico/incremental. No impone M ni exige ciclo. La clave legacy y las ventanas de recuperación siguen internas; no se alteran cursores. El contrato aprobado limita operaciones históricas, no certifica procedencia del lote frente a un cliente que invoque la operación periódica. Las RPC antiguas dejan de ser entradas cliente; requirió cutover coordinado según PROD_CONTRACTS, completado en PROD según el owner.
 
 ## Sincronización de contactos
 

@@ -6,13 +6,13 @@ La UI vigente de CRM Networking cloud está construida en `cloud/web` con Next.j
 
 No existe un design system formal completo. Sí existe una base visual compartida con variables CSS, clases reutilizadas y algunas primitives React. La implementación combina patrones comunes con estilos específicos por módulo.
 
-La app usa una estética sobria: fondo gris claro, paneles blancos, bordes suaves, radio bajo, sombras contenidas, texto oscuro y acentos azules/verdes/rojos/naranjos según acción o estado.
+El shell privado integrado usa cabecera Cream, fondo general Warm White y bloques funcionales blancos. Los tokens CRM anteriores siguen presentes dentro de formularios, tablas y estados; la paleta de marca no sustituye automáticamente todos los colores funcionales. Predominan superficies simples, bordes discretos y contenedores sin tarjetas blancas anidadas innecesarias.
 
 El criterio visual permanente es un acabado premium y preciso, comparable en cuidado a Apple Human Interface Guidelines: proporciones, alineación, espaciado, tipografía e iconografía coherentes a tamaño real en desktop y móvil. Usar iconos profesionales de un mismo sistema para conjuntos relacionados; evitar trazados SVG improvisados, badges decorativos y controles desproporcionados. Validar visualmente los cambios en ambos tamaños antes de darlos por terminados.
 
 La fuente visual es Inter con fallback a fuentes del sistema.
 
-La iconografía compartida usa el set SVG lineal de `components/ui/Icon.tsx`. Los tres planes de `Mi objetivo` usan `BriefcaseBusiness`, `Handshake` y `Megaphone` de `lucide-react`, importados individualmente y con escala/trazo comunes; esta excepción no cambia los demás iconos de la app. `components/ui/ProviderIcon.tsx` contiene iconografía de proveedores presente en la UI; la existencia de un icono no implica que el conector correspondiente esté implementado.
+La iconografía combina `components/ui/Icon.tsx` (SVG lineal interno), importaciones individuales de `lucide-react` en el shell, bloques, tablas y planes, y `components/ui/ProviderIcon.tsx` para proveedores. En el menú del shell, los SVG miden 18 px y usan trazo 2; controles compactos del header usan 18 px. Conservar escala y grosor coherentes por contexto, sin asumir que todos los iconos provienen de una sola librería. Un icono de proveedor no implica conector implementado.
 
 ## Identidad de marca
 
@@ -59,29 +59,23 @@ La entrada no autenticada usa una composición centrada sobre una fotografía c�
 
 ## Tokens y estilos base
 
-`styles/tokens.css` define tokens reales para colores principales, superficies, bordes, texto, estados, radios y sombras.
+`app/globals.css` importa `styles/tokens.css`, `styles/components.css`, `styles/invitations.css`, `styles/tracking.css` y `styles/shell.css`. Los tokens reales de marca son `--brand-espresso`, `--brand-coffee`, `--brand-terracotta`, `--brand-apricot`, `--brand-cream` y `--brand-warm-white`, con los HEX de la paleta anterior. `shell.css` aplica Cream a la región completa de header, navegación y búsqueda/filtros; Warm White al fondo de las vistas privadas. Los bloques funcionales siguen blancos mediante `--crm-surface`.
 
-Los tokens de color reutilizados incluyen `--crm-bg`, `--crm-surface`, `--crm-border`, `--crm-text`, `--crm-muted`, `--crm-empty-value`, `--crm-primary`, `--crm-accent`, `--crm-positive`, `--crm-danger` y `--crm-warning`.
+También continúan los tokens funcionales `--crm-bg`, `--crm-surface`, `--crm-border`, `--crm-border-strong`, `--crm-text`, `--crm-muted`, `--crm-empty-value`, `--crm-primary`, `--crm-accent`, `--crm-positive`, `--crm-danger` y `--crm-warning`. No equivalen todos a la paleta de marca: por ejemplo, `--crm-bg` es `#f6f7fb`, `--crm-surface` es `#ffffff` y `--crm-primary` es `#111827`. Los estados de networking conservan sus colores y fondos suaves propios; no se recolorean como estados empresariales. `--crm-radius`, `--crm-radius-sm`, `--crm-section-gap`, `--crm-shadow-soft` y `--crm-shadow-panel` cubren radio, separación de secciones y sombras. No hay una escala completa de espaciado, tipografía o breakpoints tokenizada.
 
-Los estados de networking tienen colores y fondos suaves dedicados: Pendiente, Contactado, Agendado, Cita concretada y Agradecimiento enviado.
-
-Existen tokens de radio y sombra: `--crm-radius`, `--crm-radius-sm`, `--crm-shadow-soft` y `--crm-shadow-panel`.
-
-No se observó un sistema formal de spacing, tipografía, widths o breakpoints como tokens completos. Esos valores aparecen principalmente como reglas CSS repetidas o específicas de componente.
+La tipografía general sigue siendo Inter con fallback de sistema; Lato Heavy 900 se reserva al wordmark. El CTA de importación usa Espresso sólido; las tabs principales activas también. Las acciones secundarias del modal usan Warm White o Cream y bordes suaves. Los focos visibles del shell usan outline de `--crm-primary`; hover, foco, activo y deshabilitado se expresan según el componente. El filtro activo conserva una indicación animada que se desactiva con `prefers-reduced-motion: reduce`; no describirla como un color de marca oficial.
 
 ## Layout y navegación
 
-El shell principal vive en `components/Shell.tsx`. Usa `.app-shell` como contenedor centrado, con ancho máximo de 1220px y margen horizontal responsive.
+`ApplicationFrame` mantiene `AuthGate`; `Shell`, `ApplicationShellContent`, `WorkspaceProvider` y `ShellChrome` componen el shell privado persistente sin montar providers adicionales por vista. `WorkspaceNavigation` ofrece Inicio (`/`), Producir (`/registrar-avances`) y Planificar (`/planificar`), más un menú para Objetivos (`/objetivos`), Contactos (`/contactos`) y Tutorial. Desktop ubica la navegación en la región superior; mobile la fija abajo con safe area y destinos equivalentes. El header conserva marca, `ActivitySyncButton` y su popup existente, Coach global y menú Cuenta/Sistema según capability. `/dashboard` conserva compatibilidad como ruta profunda.
 
-La cabecera separa navegación principal y acciones secundarias. Contactos y Objetivos aparecen como navegación principal con texto e icono. Contactos es la página principal autenticada en `/` y conserva su ruta explícita `/contactos`. El candidato local Seguimiento reutiliza `/dashboard` y devuelve su enlace visible, sin cambiar los gates privados. A 320 px los tres enlaces principales compactan espaciado/tamaño sin añadir otra fila. Las utilidades se ordenan como Sistema, Sync y Cuenta, con Cuenta al extremo derecho; Sistema aparece solo cuando el usuario tiene al menos una capability administrativa efectiva para diagnóstico, gestión de accesos o maestros globales. Sync es un control compacto que abre un popover con una fila por servicio habilitado, freshness individual, errores o resultados transitorios y una única acción contextual; el header no expone esos textos de forma permanente.
+La búsqueda de `ShellToolbar` abre fichas de contactos; no filtra indicadores. El shell muestra un solo botón y panel visual de filtros. Contactos aplica Foco, Headhunter, Estado, Prioridades y texto a Contactos/Empresas, no a Referidos. Producir los aplica al bloque de Estados de networking, no a Oportunidades ni Últimas interacciones. Planificar conserva Foco=Sí obligatorio, Headhunter y Prioridades para resumen/empresas y texto solo para empresas; Estado aparece deshabilitado. En Inicio, Objetivos, Cuenta, Sistema y fichas, el catálogo se muestra deshabilitado con explicación. BF-06B mantiene su selector Headhunter independiente. Los estados internos de filtros se conservan por contexto; no hay un efecto global unificado sobre todos los bloques.
 
-Las vistas se organizan con `Panel`, grids y toolbars. El patrón visual más estable es panel blanco con borde, header compacto, título de 16px y contenido interno ordenado por grid o listas.
-
-Contactos y Seguimiento reutilizan `ContactFilterControls`: buscador, Foco, Headhunter y Más filtros. En Seguimiento, Foco permanece fijo en Sí por contrato; Prioridades conserva selección OR, y Agrupar Headhunters se ubica junto al selector temporal del gráfico. `Mi objetivo` reutiliza panel, campos y modal del sistema. La interfaz no muestra el historial de procesos.
+Los bloques usan `Panel` con título visible y superficie blanca; Inicio coloca el feed editorial y la pirámide lado a lado cuando hay espacio, con el gráfico de evolución debajo, y los apila en mobile. Evitar introducir bordes, cards internos o elementos decorativos adicionales sin una función clara.
 
 ## Primitives compartidas
 
-Seguimiento V1 local conserva la composición de `ReadOnlyDashboard`: búsqueda, filtros, bloque `¿Cómo voy?`, tabla `ObjectiveMetricsTable`, Últimas interacciones, Empresas headhunter y Contactos referidos. Un único Panel blanco contiene cinco niveles rectangulares compactos a la izquierda, con conversiones alineadas a su derecha, y `KpiLineChart` reutilizado a la derecha; se apilan solo cuando el espacio del panel es insuficiente. El gráfico usa doce posiciones temporales fijas sin carrusel ni línea: columnas azul oscuro/azul claro/verde apiladas para café con fecha de cita, café con fecha estimada y cita futura proyectada; total numérico encima de cada columna, período actual en negrita, leyenda debajo y toggle mensual/semanal arriba. El paso horizontal de las barras equivale aproximadamente a dos veces su ancho; no se muestra acumulado separado. La tabla conserva sus columnas y añade Oportunidades inmediatamente después de Prioridad. Las ayudas breves de números, conversiones y períodos admiten hover, foco y Escape. El snapshot se conserva durante refresh/error; las lecturas de detalle tienen error independiente y nunca sustituyen las métricas. La búsqueda explora los detalles, mientras Prioridades/HH gobiernan los indicadores según OBJ-02. La validación visual sintética no sustituye el smoke autenticado del owner.
+`ReadOnlyDashboard` y `ReadOnlyContacts` componen los bloques distribuidos por vista. Inicio presenta «Información y novedades» (BF-12), pirámide de avance y evolución de contactos; Producir reúne estados de networking, oportunidades y últimas interacciones; Planificar muestra resumen por prioridad y empresas headhunter; Contactos presenta personas, Empresas (BF-11) y Referidos; Objetivos conserva ciclo y Prioridades. `Panel`, tablas, tableros y timelines reutilizan sus primitives. La lectura de estado y detalle conserva contenido durante refresh/error cuando corresponde; las pruebas sintéticas no sustituyen el smoke autenticado.
 
 `Button` es la primitive principal para botones. Usa clase `.button`, tonos `primary`, `secondary`, `ghost`, `danger` y `positive`, variante cuadrada e iconos opcionales.
 
@@ -115,13 +109,13 @@ La tabla de contactos incluye selección por checkbox, orden por columnas visibl
 
 Las acciones masivas de contactos están agrupadas por tipo: Seleccionar, Foco, Headhunter, Estado y Objetivos. Usan botones de icono compactos y selectores.
 
-Las listas de interacciones usan `InteractionTimelineList`, basado en `details/summary`. Se conserva en la ficha de contacto, en Últimas interacciones de Seguimiento y otros consumidores de timeline.
+Las listas de interacciones usan `InteractionTimelineList`, basado en `details/summary`. Se conserva en fichas y en «Últimas interacciones» de Producir, además de otros consumidores.
 
-Objetivos usa bloques por tipo, filas seleccionables, acciones contextuales visibles al seleccionar y estrellas para prioridad.
+Objetivos usa bloques por tipo, filas seleccionables, acciones contextuales visibles al seleccionar y estrellas para prioridad. BF-07 y BF-09 en Planificar permiten ordenación ascendente/descendente por columnas de datos. BF-11 reutiliza convenciones de `ContactTable`: selección múltiple, Empresa, Contactos, Estado más avanzado y Última interacción, calculados sobre los contactos filtrados antes de seleccionar empresas.
 
 ## Dialogs y feedback
 
-La importación de contactos usa un único modal desde Contactos, Cuenta → Configuración y el paso Importar datos del tutorial. Si Google Contacts está habilitado por los permisos efectivos, ofrece «Desde archivo» y «Desde Google»; de lo contrario muestra solo el método de archivo. En «Desde archivo», «Subir archivo» abre el selector nativo y, tras elegir un `.vcf` válido, inicia la previsualización existente. La selección y confirmación preceden a cualquier aplicación; cancelar el selector conserva el modal y su estado. `VCardHelp` se despliega dentro del modal con instrucciones y enlaces de Google, iCloud, iPhone y Samsung, sin otro diálogo. Cuenta y tutorial conservan las categorías Contactos, Citas y Correos. El lector, las validaciones, los duplicados y la persistencia existentes permanecen en sus componentes.
+La importación de contactos usa un único `ContactImportDialog` desde Contactos, Cuenta → Configuración y el paso Importar datos del tutorial. Su caja estable apunta a 720 px de ancho, mínimo aproximado de 520 px y máximo de 85dvh; el contenido excedente desplaza el cuerpo interno, manteniendo fijo el footer. Si Google Contacts está habilitado por permisos efectivos, ofrece «Desde archivo» y «Desde Google»; en caso contrario solo archivo. «Subir archivo» abre el selector nativo y la elección de un `.vcf` válido inicia el preview existente; selección y confirmación preceden a aplicar cambios. Cancelar el selector conserva el modal. `VCardHelp` ofrece instrucciones de Google, iCloud, iPhone y Samsung en tabs secundarias; Cuenta y tutorial conservan Contactos, Citas y Correos. La superficie Warm White, CTA Espresso, bordes suaves y tabs de proveedor discretas evitan protagonismo secundario. El lector, validaciones, duplicados y persistencia permanecen en sus componentes.
 
 El patrón modal compartido usa `.modal-backdrop` y `.modal-card`, con header, cuerpo y footer de acciones. Los diálogos se adaptan por clases específicas como editor de contacto, editor de interacción, preview de sync o fusión de contactos.
 
@@ -133,7 +127,7 @@ El feedback aparece como texto inline, franja dentro de panel, mensaje de modal 
 
 ## Sync y fusión
 
-`SyncPreviewDialog` es el patrón visual principal para revisar cambios antes de aplicar. Muestra tabs, conteos, tarjetas seleccionables, descripción por sección, botón de edición de datos, footer con resumen de selección y progreso opcional.
+`SyncPreviewDialog` es el patrón visual de los flujos Review/Apply para revisar cambios antes de aplicar; el clic global de Calendar V2 ejecuta la operación completa sin este preview. Muestra tabs, conteos, tarjetas seleccionables, descripción por sección, botón de edición de datos, footer con resumen de selección y progreso opcional.
 
 La edición de datos dentro del preview reutiliza `ContactMergeDialog` y `ContactMergeWorkspace`. Visualmente compara fuentes, deja construir un resultante y vuelve al preview sin guardar hasta aplicar selección.
 
@@ -143,7 +137,7 @@ La lógica de matching, cursores, precedencia y persistencia no pertenece a este
 
 `CoachPreview` y `CoachModule` presentan sugerencias como burbujas compactas junto a una mascota visual. Permiten seleccionar sugerencias, ejecutar, descartar, buscar nuevas sugerencias y abrir configuración o historial. Suggestions y onboarding comparten un único frame visual para la mascota, la burbuja, su borde y su punta responsive; cada modo aporta únicamente su contenido y controles propios.
 
-En Seguimiento candidato el Coach no se monta; su código de sugerencias agrupadas/detalladas se conserva para otros usos. En ficha de contacto ocupa el ancho completo antes del grid principal y filtra al contacto actual.
+El shell muestra Coach global en un popover expandido con contador; en ficha puede presentar sugerencias contextuales filtradas al contacto actual. `WorkspaceProvider` refresca lecturas después de acciones del Coach. El tutorial reutiliza el modo `onboarding` sin ejecutar sugerencias automáticamente.
 
 Las burbujas usan `details/summary`, fecha visible, texto compacto, vínculos al contacto y checkbox externo. La semántica de reglas no pertenece a este documento.
 
@@ -159,17 +153,17 @@ Después de la introducción y antes de Objetivos, R1 incorpora `Tu punto de par
 
 Tras Objetivos, el recorrido muestra la importación real de contactos por vCard o Google y luego la vista de Contactos, incluso si la red está vacía. La ficha se muestra solo cuando existe un contacto; de otro modo se pasa al cierre. Contactos ofrece creación manual mediante el mismo editor tanto en la vista normal como durante el recorrido. El Coach aparece siempre a ancho completo antes del contenido; en pantallas estrechas la mascota queda sobre la burbuja. Las separaciones entre el Coach y los bloques principales del recorrido usan el token semántico `--crm-section-gap`. Completar el recorrido vuelve a Contactos y habilita el producto; salir de un replay vuelve a Contactos sin alterar `completed`. Cuenta conserva únicamente el reinicio de prueba en development.
 
-La navegación principal visible se ordena como Objetivos y Contactos. El link `Ver tutorial` vive en las utilidades del header y no aparece durante el recorrido. El header muestra junto a la acción de actualización global un estado compacto calculado desde el servicio habilitado menos reciente, además de ejecución, resultado transitorio o error accionable; esa acción aplica directamente la actividad elegible sin abrir preview. `Cerrar sesión` vive en una sección separada de Cuenta y no en el header.
+La navegación principal visible se ordena Inicio, Producir, Planificar y Más; el menú Más incluye Objetivos, Contactos y Tutorial. El header conserva la acción global de actualización con su flujo/popup Sync existente; navegar no la dispara. `Cerrar sesión` vive en Cuenta, no en el header.
 
-El candidato local Oportunidades V1 añade bajo Prioridades, solo en la vista normal de Objetivos, un Kanban de cuatro etapas con columnas gris, azul, morada y verde, y filtro Activas/Finalizadas/Todas (Activas por defecto). La píldora Finalizar abre un popover acotado a resultado de la etapa y Causa de cierre opcional; una finalizada conserva columna, muestra resultado y ofrece la píldora Restaurar en esa misma etapa. Contactos y Oportunidades comparten `StatusBoard`, `StatusBoardCard`, sus clases visuales y `useDeferredBoardSave`: imagen de arrastre, línea azul, placeholder punteado, movimiento optimista y guardado tras 1,6 segundos sin otro cambio. La línea indica el destino del drop; no introduce orden manual persistente entre tarjetas. Oportunidades ofrece cambio de etapa por arrastre o menú accesible de la tarjeta, sin selector visible permanente; exige resultado al finalizar y confirma versiones mediante la RPC versionada `save_opportunity_v2`. La lectura y el feedback compacto superior no desmontan el tablero. El ícono adapta la referencia aprobada de maletín con alas superpuestas, sin cambiar otros iconos. Usa un editor compartido desde el tablero o una Prioridad; la entrada desde ficha de contacto está diferida. Contactos usa búsqueda con selección múltiple, Interacciones depende de los contactos vinculados y advierte antes de retirar asociaciones incompatibles, y Prioridades reutiliza el selector de la ficha de Contactos. No añade navegación global ni modifica el tutorial. El owner confirmó smoke funcional y visual DEV satisfactorio; esta validación no implica promoción PROD.
+Oportunidades V1 se presenta en Producir mediante el tablero existente, con sus cuatro etapas, filtro, arrastre, menú de tarjeta y diálogos de cierre/restauración. Contactos conserva su tablero de estados, selección masiva y fichas. Estos bloques se movieron de vista sin alterar sus acciones ni crear accesos contextuales duplicados.
 
-Cuenta separa `Importar datos` de `Sincronización automática`. La importación manual o histórica se organiza en tres bloques compactos para Contactos, Citas y Correos; en desktop comparten una cuadrícula de tres columnas y en mobile se apilan. Las acciones usan botones de icono con nombre accesible y los proveedores mantienen logos, contenedores y alineación homogéneos. Google se autoriza desde la acción concreta de importar Contacts, seleccionar correos históricos o activar los toggles Gmail/Calendar; no existe un CTA principal separado para vincular el proveedor. El histórico Gmail se abre desde `Seleccionar correos` en un diálogo y permanece independiente del toggle. La sincronización automática agrupa bajo Google únicamente Calendar y Gmail, las capacidades reales vigentes; `.ics`, Apple Contacts y Microsoft Contacts se mantienen como opciones futuras.
+Cuenta separa `Importar datos` de `Sincronización automática`. La importación manual o histórica se organiza en tres bloques compactos para Contactos, Citas y Correos; en desktop comparten una cuadrícula de tres columnas y en mobile se apilan. Las acciones usan botones de icono con nombre accesible y los proveedores mantienen logos, contenedores y alineación homogéneos. Google se autoriza desde la acción concreta de importar Contacts, seleccionar correos históricos o activar los toggles Gmail/Calendar; no existe un CTA principal separado para vincular el proveedor. El histórico Gmail se abre desde `Seleccionar correos` en un diálogo y permanece independiente del toggle. La sincronización automática agrupa bajo Google las opciones Calendar y Gmail; Gmail permanece deshabilitado en el runtime público. `.ics`, Apple Contacts y Microsoft Contacts se mantienen como opciones futuras.
 
-El candidato local de Objetivos coordina ciclo, Prioridades y Oportunidades en una sola carga inicial; la lectura opcional de avisos no bloquea esa presentación. El tutorial conserva su Coach y no carga Oportunidades. Las relecturas posteriores mantienen el contenido montado: guardar una tarjeta no vuelve al estado inicial ni atenúa las demás. El toolbar existente muestra operaciones pendientes, éxito confirmado durante 1,8 segundos y errores persistentes con reintento de lectura. Un fallo de reconciliación conserva las tarjetas sin anunciar éxito ni interpretar el fallo como una lista vacía; el contexto y las versiones siguen validándose antes de escribir.
+Objetivos coordina ciclo y Prioridades en la vista vigente; Oportunidades se presenta en Producir. El tutorial conserva su Coach y sus gates. Las relecturas mantienen contenido montado cuando corresponde, sin tratar errores como listas vacías ni repetir escrituras al navegar.
 
 ## Responsive y accesibilidad observable
 
-El responsive se resuelve con media queries en `components.css`, principalmente en 780px, 760px, 920px y 1120px, más un container query para Coach compacto.
+El responsive combina media queries de `components.css` y `shell.css`, además de un container query del Coach. El shell cambia a navegación inferior a 760 px; la búsqueda y los botones compactos mantienen áreas táctiles y safe area.
 
 En ancho menor, grids principales pasan a una columna, la navegación secundaria se reacomoda, modales reducen ancho y algunas vistas mantienen scroll horizontal en tablas.
 
@@ -195,7 +189,7 @@ Los textos de ausencia de dato usan variantes como `sin datos`, `Sin empresa`, `
 
 ## Límites actuales
 
-No existe catálogo formal de componentes ni pruebas visuales automatizadas observadas.
+No existe catálogo formal de componentes. Sí hay harnesses focales de navegador y pruebas visuales sintéticas; la prueba autenticada DEV/PROD sigue siendo un gate distinto según `docs/TESTING.md`.
 
 No todos los botones usan `Button`; algunos componentes usan `button` directo por necesidades locales.
 

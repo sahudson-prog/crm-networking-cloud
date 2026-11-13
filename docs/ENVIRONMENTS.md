@@ -106,12 +106,9 @@ Pendiente:
 
 ### Turnstile DEV
 
-Confirmado operativamente:
+Google login DEV no depende de Turnstile. El estado actual de CAPTCHA/Turnstile en Supabase DEV no se verificó en este cierre documental; no se presume habilitado, deshabilitado ni restaurado. El owner debe confirmar si permanece alguna configuración temporal de prueba global al proyecto. Si permanece, restaurar la configuración DEV anterior requiere una operación manual autorizada y disponer de sus valores originales en el almacenamiento seguro del owner; no declarar restauración PASS sin comprobarla. No configurar excepciones de CAPTCHA para las pruebas visuales. Véase `TESTING.md` para los harnesses sintéticos y el smoke autenticado con posible login manual.
 
-- Turnstile no se configura en DEV por ahora.
-- Google login DEV no depende de Turnstile.
-
-Sin `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, el fallback por email queda deshabilitado explícitamente. No debe implementarse un bypass silencioso para simular CAPTCHA.
+Sin `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, el fallback por email del runtime queda deshabilitado explícitamente. No debe implementarse un bypass silencioso para simular CAPTCHA.
 
 ## PROD
 
@@ -225,6 +222,7 @@ Las variables `NEXT_PUBLIC_*` son visibles al navegador. No son secrets, pero un
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GOOGLE_OAUTH_CLIENT_ID`
+- `COFFEECITO_EDITORIAL_CSV_URL`: fuente CSV pública de BF-12, solo del servidor; configurada en Vercel Production según confirmación del owner para PR #54. Sin valor, el feed muestra su estado de respaldo. No se versiona la URL ni se expone con `NEXT_PUBLIC_`.
 
 `SUPABASE_SERVICE_ROLE_KEY` es secreto y nunca debe exponerse al cliente. El OAuth Client ID no es un secreto, pero este runtime lo mantiene server-only para validar la audiencia del token Google.
 

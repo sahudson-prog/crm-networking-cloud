@@ -156,6 +156,10 @@ La comprobación manual sigue siendo necesaria cuando el comportamiento depende 
 - Estados visuales responsivos desktop/mobile.
 - Operaciones destructivas o de alto impacto.
 
+## Pruebas visuales sintéticas
+
+`cloud/web/tests/local` contiene harnesses con componentes reales, fixtures sintéticos, red interceptada y capturas temporales fuera de Git. `shell-browser.mjs`, `contact-import-browser.cjs` y `status-boards-browser.cjs` son ejemplos. Utilizan Playwright para comprobar navegación, responsive desktop/tablet/mobile, transiciones, movimiento reducido y estados visuales; algunos permiten mediciones de rendimiento. Su cobertura sintética no certifica una sesión autenticada ni el funcionamiento real de DEV.
+
 ## Triage de incidentes funcionales
 
 Antes de ampliar una auditoría de código ante un fallo reproducible:
@@ -176,9 +180,8 @@ Hasta que exista CI, cada cambio relevante debe declarar qué validación se eje
 
 - No existe comando global `npm test`.
 - No existe lint script observado.
-- No existe suite E2E o de navegador observada.
-- No existe prueba visual automatizada observada.
+- Existen harnesses focales de navegador y pruebas visuales sintéticas; no constituyen una suite E2E general ni smoke autenticado DEV/PROD.
 - No existe reporte de cobertura observado.
-- No existe harness automatizado de SQL/RLS observado.
+- Existen harnesses locales PostgreSQL focales para SQL/RLS; no sustituyen los verificadores ni el smoke remotos.
 - `objectiveMetrics.test.ts` no aparece integrado en scripts npm.
 - No hay evidencia de CI activo.
