@@ -33,7 +33,7 @@
     "csv-parse": "^7.0.3",
     "ical.js": "^2.2.1",
     "lucide-react": "1.62.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "postcss": "^8.5.23",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

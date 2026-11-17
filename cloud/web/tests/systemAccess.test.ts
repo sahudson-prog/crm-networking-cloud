@@ -12,11 +12,11 @@ import type { CapabilityAccessState, CapabilityCode } from "../lib/accessControl
 import { filterDiagnosticTablesByAccess } from "../lib/dataDiagnosticsAccess.ts";
 
 test("usuario base conserva Cuenta y no ve Sistema", () => {
-  const shellSource = source("../components/Shell.tsx");
+  const shellSource = source("../components/ShellChrome.tsx");
 
   assert.equal(hasSystemSurfaceAccess([], "system"), false);
-  assert.match(shellSource, /showSystem \? \(/);
-  assert.match(shellSource, /href="\/cuenta"/);
+  assert.match(shellSource, /canRenderSystemSurface\(access,'system'\)\?/);
+  assert.match(shellSource, /aria-label="Cuenta"/);
 });
 
 test("diagnosticos habilita Sistema, Guia y Logs solamente", () => {

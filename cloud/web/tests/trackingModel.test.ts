@@ -25,7 +25,7 @@ test("current focus filters the eligible status; missing transitions do not inve
   const s = trackingFixture(); coffee(s, "i", "2026-10-01T12:00:00Z");
   assert.deepEqual(ready(s).counts.slice(0, 2), [1, 1]);
   s.contacts[0].networking_focus = false;
-  assert.deepEqual(ready(s).counts.slice(0, 3), [0, 0, 2]);
+  assert.deepEqual(ready(s).counts.slice(0, 3), [0, 0, 0]);
   s.contacts[0].networking_focus = true; assert.equal(ready(s).counts[1], 1);
   s.transitions = []; assert.equal(ready(s).counts[0], 1);
   assert.equal(ready(s).counts[1], 1);
@@ -94,11 +94,11 @@ test("local cancellation after counting updates the shared first date; a transit
   assert.equal(trackingPeriods(m, "monthly").periods.reduce((n, p) => n + (p?.blue ?? 0), 0), m.counts[1]);
 });
 
-test("PostgreSQL microsecond boundaries preserve exact cycle admission and past/future classification", () => {
+test("first coffee can precede cycle; microsecond past/future classification stays exact", () => {
   const s = trackingFixture(); s.transitions = []; s.cycle!.started_at = "2026-10-30T15:00:00.000500Z";
   s.as_of = "2026-10-30T16:00:00.000500Z";
   coffee(s, "before", "2026-10-30T15:00:00.000499Z");
-  assert.equal(ready(s).counts[1], 1); assert.equal(ready(s).blue.size, 0);
+  assert.equal(ready(s).counts[1], 1); assert.equal(ready(s).blue.size, 1);
   coffee(s, "edge", s.cycle!.started_at);
   coffee(s, "next", "2026-10-30T16:00:00.000501Z", "b");
   assert.deepEqual(ready(s).counts.slice(0, 2), [1, 1]);
@@ -107,9 +107,10 @@ test("PostgreSQL microsecond boundaries preserve exact cycle admission and past/
   assert.equal(ready(s).counts[1], 1);
   assert.equal(ready(s).green.size, 1);
 });
-test("new cycle exact lower bound excludes global history and future events before start", () => {
+test("new cycle does not replace the globally attributed first coffee", () => {
   const s = trackingFixture(); s.cycle!.started_at = "2026-10-30T15:00:00Z";
   coffee(s, "old", "2026-10-30T14:59:59Z"); coffee(s, "edge", "2026-10-30T15:00:00Z", "b", "call");
+  assert.equal(ready(s).blue.get("person:a"), Date.parse("2026-10-30T14:59:59Z"));
   assert.deepEqual(ready(s).counts.slice(0, 2), [1, 1]);
 });
 test("canonical HH grouping after filters, multidomain once; ambiguous remains individual", () => {
@@ -131,17 +132,18 @@ test("HH opportunity filtering uses linked focused HH only, not company, groupin
   assert.equal(ready(s, { ...defaults, headhunters: "exclude" }).counts[2], 1);
   s.contacts[0].networking_focus = false;
   assert.equal(ready(s, { ...defaults, headhunters: "only" }).counts[2], 0);
-  assert.equal(ready(s, { ...defaults, headhunters: "exclude" }).counts[2], 2);
+  assert.equal(ready(s, { ...defaults, headhunters: "exclude" }).counts[2], 1);
 });
 test("priority union and table share eligibility; active per-row counts cannot be summed globally", () => {
   const s = trackingFixture(); coffee(s, "x", "2026-10-01T12:00:00Z");
   const m = ready(s, { ...defaults, priorityIds: ["p", "q"] });
-  assert.deepEqual(m.counts, [1, 1, 2, 2, 1]);
+  assert.deepEqual(m.counts, [1, 1, 1, 1, 0]);
   assert.deepEqual(m.priorities.map(p => [p.opportunityCount, p.coffeeCount]), [[1, 1], [1, 1]]);
   assert.equal(ready(s, { ...defaults, priorityIds: ["p"] }).counts[2], 1);
 });
 test("current stages/results, finalized and voided; reopening/correction does not use history", () => {
-  const s = trackingFixture(); assert.deepEqual(ready(s).counts.slice(2), [2, 2, 1]);
+  const s = trackingFixture(); s.opportunities[1].contact_ids=["a"];
+  assert.deepEqual(ready(s).counts.slice(2), [2, 2, 1]);
   s.opportunities[1] = { ...s.opportunities[1], stage: "applied", situation: "active", result: null };
   assert.deepEqual(ready(s).counts.slice(2), [1, 1, 0]);
 });
@@ -149,6 +151,7 @@ test("ratios preserve null denominator and values above 100 percent", () => {
   const s = trackingFixture(); s.contacts[0].networking_status = "Pendiente"; s.transitions = [];
   assert.equal(ready(s).ratios[1], null);
   s.contacts[0].networking_status = "Cita concretada";
+  s.opportunities[1].contact_ids=["a"];
   coffee(s, "x", "2026-10-01T12:00:00Z"); assert.equal(ready(s).ratios[1], 200);
 });
 test("weekly Monday and monthly day one respect IANA, DST and UTC date boundary", () => {

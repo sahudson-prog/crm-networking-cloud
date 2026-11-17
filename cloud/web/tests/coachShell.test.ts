@@ -61,15 +61,17 @@ test("Seguimiento no monta Coach; su implementación agrupada y detallada sigue 
 test("la ruta histórica conserva el gate compartido y el contenido de Inicio", () => {
   const frame = source("../components/ApplicationFrame.tsx");
   assert.match(frame, /'\/dashboard'/);
-  assert.match(frame, /<AuthGate><Shell>\{children\}<\/Shell><\/AuthGate>/);
+  assert.match(frame, /<AuthGate publicLanding=\{path==='\/'\?<PublicLanding\/>:undefined\}><Shell>\{children\}<\/Shell><\/AuthGate>/);
   assert.match(source("../app/dashboard/page.tsx"), /<HomeView/);
 });
 
 test("el shell compartido conserva marca, Sync existente y gate efectivo de Sistema", () => {
   const shell = source("../components/ShellChrome.tsx");
-  assert.match(shell, /href="\/" aria-label=\{BRAND_ACCESSIBLE_NAME\}/);
-  assert.match(shell, /src="\/brand\/coffeecito-isotipo\.svg"/);
-  assert.match(shell, /<BrandBetaWordmark\s*\//);
+  const header = source("../components/ShellHeader.tsx");
+  assert.match(shell, /<ShellHeader actions=/);
+  assert.match(header, /href="\/" aria-label=\{BRAND_ACCESSIBLE_NAME\}/);
+  assert.match(header, /src="\/brand\/coffeecito-isotipo\.svg"/);
+  assert.match(header, /<BrandBetaWordmark\s*\//);
   assert.equal(shell.match(/<ActivitySyncButton/g)?.length, 1);
   assert.match(shell, /canRenderSystemSurface\(access,'system'\)/);
   assert.match(shell, /onSignOut\?\.\(\)/);

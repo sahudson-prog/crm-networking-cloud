@@ -1,0 +1,45 @@
+.public-landing { position: relative; isolation: isolate; min-height: 100dvh; color: var(--brand-espresso); padding: 24px 32px 20px; }
+.public-landing > .auth-landing-background { z-index: -1; }
+.landing-inner { width: min(100%, 1280px); margin-inline: auto; }
+.public-landing-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.public-landing-brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-coffeecito-wordmark), Lato, sans-serif; font-size: 32px; font-weight: 900; line-height: 1; }
+.public-landing-brand > img { width: 48px; height: 48px; object-fit: contain; }
+.public-landing .landing-enter { background: var(--brand-espresso); border-color: var(--brand-espresso); color: var(--brand-warm-white); min-height: 44px; padding-inline: 24px; text-decoration: none; }
+.landing-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; padding-block: 56px 52px; }
+.landing-proposal h1 { font-size: 56px; line-height: 1.08; letter-spacing: 0; margin: 0; font-weight: 800; }
+.landing-proposal h1 span { color: var(--brand-terracotta); }
+.landing-description { font-size: 20px; line-height: 1.5; margin: 24px 0 30px; color: var(--brand-coffee); }
+.landing-invitation { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.public-landing .landing-cta { min-height: 52px; padding: 12px 20px; font-size: 17px; font-weight: 700; background: var(--brand-coffee); border-color: var(--brand-coffee); color: var(--brand-warm-white); text-decoration: none; }
+.landing-invitation p { flex: 1 1 150px; margin: 0; padding-left: 20px; border-left: 1px solid var(--brand-apricot); font-size: 14px; line-height: 1.5; color: var(--brand-coffee); }
+.landing-product-viewport { min-width: 0; width: 100%; aspect-ratio: 1280 / 700; }
+.landing-product-viewport:focus-visible { outline: 2px solid var(--crm-accent); outline-offset: 5px; }
+.landing-product-swiper { height: 100%; width: 100%; }
+.landing-product-swiper img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.landing-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.landing-features article { padding: 24px; border: 1px solid var(--crm-border); border-radius: var(--crm-radius); background: var(--brand-warm-white); box-shadow: var(--crm-shadow-panel); }
+.landing-features img { display: block; margin-bottom: 16px; }
+.landing-features h2 { font-size: 23px; line-height: 1.2; margin: 0 0 12px; letter-spacing: 0; }
+.landing-features p { font-size: 17px; line-height: 1.5; margin: 0; color: var(--brand-coffee); }
+.landing-footer { margin-top: 28px; }
+@media (min-width: 1400px) { .landing-proposal h1 { font-size: 60px; } }
+@media (max-width: 1050px) { .landing-proposal h1 { font-size: 44px; } .landing-hero { gap: 32px; } .landing-features h2 { font-size: 20px; } }
+@media (max-width: 760px) {
+  .public-landing { padding: 20px; }
+  .public-landing-brand { font-size: 26px; gap: 6px; }
+  .public-landing-brand > img { width: 38px; height: 38px; }
+  .landing-hero { grid-template-columns: minmax(0, 1fr); padding-block: 36px; gap: 28px; }
+  .landing-proposal h1 { font-size: 40px; }
+  .landing-description { font-size: 18px; margin-block: 20px 24px; }
+  .landing-features { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .landing-features article { padding: 22px; }
+}
+@media (max-width: 380px) {
+  .public-landing { padding-inline: 16px; }
+  .public-landing-brand { font-size: 23px; }
+  .public-landing-brand > img { width: 32px; height: 32px; }
+  .public-landing .landing-enter { padding-inline: 12px; }
+  .landing-proposal h1 { font-size: 36px; }
+  .landing-invitation { gap: 16px; }
+  .landing-invitation p { border: 0; padding: 0; }
+}

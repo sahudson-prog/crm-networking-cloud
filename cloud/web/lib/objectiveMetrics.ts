@@ -1,4 +1,5 @@
 import type { ContactRow, InteractionParticipantRow, InteractionRow, ObjectivePriority, ObjectiveRow, ObjectiveType } from "./readModel";
+import { selectNetworkingContacts } from "./networkingScope.ts";
 
 export type ObjectiveMetricRow = {
   objectiveId: string;
@@ -64,8 +65,7 @@ export function buildObjectiveMetrics(input: ObjectiveMetricInput): ObjectiveMet
   );
   const objectiveIdsByContact = new Map<string, Set<string>>();
 
-  for (const contact of input.contacts) {
-    if (!contact.is_active) continue;
+  for (const contact of selectNetworkingContacts(input.contacts)) {
     const assignedObjectiveIds = new Set(
       (contact.contact_objective_assignments ?? [])
         .map((assignment) => assignment.objective_id)

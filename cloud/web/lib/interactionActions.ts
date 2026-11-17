@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision";
 import { withDismissedInteractionMetadata } from "./interactionState";
 import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
 import type { InteractionRow } from "./readModel";
@@ -99,6 +100,7 @@ export async function saveInteractionFromEditor(input: InteractionEditorInput) {
     }
 
     if (!interactionId) throw new Error("No pude determinar el ID de la interaccion.");
+    notifyNetworkingDataChanged();
     const after = await readInteractionSnapshot(userId, interactionId);
     await supabase.from("audit_log").insert({
       user_id: userId,
@@ -189,6 +191,7 @@ export async function dismissInteraction(interactionId: string, input: {
       deleteReason: input.reason || "user_deleted_from_interaction_editor",
       preventReimport: Boolean(input.preventReimport)
     });
+    notifyNetworkingDataChanged();
 
     const after = await readInteractionSnapshot(userId, interactionId);
     await supabase.from("audit_log").insert({

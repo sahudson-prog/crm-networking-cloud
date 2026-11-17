@@ -69,7 +69,6 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
           setDraft(normalized);
           setSaved(normalized);
           setErrors({});
-          onReadyChange?.(true);
         })
         .catch((error) => {
           if (!active) return;
@@ -82,6 +81,10 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
         active = false;
       };
     }, [onReadyChange, reloadKey]);
+
+    useEffect(() => {
+      onReadyChange?.(!loading && !loadError && !saving && (!requireComplete || Object.keys(validateStartingPoint(draft)).length === 0));
+    }, [draft, loading, loadError, saving, requireComplete, onReadyChange]);
 
     async function save() {
       if (loading || saving || loadError) return false;
@@ -134,7 +137,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
       <div className={`starting-point-fields mode-${mode}`} aria-busy={loading || saving}>
         <div className="starting-point-field-grid">
           <label className="field starting-point-field">
-            <span>¿Cómo te llamamos?</span>
+            <span>¿Cómo te llamas?</span>
             <input
               autoComplete="name"
               disabled={loading || saving}
@@ -148,7 +151,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
           </label>
 
           <label className="field starting-point-field">
-            <span>¿Cuál es tu situación profesional?</span>
+            <span>Situación profesional</span>
             <select
               disabled={loading || saving}
               value={draft.professionalSituationCode}

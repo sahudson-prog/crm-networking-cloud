@@ -1,7 +1,7 @@
 
 export const PROFESSIONAL_SITUATION_OPTIONS = [
-  { code: "employed", label: "Con empleo" },
-  { code: "unemployed", label: "Sin empleo" },
+  { code: "employed", label: "Dependiente" },
+  { code: "unemployed", label: "En búsqueda activa" },
   { code: "independent", label: "Independiente / emprendiendo" },
   { code: "studying", label: "Estudiando" },
   { code: "other", label: "Otra situación" },

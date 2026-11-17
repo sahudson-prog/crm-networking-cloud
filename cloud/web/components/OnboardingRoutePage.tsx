@@ -1,107 +1,136 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { readContactListRows, readContactProfile } from "../lib/cloudData";
-import {
-  ONBOARDING_FLOW,
-  onboardingRouteNavigation,
-  type OnboardingRouteId,
-  type OnboardingStep
-} from "../lib/onboarding";
-import type { ContactListRow, ContactProfileData } from "../lib/readModel";
-import { AccountPage } from "./AccountPage";
+import { readContactListRows } from "../lib/cloudData";
+import { currentOnboardingStep, type OnboardingRouteId, type OnboardingStep } from "../lib/onboarding";
+import type { ContactListRow } from "../lib/readModel";
 import { AuthGate } from "./AuthGate";
 import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 import { CoachModule } from "./CoachPreview";
-import { ContactProfile } from "./ContactProfile";
-import { ObjectivesPage } from "./ObjectivesPage";
+import { ContactTable } from "./ContactTable";
+import { NetworkingCyclePanel } from "./NetworkingCyclePanel";
+import { OnboardingPriorities } from "./OnboardingPriorities";
 import { OnboardingIntroSlides } from "./OnboardingIntroSlides";
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
-import { ReadOnlyContacts } from "./ReadOnlyContacts";
 import { Shell } from "./Shell";
+import { ShellHeader } from "./ShellHeader";
 import { StartingPointFields, type StartingPointFieldsHandle } from "./StartingPointFields";
 import { Button } from "./ui/Button";
 
+export const GUIDED_COPY = {
+  objectives: "Cuéntame quién eres y qué buscas: tu nombre, en qué punto está tu carrera hoy, y crea tu primer objetivo con los cafés: el cargo, la industria o el tipo de empresa que priorizarás. Con uno basta para partir, después sumas más.",
+  google: "Partamos con lo más fácil: agrega a la persona que te invitó a Coffeecito. Después suma 2 o 3 contactos más que quieras tener presentes en tu búsqueda.",
+  contacts: "Este es tu tablero: acá vive tu red. Arrastra tu contacto a 'Contactado' y mira cómo funciona.",
+  success: '¡Eso! Así se mueve tu red. Tu networking ya partió 🎉 Aprieta "Empezar" y sigamos con los próximos pasos.'
+};
+const guidedSteps = ["objectives", "google", "contacts"] as const;
+const stepNames = ["Tu objetivo", "Carga tu red", "Tu tablero"];
+
 export function OnboardingRoutePage({ routeId }: { routeId: OnboardingRouteId }) {
-  return (
-    <AuthGate>
-      {routeId === "intro" ? (
-        <OnboardingProvider>
-          <OnboardingRouteContent routeId={routeId} />
-        </OnboardingProvider>
-      ) : (
-        <Shell>
-          <OnboardingRouteContent routeId={routeId} />
-        </Shell>
-      )}
-    </AuthGate>
-  );
+  return <AuthGate>{routeId === "intro" ? <OnboardingProvider><OnboardingRouteContent routeId={routeId} /></OnboardingProvider>
+    : <Shell><OnboardingRouteContent routeId={routeId} /></Shell>}</AuthGate>;
 }
 
 function OnboardingRouteContent({ routeId }: { routeId: OnboardingRouteId }) {
   const onboarding = useOnboarding();
-
-  if (onboarding.loadFailed) {
-    return (
-      <section className="onboarding-route onboarding-route-gate" role="alert">
-        <p>{onboarding.error}</p>
-        <Button onClick={onboarding.retry}>Reintentar</Button>
-      </section>
-    );
-  }
-
-  if (onboarding.loading || !onboarding.routeReady) {
-    return <p className="onboarding-route-loading" role="status">Preparando tu tutorial...</p>;
-  }
-
+  if (onboarding.loadFailed) return <section className="onboarding-route onboarding-route-gate" role="alert">
+    <p>{onboarding.error}</p><Button onClick={onboarding.retry}>Reintentar</Button></section>;
+  if (onboarding.loading || !onboarding.routeReady) return <p className="onboarding-route-loading" role="status">Preparando tu tutorial...</p>;
   if (routeId === "intro") return <OnboardingIntro />;
-  if (routeId === "starting_point") return <OnboardingStartingPointStep />;
-  if (routeId === "objectives") return <OnboardingObjectivesStep />;
-  if (routeId === "contacts") return <OnboardingContactsStep />;
-  if (routeId === "contact") return <OnboardingContactStep />;
-  if (routeId === "google") return <OnboardingGoogleStep />;
-  return <OnboardingFinalStep />;
+  const step = currentOnboardingStep(routeId);
+  return step === "objectives" ? <OnboardingObjectiveStep /> : <OnboardingNetworkStep key={step} step={step === "google" ? "google" : "contacts"} />;
 }
 
-function OnboardingStartingPointStep() {
+export function OnboardingFrame({ step, children, ready, busy = false, message, onNext }: {
+  step: "objectives" | "google" | "contacts"; children: ReactNode; ready: boolean; busy?: boolean; message: string; onNext: () => void;
+}) {
   const onboarding = useOnboarding();
-  const fieldsRef = useRef<StartingPointFieldsHandle>(null);
-  const [ready, setReady] = useState(false);
+  const index = guidedSteps.indexOf(step);
+  const disabled = busy || onboarding.completing;
+  return <main className="app-shell application-shell-v2 onboarding-guided">
+    <div className="shell-top-region onboarding-guided-top">
+        <ShellHeader linkedBrand={false} />
+        <div className="onboarding-tracker">
+          <strong>Paso {index + 1} de 3 · {stepNames[index]}</strong>
+          <ol aria-label="Avance del tour">{stepNames.map((name, position) => <li key={name} aria-label={name} aria-current={position === index ? "step" : undefined} className={position < index ? "complete" : position === index ? "current" : "pending"} />)}</ol>
+          <Button tone="ghost" disabled={disabled} icon="arrowRight" onClick={() => void onboarding.skip()}>Saltar el tour</Button>
+        </div>
+    </div>
+    <div className="onboarding-guided-body">
+      <CoachModule mode="onboarding"><p>{message}</p></CoachModule>
+      {children}
+      <OnboardingError />
+      <nav className="onboarding-bottom-navigation" aria-label="Navegación del tour">
+        <div>{index > 0 ? <Button disabled={disabled} icon="arrowLeft" onClick={() => void onboarding.moveTo(guidedSteps[index - 1] as OnboardingStep)}>Anterior</Button> : null}</div>
+        <Button disabled={disabled || !ready} tone="primary" icon={index === 2 ? "check" : "arrowRight"} onClick={onNext}>
+          {disabled ? "Guardando..." : index === 2 ? "Empezar!" : "Siguiente"}
+        </Button>
+      </nav>
+    </div>
+  </main>;
+}
+
+function OnboardingObjectiveStep() {
+  const onboarding = useOnboarding();
+  const fields = useRef<StartingPointFieldsHandle>(null);
+  const [profileReady, setProfileReady] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  async function continueToObjectives() {
-    if (onboarding.replaying) {
-      await onboarding.moveTo("objectives");
-      return;
-    }
-    if (!(await fieldsRef.current?.save())) return;
-    await onboarding.moveTo("objectives");
+  const [cycleReady, setCycleReady] = useState(false);
+  const [priorityReady, setPriorityReady] = useState(false);
+  const [priorityBusy, setPriorityBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  async function next() {
+    if (saving || priorityBusy || !cycleReady || !priorityReady) return;
+    setSaving(true);
+    try { if (await fields.current?.save()) await onboarding.moveTo("google"); }
+    finally { setSaving(false); }
   }
-
-  return (
-    <section className="onboarding-route starting-point-step" aria-labelledby="starting-point-step-title">
-      <OnboardingCoach
-        nextDisabled={!ready || saving}
-        nextLabel={saving ? "Guardando..." : "Siguiente"}
-        onNext={() => void continueToObjectives()}
-        routeId="starting_point"
-        title="Cuéntame de ti."
-      >
-        <p id="starting-point-step-title">
-          ¿Cómo te llamas y cuál es tu situación profesional? Con estos datos podremos personalizar tu experiencia.
-          Puedes actualizarlos después en Cuenta.
-        </p>
-      </OnboardingCoach>
-      <StartingPointFields
-        mode="onboarding"
-        onReadyChange={setReady}
-        onSavingChange={setSaving}
-        ref={fieldsRef}
-        requireComplete={!onboarding.replaying}
-        showSaveAction={onboarding.replaying}
-      />
+  return <OnboardingFrame step="objectives" message={GUIDED_COPY.objectives} ready={profileReady && cycleReady && priorityReady} busy={saving || priorityBusy} onNext={() => void next()}>
+    <section className="panel onboarding-objective-content">
+      <StartingPointFields mode="onboarding" ref={fields} onReadyChange={setProfileReady} requireComplete showSaveAction={false} />
+      <NetworkingCyclePanel title="Tu objetivo" mode="onboarding" onReadyChange={setCycleReady} onCycleChange={() => setRevision(v => v + 1)} />
+      {cycleReady ? <OnboardingPriorities key={revision} onReadyChange={setPriorityReady} onBusyChange={setPriorityBusy} /> : null}
     </section>
-  );
+  </OnboardingFrame>;
+}
+
+function OnboardingNetworkStep({ step }: { step: "google" | "contacts" }) {
+  const onboarding = useOnboarding();
+  const [contacts, setContacts] = useState<ContactListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [progressError, setProgressError] = useState("");
+  const exercise = Boolean(onboarding.state.boardExerciseCompleted);
+  const reload = useCallback(async () => {
+    setError("");
+    try { setContacts(await readContactListRows()); }
+    catch { setError("No pudimos leer tus contactos. Reintenta antes de continuar."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  async function saveExercise() {
+    setProgressError("");
+    setBusy(true);
+    try { await onboarding.confirmBoardExercise(); }
+    catch { setProgressError("El contacto quedó guardado, pero no tu avance. Reintenta sin moverlo otra vez."); }
+    finally { setBusy(false); }
+  }
+  async function onStatusSaved(change: { previous: string; next: string }) {
+    if (change.previous !== "Pendiente" || change.next !== "Contactado") return;
+    setConfirmed(true);
+    await saveExercise();
+  }
+  return <OnboardingFrame step={step} message={step === "contacts" && exercise ? GUIDED_COPY.success : GUIDED_COPY[step]}
+    ready={!loading && !error && (step === "google" ? contacts.length > 0 : exercise)} busy={busy}
+    onNext={() => void (step === "google" ? onboarding.moveTo("contacts") : onboarding.complete())}>
+    {loading ? <p role="status">Leyendo contactos...</p> : null}
+    {error ? <p role="alert">{error} <Button onClick={() => void reload()}>Reintentar</Button></p> : null}
+    {!loading ? <ContactTable contacts={contacts} view={step === "google" ? "contacts" : "states"} tutorial={step === "google" ? "list" : "board"}
+      onReload={reload} onStatusSaved={onStatusSaved} onBusyChange={setBusy} /> : null}
+    {progressError && confirmed ? <p role="alert">{progressError} <Button disabled={busy} onClick={() => void saveExercise()}>Reintentar</Button></p> : null}
+  </OnboardingFrame>;
 }
 
 function OnboardingIntro() {
@@ -131,219 +160,6 @@ function OnboardingIntro() {
         <OnboardingError />
       </section>
     </main>
-  );
-}
-
-function OnboardingObjectivesStep() {
-  const onboarding = useOnboarding();
-  const [cycleReady, setCycleReady] = useState(false);
-  const onCycleReadyChange = useCallback((ready: boolean) => setCycleReady(ready), []);
-  return (
-    <ObjectivesPage
-      onCycleReadyChange={onCycleReadyChange}
-      onboardingCoach={(
-        <OnboardingCoach routeId="objectives" title="Define tu objetivo y tus prioridades."
-          nextDisabled={!onboarding.replaying && !cycleReady}>
-          <p>
-            Define tu objetivo de networking y establece las prioridades que te interesa perseguir. Esto te ayudará a
-            enfocar tus conversaciones y encontrar oportunidades que tengan sentido para ti.
-          </p>
-        </OnboardingCoach>
-      )}
-    />
-  );
-}
-
-function OnboardingContactsStep() {
-  const onboarding = useOnboarding();
-  const [contactsResolved, setContactsResolved] = useState(false);
-  const [firstContactId, setFirstContactId] = useState("");
-
-  const handleContactsResolved = useCallback((contacts: ContactListRow[]) => {
-    setFirstContactId(contacts[0]?.id ?? "");
-    setContactsResolved(true);
-  }, []);
-
-  function continueFromContacts() {
-    void onboarding.moveTo(firstContactId ? "contact" : "final");
-  }
-
-  return (
-    <ReadOnlyContacts
-      beforeList={(
-        <OnboardingCoach
-          nextDisabled={!contactsResolved}
-          onNext={continueFromContacts}
-          routeId="contacts"
-          title="Tu red, organizada a tu manera."
-        >
-          <p>
-            Aquí administras tus contactos: eliges a quiénes poner en foco para hacer networking, actualizas su estado
-            de avance y marcas a los headhunters para agruparlos por consultora.
-          </p>
-        </OnboardingCoach>
-      )}
-      onContactsResolved={handleContactsResolved}
-    />
-  );
-}
-
-function OnboardingContactStep() {
-  const onboarding = useOnboarding();
-  const [profile, setProfile] = useState<ContactProfileData | null>(null);
-  const [contactId, setContactId] = useState("");
-  const [error, setError] = useState("");
-
-  const loadProfile = useCallback(async (id: string) => {
-    const nextProfile = await readContactProfile(id);
-    setProfile(nextProfile);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    async function loadFirstContact() {
-      try {
-        const contacts = await readContactListRows();
-        if (!active) return;
-        const firstContact = contacts[0];
-        if (!firstContact) {
-          void onboarding.moveTo("final");
-          return;
-        }
-        setContactId(firstContact.id);
-        const nextProfile = await readContactProfile(firstContact.id);
-        if (active) {
-          if (nextProfile) setProfile(nextProfile);
-          else void onboarding.moveTo("final");
-        }
-      } catch (loadError) {
-        if (active) setError(loadError instanceof Error ? loadError.message : "No pudimos leer el contacto.");
-      }
-    }
-    void loadFirstContact();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const coach = (
-    <OnboardingCoach nextDisabled={!profile} routeId="contact" title="La historia de cada contacto.">
-      <p>
-        Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas,
-        con notas y minutas. También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red.
-      </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-    </OnboardingCoach>
-  );
-
-  if (!profile) {
-    return <section className="onboarding-route onboarding-contact-loading">{coach}</section>;
-  }
-
-  return (
-    <ContactProfile
-      onboardingCoach={coach}
-      onReload={() => void loadProfile(contactId)}
-      profile={profile}
-    />
-  );
-}
-
-function OnboardingGoogleStep() {
-  return (
-    <div className="onboarding-google-step">
-      <OnboardingCoach routeId="google" title="Comienza con tus contactos.">
-        <p>Empieza importando tus contactos y, después, incorpora las interacciones que hayas tenido con ellos desde que comenzaste tu plan.</p>
-        <p>No necesitas hacerlo todo ahora: puedes volver cuando quieras desde <strong>Cuenta → Configuración</strong>.</p>
-      </OnboardingCoach>
-      <AccountPage view="google-onboarding" />
-    </div>
-  );
-}
-
-function OnboardingFinalStep() {
-  const onboarding = useOnboarding();
-
-  async function goBack() {
-    try {
-      const contacts = await readContactListRows();
-      void onboarding.moveTo(contacts.length ? "contact" : "contacts");
-    } catch {
-      void onboarding.moveTo("contacts");
-    }
-  }
-
-  return (
-    <section className="onboarding-route">
-      <OnboardingCoach nextLabel="Ir a Contactos" onBack={goBack} routeId="final" title="Ya puedes empezar.">
-        <p>
-          Ahora ya conoces las funciones básicas para avanzar. Yo te acompañaré con sugerencias para mantener tu red
-          ordenada y al día.
-        </p>
-      </OnboardingCoach>
-    </section>
-  );
-}
-
-function OnboardingCoach({
-  children,
-  nextDisabled = false,
-  nextLabel,
-  onBack,
-  onNext,
-  routeId,
-  title
-}: {
-  children: ReactNode;
-  nextDisabled?: boolean;
-  nextLabel?: string;
-  onBack?: () => void;
-  onNext?: () => void;
-  routeId: OnboardingStep;
-  title: string;
-}) {
-  const onboarding = useOnboarding();
-  const navigation = onboardingRouteNavigation(routeId);
-  const stepIndex = ONBOARDING_FLOW.findIndex((entry) => entry.id === routeId);
-
-  function goBack() {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (!navigation.back || navigation.back === "intro") {
-      onboarding.openIntro();
-      return;
-    }
-    void onboarding.moveTo(navigation.back);
-  }
-
-  function goNext() {
-    if (onNext) {
-      onNext();
-      return;
-    }
-    if (!navigation.next) {
-      void onboarding.complete();
-      return;
-    }
-    void onboarding.moveTo(navigation.next as OnboardingStep);
-  }
-
-  return (
-    <CoachModule
-      mode="onboarding"
-      nextDisabled={nextDisabled || (routeId === "final" && onboarding.completing)}
-      nextLabel={nextLabel ?? (navigation.next ? "Siguiente" : "Finalizar")}
-      onBack={routeId === "starting_point" && !onboarding.replaying ? undefined : goBack}
-      onExit={onboarding.replaying ? () => void onboarding.exit(routeId) : undefined}
-      onNext={goNext}
-      progress={`Paso ${stepIndex} de ${ONBOARDING_FLOW.length - 1}`}
-      title={title}
-    >
-      {children}
-      <OnboardingError />
-    </CoachModule>
   );
 }
 

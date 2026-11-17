@@ -25,12 +25,13 @@ const futurePlans: Array<{ code: FutureNetworkingPlan; label: string }> = [
   { code: "PERSONAL_BRAND", label: "Posicionamiento o marca personal" }
 ];
 
-export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingChange, title = "Mi objetivo", className = "" }: {
+export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingChange, title = "Mi objetivo", className = "", mode = "standard" }: {
   onReadyChange?: (ready: boolean) => void;
   onCycleChange?: () => void;
   onLoadingChange?: (loading: boolean) => void;
   title?: string;
   className?: string;
+  mode?: "standard" | "onboarding";
 }) {
   const [cycles, setCycles] = useState<NetworkingCycle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,33 +270,33 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
               <span>Inicio: {formatDate(active.started_at, active.timezone_name)}</span>
             </div>
           ) : <p>{hasHistory ? "Tu búsqueda anterior terminó. Puedes comenzar otra cuando quieras." : "Organiza tu búsqueda laboral en un proceso."}</p>}
-          <div className="networking-plan-actions">
+          {(!active?.started_at || mode !== "onboarding") ? <div className="networking-plan-actions">
             {active?.started_at ? (
               <Button className="networking-process-action" disabled={working || stale} onClick={openClose}>Finalizar proceso</Button>
             ) : (
               <Button className="networking-process-action" disabled={working || stale || loading} onClick={openCreate} tone="primary">Comenzar proceso</Button>
             )}
-          </div>
+          </div> : null}
         </article>
         <article className="networking-plan is-unavailable">
           <div className="networking-plan-heading"><Handshake className="networking-plan-icon" size={22} strokeWidth={1.8} aria-hidden="true" /><h3>Generar nuevos negocios</h3></div>
           <span className="networking-plan-status">Próximamente</span>
-          <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
+          {mode !== "onboarding" ? <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
             aria-pressed={notices.has("BUSINESS_DEVELOPMENT")}
             onClick={() => void changeNotice("BUSINESS_DEVELOPMENT")}
             tone={notices.has("BUSINESS_DEVELOPMENT") ? "positive" : "secondary"}>
             {noticesLoading ? "Cargando..." : notices.has("BUSINESS_DEVELOPMENT") ? "✓ Te avisaremos" : "Avísame"}
-          </Button>
+          </Button> : null}
         </article>
         <article className="networking-plan is-unavailable">
           <div className="networking-plan-heading"><Megaphone className="networking-plan-icon" size={22} strokeWidth={1.8} aria-hidden="true" /><h3>Posicionar tu marca</h3></div>
           <span className="networking-plan-status">Próximamente</span>
-          <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
+          {mode !== "onboarding" ? <Button className="networking-plan-notice" disabled={noticesLoading || noticeWorking || noticeReadFailed}
             aria-pressed={notices.has("PERSONAL_BRAND")}
             onClick={() => void changeNotice("PERSONAL_BRAND")}
             tone={notices.has("PERSONAL_BRAND") ? "positive" : "secondary"}>
             {noticesLoading ? "Cargando..." : notices.has("PERSONAL_BRAND") ? "✓ Te avisaremos" : "Avísame"}
-          </Button>
+          </Button> : null}
         </article>
       </div>
       {noticeError ? <div className="networking-notice-error" role="alert"><span>{noticeError}</span>

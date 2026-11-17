@@ -16,13 +16,13 @@ import { Button } from "./ui/Button";
 type GoogleImportOptions = ComponentProps<typeof GoogleContactsSyncPanel> & { enabled: boolean };
 
 /** One entry component, shared by Contactos, Cuenta and the import tutorial step. */
-export function ContactImportButton({ google }: { google?: GoogleImportOptions } = {}) {
+export function ContactImportButton({ google, label = "Importar contactos", onClosed }: { google?: GoogleImportOptions; label?: string; onClosed?: () => void } = {}) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
   useEffect(() => { if (google?.resumeImport) setOpen(true); }, [google?.resumeImport]);
   return <>
-    <Button aria-haspopup="dialog" onClick={event => { trigger.current = event.currentTarget; setOpen(true); }}><FileUp aria-hidden="true" size={16} />Importar contactos</Button>
-    {open && <ContactImportDialog google={google} onClose={() => { setOpen(false); trigger.current?.focus(); }} />}
+    <Button aria-haspopup="dialog" onClick={event => { trigger.current = event.currentTarget; setOpen(true); }}><FileUp aria-hidden="true" size={16} />{label}</Button>
+    {open && <ContactImportDialog google={google} onClose={() => { setOpen(false); trigger.current?.focus(); onClosed?.(); }} />}
   </>;
 }
 

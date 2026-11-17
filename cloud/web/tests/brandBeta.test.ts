@@ -12,8 +12,8 @@ const lockupPaths = [
   "LegalAcceptanceGate.tsx",
   "OnboardingRoutePage.tsx",
   "PublicContactPage.tsx",
-  "Shell.tsx",
-  "ShellChrome.tsx"
+  "PublicLanding.tsx",
+  "ShellHeader.tsx"
 ];
 
 function source(path: string) {

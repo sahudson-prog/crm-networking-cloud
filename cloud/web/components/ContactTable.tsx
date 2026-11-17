@@ -36,6 +36,9 @@ type ContactTableProps = {
   contacts: ContactListRow[];
   onReload?: () => Promise<void> | void;
   view?: "all" | "states" | "contacts";
+  tutorial?: "list" | "board";
+  onStatusSaved?: (change: { previous: string; next: string }) => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 type SortKey = "name" | "companyRole" | "status" | "daysSince";
@@ -58,8 +61,9 @@ type ContactBoardCard = {
   extraCount: number;
 };
 
-export function ContactTable({ contacts, onReload, view = "all" }: ContactTableProps) {
-  const workspace=useWorkspace();
+export function ContactTable({ contacts, onReload, view = "all", tutorial, onStatusSaved, onBusyChange }: ContactTableProps) {
+  const currentWorkspace=useWorkspace();
+  const workspace=tutorial ? null : currentWorkspace;
   const scope=view === "states" ? "states" : "contacts";
   const [localQuery, setLocalQuery] = useState("");
   const quickQuery=workspace?.filters[scope].query ?? localQuery;
@@ -84,6 +88,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
   const [showGroupConfirm, setShowGroupConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contactEditorOpen, setContactEditorOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<ContactListRow | null>(null);
   const [headhunterMaster, setHeadhunterMaster] = useState<HeadhunterCompanyMasterRow[] | null>(null);
   const [allObjectives, setAllObjectives] = useState<ObjectiveRow[]>([]);
 
@@ -143,6 +148,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
   }, []);
 
   useDeferredBoardSave(pendingBoardStatuses, savingBoardIds.size, flushBoardStatuses);
+  useEffect(() => { onBusyChange?.(pendingBoardIds.size > 0 || savingBoardIds.size > 0 || contactEditorOpen); }, [pendingBoardIds.size, savingBoardIds.size, contactEditorOpen, onBusyChange]);
 
   function toggleSelected(contactId: string, checked: boolean) {
     setSelectedIds((current) => {
@@ -281,8 +287,9 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
     try {
       for (const [contactId, nextStatus] of entries) {
         try {
-          await updateContactNetworkingStatus(contactId, nextStatus, "contacts_status_board", { reviewCoach: false });
+          const saved = await updateContactNetworkingStatus(contactId, nextStatus, "contacts_status_board", { reviewCoach: false });
           savedIds.push(contactId);
+          await onStatusSaved?.({ previous: saved.previousStatus, next: saved.status });
         } catch {
           failedIds.push(contactId);
         }
@@ -290,7 +297,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
 
       await triggerCoachRuleReviewForContacts(savedIds, "contacts_status_board");
       await onReload?.();
-      setFeedback(failedIds.length ? "Algunos estados no se pudieron guardar." : "Estados guardados.");
+      setFeedback(failedIds.length ? "Algunos estados no se pudieron guardar." : tutorial ? "Guardado ✓" : "Estados guardados.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "No pude guardar los estados.");
     } finally {
@@ -309,7 +316,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
 
   return (
     <>
-      {!workspace ? <ContactFilterControls
+      {!workspace && !tutorial ? <ContactFilterControls
         filters={filters}
         filtersOpen={filtersOpen}
         objectiveOptions={objectiveOptions}
@@ -319,7 +326,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         onFiltersOpenChange={setFiltersOpen}
         onQuickQueryChange={setQuickQuery}
       /> : null}
-      <section className={`panel contacts-workspace ${view === "all" ? "" : "functional-block"}`}>
+      <section className={`panel contacts-workspace ${view === "all" ? "" : "functional-block"} ${tutorial ? `onboarding-contacts-${tutorial}` : ""}`}>
         <div className="panel-header contacts-header">
           <div>
             <h2 className="panel-title">{view === "states" ? <Coffee aria-hidden="true" /> : view === "contacts" ? <Users aria-hidden="true" /> : null}{view === "states" ? "Estados de networking" : "Contactos"}</h2>
@@ -327,7 +334,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         </div>
 
       <div className="contacts-status-toolbar">
-        {view !== "contacts" ? <Button
+        {view !== "contacts" && !tutorial ? <Button
           icon={headhuntersGrouped ? "users" : "circleDot"}
           onClick={() => {
             if (headhuntersGrouped) {
@@ -339,16 +346,19 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         >
           {headhuntersGrouped ? "Desagrupar Headhunters" : "Agrupar Headhunters"}
         </Button> : null}
-        <p className={`contacts-status-feedback ${feedback.includes("No pude") ? "form-error" : "form-success"}`}>
+        <p role={tutorial ? feedback.includes("no se pudieron") || feedback.includes("No pude") ? "alert" : "status" : undefined}
+          className={`contacts-status-feedback ${feedback.includes("No pude") || (tutorial && feedback.includes("no se pudieron")) ? "form-error" : "form-success"}`}>
           {feedback}
         </p>
         {view !== "states" ? <div className="contacts-import-actions">
-          <Button onClick={() => setContactEditorOpen(true)}><Plus aria-hidden="true" size={16} />Crear contacto</Button>
-          <ContactImportButton />
+          {tutorial ? <ContactImportButton label="Importar" onClosed={() => void onReload?.()} /> : null}
+          <Button onClick={() => { setEditingContact(null); setContactEditorOpen(true); }}><Plus aria-hidden="true" size={16} />Crear contacto</Button>
+          {!tutorial ? <ContactImportButton /> : <span className="meta">Todo lo que cargues queda guardado de verdad.</span>}
         </div> : null}
       </div>
 
       {view !== "contacts" ? <ContactStatusBoard
+        tutorial={Boolean(tutorial)}
         cardsByStatus={boardCardsByStatus}
         draggingContactId={draggingContactId}
         dropTarget={boardDropTarget}
@@ -461,7 +471,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
 
       <div className="table-wrap contacts-table-wrap">
         <table className="table contacts-table">
-          <thead>
+          {(!tutorial || sortedContacts.length > 0) ? <thead>
             <tr>
               <th aria-label="Seleccionar" />
               <SortHeader label="Nombre" sortKey="name" current={sort} onSort={toggleSort} />
@@ -469,7 +479,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
               <SortHeader label="Estado" sortKey="status" current={sort} onSort={toggleSort} />
               <SortHeader label="Ultima interaccion" sortKey="daysSince" current={sort} onSort={toggleSort} />
             </tr>
-          </thead>
+          </thead> : null}
           <tbody>
             {sortedContacts.map((contact) => {
               return (
@@ -483,9 +493,9 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
                     />
                   </td>
                   <td>
-                    <Link className="table-link contacts-name-link" href={`/contactos?contactId=${encodeURIComponent(contact.id)}`}>
+                    {tutorial ? <button className="table-link contacts-name-link" type="button" onClick={() => { setEditingContact(contact); setContactEditorOpen(true); }}>{contact.display_name || "sin nombre"}</button> : <Link className="table-link contacts-name-link" href={`/contactos?contactId=${encodeURIComponent(contact.id)}`}>
                       {contact.display_name || <EmptyValue>sin nombre</EmptyValue>}
-                    </Link>
+                    </Link>}
                   </td>
                   <td>{renderCompanyRole(contact, headhunterResolutionByContact.get(contact.id))}</td>
                   <td><StatusBadge status={contact.networking_status} /></td>
@@ -496,7 +506,7 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
             {!sortedContacts.length ? (
               <tr>
                 <td colSpan={5}>
-                  <div className="contacts-empty-state">No hay contactos para los filtros actuales.</div>
+                  <div className="contacts-empty-state">{tutorial ? "Tu red comienza aquí. Crea o importa tu primer contacto." : "No hay contactos para los filtros actuales."}</div>
                 </td>
               </tr>
             ) : null}
@@ -542,8 +552,9 @@ export function ContactTable({ contacts, onReload, view = "all" }: ContactTableP
         />
       ) : null}
       </section>
-      {view === "contacts" ? <CompaniesTable contacts={filtered} selected={selectedCompanies} onSelectionChange={setSelectedCompanies} /> : null}
+      {view === "contacts" && !tutorial ? <CompaniesTable contacts={filtered} selected={selectedCompanies} onSelectionChange={setSelectedCompanies} /> : null}
       <ContactEditorDialog
+        contact={editingContact}
         open={contactEditorOpen}
         onClose={() => setContactEditorOpen(false)}
         onSaved={() => {
@@ -653,6 +664,7 @@ function BulkObjectiveSelect({
 }
 
 function ContactStatusBoard({
+  tutorial = false,
   cardsByStatus,
   draggingContactId,
   dropTarget,
@@ -663,6 +675,7 @@ function ContactStatusBoard({
   pendingContactIds,
   savingContactIds
 }: {
+  tutorial?: boolean;
   cardsByStatus: Map<string, ContactBoardCard[]>;
   draggingContactId: string;
   dropTarget: BoardDropTarget | null;
@@ -680,6 +693,7 @@ function ContactStatusBoard({
       onDropTargetChange={onDropTargetChange} columnClass={statusClass}
       renderHeader={(status, count) => <><StatusBadge status={status} /><strong>{count}</strong></>}
       renderCard={(card, events) => <ContactStatusCard card={card} dragging={draggingContactId === card.id}
+        disableNavigation={tutorial}
         pending={card.contactIds.some((id) => pendingContactIds.has(id))}
         saving={card.contactIds.some((id) => savingContactIds.has(id))} {...events} />}
     />
@@ -687,6 +701,7 @@ function ContactStatusBoard({
 }
 
 function ContactStatusCard({
+  disableNavigation = false,
   card,
   dragging,
   onDragEnd,
@@ -695,6 +710,7 @@ function ContactStatusCard({
   pending,
   saving
 }: {
+  disableNavigation?: boolean;
   card: ContactBoardCard;
   dragging: boolean;
   onDragEnd: () => void;
@@ -712,9 +728,9 @@ function ContactStatusCard({
         <Icon name={card.isHeadhunterGroup || card.primaryContact.is_headhunter ? "circleDot" : "users"} />
       </span>
       <div className="contacts-status-card-main">
-        <Link draggable={false} href={`/contactos?contactId=${encodeURIComponent(card.primaryContact.id)}`}>
+        {disableNavigation ? <strong className="contacts-status-card-title">{card.title || "sin nombre"}</strong> : <Link draggable={false} href={`/contactos?contactId=${encodeURIComponent(card.primaryContact.id)}`}>
           {card.title || "sin nombre"}
-        </Link>
+        </Link>}
         <span className={card.subtitle ? "" : "empty-value"}>{card.subtitle || "Sin empresa · Sin cargo"}</span>
       </div>
       {card.extraCount ? (
