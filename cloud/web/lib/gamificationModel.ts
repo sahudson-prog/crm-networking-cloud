@@ -4,7 +4,7 @@ import { rollingBoundaries, shiftLocalDays } from "./gamificationTime.ts";
 import { selectNetworkingContacts, linkedNetworkingIds, type NetworkingContact } from "./networkingScope.ts";
 
 export const CONTACTED_STATES = contactedStates;
-export type Metric = { value: number | null; reason?: string };
+export type Metric = { value: number | null; reason?: string; lowerBound?: boolean };
 export const known = (value: number): Metric => ({ value });
 export const unavailable = (reason: string): Metric => ({ value: null, reason });
 export type CoffeeEvidence = { id: string; contactId: string; occurredAt: string; confirmed: boolean };
@@ -87,7 +87,7 @@ function shiftWeekDay(day:string,days:number) {
 export function coffeeWeeks(history: CoffeeHistory | null, now: number, zone: string, pristine = false) {
   const streak = civilCoffeeWeeks(history, now, zone, pristine);
   const rolling = rollingCoffeeAverage(history, now, zone);
-  const provisional = streak.current.value !== null && streak.current.value > 0 && streak.weeks === 0 && !streak.issues.length;
+  const provisional = history?.complete && streak.current.value !== null && streak.current.value > 0 && streak.weeks === 0 && !streak.issues.length;
   const level = streak.initial ? "empty" : rolling.average !== null ? rolling.average < 2 ? "fire" : rolling.average < 3 ? "rocket" : "radiation" : provisional ? "fire" : "unknown";
   return {...streak, ...rolling, level};
 }
@@ -96,7 +96,7 @@ function civilCoffeeWeeks(history: CoffeeHistory | null, now: number, zone: stri
   const unknown = unavailable("Información histórica insuficiente");
   const empty = { streak: known(0), current: known(0), average: null as number | null, weeks: 0, level: "empty" as const, initial: true, issues: [] as string[] };
   if (pristine) return empty;
-  if (!history?.complete || evidenceInstant(history.through, zone) < now || !Number.isFinite(evidenceInstant(history.through, zone)))
+  if (!history || evidenceInstant(history.through, zone) < now || !Number.isFinite(evidenceInstant(history.through, zone)))
     return { streak: unknown, current: unknown, average: null, weeks: 0, level: "unknown" as const, initial: false, issues: ["coverage_unknown"] };
   const start = evidenceInstant(history.since, zone), current = periodKey(now, zone, "weekly");
   if (!Number.isFinite(start) || start > now) return { streak: unknown, current: unknown, average: null, weeks: 0, level: "unknown" as const, initial: false, issues: ["coverage_invalid"] };
@@ -126,12 +126,16 @@ function civilCoffeeWeeks(history: CoffeeHistory | null, now: number, zone: stri
   const average = weeks ? sum / weeks : null;
   const total = [...grouped.values()].reduce((n, ids) => n + ids.size, 0);
   const level = !total ? "empty" : average === null || average < 2 ? "fire" : average < 3 ? "rocket" : "radiation";
+  if (!history.complete) {
+    const minimum = (value: number): Metric => value > 0 ? {value, lowerBound: true} : unknown;
+    return {streak: minimum(streak), current: minimum(count(current)), average: null, weeks, level: "unknown" as const, initial: false, issues};
+  }
   return { streak: known(streak), current: known(count(current)), average, weeks, level, initial: !total, issues };
 }
 export type Goal = { id: "realized" | "projected" | "prioritized"; title: string; metric: Metric; target: number; text: string; completed: boolean; progress: number };
 export function weeklyGoals(realized: Metric, projected: Metric, numerator: number | null, denominator: number | null): Goal[] {
   const goal = (id: Goal["id"], title: string, metric: Metric, target: number, text: string): Goal => ({ id, title, metric, target, text, completed: metric.value !== null && metric.value >= target, progress: metric.value === null ? 0 : Math.min(100, 100 * metric.value / target) });
-  const goals = [goal("realized", "Cafés concretados", realized, 2, `Llevas ${realized.value} de 2`), goal("projected", "Cafés proyectados", projected, 4, `${projected.value} de 4`)];
+  const goals = [goal("realized", "Cafés concretados", realized, 2, `${realized.lowerBound ? "Al menos" : "Llevas"} ${realized.value} de 2`), goal("projected", "Cafés proyectados", projected, 4, `${projected.value} de 4`)];
   if (goals.every(g => g.completed)) {
     const metric = numerator === null || denominator === null ? unavailable("Prioridades no disponibles") : denominator === 0 ? unavailable("Sin contactos para evaluar") : known(numerator === denominator ? 100 : Math.min(99, Math.floor(100 * numerator / denominator)));
     goals.push(goal("prioritized", "Prioridad cargada", metric, 100, metric.value === null ? metric.reason ?? "No disponible" : `${numerator} de ${denominator} (${metric.value}%)`));
@@ -197,7 +201,7 @@ export function buildGamification(input:GamificationInput,now:number,zone:string
   const processRows=contacts&&processIds&&extra.opportunities?[...new Map(extra.opportunities.filter(o=>processIds.has(o.id)&&["active","finalized"].includes(o.situation)&&["in_process","offer_received"].includes(o.stage)).map(o=>[o.id,o])).values()]:null;
   const pristine=contacts?.length===0&&interactions?.length===0&&extra.cycles?.length===0&&extra.transitions?.length===0&&extra.opportunities?.length===0;
   const history=input.history?{...input.history,events:input.history.events.filter(e=>ids.has(e.contactId))}:null;
-  const temporal={...coffeeWeeks(history,now,zone,pristine&&!input.historyReadFailed),readFailed:Boolean(input.historyReadFailed)};
+  const temporal={...coffeeWeeks(input.historyReadFailed?null:history,now,zone,pristine&&!input.historyReadFailed),readFailed:Boolean(input.historyReadFailed)};
   const participantMap=new Map<string,string[]>();
   const calendarSourceMap=new Map<string,TrackingSnapshot["sources"]>();
   for(const s of extra.calendarSources??input.sources)calendarSourceMap.set(s.interaction_id,[...(calendarSourceMap.get(s.interaction_id)??[]),s]);

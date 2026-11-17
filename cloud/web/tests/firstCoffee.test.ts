@@ -26,6 +26,20 @@ test("global appointment precedes cycle and wins in all three consumers",()=>{
   assert.equal(track.counts[1],1);assert.equal(g.metrics[2].metric.value,1);
   assert.equal(g.temporal.current.value,1);assert.equal(g.temporal.streak.value,1);assert.equal(g.temporal.average,.25);
 });
+test("partial first-coffee attribution retains dated minima and the unchanged funnel total",()=>{
+  const {s}=fixture();s.contacts[1].networking_status="Cita concretada";
+  s.contacts[1].networking_focus=true;
+  coffee(s,"dated","2026-11-17T15:00:00Z");
+  const history=attributedCoffeeHistory(s.contacts,s.coffeeHistory,s.as_of)!;
+  assert.equal(history.complete,false);assert.equal(history.unattributedCount,1);
+  assert.equal(history.events.length,1);
+  const g=gam(s),track=buildTracking(s);
+  assert.equal(g.temporal.current.value,1);assert.equal(g.temporal.current.lowerBound,true);
+  assert.equal(g.temporal.streak.value,1);assert.equal(g.temporal.average,null);
+  assert.equal(g.temporal.level,"unknown");assert.equal(g.goals[0].text,"Al menos 1 de 2");
+  assert.equal(g.metrics[2].metric.value,2);
+  if(track.state!=="ready")throw Error();assert.equal(track.counts[1],2);
+});
 test("later recorded appointment relocates first coffee, no additional weekly meeting",()=>{
   const {s}=fixture();s.transitions[0].changed_at="2026-11-17T12:00:00Z";
   assert.equal(gam(s).temporal.current.value,1);

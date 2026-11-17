@@ -58,7 +58,7 @@ test('five routes and dashboard compatibility alias retain the private AuthGate 
       } }
     };
     const Page = load(`app/${route}page.tsx`, dependencies).default;
-    const {ApplicationFrame}=load('components/ApplicationFrame.tsx',{'react':React,'next/navigation':{usePathname:()=>'/'+route.replace(/\/$/,'')},'./AuthGate':dependencies[prefix+'AuthGate'],'./Shell':dependencies[prefix+'Shell']});
+    const {ApplicationFrame}=load('components/ApplicationFrame.tsx',{'react':React,'next/navigation':{usePathname:()=>'/'+route.replace(/\/$/,'')},'./AuthGate':dependencies[prefix+'AuthGate'],'./Shell':dependencies[prefix+'Shell'],'./PublicLanding':{PublicLanding:()=>null}});
     const render=()=>renderToStaticMarkup(React.createElement(ApplicationFrame,null,React.createElement(Page)));
     assert.ok(render().includes('access-gate'),route);
     allowed = true;

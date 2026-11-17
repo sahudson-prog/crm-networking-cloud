@@ -49,8 +49,8 @@ export function goalDisplayText(goal:Goal) {
 function StreakIcon({temporal:t}:{temporal:GamificationModel["temporal"]}) {
   const [open,setOpen]=useState(false),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const trigger=useRef<HTMLButtonElement>(null),content=useRef<HTMLDivElement>(null);
-  const level=t.initial||t.streak.value===null?"empty":t.level;
-  const levelLabel=level==="fire"?"Nivel 1":level==="rocket"?"Nivel 2":level==="radiation"?"Nivel nuclear!":"Sin cafés";
+  const level=t.initial?"empty":t.level;
+  const levelLabel=level==="fire"?"Nivel 1":level==="rocket"?"Nivel 2":level==="radiation"?"Nivel nuclear!":level==="unknown"?"Por determinar":"Sin cafés";
   const message=t.readFailed?"No pudimos actualizar tus cafés. Reintenta la lectura.":t.average===null?(t.initial?"Concreta tu primer café para empezar tu racha":"Completa las fechas de tus cafés para ver tu promedio"):`${new Intl.NumberFormat("es-CL",{minimumFractionDigits:1,maximumFractionDigits:1}).format(t.average)} cafés por semana · ${t.averageDays<28?`últimos ${new Intl.NumberFormat("es-CL",{maximumFractionDigits:1}).format(t.averageDays)} días disponibles`:"últimos 28 días"}`;
   function cancelClose(){if(timer.current)clearTimeout(timer.current);}
   function show(){cancelClose();setOpen(true);}
@@ -114,8 +114,8 @@ export function GamificationPanel({model,loading=false,error=false,onRetry,child
     <div className="gamification" aria-label="Networking personal" aria-busy={loading}>
       <WeeklyGoals goals={model.goals} carousel={carousel} selected={selected} setSelected={setSelected}/>
       <section className="gam-streak" aria-labelledby={id}>
-        <StreakIcon temporal={t}/><div><h2 id={id}>Racha de networking</h2><p>{t.readFailed?"No pudimos actualizar tus cafés":t.streak.value===null?"Tus cafés cuentan. Completa sus fechas para ver tu racha":t.initial?"Concreta tu primer café para empezar tu racha":`${t.streak.value} ${t.streak.value===1?"semana seguida":"semanas seguidas"} con al menos 1 café`}</p></div>
-        <strong className="gam-streak-value" aria-label="Semanas de racha">{t.streak.value??"—"}</strong>
+        <StreakIcon temporal={t}/><div><h2 id={id}>Racha de networking</h2><p>{t.readFailed?"No pudimos actualizar tus cafés":t.streak.value===null?"Tus cafés cuentan. Completa sus fechas para ver tu racha":t.initial?"Concreta tu primer café para empezar tu racha":`${t.streak.lowerBound?"Al menos ":""}${t.streak.value} ${t.streak.value===1?"semana seguida":"semanas seguidas"} con al menos 1 café`}</p></div>
+        <strong className="gam-streak-value" aria-label={t.streak.lowerBound?`Al menos ${t.streak.value} semanas de racha`:"Semanas de racha"}>{t.streak.value??"—"}</strong>
         {t.issues.includes("coffee_in_future")?<small className="gam-quality">Se excluyeron cafés con fecha futura.</small>:null}
       </section>
       {error?<p role="alert" className="gam-error">Algunos datos no están disponibles. <Button onClick={onRetry}>Reintentar</Button></p>:null}

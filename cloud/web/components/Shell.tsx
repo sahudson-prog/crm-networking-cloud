@@ -18,5 +18,6 @@ export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?
 
 function ShellContent({ children }: { children: ReactNode }) {
   const path = usePathname();
+  if (path === null) return <p role="status">Cargando…</p>;
   return path.startsWith("/onboarding") ? <>{children}</> : <ApplicationShellContent>{children}</ApplicationShellContent>;
 }
