@@ -6,6 +6,7 @@ import { Shell } from "./Shell";
 import { PublicLanding } from "./PublicLanding";
 export function ApplicationFrame({children}:{children:ReactNode}) {
   const path=usePathname();
+  if (path === null) return <p role="status">Cargando…</p>;
   const privateRoute=['/','/ingresar','/contactos','/objetivos','/registrar-avances','/planificar','/dashboard','/cuenta'].includes(path)||path==='/sistema'||path.startsWith('/sistema/');
   return privateRoute?<Suspense fallback={<p role="status">Cargando…</p>}><AuthGate publicLanding={path==='/'?<PublicLanding/>:undefined}><Shell>{children}</Shell></AuthGate></Suspense>:children;
 }

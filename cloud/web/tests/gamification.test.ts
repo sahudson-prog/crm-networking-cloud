@@ -43,8 +43,35 @@ test("same contact once per week, repeat meetings in separate weeks require dist
  assert.equal(coffeeWeeks(h,now,zone).current.value,1);
 });
 test("unknown or stale coverage cannot become an exact streak",()=>{
- for(const h of [null,{...history([1]),complete:false},{...history([1]),through:"2026-11-17T00:00:00Z"}]){
+ for(const h of [null,{...history([1]),through:"2026-11-17T00:00:00Z"}]){
  assert.equal(coffeeWeeks(h,now,zone).streak.value,null);assert.equal(coffeeWeeks(h,now,zone).current.value,null);}
+});
+test("partial history exposes only positive accredited minima, never an average or level",()=>{
+ for(const [counts,n] of [[[2,1,1],3],[[0,1,1],2],[[1,0,1],1],[[0,0,1],null],[[],null]] as [number[],number|null][]){
+  const result=coffeeWeeks({...history(counts),complete:false,unattributedCount:10},now,zone);
+  assert.equal(result.streak.value,n);
+  assert.equal(result.streak.lowerBound,n===null?undefined:true);
+  assert.equal(result.current.value,counts[0]||null);
+  assert.equal(result.average,null);assert.equal(result.level,"unknown");assert.equal(result.initial,false);
+  const goal=weeklyGoals(result.current,known(4),1,1)[0];
+  assert.equal(goal.completed,(counts[0]??0)>=2);
+  if(counts[0])assert.equal(goal.text,`Al menos ${counts[0]} de 2`);
+ }
+});
+test("partial evidence respects Monday rollover and cannot bridge a missing week",()=>{
+ const h={...history([2]),complete:false};
+ const next=evidenceInstant("2026-11-23",zone);h.through=new Date(next).toISOString();
+ let t=coffeeWeeks(h,next,zone);assert.equal(t.current.value,null);assert.equal(t.streak.value,1);
+ const later=evidenceInstant("2026-11-30",zone);h.through=new Date(later).toISOString();
+ t=coffeeWeeks(h,later,zone);assert.equal(t.streak.value,null);
+});
+test("technical failure overrides even retained valid evidence, not just goal copy",()=>{
+ const data=input();data.history=history([2,1]);data.historyReadFailed=true;
+ const model=buildGamification(data,now,zone);
+ assert.equal(model.temporal.readFailed,true);assert.equal(model.temporal.current.value,null);
+ assert.equal(model.temporal.streak.value,null);assert.equal(model.temporal.average,null);
+ assert.equal(model.temporal.level,"unknown");assert.equal(model.goals[0].metric.reason,"read_failed");
+ assert.equal(model.goals[0].completed,false);
 });
 test("confirmed empty starts at zero; dates absent or conflicting are unavailable",()=>{
  assert.equal(coffeeWeeks(null,now,zone,true).streak.value,0);
@@ -102,7 +129,8 @@ test("Inicio carousel and popover presentation stays isolated from the default e
  assert.match(panel,/Popover\.Content/);assert.match(panel,/últimos 28 días/);
  assert.match(panel,/Concreta tu primer café para empezar tu racha/);
  assert.doesNotMatch(panel,/Información histórica insuficiente|t.streak.reason/);
- assert.match(panel,/t.streak.value\?\?"—"/);assert.match(panel,/const level=t.initial\|\|t.streak.value===null\?"empty"/);
+ assert.match(panel,/t.streak.value\?\?"—"/);assert.match(panel,/const level=t.initial\?"empty":t.level/);
+ assert.match(panel,/level==="unknown"\?"Por determinar"/);assert.match(panel,/t.streak.lowerBound\?"Al menos "/);
  assert.match(panel,/goalDisplayText\(goal\)/);assert.match(panel,/goal.metric.reason/);
  const editorial=readFileSync(new URL("../components/EditorialFeed.tsx",import.meta.url),"utf8");
  assert.doesNotMatch(editorial,/useHomeCarousel|editorial-dots|home=false/);
