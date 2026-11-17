@@ -29,9 +29,11 @@ Prompt de recuperación copy/paste-safe:
 
 ## Checkpoint actual
 
+- Candidato local activo: INT-01, integración de LANDING-01, ONBOARDING-01 y GAM-01 en `codex/int-01`. Fetch read-only de preflight: `origin/main = canonical main = 6ab1913b8412229ffa8ce550b3f39ff888331a40`, canonical limpio y branch desde ese baseline. Next.js 16.4.6, tests focales, typecheck, build y smoke funcional DEV aprobados; first-run Auth genuino y Calendar operacional no quedaron certificados por ese smoke. El owner aprobó la clasificación RED por la semántica de `product_onboarding_v1`, rollback al deployment anterior compatible o forward-fix, y no exigir nuevo backup/restore para esta release sin DDL. Los tres worktrees originales se preservan. Pendiente autorización separada de staging/commit/push; no está integrado en main ni desplegado. Detalle en [INT-01](planning/INT-01.md). Los cierres de release siguientes son antecedentes históricos.
+
 - Último PR integrado y última release de producto completada: UI-STRUCT-02, PR #54, SHA `657e37d7d3e984d884204cb80e4f02534014151d`. El owner confirma Vercel Production success y smoke PROD PASS; los bugs menores observados no bloquean este cierre y no tienen tarea contratada. OBJ-02 y Beta UX V1 conservan sus cierres anteriores.
 - Calendar V2 independiente se integró antes de UI-STRUCT; UI-STRUCT-01 y UI-STRUCT-02 están completados. BF-12 y el modal único de importación de contactos están desplegados. La verificación focal de Calendar posterior a los cambios de UI sigue pendiente; no reabre el release Calendar aprobado.
-- El owner confirma backup PROD `obj02-pr47-20261112-182947Z` y restore local aislado PASS para este cutover. UI-STRUCT-02 no agregó migrations ni cambió contratos persistentes. Canonical `main` quedó sincronizado y limpio en el SHA de PR #54.
+- Para el cutover histórico de UI-STRUCT-02, el owner confirmó backup PROD `obj02-pr47-20261112-182947Z` y restore local aislado PASS. Ese respaldo no cubre escrituras posteriores y no es una captura nueva de INT-01. UI-STRUCT-02 no agregó migrations ni cambió contratos persistentes.
 - Para OBJ-02, el owner confirmó las siete migrations y sus verificadores PROD PASS, backup lógico y restauración local aislada PASS, Vercel Production Ready/Current para `4f28f46c2c817f5c6ca23572605bcf44f1000421` y smoke PROD PASS el 2026-11-02. OBJ-02 quedó COMPLETED operacionalmente según esa confirmación. El estado GitHub Vercel de ese SHA fue `success`; no se verificó directamente en Vercel que siguiera siendo Current.
 - Al cierre documental de OBJ-02, canonical `main` y `origin/main` quedaron alineados y limpios en `37f41606a51a33186ee79059dad45f58d524fcd5`. El baseline de trabajo posterior figura en el checkpoint activo.
 - Beta UX V1 integra BRAND-BETA-01, UX-ONB-COPY-01 y UX-DATE-01. El owner confirma en PROD migrations/verifiers `202611040001` y `202611040002` PASS, backup lógico `20261105-150016Z` con restauración local aislada PASS, Vercel Production Ready/Current, smoke PROD PASS, gate `open` y Data API ON. DEV permanece operativo en `test_only` con Data API ON. Estas son confirmaciones del owner, no verificaciones remotas de este checkpoint.
@@ -53,11 +55,14 @@ Prompt de recuperación copy/paste-safe:
 ## Deuda / pre-Early-Access gate
 
 - Pendiente una revisión explícita de seguridad de dependencias antes de abrir Early Access.
-- El `npm audit` del clone limpio detectó 1 vulnerabilidad critical y 4 high; `next` es una dependencia productiva directa afectada.
-- No existe evidencia suficiente para declarar explotabilidad en PROD. Esta deuda no bloquea REL-01 ni ONB-01.
-- Esta nota no autoriza `npm audit fix` ni una actualización de dependencias; cualquier corrección requiere una tarea aprobada por separado.
+- El `npm audit` del clone limpio anterior detectó 1 vulnerabilidad critical y 4 high; fue un diagnóstico histórico de la baseline, no el estado certificado del candidato INT-01. Next.js pasó de 16.4.2 a 16.4.6 en INT-01 y dejó de bloquear el build con SecurityFatalError. Esto no declara cero advisories en el árbol completo ni cambia PROD antes del deployment.
+- No existe evidencia suficiente para declarar explotabilidad en PROD. Esta nota no autoriza `npm audit fix` ni actualizaciones adicionales de dependencias; cualquier corrección adicional requiere alcance aprobado.
 
 ## Checkpoint de tarea activa
+
+- INT-01: estado y contrato vigentes en el checkpoint actual y [INT-01](planning/INT-01.md). Siguiente gate: autorización de staging/commit/push exclusivamente de `codex/int-01`, excluyendo el `cloud/web/AGENTS.md` generado. PR, merge y PROD posteriores son independientes.
+
+Antecedente del último cierre integrado:
 
 - Current phase: UI-STRUCT-02 `COMPLETED` operacionalmente según el owner; PR #54 integrado en `657e37d7d3e984d884204cb80e4f02534014151d`.
 - Completado: Calendar V2 independiente previo; UI-STRUCT-01 y UI-STRUCT-02; BF-12 y modal de importación de contactos. El owner confirma Vercel Production success, backup PROD `obj02-pr47-20261112-182947Z`, restore local aislado PASS y smoke PROD PASS. No hubo migrations nuevas en este release.

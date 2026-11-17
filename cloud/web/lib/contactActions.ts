@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision";
 import { cleanContactCompany, cleanContactRole } from "./format";
 import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
 import { setContactObjectiveAssignments } from "./cycleObjectiveActions";
@@ -65,7 +66,7 @@ export async function updateContactNetworkingStatus(
     .maybeSingle();
   if (contactError) throw contactError;
   if (!contact) throw new Error("No encontre el contacto.");
-  if (contact.networking_status === nextStatus) return { status: nextStatus };
+  if (contact.networking_status === nextStatus) return { status: nextStatus, previousStatus: contact.networking_status };
 
   const now = new Date().toISOString();
   const { data: invocation, error: invocationError } = await supabase
@@ -96,6 +97,7 @@ export async function updateContactNetworkingStatus(
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateError) throw updateError;
+    notifyNetworkingDataChanged();
 
     await supabase.from("audit_log").insert({
       user_id: userId,
@@ -132,7 +134,7 @@ export async function updateContactNetworkingStatus(
     throw error;
   }
 
-  return { status: nextStatus };
+  return { status: nextStatus, previousStatus: contact.networking_status };
 }
 
 export async function updateContactFlags(contactId: string, flags: ContactFlagsInput) {
@@ -199,6 +201,7 @@ export async function updateContactFlags(contactId: string, flags: ContactFlagsI
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateError) throw updateError;
+    notifyNetworkingDataChanged();
 
     await supabase.from("audit_log").insert({
       user_id: userId,

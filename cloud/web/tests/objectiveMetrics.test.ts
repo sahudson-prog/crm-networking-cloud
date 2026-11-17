@@ -110,10 +110,10 @@ test("cuenta contactos e interacciones unicas por objetivo", () => {
   const strategy = rows.find((row) => row.objectiveId === "strategy");
   assert.ok(fintech);
   assert.ok(strategy);
-  assert.equal(fintech.contactCount, 2);
+  assert.equal(fintech.contactCount, 1);
   assert.equal(fintech.focusContactCount, 1);
   assert.equal(fintech.coffeeCount, 2);
-  assert.equal(fintech.networkingStatus, "Agradecimiento enviado");
+  assert.equal(fintech.networkingStatus, "Contactado");
   assert.equal(strategy.contactCount, 1);
   assert.equal(strategy.coffeeCount, 2);
   assert.equal(strategy.daysSinceLastInteraction, 5);

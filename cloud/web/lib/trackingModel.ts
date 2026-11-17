@@ -2,6 +2,7 @@ import { resolveHeadhunterCompany, type HeadhunterCompanyMasterRow } from "./hea
 import { localDateTimeCandidates, localDateTimeValue } from "./networkingCycleTime.ts";
 import type { ObjectivePriority, ObjectiveType } from "./readModel.ts";
 import { isInteractionDismissed } from "./interactionState.ts";
+import { selectNetworkingContacts } from "./networkingScope.ts";
 
 export type TrackingContact = {
   id: string; company: string | null; networking_status: string; networking_focus: boolean; is_headhunter: boolean;
@@ -16,6 +17,9 @@ export type TrackingOpportunity = {
   contact_ids: string[]; objective_ids: string[];
 };
 export type TrackingSnapshot = {
+  // Client-side complete historical read; the persisted RPC stays unchanged.
+  coffeeHistory?: FirstCoffeeHistory;
+  coffeeHistoryError?: boolean;
   version: 1; as_of: string;
   cycle: { id: string; started_at: string | null; timezone_name: string | null } | null;
   contacts: TrackingContact[];
@@ -67,8 +71,16 @@ export function validateTrackingSnapshot(value: unknown): TrackingSnapshot {
 }
 export const defaultTrackingFilters: TrackingFilters = { priorityIds: [], headhunters: "all", groupHeadhunters: false };
 export type PeriodMode = "weekly" | "monthly";
-const contactedStates = new Set(["Contactado", "Agendado", "Cita concretada", "Agradecimiento enviado"]);
+export const contactedStates = new Set(["Contactado", "Agendado", "Cita concretada", "Agradecimiento enviado"]);
 const coffeeStates = new Set(["Cita concretada", "Agradecimiento enviado"]);
+
+/** Scope is supplied by the caller; state eligibility is identical everywhere. */
+export function networkingContactIds(contacts: ReadonlyArray<{id:string;networking_status:string}>) {
+  return {
+    contacted: new Set(contacts.filter(c=>contactedStates.has(c.networking_status)).map(c=>c.id)),
+    coffees: new Set(contacts.filter(c=>coffeeStates.has(c.networking_status)).map(c=>c.id))
+  };
+}
 
 /** Only lifecycle persisted by existing writers is interpreted, never inferred attendance. */
 export function coffeeEligibility(i: TrackingInteraction, sources: TrackingSnapshot["sources"]): "valid" | "excluded" {
@@ -93,6 +105,74 @@ function instantMicros(value: string | null | undefined): bigint | null {
 }
 function earliest(map: Map<string, number>, key: string, at: number) { map.set(key, Math.min(map.get(key) ?? Infinity, at)); }
 
+/** Calendar supplies scheduling evidence, not per-meeting attendance. */
+export function selectTrackingCalendar(
+  input: Pick<TrackingSnapshot,"interactions"|"participants"|"sources">,
+  ids: ReadonlySet<string>, eligible: ReadonlySet<string>, nowValue:string, startValue?:string
+) {
+  const now=instantMicros(nowValue), start=startValue===undefined?null:instantMicros(startValue);
+  if(now===null||(startValue!==undefined&&start===null))throw Error("tracking_invalid_time");
+  const participants=new Map<string,Set<string>>(), sources=new Map<string,TrackingSnapshot["sources"]>();
+  for(const p of input.participants) {
+    if(!ids.has(p.contact_id))continue;
+    if(!participants.has(p.interaction_id))participants.set(p.interaction_id,new Set());
+    participants.get(p.interaction_id)!.add(p.contact_id);
+  }
+  for(const s of input.sources)sources.set(s.interaction_id,[...(sources.get(s.interaction_id)??[]),s]);
+  const pastCalendar=new Map<string,number>(),futureCalendar:Array<{contactId:string;at:number}>=[];
+  let undatedProjection=false;
+  for(const i of input.interactions) {
+    const linked=participants.get(i.id);
+    if(!linked?.size||coffeeEligibility(i,sources.get(i.id)??[])!=="valid")continue;
+    const at=instant(i.occurred_at), micros=instantMicros(i.occurred_at);
+    if(micros===null){if([...linked].some(id=>!eligible.has(id)))undatedProjection=true;continue;}
+    if(start!==null&&micros<start)continue;
+    for(const id of linked) {
+      if(micros<now&&eligible.has(id))earliest(pastCalendar,id,at);
+      else if(micros>=now&&!eligible.has(id))futureCalendar.push({contactId:id,at});
+    }
+  }
+  return {pastCalendar,futureCalendar,undatedProjection};
+}
+
+export function nearestProjectedContacts(events:ReadonlyArray<{key:string;at:number}>,from:number,to:number) {
+  const nearest=new Map<string,number>();
+  for(const event of events)if(event.at>=from&&event.at<to)earliest(nearest,event.key,event.at);
+  return nearest;
+}
+
+export type FirstCoffeeHistory = Pick<TrackingSnapshot, "interactions" | "participants" | "sources"> & {
+  transitions: Array<TrackingSnapshot["transitions"][number] & {event_kind?: string; changed_fields?: string[]}>;
+  coverageSince?: string;
+};
+
+/** One attributed first coffee per currently eligible contact, before view filters. */
+export function selectFirstCoffee(
+  contacts: ReadonlyArray<{id:string;networking_status:string}>, history: FirstCoffeeHistory, nowValue: string
+) {
+  const eligible = networkingContactIds(contacts).coffees;
+  const {pastCalendar} = selectTrackingCalendar(history, new Set(contacts.map(c=>c.id)), eligible, nowValue);
+  const firstTransition = new Map<string,number>();
+  const now = instantMicros(nowValue);
+  for (const t of history.transitions) {
+    const at = instantMicros(t.changed_at);
+    if (!t.contact_id || !eligible.has(t.contact_id) || t.next_status !== "Cita concretada"
+      || t.previous_status === "Cita concretada" || t.event_kind === "initialized"
+      || (t.changed_fields && !t.changed_fields.includes("networking_status"))
+      || at === null || now === null || at > now) continue;
+    earliest(firstTransition,t.contact_id,instant(t.changed_at));
+  }
+  const dates = new Map<string,number>(), byMeeting = new Map<string,number>(), byTransition = new Map<string,number>();
+  const missing = new Set<string>();
+  for (const id of eligible) {
+    const meeting = pastCalendar.get(id), at = meeting ?? firstTransition.get(id);
+    if (at === undefined) { missing.add(id); continue; }
+    dates.set(id,at);
+    (meeting === undefined ? byTransition : byMeeting).set(id,at);
+  }
+  return {eligible,dates,byMeeting,byTransition,missing};
+}
+
 export function buildTracking(snapshot: TrackingSnapshot, filters: TrackingFilters = defaultTrackingFilters) {
   const start = instant(snapshot.cycle?.started_at);
   const now = instant(snapshot.as_of);
@@ -109,46 +189,16 @@ export function buildTracking(snapshot: TrackingSnapshot, filters: TrackingFilte
     if (!assigned.has(a.contact_id)) assigned.set(a.contact_id, new Set());
     assigned.get(a.contact_id)!.add(a.objective_id);
   }
-  const contacts = snapshot.contacts.filter(c => c.networking_focus
-    && (filters.headhunters === "all" || c.is_headhunter === (filters.headhunters === "only"))
+  const contacts = selectNetworkingContacts(snapshot.contacts).filter(c =>
+    (filters.headhunters === "all" || c.is_headhunter === (filters.headhunters === "only"))
     && (!selected.size || [...(assigned.get(c.id) ?? [])].some(id => selected.has(id))));
   const ids = new Set(contacts.map(c => c.id));
-  const contacted = new Map<string, number>(contacts.filter(c => contactedStates.has(c.networking_status)).map(c => [c.id, 0]));
-  const eligible = new Set(contacts.filter(c => coffeeStates.has(c.networking_status)).map(c => c.id));
-  const enteredEligible = new Map<string, number>();
-  const transitions = [...snapshot.transitions].sort((a, b) => {
-    const aMicros = instantMicros(a.changed_at)!;
-    const bMicros = instantMicros(b.changed_at)!;
-    return aMicros < bMicros ? -1 : aMicros > bMicros ? 1 : a.id.localeCompare(b.id);
-  });
-  for (const t of transitions) {
-    const at = instant(t.changed_at);
-    const atMicros = instantMicros(t.changed_at);
-    if (!t.contact_id || !ids.has(t.contact_id) || atMicros === null || atMicros < startMicros || atMicros > nowMicros) continue;
-    if (!coffeeStates.has(t.next_status)) enteredEligible.delete(t.contact_id);
-    else if (!coffeeStates.has(t.previous_status ?? "")) enteredEligible.set(t.contact_id, at);
-  }
-  const participants = new Map<string, Set<string>>();
-  for (const p of snapshot.participants) {
-    if (!ids.has(p.contact_id)) continue;
-    if (!participants.has(p.interaction_id)) participants.set(p.interaction_id, new Set());
-    participants.get(p.interaction_id)!.add(p.contact_id);
-  }
-  const sources = new Map<string, TrackingSnapshot["sources"]>();
-  for (const s of snapshot.sources) sources.set(s.interaction_id, [...(sources.get(s.interaction_id) ?? []), s]);
-  const pastCalendar = new Map<string, number>();
-  const futureCalendar: Array<{ contactId: string; at: number }> = [];
-  for (const i of snapshot.interactions) {
-    const at = instant(i.occurred_at), linked = participants.get(i.id);
-    const atMicros = instantMicros(i.occurred_at);
-    if (atMicros === null || atMicros < startMicros || !linked?.size) continue;
-    const eligibility = coffeeEligibility(i, sources.get(i.id) ?? []);
-    if (eligibility !== "valid" || i.interaction_type !== "calendar") continue;
-    for (const id of linked) {
-      if (atMicros < nowMicros && eligible.has(id)) earliest(pastCalendar, id, at);
-      else if (atMicros >= nowMicros && !eligible.has(id)) futureCalendar.push({ contactId: id, at });
-    }
-  }
+  const eligibility = networkingContactIds(contacts);
+  const contacted = new Map<string, number>([...eligibility.contacted].map(id => [id, 0]));
+  const eligible = eligibility.coffees;
+  const attribution = selectFirstCoffee(snapshot.contacts,snapshot.coffeeHistory ?? (snapshot.coffeeHistoryError
+    ? {interactions:[],participants:[],sources:[],transitions:[]} : snapshot),snapshot.as_of);
+  const {futureCalendar}=selectTrackingCalendar(snapshot,ids,eligible,snapshot.as_of,snapshot.cycle.started_at!);
   const groupKey = new Map(contacts.map(c => {
     const resolution = filters.groupHeadhunters && c.is_headhunter
       ? resolveHeadhunterCompany({ ...c, company: c.company ?? "", contact_emails: c.contact_emails.map(e => ({ domain: e.domain ?? "", email: "" })) }, snapshot.companies) : null;
@@ -170,8 +220,8 @@ export function buildTracking(snapshot: TrackingSnapshot, filters: TrackingFilte
   const datedByMeeting = new Map<string, number>();
   const datedByStatus = new Map<string, number>();
   for (const id of eligible) {
-    const meeting = pastCalendar.get(id);
-    const at = meeting ?? enteredEligible.get(id);
+    const meeting = attribution.byMeeting.get(id);
+    const at = attribution.dates.get(id);
     if (at !== undefined) accredited.set(id, at);
     if (meeting !== undefined) datedByMeeting.set(id, meeting);
     else if (at !== undefined) datedByStatus.set(id, at);
@@ -179,10 +229,9 @@ export function buildTracking(snapshot: TrackingSnapshot, filters: TrackingFilte
   const futureEvents = futureCalendar.map(({ contactId, at }) => ({ key: groupKey.get(contactId)!, at }));
   const futureFirst = new Map<string, number>();
   for (const { key, at } of futureEvents) earliest(futureFirst, key, at);
-  const focusedHH = new Set(snapshot.contacts.filter(c => c.networking_focus && c.is_headhunter).map(c => c.id));
   const opportunities = snapshot.opportunities.filter(o => ["active", "finalized"].includes(o.situation)
     && (!selected.size || o.objective_ids.some(id => selected.has(id)))
-    && (filters.headhunters === "all" || o.contact_ids.some(id => focusedHH.has(id)) === (filters.headhunters === "only")));
+    && o.contact_ids.some(id => ids.has(id)));
   const blue = group(accredited), green = futureFirst;
   const actualByGroup = group(datedByMeeting), estimatedByGroup = group(datedByStatus);
   const blueActual = new Map<string, number>(), blueEstimated = new Map<string, number>();
@@ -246,20 +295,19 @@ export function trackingPeriods(model: ReadyTracking, mode: PeriodMode, at = mod
   const current = periodKey(at, model.zone, mode);
   const blue = new Map<string, number>(), blueActual = new Map<string, number>(), blueEstimated = new Map<string, number>(), green = new Map<string, number>();
   for (const date of model.blue.values()) {
+    if (date < model.start) continue;
     const key = periodKey(date, model.zone, mode);
     blue.set(key, (blue.get(key) ?? 0) + 1);
   }
   for (const [evidence, bucket] of [[model.blueActual, blueActual], [model.blueEstimated, blueEstimated]] as const) {
     for (const date of evidence.values()) {
+      if (date < model.start) continue;
       const key = periodKey(date, model.zone, mode);
       bucket.set(key, (bucket.get(key) ?? 0) + 1);
     }
   }
   const horizon = futureHorizonEnd(at, model.zone, mode);
-  const nearest = new Map<string, number>();
-  for (const event of model.futureEvents) {
-    if (event.at >= at && event.at < horizon) earliest(nearest, event.key, event.at);
-  }
+  const nearest = nearestProjectedContacts(model.futureEvents,at,horizon);
   for (const date of nearest.values()) {
     const key = periodKey(date, model.zone, mode);
     green.set(key, (green.get(key) ?? 0) + 1);

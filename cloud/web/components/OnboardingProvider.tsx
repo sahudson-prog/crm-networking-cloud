@@ -10,6 +10,7 @@ import {
   beginOnboardingReplay,
   canMoveOnboardingToStep,
   completeOnboarding,
+  currentOnboardingStep,
   isOnboardingReplayAllowed,
   isOnboardingRouteAdmitted,
   isOnboardingTestResetAvailable,
@@ -35,6 +36,8 @@ const ONBOARDING_SESSION_KEY = "coffeecito_onboarding_session_v1";
 type OnboardingContextValue = {
   active: boolean;
   complete: () => Promise<void>;
+  skip: () => Promise<void>;
+  confirmBoardExercise: () => Promise<void>;
   completing: boolean;
   error: string;
   exit: (step?: OnboardingStep) => Promise<void>;
@@ -163,7 +166,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   async function start() {
     if (isOnboardingReplayAllowed(state, session)) {
-      router.push(onboardingRouteFor("starting_point"));
+      router.push(onboardingRouteFor("objectives"));
       return;
     }
 
@@ -198,20 +201,30 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     router.push(onboardingRouteFor(step));
   }
 
-  async function complete() {
+  async function confirmBoardExercise() {
+    if (isOnboardingReplayAllowed(state, session)) {
+      setState(current => ({ ...current, boardExerciseCompleted: true }));
+      return;
+    }
+    if (!(await persist({ ...state, boardExerciseCompleted: true }))) throw new Error("No pudimos guardar el avance del ejercicio. Reintenta sin mover otra vez el contacto.");
+  }
+
+  async function skip() { await finish(true); }
+  async function complete() { await finish(false); }
+  async function finish(skipped: boolean) {
     if (completionPending.current) return;
     completionPending.current = true;
     setCompleting(true);
 
     const replayAllowed = isOnboardingReplayAllowed(state, session);
     if (!replayAllowed) {
-      if (state.status !== "in_progress" || state.lastStep !== "final") {
+      if (state.status !== "in_progress" || (!skipped && (currentOnboardingStep(state.lastStep ?? "objectives") !== "contacts" || !state.boardExerciseCompleted))) {
         setError("Completa los pasos anteriores antes de finalizar la guía.");
         completionPending.current = false;
         setCompleting(false);
         return;
       }
-      if (!(await persist(completeOnboarding()))) {
+      if (!(await persist({ ...completeOnboarding(), ...(state.boardExerciseCompleted ? { boardExerciseCompleted: true } : {}) }))) {
         completionPending.current = false;
         setCompleting(false);
         return;
@@ -219,7 +232,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
     clearOnboardingSession();
     setSession(INACTIVE_ONBOARDING_SESSION);
-    if (replayAllowed) router.push(ONBOARDING_PRODUCT_DESTINATION);
+    router.push(ONBOARDING_PRODUCT_DESTINATION);
   }
 
   function replay() {
@@ -255,6 +268,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       value={{
         active: session.active,
         complete,
+        skip,
+        confirmBoardExercise,
         completing,
         error,
         exit,

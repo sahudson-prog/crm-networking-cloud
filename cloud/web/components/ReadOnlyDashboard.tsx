@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { Binoculars, Building2, ChartColumn, ChartSpline, Handshake, MessagesSquare } from "lucide-react";
 import { readTrackingSnapshot } from "../lib/trackingRead";
+import {getNetworkingDataRevision,getServerNetworkingDataRevision,subscribeNetworkingDataRevision} from "../lib/networkingDataRevision";
 import { buildTracking, defaultTrackingFilters, type TrackingSnapshot } from "../lib/trackingModel";
+import { selectNetworkingContacts } from "../lib/networkingScope";
 import { useWorkspace } from "./WorkspaceState";
 import { EditorialFeed } from "./EditorialFeed";
+import { HomeGamification, useHomeRefresh } from "./HomeGamification";
 import { useTrackingViewFilters } from "./useTrackingViewFilters";
 import { readDashboardDetails, type DashboardDetails } from "../lib/dashboardDetails";
 import { buildHeadhunterCompanies } from "../lib/cloudData";
@@ -26,6 +29,7 @@ const noSelectedDomains = new Set<string>();
 
 export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "planning" | "interactions" | "referrals" } = {}) {
   const workspace=useWorkspace();
+  const dataRevision=useSyncExternalStore(subscribeNetworkingDataRevision,getNetworkingDataRevision,getServerNetworkingDataRevision);
   const [homeHH,setHomeHH]=useState<"all"|"only"|"exclude">("all");
   const [homeGrouped,setHomeGrouped]=useState(false);
   const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
@@ -44,6 +48,10 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
   const [loading, setLoading] = useState(true), [error, setError] = useState(false);
   const [detailLoading, setDetailLoading] = useState(true), [detailError, setDetailError] = useState(false);
   const [revision, setRevision] = useState(0);
+  const refreshHome = useCallback(() => setRevision(value => value + 1), []);
+  useHomeRefresh(view === "home", snapshot?.cycle?.timezone_name, refreshHome);
+  const homeContacts = view === "home" ? workspace?.contacts : null;
+  const homeObjectives = view === "home" ? workspace?.objectives : null;
   const generation = useRef(0);
   useEffect(() => {
     const current = ++generation.current;
@@ -59,7 +67,7 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
       .catch(() => { if (generation.current === current) setDetailError(true); })
       .finally(() => { if (generation.current === current) setDetailLoading(false); });
     return () => { generation.current++; };
-  }, [revision, calendarSyncedAt]);
+  }, [revision, dataRevision, calendarSyncedAt, homeContacts, homeObjectives]);
   const model = useMemo(() => snapshot ? buildTracking(snapshot, filters) : null, [snapshot, filters]);
   const homeChartModel=useMemo(()=>snapshot?buildTracking(snapshot,{...defaultTrackingFilters,headhunters:homeHH,groupHeadhunters:homeGrouped}):null,[snapshot,homeHH,homeGrouped]);
   const objectives = useMemo<ObjectiveRow[]>(() => (snapshot?.priorities ?? []).map(p => ({
@@ -69,10 +77,10 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
     networkingFocus: "true", objectiveIds: filters.priorityIds,
     isHeadhunter: filters.headhunters === "only" ? "true" : filters.headhunters === "exclude" ? "false" : "all"
   }), [filters]);
-  const baseContacts = useMemo(() => filterContacts(details?.contacts ?? [], "", {
+  const baseContacts = useMemo(() => filterContacts(view === "referrals" ? details?.contacts ?? [] : selectNetworkingContacts(details?.contacts ?? []), "", {
     ...DEFAULT_CONTACT_FILTERS, objectiveIds: filters.priorityIds,
     isHeadhunter: filters.headhunters === "all" ? "all" : filters.headhunters === "only" ? "true" : "false"
-  }), [details, filters]);
+  }), [details, filters, view]);
   const filteredContacts = useMemo(() => filterContacts(baseContacts, quickQuery, { ...DEFAULT_CONTACT_FILTERS }), [baseContacts, quickQuery]);
   const cycleInteractions = useMemo(() => {
     const start = snapshot?.cycle?.started_at;
@@ -124,11 +132,11 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
           headhunters: next.isHeadhunter === "true" ? "only" : next.isHeadhunter === "false" ? "exclude" : "all" }))} />
     </div> : null}
     <div className="tracking-feedback" aria-live="polite">
-      {error ? <span role="alert" className="danger-text">No pudimos verificar todos los datos. {snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar</Button></span>
+      {error || (view === "home" && detailError) || snapshot?.coffeeHistoryError ? <span role="alert" className="danger-text">{snapshot?.coffeeHistoryError&&!error?"No pudimos actualizar las fechas de tus cafés.":"No pudimos actualizar tus avances."} {error&&snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar</Button></span>
         : loading ? (snapshot ? "Actualizando..." : "Leyendo seguimiento...") : null}
     </div>
     {view === "home" ? <div className="structural-home-blocks editorial-home-grid">
-      <EditorialFeed/>
+      <HomeGamification snapshot={error ? null : snapshot} details={detailError ? null : details} loading={loading || detailLoading} error={error || detailError} onRetry={refreshHome}><EditorialFeed/></HomeGamification>
       <Panel title="Indicadores de avance" icon={<ChartColumn aria-hidden="true" />} className={`${blockClass} home-pyramid-block`}>
         {model?.state === "ready" ? <TrackingPyramid model={model} /> : cycleFeedback}
       </Panel>

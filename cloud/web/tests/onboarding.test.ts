@@ -93,15 +93,11 @@ test("solo completed admite producto y los estados incompletos tienen ruta oblig
   assert.equal(isOnboardingRouteAdmitted(completed, { active: false, replay: false }, "final"), false);
 });
 
-test("Empecemos inicia en Tu punto de partida sin cambiar la versión persistida", () => {
-  const started = beginOnboarding(INITIAL_ONBOARDING_STATE);
-  assert.deepEqual(started, {
-    version: 1,
-    status: "in_progress",
-    introSeen: true,
-    lastStep: "starting_point"
-  });
-  assert.equal(onboardingRouteFor(started.lastStep), "/onboarding/punto-de-partida");
+test("Empecemos inicia en Tu objetivo, compatible con el payload v1", () => {
+ const started = beginOnboarding(INITIAL_ONBOARDING_STATE);
+ assert.deepEqual(started,{version:1,status:"in_progress",introSeen:true,lastStep:"objectives"});
+ assert.equal(onboardingRouteFor(started.lastStep),"/onboarding/objetivos");
+ assert.equal(onboardingRouteFor("starting_point"),"/onboarding/objetivos");
 });
 
 test("una ruta guiada solo se admite cuando coincide con lastStep", () => {
@@ -128,36 +124,21 @@ test("replay solo es válido para completed y no cambia su estado persistente", 
   assert.deepEqual(normalizeOnboardingSession(incomplete, staleReplay.session), { active: false, replay: false });
 });
 
-test("las transiciones legítimas no permiten adelantar el recorrido", () => {
-  assert.equal(canMoveOnboardingToStep("starting_point", "objectives"), true);
-  assert.equal(canMoveOnboardingToStep("starting_point", "google"), false);
-  assert.equal(canMoveOnboardingToStep("objectives", "starting_point"), true);
-  assert.equal(canMoveOnboardingToStep("objectives", "google"), true);
-  assert.equal(canMoveOnboardingToStep("objectives", "final"), false);
-  assert.equal(canMoveOnboardingToStep("google", "contacts"), true);
-  assert.equal(canMoveOnboardingToStep("contacts", "contact"), true);
-  assert.equal(canMoveOnboardingToStep("contacts", "final"), true);
-  assert.equal(canMoveOnboardingToStep("contact", "final"), true);
+test("transiciones consecutivas y aliases legacy sin saltar etapas", () => {
+ for (const [a,b,allowed] of [["objectives","google",true],["google","contacts",true],["contacts","google",true],["objectives","contacts",false],["starting_point","contacts",false],["contact","google",true]] as const)
+ assert.equal(canMoveOnboardingToStep(a,b),allowed);
 });
 
-test("la secuencia y Atrás/Siguiente derivan de una sola fuente de verdad", () => {
-  assert.deepEqual(ONBOARDING_STEPS, ["starting_point", "objectives", "google", "contacts", "contact", "final"]);
-  assert.deepEqual(ONBOARDING_FLOW, [
-    { id: "intro", path: "/onboarding" },
-    { id: "starting_point", path: "/onboarding/punto-de-partida" },
-    { id: "objectives", path: "/onboarding/objetivos" },
-    { id: "google", path: "/onboarding/google" },
-    { id: "contacts", path: "/onboarding/contactos" },
-    { id: "contact", path: "/onboarding/contacto" },
-    { id: "final", path: "/onboarding/final" }
-  ]);
-  assert.deepEqual(onboardingRouteNavigation("starting_point"), { back: "intro", next: "objectives" });
-  assert.deepEqual(onboardingRouteNavigation("objectives"), { back: "starting_point", next: "google" });
-  assert.deepEqual(onboardingRouteNavigation("google"), { back: "objectives", next: "contacts" });
-  assert.deepEqual(onboardingRouteNavigation("contacts"), { back: "google", next: "contact" });
-  assert.deepEqual(onboardingRouteNavigation("contact"), { back: "contacts", next: "final" });
-  assert.deepEqual(onboardingRouteNavigation("final"), { back: "contact", next: null });
-  assert.doesNotMatch(source("../components/OnboardingRoutePage.tsx"), /router\.back|history\./);
+test("tres pasos guiados y rutas legacy conservadas como aliases", () => {
+ assert.deepEqual(ONBOARDING_FLOW.map(s=>s.id),["intro","objectives","google","contacts"]);
+ assert.deepEqual(onboardingRouteNavigation("objectives"),{back:"intro",next:"google"});
+ assert.deepEqual(onboardingRouteNavigation("google"),{back:"objectives",next:"contacts"});
+ assert.deepEqual(onboardingRouteNavigation("contacts"),{back:"google",next:null});
+ for(const legacy of ["starting_point","contact","final"] as const) {
+ const state={...beginOnboarding(INITIAL_ONBOARDING_STATE),lastStep:legacy};
+ assert.equal(requiredOnboardingRoute(state),legacy==="starting_point"?"objectives":"contacts");
+ }
+ assert.ok(ONBOARDING_STEPS.includes("final"));
 });
 
 test("la URL identifica el paso y permite restaurar lastStep al refrescar", () => {
@@ -171,13 +152,9 @@ test("la URL identifica el paso y permite restaurar lastStep al refrescar", () =
   assert.equal(restored.lastStep, "google");
 });
 
-test("Ver tutorial abre el replay permanente desde el header", () => {
-  const shellSource = source("../components/Shell.tsx");
-  const providerSource = source("../components/OnboardingProvider.tsx");
-
-  assert.match(shellSource, /nav-tutorial-link[\s\S]*onClick=\{onboarding\.replay\}[\s\S]*Ver tutorial/);
-  assert.match(providerSource, /function replay\(\)[\s\S]*router\.push\(transition\.route\)/);
-  assert.doesNotMatch(shellSource, /Empezar|Continuar|shouldShowOnboardingStart/);
+test("Ver tutorial permanece en la navegación normal", () => {
+ assert.match(source("../components/WorkspaceNavigation.tsx"),/onboarding.replay/);
+ assert.match(source("../components/OnboardingProvider.tsx"),/function replay\(\)/);
 });
 
 test("replay iniciado en una ruta normal conserva la sesión hasta mostrar la intro", () => {
@@ -266,52 +243,33 @@ test("los pasos guiados usan AuthGate y Shell antes del contenido real", () => {
   }
 });
 
-test("Ver tutorial no se renderiza dentro de rutas onboarding", () => {
-  const shellSource = source("../components/Shell.tsx");
-
-  assert.match(shellSource, /const isOnboarding = pathname\.startsWith\("\/onboarding"\)/);
-  assert.match(shellSource, /!isOnboarding \? \([\s\S]*Ver tutorial/);
+test("el shell del tutorial no monta navegación ni utilidades privadas", () => {
+ assert.match(source("../components/Shell.tsx"),/path.startsWith\("\/onboarding"\) \? <>\{children\}<\/> : <ApplicationShellContent>/);
+ const frame=source("../components/OnboardingRoutePage.tsx").split("export function OnboardingFrame")[1].split("function OnboardingObjectiveStep")[0];
+ assert.doesNotMatch(frame,/ActivitySyncButton|Cuenta|WorkspaceNavigation/);
+ assert.match(frame,/Saltar el tour/);
 });
 
-test("rutas privadas quedan cerradas hasta completed y Shell evita el flash privado", () => {
-  const providerSource = source("../components/OnboardingProvider.tsx");
-  const shellSource = source("../components/Shell.tsx");
-  const normalRouteStart = providerSource.indexOf("if (!routeId)");
-  const normalRouteEnd = providerSource.indexOf("if (routeId === \"intro\")", normalRouteStart);
-  const normalRouteSource = providerSource.slice(normalRouteStart, normalRouteEnd);
-
-  assert.ok(normalRouteStart >= 0 && normalRouteEnd > normalRouteStart);
-  assert.match(normalRouteSource, /!isProductOnboardingComplete\(state\)[\s\S]*router\.replace\(onboardingRouteFor\(requiredOnboardingRoute\(state\)\)\)/);
-  assert.match(providerSource, /isOnboardingRouteAdmitted\(state, session, routeId\)/);
-  assert.match(shellSource, /if \(onboarding\.loading \|\| !onboarding\.routeReady\)[\s\S]*Preparando recorrido/);
-  assert.ok(shellSource.indexOf("if (onboarding.loading || !onboarding.routeReady)") < shellSource.indexOf("<header"));
+test("gate privado sigue fail-closed mientras se resuelve onboarding", () => {
+ const provider=source("../components/OnboardingProvider.tsx");
+ assert.match(provider,/if \(!routeId\)[\s\S]*!isProductOnboardingComplete\(state\)/);
+ assert.match(source("../components/ApplicationShellContent.tsx"),/onboarding.loading/);
+ assert.match(provider,/isOnboardingRouteAdmitted\(state, session, routeId\)/);
 });
 
-test("errores de carga y escritura quedan fail-closed", () => {
-  const providerSource = source("../components/OnboardingProvider.tsx");
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const shellSource = source("../components/Shell.tsx");
-
-  assert.match(providerSource, /setLoadFailed\(true\)[\s\S]*No pudimos cargar tu avance/);
-  assert.match(providerSource, /const routeReady = !loading && !loadFailed && isOnboardingRouteAdmitted/);
-  assert.match(providerSource, /await saveProductOnboardingState\(nextState\)[\s\S]*setState\(nextState\)[\s\S]*catch/);
-  assert.match(providerSource, /if \(completionPending\.current\) return;[\s\S]*completionPending\.current = true/);
-  assert.match(providerSource, /if \(!\(await persist\(completeOnboarding\(\)\)\)\) \{[\s\S]*completionPending\.current = false;[\s\S]*setCompleting\(false\);[\s\S]*return;/);
-  assert.equal(providerSource.match(/persist\(completeOnboarding\(\)\)/g)?.length, 1);
-  assert.match(providerSource, /clearOnboardingSession\(\);[\s\S]*setSession\(INACTIVE_ONBOARDING_SESSION\);[\s\S]*if \(replayAllowed\) router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
-  assert.match(providerSource, /state\.status !== "in_progress" \|\| !routeStep[\s\S]*isProductOnboardingComplete\(state\)[\s\S]*ONBOARDING_PRODUCT_DESTINATION/);
-  assert.match(routeSource, /nextDisabled=\{nextDisabled \|\| \(routeId === "final" && onboarding\.completing\)\}/);
-  assert.match(shellSource, /onboarding\.loadFailed[\s\S]*onboarding\.retry/);
-  assert.doesNotMatch(providerSource, /Puedes seguir usando Coffeecito normalmente/);
+test("errores de avance bloquean navegación y ofrecen reintento", () => {
+ const provider=source("../components/OnboardingProvider.tsx");
+ assert.match(provider,/setLoadFailed\(true\)/);
+ assert.match(provider,/if \(!\(await persist\(nextState\)\)\) return/);
+ assert.match(source("../components/OnboardingRoutePage.tsx"),/onboarding.loadFailed/);
+ assert.match(source("../components/OnboardingRoutePage.tsx"),/Reintentar/);
 });
 
-test("URL arbitraria no reemplaza lastStep ni permite final prematuro", () => {
-  const providerSource = source("../components/OnboardingProvider.tsx");
-
-  assert.match(providerSource, /requiredOnboardingRoute\(state\) !== routeStep[\s\S]*router\.replace\(onboardingRouteFor\(requiredOnboardingRoute\(state\)\)\)/);
-  assert.doesNotMatch(providerSource, /moveOnboardingToStep\(state, routeStep\)/);
-  assert.match(providerSource, /canMoveOnboardingToStep\(currentStep, step\)/);
-  assert.match(providerSource, /state\.lastStep !== "final"[\s\S]*Completa los pasos anteriores/);
+test("URL arbitraria no confirma ejercicio ni completa el tour", () => {
+ const provider=source("../components/OnboardingProvider.tsx");
+ assert.doesNotMatch(provider,/moveOnboardingToStep\(state, routeStep\)/);
+ assert.match(provider,/!state.boardExerciseCompleted/);
+ assert.match(provider,/async function skip\(\) \{ await finish\(true\)/);
 });
 
 test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido", () => {
@@ -321,29 +279,17 @@ test("la navegación activa reconoce Objetivos y Contactos dentro del recorrido"
   assert.match(navigationSource, /href === "\/contactos"[\s\S]*pathname === "\/onboarding\/contactos" \|\| pathname === "\/onboarding\/contacto"/);
 });
 
-test("Objetivos y Contactos reutilizan las vistas reales sin duplicar páginas", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const objectivesSource = source("../components/ObjectivesPage.tsx");
-  const contactsSource = source("../components/ReadOnlyContacts.tsx");
-
-  assert.match(routeSource, /<ObjectivesPage[\s\S]*onboardingCoach=/);
-  assert.match(routeSource, /<ReadOnlyContacts[\s\S]*beforeList=/);
-  assert.match(objectivesSource, /onboardingCoach\?: ReactNode/);
-  assert.match(contactsSource, /beforeList\?: ReactNode/);
+test("pasos componen los bloques reales sin páginas paralelas", () => {
+ const page=source("../components/OnboardingRoutePage.tsx");
+ for(const name of ["StartingPointFields","NetworkingCyclePanel","ContactTable","CoachModule"]) assert.match(page,new RegExp("<"+name));
+ assert.match(source("../components/ContactTable.tsx"),/!workspace && !tutorial/);
 });
 
-test("Tu punto de partida precede y preserva la pantalla real de Objetivos", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const providerSource = source("../components/OnboardingProvider.tsx");
-
-  assert.match(routeSource, /routeId === "starting_point"[\s\S]*<OnboardingObjectivesStep/);
-  assert.match(routeSource, /title="Cuéntame de ti\."/);
-  assert.match(routeSource, /¿Cómo te llamas y cuál es tu situación profesional\?/);
-  assert.match(routeSource, /<StartingPointFields[\s\S]*mode="onboarding"/);
-  assert.match(routeSource, /fieldsRef\.current\?\.save\(\)[\s\S]*moveTo\("objectives"\)/);
-  assert.match(routeSource, /if \(onboarding\.replaying\)[\s\S]*moveTo\("objectives"\)[\s\S]*return/);
-  assert.match(providerSource, /router\.push\(onboardingRouteFor\("starting_point"\)\)/);
-  assert.match(routeSource, /<ObjectivesPage[\s\S]*onboardingCoach=/);
+test("perfil y ciclo se reúnen en paso 1; guardar antes de avanzar", () => {
+ const page=source("../components/OnboardingRoutePage.tsx");
+ assert.match(page,/fields.current\?\.save\(\)[\s\S]*onboarding.moveTo\("google"\)/);
+ assert.match(page,/profileReady && cycleReady && priorityReady/);
+ assert.match(page,/<NetworkingCyclePanel title="Tu objetivo"/);
 });
 
 test("campos aprobados son compartidos con Cuenta y usan una escritura RPC estrecha", () => {
@@ -351,12 +297,12 @@ test("campos aprobados son compartidos con Cuenta y usan una escritura RPC estre
   const actionsSource = source("../lib/startingPointActions.ts");
   const accountSource = source("../components/AccountPage.tsx");
 
-  assert.match(fieldsSource, /¿Cómo te llamamos\?/);
-  assert.match(fieldsSource, /¿Cuál es tu situación profesional\?/);
+  assert.match(fieldsSource, /¿Cómo te llamas\?/);
+  assert.match(fieldsSource, /Situación profesional/);
   assert.doesNotMatch(fieldsSource, /¿Desde cuándo haces networking\?/);
   assert.match(actionsSource, /p_networking_start_date: null/);
   for (const label of [
-    "Con empleo", "Sin empleo", "Independiente / emprendiendo", "Estudiando",
+    "Dependiente", "En búsqueda activa", "Independiente / emprendiendo", "Estudiando",
     "Otra situación", "Prefiero no indicar"
   ]) assert.equal(PROFESSIONAL_SITUATION_OPTIONS.some((option) => option.label === label), true);
   assert.match(actionsSource, /rpc\("current_user_starting_point_v1"\)/);
@@ -413,22 +359,11 @@ test("Contactos reutiliza el editor real para crear contactos manualmente", () =
   assert.match(tableSource, /onSaved=\{\(\) => \{[\s\S]*onReload\?\.\(\)/);
 });
 
-test("Contactos se muestra incluso vacío y continúa a ficha o final según contactos reales", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const contactsSource = source("../components/ReadOnlyContacts.tsx");
-
-  assert.match(routeSource, /<ReadOnlyContacts[\s\S]*beforeList=/);
-  assert.match(contactsSource, /const table = <ContactTable contacts=\{contacts\} onReload=\{loadContacts\} view=\{view\} \/>/);
-  assert.match(contactsSource, /view = "all"/);
-  assert.match(routeSource, /setFirstContactId\(contacts\[0\]\?\.id \?\? ""\)/);
-  assert.match(routeSource, /moveTo\(firstContactId \? "contact" : "final"\)/);
-  assert.match(routeSource, /const contacts = await readContactListRows\(\)/);
-  assert.match(routeSource, /const firstContact = contacts\[0\]/);
-  assert.match(routeSource, /if \(!firstContact\)[\s\S]*moveTo\("final"\)/);
-  assert.match(routeSource, /if \(nextProfile\) setProfile\(nextProfile\);[\s\S]*moveTo\("final"\)/);
-  assert.match(routeSource, /onBack=\{goBack\}[\s\S]*routeId="final"/);
-  assert.match(routeSource, /moveTo\(contacts\.length \? "contact" : "contacts"\)/);
-  assert.doesNotMatch(routeSource, /display_name.*find|find\(.*display_name/);
+test("paso 2 bloquea Siguiente sin contactos; no bloquea Saltar", () => {
+ const page=source("../components/OnboardingRoutePage.tsx");
+ assert.match(page,/contacts.length > 0 : exercise/);
+ assert.match(page,/disabled=\{disabled\} icon="arrowRight" onClick=\{\(\) => void onboarding.skip/);
+ assert.match(source("../components/ContactTable.tsx"),/Tu red comienza aquí/);
 });
 
 test("Contactos abre filtrado por Foco y permite elegir Todos", () => {
@@ -450,65 +385,35 @@ test("contactId se mantiene efímero y no forma parte del payload persistido", (
   assert.doesNotMatch(storeSource, /contactId|contact_id/);
 });
 
-test("ficha normal conserva suggestions y ficha onboarding inyecta el mismo Coach en modo onboarding", () => {
-  const profileSource = source("../components/ContactProfile.tsx");
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-
-  assert.match(profileSource, /onboardingCoach \?\? \([\s\S]*<CoachModule[\s\S]*variant="contact"/);
-  assert.match(routeSource, /<ContactProfile[\s\S]*onboardingCoach=\{coach\}/);
-  assert.match(routeSource, /function OnboardingCoach[\s\S]*mode="onboarding"/);
+test("el tutorial no monta ficha; la ficha normal conserva su Coach", () => {
+ assert.doesNotMatch(source("../components/OnboardingRoutePage.tsx"),/<ContactProfile/);
+ assert.match(source("../components/ContactProfile.tsx"),/<CoachModule/);
 });
 
-test("el paso de importación monta el importador vCard real junto a Google", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const accountSource = source("../components/AccountPage.tsx");
-  const vcardSource = source("../components/VCardImportPanel.tsx");
-
-  assert.match(routeSource, /title="Comienza con tus contactos\."/);
-  assert.match(routeSource, /Empieza importando tus contactos y, después/);
-  assert.match(routeSource, /No necesitas hacerlo todo ahora/);
-  assert.doesNotMatch(routeSource, /Te explicamos|aquí.*obtener el archivo/);
-  assert.match(routeSource, /<AccountPage view="google-onboarding" \/>/);
-  assert.match(accountSource, /<ContactImportButton/);
-  assert.match(source("../components/ContactImportDialog.tsx"), /<VCardImportPanel presentation="dialog"/);
-  assert.doesNotMatch(accountSource, /OnboardingVCardImportPreview/);
-  assert.match(vcardSource, /accept="\.vcf,text\/vcard,text\/x-vcard"/);
-  assert.match(vcardSource, /parseVCardContacts\(await file\.text\(\)\)/);
-  assert.match(vcardSource, /<SyncPreviewDialog[\s\S]*onApply=\{\(selectedChanges\) => void applySelection\(selectedChanges\)\}/);
-  assert.match(vcardSource, /importSelectedVCardContacts\(selectedContacts, saveContactFromEditor\)/);
-  assert.match(accountSource, /redirectPath="\/onboarding\/google"/);
-  assert.match(accountSource, /authorizationRedirectPath: redirectPath/);
-  assert.match(accountSource, /resumeImport: resumeAction === "import_contacts"/);
+test("importación usa el modal canónico, parser y Review/Apply existentes", () => {
+ const table=source("../components/ContactTable.tsx");
+ assert.match(table,/<ContactImportButton label="Importar" onClosed=/);
+ const dialog=source("../components/ContactImportDialog.tsx");
+ assert.match(dialog,/<VCardImportPanel/);
+ assert.match(dialog,/<GoogleContactsSyncPanel/);
+ assert.match(dialog,/readGoogleOAuthOperationEligibility\("contacts"\)/);
 });
 
-test("las burbujas usan el copy aprobado y una estructura uniforme", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-
-  assert.match(routeSource, /title="Define tu objetivo y tus prioridades\."/);
-  assert.match(routeSource, /title="Tu red, organizada a tu manera\."/);
-  assert.match(routeSource, /Aquí administras tus contactos: eliges a quiénes poner en foco/);
-  assert.match(routeSource, /marcas a los headhunters para agruparlos por consultora\./);
-  assert.match(routeSource, /title="La historia de cada contacto\."/);
-  assert.match(routeSource, /Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas,/);
-  assert.match(routeSource, /También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red\./);
-  assert.match(routeSource, /title="Comienza con tus contactos\."/);
-  assert.doesNotMatch(routeSource, /<ul className="onboarding-summary"|onboarding-coach-continuation/);
+test("Coach explicativo y navegación exterior única", () => {
+ const page=source("../components/OnboardingRoutePage.tsx");
+ assert.match(page,/<CoachModule mode="onboarding"><p>\{message\}<\/p><\/CoachModule>/);
+ assert.match(page,/<nav className="onboarding-bottom-navigation"/);
+ assert.match(page,/Paso \{index \+ 1\} de 3/);
+ assert.match(page,/Empezar!/);
 });
 
-test("mandatory no ofrece salida y replay completed conserva salida descartable", () => {
-  const routeSource = source("../components/OnboardingRoutePage.tsx");
-  const providerSource = source("../components/OnboardingProvider.tsx");
-  const coachSource = source("../components/CoachPreview.tsx");
-
-  assert.match(routeSource, /nextLabel="Ir a Contactos"/);
-  assert.match(routeSource, /Yo te acompañaré con sugerencias para mantener tu red[\s\S]*ordenada y al día\./);
-  assert.equal(ONBOARDING_PRODUCT_DESTINATION, "/contactos");
-  assert.doesNotMatch(routeSource, /Ahora no|onboarding\.defer/);
-  assert.match(routeSource, /onExit=\{onboarding\.replaying \? \(\) => void onboarding\.exit\(routeId\) : undefined\}/);
-  assert.match(coachSource, /onExit\?: \(\) => void/);
-  assert.match(coachSource, /\{onExit \? <Button onClick=\{onExit\}/);
-  assert.match(providerSource, /if \(!isOnboardingReplayAllowed\(state, session\)\) return;[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
-  assert.match(providerSource, /function complete\(\)[\s\S]*router\.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
+test("Saltar finaliza sin borrar datos y conduce al Inicio real", () => {
+ assert.equal(ONBOARDING_PRODUCT_DESTINATION,"/");
+ const provider=source("../components/OnboardingProvider.tsx");
+ assert.match(provider,/async function skip\(\) \{ await finish\(true\); \}/);
+ const finish=provider.split("async function finish")[1].split("function replay")[0];
+ assert.match(finish,/persist/); assert.doesNotMatch(finish,/deleteProductOnboardingState/);
+ assert.match(finish,/router.push\(ONBOARDING_PRODUCT_DESTINATION\)/);
 });
 
 test("UI-STRUCT-01 distribuye las cinco vistas y conserva el alias dashboard y los deep links", () => {
@@ -620,35 +525,18 @@ test("persistencia usa una clave versionada y un wrapper dedicado", () => {
   assert.doesNotMatch(genericStoreSource, /product_onboarding_v1/);
 });
 
-test("copy aprobado conserva frases exactas y mensajes de Cuenta fuera del tutorial", () => {
-  const intro = source("../components/OnboardingIntroSlides.tsx").replace(/\s+/g, " ");
-  const route = source("../components/OnboardingRoutePage.tsx").replace(/\s+/g, " ");
-  for (const text of [
-    "Hay un diamante en bruto en tu red.",
-    "Tus contactos pueden ser el punto de partida de tu próximo trabajo, negocio o marca profesional. El networking te ayuda a descubrir y desarrollar ese potencial. Coffeecito está para acompañarte en ese camino.",
-    "Que organizar tu red no te quite tiempo para conectar.",
-    "Coffeecito reúne tus contactos, conversaciones y pendientes para que no tengas que llevar todo en la cabeza.",
-    "Así puedes dedicar menos tiempo a ordenar información y más a saber con quién hablar y dar el siguiente paso."
-  ]) assert.ok(intro.includes(text), text);
-  assert.doesNotMatch(intro, /Conectar con intención puede ayudarte a:/);
-  for (const text of [
-    "Cuéntame de ti.", "Define tu objetivo y tus prioridades.",
-    "Comienza con tus contactos.", "Tu red, organizada a tu manera.",
-    "La historia de cada contacto.", "Ya puedes empezar.",
-    "Define tu objetivo de networking y establece las prioridades que te interesa perseguir. Esto te ayudará a enfocar tus conversaciones y encontrar oportunidades que tengan sentido para ti.",
-    "Aquí administras tus contactos: eliges a quiénes poner en foco para hacer networking",
-    "Cada contacto tiene una ficha donde puedes editar sus datos y registrar mensajes, citas, correos o llamadas, con notas y minutas. También podrás anotar contactos referidos para darles seguimiento y seguir ampliando tu red.",
-    "Ahora ya conoces las funciones básicas para avanzar. Yo te acompañaré con sugerencias para mantener tu red ordenada y al día."
-  ]) assert.ok(route.includes(text), text);
-  assert.doesNotMatch(route, /Te explicamos aquí|Las Prioridades son opcionales/);
-  const importStep = route.slice(route.indexOf("function OnboardingGoogleStep"), route.indexOf("function OnboardingFinalStep"));
-  assert.doesNotMatch(importStep, /<a\b|href=|<button\b/i);
-  const fields = source("../components/StartingPointFields.tsx");
-  assert.match(fields, /mode === "onboarding" \? "Datos guardados\." : "Tu punto de partida quedó guardado\."/);
-  assert.match(fields, /mode === "onboarding" \? "Cargando tus datos\.\.\." : "Cargando tu punto de partida\.\.\."/);
-  assert.doesNotMatch(fields, /¿Desde cuándo haces networking\?|type="date"/);
-  assert.ok(route.includes("¿Cómo te llamas y cuál es tu situación profesional? Con estos datos podremos personalizar tu experiencia. Puedes actualizarlos después en Cuenta."));
-  assert.match(route, /BrandBetaWordmark/);
+test("copy nuevo exacto, intro conservada y sin fecha duplicada", () => {
+ const route=source("../components/OnboardingRoutePage.tsx");
+ for(const text of [
+ "Cuéntame quién eres y qué buscas: tu nombre, en qué punto está tu carrera hoy, y crea tu primer objetivo con los cafés:",
+ "Partamos con lo más fácil: agrega a la persona que te invitó a Coffeecito.",
+ "Este es tu tablero: acá vive tu red. Arrastra tu contacto a 'Contactado' y mira cómo funciona.",
+ '¡Eso! Así se mueve tu red. Tu networking ya partió 🎉 Aprieta "Empezar" y sigamos con los próximos pasos.'
+ ]) assert.ok(route.includes(text),text);
+ const fields=source("../components/StartingPointFields.tsx");
+ assert.doesNotMatch(fields,/type="date"/);
+ assert.match(fields,/Tu punto de partida quedó guardado/);
+ assert.match(source("../components/OnboardingIntroSlides.tsx"),/Hay un diamante en bruto en tu red/);
 });
 
 function source(path: string) {

@@ -6,7 +6,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 import {UserRound,MessageCircle,X} from "lucide-react";
 import {ActivitySyncButton} from "./ActivitySyncButton";
-import {BrandBetaWordmark,BRAND_ACCESSIBLE_NAME} from "./ui/BrandBetaWordmark";
+import {ShellHeader} from "./ShellHeader";
 import {WorkspaceNavigation} from "./WorkspaceNavigation";
 import {ShellToolbar} from "./ShellToolbar";
 import {InvitationButton} from "./InvitationButton";
@@ -31,9 +31,7 @@ export function ShellChrome({children}:{children:ReactNode}){
  return <div className="app-shell application-shell-v2">
   <Popover.Root open={coachOpen} onOpenChange={open=>{if(open)workspace.ensureFresh();setCoachOpen(open);}}>
    <div className="shell-top-region">
-   <header className="shell-header-v2">
-    <Link href="/" aria-label={BRAND_ACCESSIBLE_NAME} className="shell-brand-lockup"><img src="/brand/coffeecito-isotipo.svg" alt="" aria-hidden="true"/><BrandBetaWordmark /></Link>
-    <div className="shell-header-actions">
+   <ShellHeader actions={<>
      <ActivitySyncButton variant="focus_incremental" square/>
      <Popover.Trigger asChild><button className="button secondary shell-coach-trigger" aria-label={`Coach: ${workspace.error?'total no disponible':workspace.loading?'cargando':workspace.todos.length+' sugerencias pendientes'}`}><span className="shell-coach-face" data-speaking={hasPending||undefined} aria-hidden="true"><span className="shell-coach-art"><span className="coach-bot-antenna"/><CoachFace/></span></span>{hasPending?<span className="shell-coach-count" aria-hidden="true"><MessageCircle/ ><span>{workspace.todos.length>99?'99+':workspace.todos.length}</span></span>:null}</button></Popover.Trigger>
      <Menu.Root modal={false}><Menu.Trigger asChild><button ref={account} className="button secondary square" aria-label="Cuenta"><UserRound aria-hidden="true"/></button></Menu.Trigger>
@@ -45,8 +43,7 @@ export function ShellChrome({children}:{children:ReactNode}){
        <Menu.Item disabled={!onSignOut} onSelect={()=>onSignOut?.()}>Cerrar sesión</Menu.Item>
       </Menu.Content></Menu.Portal>
      </Menu.Root>
-    </div>
-   </header>
+   </>}/>
    {!mobile?<WorkspaceNavigation/>:null}
    <ShellToolbar/>
    </div>

@@ -1,128 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { OnboardingNavigation } from "./OnboardingNavigation";
+import { createContext, useContext, type ReactNode } from "react";
 import { ApplicationShellContent } from "./ApplicationShellContent";
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import { ActivitySyncButton } from "./ActivitySyncButton";
 import { InteractionSyncPreferencesProvider } from "./InteractionSyncPreferencesProvider";
-import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
-import { SystemAccessProvider, useSystemAccess } from "./SystemAccess";
-import { Button } from "./ui/Button";
-import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
-import { Icon } from "./ui/Icon";
-import { InvitationButton } from "./InvitationButton";
-import { canRenderSystemSurface } from "../lib/systemAccess";
-import { expectedNetworkingCycleId } from "../lib/networkingCycles";
+import { OnboardingProvider } from "./OnboardingProvider";
+import { SystemAccessProvider } from "./SystemAccess";
 
 const ShellActionsContext = createContext<{ onSignOut?: () => void }>({});
-
-export function useShellActions() {
-  return useContext(ShellActionsContext);
-}
+export function useShellActions() { return useContext(ShellActionsContext); }
 
 export function Shell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void }) {
-  return (
-    <SystemAccessProvider>
-      <InteractionSyncPreferencesProvider>
-        <OnboardingProvider>
-          <ShellActionsContext.Provider value={{ onSignOut }}>
-            <ShellContent>{children}</ShellContent>
-          </ShellActionsContext.Provider>
-        </OnboardingProvider>
-      </InteractionSyncPreferencesProvider>
-    </SystemAccessProvider>
-  );
+  return <SystemAccessProvider><InteractionSyncPreferencesProvider><OnboardingProvider>
+    <ShellActionsContext.Provider value={{ onSignOut }}><ShellContent>{children}</ShellContent></ShellActionsContext.Provider>
+  </OnboardingProvider></InteractionSyncPreferencesProvider></SystemAccessProvider>;
 }
 
-function ShellContent({children}:{children:ReactNode}) {
-  const path=usePathname();
-  return path.startsWith("/onboarding")?<LegacyShellContent>{children}</LegacyShellContent>:<ApplicationShellContent>{children}</ApplicationShellContent>;
-}
-
-function LegacyShellContent({ children }: { children: ReactNode }) {
-  const utilities = useRef<HTMLDetailsElement>(null);
-  const pathname = usePathname();
-  const onboarding = useOnboarding();
-  const systemAccess = useSystemAccess();
-  const isOnboarding = pathname.startsWith("/onboarding");
-  const isSystem = pathname.startsWith("/sistema");
-  const isAccount = pathname.startsWith("/cuenta");
-  const showSystem = canRenderSystemSurface(systemAccess, "system");
-  const headerReady = !onboarding.loading && onboarding.routeReady && !onboarding.loadFailed;
-  useEffect(() => { void expectedNetworkingCycleId().catch(() => undefined); }, []);
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 780px)");
-    const arrange = () => { if (utilities.current) utilities.current.open = !media.matches; };
-    arrange();
-    media.addEventListener("change", arrange);
-    return () => media.removeEventListener("change", arrange);
-  }, [headerReady]);
-
-  if (onboarding.loadFailed) {
-    return (
-      <main className="app-shell onboarding-route-gate" role="alert">
-        <p>{onboarding.error}</p>
-        <Button onClick={onboarding.retry}>Reintentar</Button>
-      </main>
-    );
-  }
-
-  if (onboarding.loading || !onboarding.routeReady) {
-    return <main className="app-shell onboarding-route-loading" role="status">Preparando recorrido...</main>;
-  }
-
-  return (
-    <main className="app-shell">
-      <header className="topbar">
-        <Link aria-label={BRAND_ACCESSIBLE_NAME} className="shell-brand-lockup" href="/contactos">
-          <img alt="" aria-hidden="true" src="/brand/coffeecito-isotipo.svg" />
-          <BrandBetaWordmark />
-        </Link>
-        <OnboardingNavigation />
-        <div className="nav-utility">
-          {!isOnboarding ? <InvitationButton /> : null}
-          <details ref={utilities} className="shell-utility-overflow" onKeyDown={(event) => {
-            if (event.key === "Escape" && window.matchMedia("(max-width: 780px)").matches) {
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector("summary")?.focus();
-            }
-          }}>
-            <summary className="nav-link nav-link-icon" aria-label="Más acciones" title="Más acciones"><Icon name="more" /></summary>
-            <div className="shell-utility-items">
-          {!isOnboarding ? (
-            <button aria-label="Ver tutorial" className="nav-tutorial-link" onClick={onboarding.replay} type="button">
-              <span className="nav-tutorial-label-full">Ver tutorial</span>
-              <span className="nav-tutorial-label-compact">Tutorial</span>
-            </button>
-          ) : null}
-          {showSystem ? (
-            <Link
-              aria-label="Sistema"
-              className={`nav-link nav-link-icon ${isSystem ? "active" : ""}`}
-              href="/sistema"
-              title="Sistema"
-            >
-              <Icon name="settings" />
-              <span className="sr-only">Sistema</span>
-            </Link>
-          ) : null}
-          <ActivitySyncButton variant="focus_incremental" square />
-            </div>
-          </details>
-          <Link
-            aria-label="Cuenta"
-            className={`nav-link nav-link-icon ${isAccount ? "active" : ""}`}
-            href="/cuenta"
-            title="Cuenta"
-          >
-            <Icon name="user" />
-            <span className="sr-only">Cuenta</span>
-          </Link>
-        </div>
-      </header>
-      {children}
-    </main>
-  );
+function ShellContent({ children }: { children: ReactNode }) {
+  const path = usePathname();
+  return path.startsWith("/onboarding") ? <>{children}</> : <ApplicationShellContent>{children}</ApplicationShellContent>;
 }

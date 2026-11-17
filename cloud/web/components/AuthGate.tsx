@@ -36,7 +36,7 @@ import { LegalAcceptanceCheckbox } from "./LegalAcceptanceCheckbox";
 import { LegalAcceptanceGate } from "./LegalAcceptanceGate";
 import { TurnstileWidget } from "./TurnstileWidget";
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({ children, publicLanding }: { children: ReactNode; publicLanding?: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -317,6 +317,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
+    if (publicLanding) return publicLanding;
     return (
       <main className="auth-landing">
         <div aria-hidden="true" className="auth-landing-background" />

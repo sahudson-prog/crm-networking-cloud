@@ -43,9 +43,9 @@ type CoachOnboardingProps = {
   nextLabel?: string;
   onBack?: () => void;
   onExit?: () => void;
-  onNext: () => void;
-  progress: string;
-  title: string;
+  onNext?: () => void;
+  progress?: string;
+  title?: string;
 };
 
 type CoachModuleProps = CoachSuggestionsProps | CoachOnboardingProps;
@@ -318,18 +318,18 @@ function CoachOnboardingContent({
   return (
     <CoachFrame botSize={botSize} mode="onboarding" variant="onboarding">
       <CoachBubble as="article" className="coach-onboarding-bubble">
-        <div className="coach-onboarding-heading">
+        {progress || title ? <div className="coach-onboarding-heading">
           <span>{progress}</span>
           <h2>{title}</h2>
-        </div>
+        </div> : null}
         <div className="coach-onboarding-content">{children}</div>
-        <div className="coach-onboarding-actions">
+        {onNext || onBack || onExit ? <div className="coach-onboarding-actions">
           <div>{onBack ? <Button icon="arrowLeft" onClick={onBack}>Anterior</Button> : null}</div>
           <div>
             {onExit ? <Button onClick={onExit} tone="ghost">{exitLabel}</Button> : null}
-            <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button>
+            {onNext ? <Button disabled={nextDisabled} icon="arrowRight" onClick={onNext} tone="primary">{nextLabel}</Button> : null}
           </div>
-        </div>
+        </div> : null}
       </CoachBubble>
     </CoachFrame>
   );

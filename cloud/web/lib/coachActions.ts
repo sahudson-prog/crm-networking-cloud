@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.ts";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision.ts";
 import { networkingWriteContext } from "./networkingCycles.ts";
 import { normalizeHeadhunterCompanyName } from "./headhunterCompanyMaster.ts";
 import type { TodoRow } from "./readModel.ts";
@@ -145,6 +146,7 @@ export async function executeNetworkingStatusTodo({
       .eq("id", contactId)
       .eq("user_id", userId);
     if (updateContactError) throw updateContactError;
+    notifyNetworkingDataChanged();
 
     const { error: updateTodoError } = await supabase
       .from("todos")

@@ -6031,13 +6031,15 @@ textarea::placeholder {
 }
 
 .contacts-status-card-main a,
+.contacts-status-card-main .contacts-status-card-title,
 .contacts-status-card-main span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.contacts-status-card-main a {
+.contacts-status-card-main a,
+.contacts-status-card-main .contacts-status-card-title {
   color: var(--crm-text);
   font-size: 12px;
   font-weight: 800;
@@ -7442,15 +7444,16 @@ textarea::placeholder {
 .starting-point-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 20px;
 }
 
 .starting-point-field {
   align-content: start;
   min-width: 0;
-  border-top: 2px solid var(--brand-terracotta);
-  background: var(--crm-field-soft);
-  padding: 14px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 8px;
 }
 
 .starting-point-field input,
@@ -9125,6 +9128,7 @@ code {
 }
 
 .networking-cycle-panel .panel-title,
+.onboarding-priorities .panel-title,
 .objectives-priorities .panel-title {
   display: inline-flex;
   align-items: center;
@@ -9132,10 +9136,15 @@ code {
 }
 
 .networking-cycle-panel .panel-title .icon,
+.onboarding-priorities .panel-title .icon,
 .objectives-priorities .panel-title .icon {
   width: 20px;
   height: 20px;
   color: var(--crm-primary);
+}
+
+.onboarding-priorities .panel-title .icon {
+  flex: 0 0 20px;
 }
 
 .networking-plan-grid {
@@ -9147,18 +9156,21 @@ code {
 .networking-plan {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   min-width: 0;
-  min-height: 210px;
+  min-height: 148px;
   border: 1px solid var(--crm-border);
   border-radius: var(--crm-radius);
   background: var(--crm-surface);
   box-shadow: var(--crm-shadow-soft);
-  padding: 20px;
+  padding: 16px;
 }
 
 .networking-plan.is-active {
-  border-color: var(--crm-primary);
+  background: var(--crm-status-agendado-soft);
+  border-color: color-mix(in srgb, var(--crm-positive) 24%, var(--crm-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--crm-positive) 8%, transparent),
+    0 6px 20px color-mix(in srgb, var(--crm-positive) 9%, transparent);
 }
 
 .networking-plan.is-unavailable {
@@ -9169,14 +9181,14 @@ code {
 
 .networking-plan-heading {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
 }
 
 .networking-plan-heading h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 650;
   line-height: 1.35;
 }
@@ -9185,8 +9197,7 @@ code {
   width: 22px;
   height: 22px;
   display: block;
-  align-self: start;
-  margin-top: 1px;
+  align-self: center;
   color: var(--crm-primary);
 }
 
@@ -9209,12 +9220,12 @@ code {
   margin: 0;
   color: var(--crm-muted);
   font-size: 13px;
-  padding-left: 34px;
+  padding-left: 32px;
 }
 
 .networking-plan.is-unavailable > .networking-plan-status,
 .networking-plan.is-unavailable > .networking-plan-pending {
-  margin-left: 34px;
+  margin-left: 32px;
 }
 
 .networking-plan.is-unavailable > .networking-plan-pending {
@@ -9222,11 +9233,11 @@ code {
 }
 
 .button.networking-plan-notice {
-  align-self: flex-start;
-  margin: auto 0 0 34px;
+  align-self: center;
+  margin: auto 0 0;
   border-radius: 999px;
   min-width: 118px;
-  max-width: calc(100% - 34px);
+  max-width: 100%;
   background: var(--crm-surface);
   color: var(--crm-text);
 }
@@ -9251,7 +9262,7 @@ code {
 .networking-process-summary {
   display: grid;
   gap: 5px;
-  padding-left: 34px;
+  padding-left: 32px;
   font-size: 13px;
 }
 
@@ -9266,8 +9277,8 @@ code {
 
 .networking-plan-actions {
   display: flex;
+  justify-content: center;
   margin-top: auto;
-  padding-left: 34px;
 }
 
 .networking-process-action {

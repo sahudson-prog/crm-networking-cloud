@@ -1,5 +1,5 @@
 export const PRODUCT_ONBOARDING_SETTING_KEY = "product_onboarding_v1";
-export const ONBOARDING_PRODUCT_DESTINATION = "/contactos";
+export const ONBOARDING_PRODUCT_DESTINATION = "/";
 
 export const ONBOARDING_STEPS = [
   "starting_point",
@@ -12,16 +12,16 @@ export const ONBOARDING_STEPS = [
 
 export const ONBOARDING_FLOW = [
   { id: "intro", path: "/onboarding" },
-  { id: "starting_point", path: "/onboarding/punto-de-partida" },
   { id: "objectives", path: "/onboarding/objetivos" },
   { id: "google", path: "/onboarding/google" },
-  { id: "contacts", path: "/onboarding/contactos" },
-  { id: "contact", path: "/onboarding/contacto" },
-  { id: "final", path: "/onboarding/final" }
+  { id: "contacts", path: "/onboarding/contactos" }
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
-export type OnboardingRouteId = (typeof ONBOARDING_FLOW)[number]["id"];
+export type OnboardingRouteId = OnboardingStep | "intro";
+export function currentOnboardingStep(step: OnboardingStep): OnboardingStep {
+  return step === "starting_point" ? "objectives" : step === "contact" || step === "final" ? "contacts" : step;
+}
 export type OnboardingStatus = "not_started" | "in_progress" | "dismissed" | "completed";
 
 export type ProductOnboardingState = {
@@ -29,6 +29,7 @@ export type ProductOnboardingState = {
   status: OnboardingStatus;
   introSeen: boolean;
   lastStep?: OnboardingStep;
+  boardExerciseCompleted?: boolean;
 };
 
 export type OnboardingSessionState = {
@@ -62,7 +63,8 @@ export function parseProductOnboardingState(value: string): ProductOnboardingSta
       version: 1,
       status: parsed.status,
       introSeen: parsed.introSeen,
-      ...(parsed.lastStep ? { lastStep: parsed.lastStep } : {})
+      ...(parsed.lastStep ? { lastStep: parsed.lastStep } : {}),
+      ...(parsed.boardExerciseCompleted === true ? { boardExerciseCompleted: true } : {})
     };
   } catch {
     return null;
@@ -86,7 +88,7 @@ export function isProductOnboardingComplete(state: ProductOnboardingState) {
 }
 
 export function requiredOnboardingRoute(state: ProductOnboardingState): OnboardingRouteId {
-  return state.status === "in_progress" ? state.lastStep ?? "objectives" : "intro";
+  return state.status === "in_progress" ? currentOnboardingStep(state.lastStep ?? "objectives") : "intro";
 }
 
 export function isOnboardingReplayAllowed(
@@ -116,12 +118,14 @@ export function isOnboardingRouteAdmitted(
 }
 
 export function canMoveOnboardingToStep(current: OnboardingStep, next: OnboardingStep) {
+  current = currentOnboardingStep(current);
+  next = currentOnboardingStep(next);
   if (current === next) return true;
   const transitions: Record<OnboardingStep, readonly OnboardingStep[]> = {
     starting_point: ["objectives"],
-    objectives: ["starting_point", "google"],
+    objectives: ["google"],
     google: ["objectives", "contacts"],
-    contacts: ["google", "contact", "final"],
+    contacts: ["google"],
     contact: ["contacts", "final"],
     final: ["contacts", "contact"]
   };
@@ -137,7 +141,7 @@ export function beginOnboarding(_state: ProductOnboardingState): ProductOnboardi
     version: 1,
     status: "in_progress",
     introSeen: true,
-    lastStep: "starting_point"
+    lastStep: "objectives"
   };
 }
 
@@ -147,10 +151,11 @@ export function moveOnboardingToStep(
 ): ProductOnboardingState {
   if (state.status === "completed") return state;
   return {
+    ...state,
     version: 1,
     status: "in_progress",
     introSeen: true,
-    lastStep
+    lastStep: currentOnboardingStep(lastStep)
   };
 }
 
@@ -172,10 +177,13 @@ export function beginOnboardingReplay(state: ProductOnboardingState) {
 }
 
 export function onboardingRouteFor(routeId: OnboardingRouteId) {
-  return ONBOARDING_FLOW.find((entry) => entry.id === routeId)?.path ?? "/onboarding";
+  const current = routeId === "intro" ? routeId : currentOnboardingStep(routeId);
+  return ONBOARDING_FLOW.find((entry) => entry.id === current)?.path ?? "/onboarding";
 }
 
 export function onboardingRouteIdFromPathname(pathname: string): OnboardingRouteId | null {
+  if (pathname === "/onboarding/punto-de-partida") return "objectives";
+  if (pathname === "/onboarding/contacto" || pathname === "/onboarding/final") return "contacts";
   return ONBOARDING_FLOW.find((entry) => entry.path === pathname)?.id ?? null;
 }
 

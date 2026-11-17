@@ -1,0 +1,67 @@
+/* Scoped variant: normal Account, Contactos, Objectives and intro stay unchanged. */
+.onboarding-guided { min-height: 100dvh; }
+/* Background, top-region paint and brand dimensions come directly from shell.css. */
+.onboarding-guided-top { position: sticky; top: 0; z-index: 30; }
+.onboarding-tracker { display: grid; grid-template-columns: minmax(170px, auto) minmax(80px, 1fr) auto; align-items: center; gap: 24px; margin-top: 8px; font-size: 14px; }
+.onboarding-tracker ol { display: flex; list-style: none; margin: 0; padding: 0; gap: 6px; }
+.onboarding-tracker li { flex: 1; height: 7px; border-radius: 3px; background: var(--crm-border); }
+.onboarding-tracker li.complete { background: var(--brand-terracotta); }
+.onboarding-tracker li.current { background: var(--brand-apricot); }
+.onboarding-tracker .button { color: inherit; background: transparent; border-color: transparent; min-height: 40px; }
+.onboarding-guided-body { padding-block: 20px 32px; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.onboarding-guided .coach-onboarding-content p { margin: 0; }
+.onboarding-guided .coach-onboarding-content { font-size: 16px; line-height: 1.6; }
+.onboarding-guided .coach-module { margin: 0; }
+.onboarding-guided .coach-onboarding-bubble { padding: 18px 20px; }
+.onboarding-objective-content { display: flex; flex-direction: column; gap: 28px; padding: 24px; }
+.onboarding-objective-content .networking-cycle-panel > .panel-header { margin-bottom: 16px; }
+.onboarding-guided .field input, .onboarding-guided .field select { background: var(--crm-surface); border: 1px solid var(--crm-border-strong); border-radius: var(--crm-radius-sm); min-height: 42px; padding: 9px 12px; color: var(--crm-text); width: 100%; }
+.onboarding-guided input:focus-visible, .onboarding-guided select:focus-visible { outline: 2px solid var(--brand-coffee); outline-offset: 2px; }
+.onboarding-guided h2:not(.panel-title) { font-size: 17px; margin: 0 0 12px; }
+.onboarding-priorities { border-top: 1px solid var(--crm-border); padding-top: 24px; }
+.onboarding-priorities > .panel-header { margin-bottom: 16px; }
+.onboarding-priority-group { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 16px; margin-block: 14px; align-items: start; }
+.onboarding-priority-group:last-of-type { margin-bottom: 0; }
+.onboarding-priority-group h3 { margin: 11px 0; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--crm-muted); }
+.onboarding-priority-options { display: flex; gap: 10px 8px; flex-wrap: wrap; min-width: 0; }
+.onboarding-priority-chip, .onboarding-priority-options .onboarding-priority-add { min-height: 38px; padding: 8px 14px; border-radius: 999px; font-size: 13px; line-height: 1.4; max-width: 100%; white-space: normal; overflow-wrap: anywhere; transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
+.onboarding-priority-chip[aria-pressed=true] { background: var(--brand-coffee); border-color: var(--brand-coffee); color: var(--brand-warm-white); }
+.onboarding-priority-options .onboarding-priority-add { background: transparent; color: var(--crm-muted); border-style: dashed; transform: none; }
+.onboarding-priority-chip:focus-visible, .onboarding-priority-options .onboarding-priority-add:focus-visible { outline: 2px solid var(--crm-primary); outline-offset: 3px; }
+@media (hover: hover) {
+  .onboarding-priority-chip:not(:disabled):hover { border-color: var(--brand-coffee); box-shadow: var(--shell-hover-glow); }
+  .onboarding-priority-chip[aria-pressed=false]:not(:disabled):hover { background: var(--brand-cream); }
+}
+@media (prefers-reduced-motion: reduce) { .onboarding-priority-chip, .onboarding-priority-options .onboarding-priority-add { transition: none; } }
+.onboarding-bottom-navigation { display: flex; justify-content: space-between; gap: 16px; }
+.onboarding-bottom-navigation .primary { background: var(--brand-terracotta); border-color: var(--brand-terracotta); color: #21150f; font-weight: 700; }
+.onboarding-bottom-navigation .primary:disabled { opacity: .5; }
+.onboarding-contacts-list .contacts-header, .onboarding-contacts-board .contacts-header,
+.onboarding-contacts-list .contacts-bulk-bar { display: none; }
+.onboarding-contacts-list .contacts-status-toolbar { justify-content: flex-start; flex-wrap: wrap; }
+.onboarding-contacts-list .contacts-import-actions { margin: 0; flex-wrap: wrap; align-items: center; }
+.onboarding-contacts-list .contacts-status-feedback:empty, .onboarding-contacts-board .contacts-status-feedback:empty { display: none; }
+.onboarding-contacts-list th:first-child, .onboarding-contacts-list td:first-child:not([colspan]),
+.onboarding-contacts-list th:nth-child(n+4), .onboarding-contacts-list td:nth-child(n+4) { display: none; }
+.onboarding-contacts-list .contacts-table { min-width: 0; width: 100%; }
+.onboarding-contacts-list .contacts-name-link { background: none; border: 0; font: inherit; padding: 0; cursor: pointer; white-space: normal; text-align: left; }
+.onboarding-contacts-list td { overflow-wrap: anywhere; }
+.onboarding-contacts-list .contacts-empty-state { padding: 48px 20px; font-size: 16px; line-height: 1.5; color: var(--crm-muted); }
+.onboarding-contacts-board .contacts-status-feedback.form-success { color: var(--brand-coffee); font-size: 13px; }
+.onboarding-contacts-board .contacts-status-board { grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0; }
+.onboarding-contacts-board .contacts-status-column { min-width: 0; }
+.onboarding-contacts-board .contacts-status-scroll { height: 292px; min-height: 292px; max-height: 292px; overflow-y: auto; }
+@media (max-width: 760px) {
+  .application-shell-v2.onboarding-guided { padding-bottom: 24px; }
+  .onboarding-tracker { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 12px; }
+  .onboarding-tracker ol { grid-column: 1 / -1; grid-row: 2; }
+  .onboarding-tracker .button { font-size: 12px; padding-inline: 4px; }
+  .onboarding-objective-content .starting-point-field-grid { grid-template-columns: minmax(0, 1fr); }
+  .onboarding-priority-group { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .onboarding-priority-group h3 { margin: 4px 0 6px; }
+  .onboarding-priority-chip, .onboarding-priority-options .onboarding-priority-add { min-height: 42px; }
+  .onboarding-guided-body > .panel { padding: 16px; }
+  .onboarding-contacts-board .contacts-status-board { grid-template-columns: repeat(5, 200px); overflow-x: auto; max-width: 100%; }
+  .onboarding-contacts-list .contacts-import-actions { gap: 8px; }
+  .onboarding-contacts-list .contacts-import-actions .meta { flex-basis: 100%; }
+}

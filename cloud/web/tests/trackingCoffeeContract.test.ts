@@ -53,6 +53,7 @@ test("current eligible state uses oldest valid past calendar, never a call or a 
 
 test("five-layer pyramid retains received offers between processes and accepted offers", () => {
   const s = trackingFixture();
+  s.opportunities[1].contact_ids=["a"];
   s.transitions = [];
   s.contacts[1].networking_status = "Contactado";
   assert.deepEqual(ready(s).counts, [2, 1, 2, 2, 1]);
@@ -72,7 +73,7 @@ test("past meeting and status fallback partition accredited blue without changin
   coffee(s, "past", "2026-10-01T12:00:00Z");
   s.contacts[1].networking_status = "Agradecimiento enviado";
   s.transitions.push({ id: "b-entry", contact_id: "b", previous_status: "Pendiente",
-    next_status: "Agradecimiento enviado", changed_at: "2026-10-02T12:00:00Z" });
+    next_status: "Cita concretada", changed_at: "2026-10-02T12:00:00Z" });
   const m = ready(s);
   assert.equal(m.blueActual.size, 1);
   assert.equal(m.blueEstimated.size, 1);
@@ -83,7 +84,7 @@ test("past meeting and status fallback partition accredited blue without changin
   assert.equal(periods.find(p => p.key === "2026-10-01")?.blue, 2);
 });
 
-test("eligible sequence retains first entry through thanks; leaving and re-entering resets its date", () => {
+test("first historical Cita transition survives thanks, leaving and re-entering", () => {
   const s = trackingFixture(); s.transitions = [];
   entry(s, "1", "Pendiente", "Cita concretada", "2026-09-01T12:00:00Z");
   entry(s, "2", "Cita concretada", "Agradecimiento enviado", "2026-09-03T12:00:00Z");
@@ -91,7 +92,7 @@ test("eligible sequence retains first entry through thanks; leaving and re-enter
   entry(s, "3", "Agradecimiento enviado", "Contactado", "2026-09-05T12:00:00Z");
   assert.equal(ready(s).counts[1], 0);
   entry(s, "4", "Contactado", "Agradecimiento enviado", "2026-10-05T12:00:00Z");
-  assert.equal(ready(s).blue.get("person:a"), Date.parse("2026-10-05T12:00:00Z"));
+  assert.equal(ready(s).blue.get("person:a"), Date.parse("2026-09-01T12:00:00Z"));
 });
 
 test("transition order follows instants, not textual timezone offsets", () => {
