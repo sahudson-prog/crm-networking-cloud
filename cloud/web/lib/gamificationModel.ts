@@ -4,7 +4,7 @@ import { rollingBoundaries, shiftLocalDays } from "./gamificationTime.ts";
 import { selectNetworkingContacts, linkedNetworkingIds, type NetworkingContact } from "./networkingScope.ts";
 
 export const CONTACTED_STATES = contactedStates;
-export type Metric = { value: number | null; reason?: string; lowerBound?: boolean };
+export type Metric = { value: number | null; reason?: string };
 export const known = (value: number): Metric => ({ value });
 export const unavailable = (reason: string): Metric => ({ value: null, reason });
 export type CoffeeEvidence = { id: string; contactId: string; occurredAt: string; confirmed: boolean };
@@ -39,7 +39,7 @@ export function evidenceInstant(value: string, zone: string): number {
 }
 export function rollingCoffeeAverage(history: CoffeeHistory | null, now: number, zone: string) {
   const unavailable = {average:null as number|null, nextChange:null as number|null, averageDays:0};
-  if (!history?.complete) return unavailable;
+  if (!history) return unavailable;
   const bounds = rollingBoundaries(now, zone);
   const tomorrow = evidenceInstant(shiftWeekDay(localDateTimeValue(new Date(now),zone).slice(0,10), 1), zone);
   const since=evidenceInstant(history.since,zone);
@@ -87,7 +87,7 @@ function shiftWeekDay(day:string,days:number) {
 export function coffeeWeeks(history: CoffeeHistory | null, now: number, zone: string, pristine = false) {
   const streak = civilCoffeeWeeks(history, now, zone, pristine);
   const rolling = rollingCoffeeAverage(history, now, zone);
-  const provisional = history?.complete && streak.current.value !== null && streak.current.value > 0 && streak.weeks === 0 && !streak.issues.length;
+  const provisional = history && streak.current.value !== null && streak.current.value > 0 && streak.weeks === 0 && !streak.issues.length;
   const level = streak.initial ? "empty" : rolling.average !== null ? rolling.average < 2 ? "fire" : rolling.average < 3 ? "rocket" : "radiation" : provisional ? "fire" : "unknown";
   return {...streak, ...rolling, level};
 }
@@ -126,16 +126,12 @@ function civilCoffeeWeeks(history: CoffeeHistory | null, now: number, zone: stri
   const average = weeks ? sum / weeks : null;
   const total = [...grouped.values()].reduce((n, ids) => n + ids.size, 0);
   const level = !total ? "empty" : average === null || average < 2 ? "fire" : average < 3 ? "rocket" : "radiation";
-  if (!history.complete) {
-    const minimum = (value: number): Metric => value > 0 ? {value, lowerBound: true} : unknown;
-    return {streak: minimum(streak), current: minimum(count(current)), average: null, weeks, level: "unknown" as const, initial: false, issues};
-  }
   return { streak: known(streak), current: known(count(current)), average, weeks, level, initial: !total, issues };
 }
 export type Goal = { id: "realized" | "projected" | "prioritized"; title: string; metric: Metric; target: number; text: string; completed: boolean; progress: number };
 export function weeklyGoals(realized: Metric, projected: Metric, numerator: number | null, denominator: number | null): Goal[] {
   const goal = (id: Goal["id"], title: string, metric: Metric, target: number, text: string): Goal => ({ id, title, metric, target, text, completed: metric.value !== null && metric.value >= target, progress: metric.value === null ? 0 : Math.min(100, 100 * metric.value / target) });
-  const goals = [goal("realized", "Cafés concretados", realized, 2, `${realized.lowerBound ? "Al menos" : "Llevas"} ${realized.value} de 2`), goal("projected", "Cafés proyectados", projected, 4, `${projected.value} de 4`)];
+  const goals = [goal("realized", "Cafés concretados", realized, 2, `Llevas ${realized.value} de 2`), goal("projected", "Cafés proyectados", projected, 4, `${projected.value} de 4`)];
   if (goals.every(g => g.completed)) {
     const metric = numerator === null || denominator === null ? unavailable("Prioridades no disponibles") : denominator === 0 ? unavailable("Sin contactos para evaluar") : known(numerator === denominator ? 100 : Math.min(99, Math.floor(100 * numerator / denominator)));
     goals.push(goal("prioritized", "Prioridad cargada", metric, 100, metric.value === null ? metric.reason ?? "No disponible" : `${numerator} de ${denominator} (${metric.value}%)`));

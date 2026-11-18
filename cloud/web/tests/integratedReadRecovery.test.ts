@@ -99,7 +99,7 @@ test("zero, partial dates and failed read stay distinct without discarding attri
   const failed=buildGamification({...input,historyReadFailed:true},Date.parse(s.as_of),"UTC");
   assert.equal(failed.temporal.streak.value,null);assert.equal(failed.goals[0].metric.value,null);assert.equal(failed.temporal.readFailed,true);
   const partial=buildGamification({...input,contacts:s.contacts,history},Date.parse(s.as_of),"UTC");
-  assert.equal(partial.metrics[2].metric.value,2);assert.equal(partial.temporal.average,null);assert.equal(partial.temporal.readFailed,false);
+  assert.equal(partial.metrics[2].metric.value,2);assert.equal(partial.temporal.average,.25);assert.equal(partial.temporal.readFailed,false);
 });
 
 test("product states avoid internal coverage language and accessible false zeros",()=>{

@@ -35,6 +35,9 @@ test("partial average normalizes available days with a one-day floor and preserv
  h.since=new Date(shiftLocalDays(dst,-7,zone)).toISOString();h.through=new Date(dst).toISOString();h.events[0].occurredAt="2026-09-08T16:00:00Z";
  assert.equal(rollingCoffeeAverage(h,dst,zone).average,1);
  assert.equal(rollingCoffeeAverage(h,dst,zone).averageDays,7);
+ h.complete=false;h.unattributedCount=3;
+ assert.equal(rollingCoffeeAverage(h,dst,zone).average,1);
+ assert.equal(coffeeWeeks(h,dst,zone).level,"fire");
 });
 test("same contact once per week, repeat meetings in separate weeks require distinct real dates",()=>{
  const h=history([1,1]);h.events.push({...h.events[0]},{...h.events[0],id:"second-meeting"});
@@ -46,24 +49,25 @@ test("unknown or stale coverage cannot become an exact streak",()=>{
  for(const h of [null,{...history([1]),through:"2026-11-17T00:00:00Z"}]){
  assert.equal(coffeeWeeks(h,now,zone).streak.value,null);assert.equal(coffeeWeeks(h,now,zone).current.value,null);}
 });
-test("partial history exposes only positive accredited minima, never an average or level",()=>{
- for(const [counts,n] of [[[2,1,1],3],[[0,1,1],2],[[1,0,1],1],[[0,0,1],null],[[],null]] as [number[],number|null][]){
+test("undated eligible coffees do not block dated streak, weekly goal, average or level",()=>{
+ for(const [counts,n] of [[[3,1,1],3],[[2,1,1],3],[[0,1,1],2],[[1,0,1],1],[[0,0,1],0],[[],0]] as [number[],number][]){
   const result=coffeeWeeks({...history(counts),complete:false,unattributedCount:10},now,zone);
   assert.equal(result.streak.value,n);
-  assert.equal(result.streak.lowerBound,n===null?undefined:true);
-  assert.equal(result.current.value,counts[0]||null);
-  assert.equal(result.average,null);assert.equal(result.level,"unknown");assert.equal(result.initial,false);
+  assert.equal(result.current.value,counts[0]??0);
+  assert.equal(result.average,rollingCoffeeAverage(history(counts),now,zone).average);
+  assert.equal(result.level,coffeeWeeks(history(counts),now,zone).level);
+  if(!counts.length){assert.equal(result.average,0);assert.equal(result.level,"empty");}
   const goal=weeklyGoals(result.current,known(4),1,1)[0];
   assert.equal(goal.completed,(counts[0]??0)>=2);
-  if(counts[0])assert.equal(goal.text,`Al menos ${counts[0]} de 2`);
+  assert.equal(goal.text,`Llevas ${counts[0]??0} de 2`);
  }
 });
 test("partial evidence respects Monday rollover and cannot bridge a missing week",()=>{
  const h={...history([2]),complete:false};
  const next=evidenceInstant("2026-11-23",zone);h.through=new Date(next).toISOString();
- let t=coffeeWeeks(h,next,zone);assert.equal(t.current.value,null);assert.equal(t.streak.value,1);
+ let t=coffeeWeeks(h,next,zone);assert.equal(t.current.value,0);assert.equal(t.streak.value,1);
  const later=evidenceInstant("2026-11-30",zone);h.through=new Date(later).toISOString();
- t=coffeeWeeks(h,later,zone);assert.equal(t.streak.value,null);
+ t=coffeeWeeks(h,later,zone);assert.equal(t.streak.value,0);
 });
 test("technical failure overrides even retained valid evidence, not just goal copy",()=>{
  const data=input();data.history=history([2,1]);data.historyReadFailed=true;
@@ -130,7 +134,7 @@ test("Inicio carousel and popover presentation stays isolated from the default e
  assert.match(panel,/Concreta tu primer café para empezar tu racha/);
  assert.doesNotMatch(panel,/Información histórica insuficiente|t.streak.reason/);
  assert.match(panel,/t.streak.value\?\?"—"/);assert.match(panel,/const level=t.initial\?"empty":t.level/);
- assert.match(panel,/level==="unknown"\?"Por determinar"/);assert.match(panel,/t.streak.lowerBound\?"Al menos "/);
+ assert.doesNotMatch(panel,/Por determinar|Completa las fechas de tus cafés|t.streak.lowerBound/);
  assert.match(panel,/goalDisplayText\(goal\)/);assert.match(panel,/goal.metric.reason/);
  const editorial=readFileSync(new URL("../components/EditorialFeed.tsx",import.meta.url),"utf8");
  assert.doesNotMatch(editorial,/useHomeCarousel|editorial-dots|home=false/);
