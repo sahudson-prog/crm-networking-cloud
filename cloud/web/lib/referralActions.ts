@@ -1,6 +1,7 @@
 import { isValidEmail, isValidPhone, normalizeEmail } from "./contactActions";
 import { cleanContactCompany, cleanContactRole } from "./format";
 import { supabase } from "./supabaseClient";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision";
 
 export type ReferralEditorInput = {
   referralId?: string;
@@ -136,6 +137,8 @@ export async function saveReferralFromEditor(input: ReferralEditorInput) {
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 
@@ -219,6 +222,8 @@ export async function dismissReferrals(referralIds: string[], source = "contact_
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 

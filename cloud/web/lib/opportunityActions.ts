@@ -6,6 +6,7 @@ import { supabase } from "./supabaseClient";
 import {notifyNetworkingDataChanged} from "./networkingDataRevision";
 import { OpportunityFailure, opportunityFailure, opportunityPhase } from "./opportunityDiagnostics";
 import { CALENDAR_VISIBILITY_JOIN, withoutCancelledCalendar } from "./interactionState";
+import { measureOperation } from "./operationDiagnostics";
 
 function client() {
   if (!supabase) throw new Error("Supabase no está configurado.");
@@ -37,30 +38,42 @@ export type OpportunityInput = {
   interactionIds: string[];
 };
 
-export async function readOpportunities(): Promise<Opportunity[]> {
-  const [cycles, owner, context] = await Promise.all([readNetworkingCycles(), userId(), expectedNetworkingContext()]);
-  if (networkingContextFromCycles(cycles).token !== context.token) throw new Error("El ciclo cambió. Actualiza la página.");
+export async function readOpportunities(onlyId?: string): Promise<Opportunity[]> {
+  return measureOperation("opportunity-read", async () => {
+    try { return await readOpportunitySnapshot(onlyId); }
+    catch (error) {
+      if (!(error instanceof Error) || error.message !== "opportunity_version_changed") throw error;
+      // One new coherent snapshot after a concurrent edit, never a retry of its writer.
+      return readOpportunitySnapshot(onlyId);
+    }
+  });
+}
+
+async function readOpportunitySnapshot(onlyId?: string): Promise<Opportunity[]> {
+  const [cycles, owner, context] = await measureOperation("opportunity-context", () => Promise.all([readNetworkingCycles(), userId(), expectedNetworkingContext()]));
+  if (networkingContextFromCycles(cycles).token !== context.token) throw new Error("opportunity_context_changed");
   const active = cycles.find((cycle) => cycle.status === "active" && cycle.objective_type === "JOB_SEARCH");
   if (!active) return [];
-  const rows = await collectOpportunityPages<Omit<Opportunity, "contact_ids" | "objective_ids" | "interaction_ids">>(async (from, to) => {
-    const { data, error, count } = await client().from("opportunities")
+  const rows = await measureOperation("opportunity-rows", () => collectOpportunityPages<Omit<Opportunity, "contact_ids" | "objective_ids" | "interaction_ids">>(async (from, to) => {
+    let query = client().from("opportunities")
     .select("id,cycle_id,title,company,application_url,stage,situation,result,result_note,voided_at,updated_at", { count: "exact" })
-    .eq("user_id", owner).eq("cycle_id", active.id).is("voided_at", null)
-    .order("id").range(from, to);
+    .eq("user_id", owner).eq("cycle_id", active.id).is("voided_at", null);
+    if (onlyId) query = query.eq("id", onlyId);
+    const { data, error, count } = await query.order("id").range(from, to);
     if (error) throw error;
     return { rows: data ?? [], total: count };
-  });
+  }));
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
-  const [contacts, objectives, interactions] = await Promise.all([
+  const [contacts, objectives, interactions] = await measureOperation("opportunity-links", () => Promise.all([
     readLinks("opportunity_contacts", "contact_id", owner, ids),
     readLinks("opportunity_objectives", "objective_id", owner, ids),
     readLinks("opportunity_interactions", "interaction_id", owner, ids)
-  ]);
+  ]));
   // Keep technical IDs for later edits; a cancelled source must not inflate the visible counter.
   const interactionIds = [...new Set(interactions.map(link => link.interaction_id))];
   const visibleIds = new Set<string>();
-  for (let index = 0; index < interactionIds.length; index += 100) {
+  for (let index = 0; !onlyId && index < interactionIds.length; index += 100) {
     const visible = await collectOpportunityPages<{ id: string }>(async (from, to) => {
       const { data, error, count } = await withoutCancelledCalendar(client().from("interactions")
         .select(`id,${CALENDAR_VISIBILITY_JOIN}`, { count: "exact" }))
@@ -72,31 +85,34 @@ export async function readOpportunities(): Promise<Opportunity[]> {
   }
   // Separate paged reads must not combine old fields with newly replaced links.
   for (let index = 0; index < ids.length; index += 100) {
-    const { data, error } = await client().from("opportunities").select("id,updated_at")
-      .eq("user_id", owner).in("id", ids.slice(index, index + 100));
+    const { data, error } = await measureOperation("opportunity-versions", () => client().from("opportunities").select("id,updated_at")
+      .eq("user_id", owner).in("id", ids.slice(index, index + 100)));
     if (error) throw error;
     if (data?.length !== ids.slice(index, index + 100).length || data.some((row) =>
       rows.find((original) => original.id === row.id)?.updated_at !== row.updated_at)) {
-      throw new Error("Las oportunidades cambiaron. Intenta nuevamente.");
+      throw new Error("opportunity_version_changed");
     }
   }
   return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((row) => ({ ...row,
     contact_ids: contacts.filter((link) => link.opportunity_id === row.id).map((link) => link.contact_id),
     objective_ids: objectives.filter((link) => link.opportunity_id === row.id).map((link) => link.objective_id),
     interaction_ids: interactions.filter((link) => link.opportunity_id === row.id).map((link) => link.interaction_id),
-    visible_interaction_count: interactions.filter(link => link.opportunity_id === row.id && visibleIds.has(link.interaction_id)).length
+    ...(onlyId ? {} : { visible_interaction_count: interactions.filter(link => link.opportunity_id === row.id && visibleIds.has(link.interaction_id)).length })
   }));
 }
 
-export async function saveOpportunity(input: OpportunityInput) {
-  await userId();
+export async function saveOpportunity(input: OpportunityInput, expected?: { owner: string; context: string; invalidate?: boolean }) {
+  const owner = await userId();
+  if (expected && expected.owner !== owner) throw new Error("board_access_changed");
   const context = await opportunityPhase("context", expectedNetworkingContext);
+  if (expected && expected.context !== context.token) throw new Error("board_context_changed");
   if (!context.cycleId) throw new OpportunityFailure("context", "rejected", "no_active_cycle", null);
   const title = input.title.trim();
   if (!title || title.length > 180 || !opportunityClosureValid(input.stage, input.situation, input.result)) {
     throw new OpportunityFailure("rpc", "rejected", "invalid_input", null);
   }
   return opportunityPhase("rpc", async () => {
+  try {
   const { data, error, status } = await client().rpc("save_opportunity_v2", {
     p_expected_cycle_id: context.cycleId, p_expected_context: context.token,
     p_opportunity_id: input.id ?? null, p_expected_updated_at: input.expectedUpdatedAt ?? null,
@@ -112,19 +128,25 @@ export async function saveOpportunity(input: OpportunityInput) {
   if (typeof data !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(data)) {
     throw opportunityFailure("rpc", null);
   }
-  notifyNetworkingDataChanged();
   return data;
+  } finally {
+    // Reconciliation must reach storage even if the RPC response was lost.
+    if (expected?.invalidate !== false) notifyNetworkingDataChanged();
+  }
   });
 }
 
 export async function voidOpportunity(id: string) {
   const context = await expectedNetworkingContext();
   if (!context.cycleId) throw new Error("No hay ciclo activo.");
+  try {
   const { error } = await client().rpc("void_opportunity_v1", {
     p_expected_cycle_id: context.cycleId, p_expected_context: context.token, p_opportunity_id: id
   });
   if (error) throw error;
-  notifyNetworkingDataChanged();
+  } finally {
+    notifyNetworkingDataChanged();
+  }
 }
 
 export async function readOpportunityChoices() {

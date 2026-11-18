@@ -27,6 +27,9 @@ export type NetworkingCycle = {
 export type NetworkingContext = { cycleId: string | null; token: string };
 let expectedContext: NetworkingContext | undefined;
 let expectedUserId: string | undefined;
+export function peekNetworkingContext(owner: string) {
+  return expectedUserId === owner && expectedContext ? { ...expectedContext } : null;
+}
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase no está configurado.");

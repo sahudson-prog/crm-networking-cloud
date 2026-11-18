@@ -1,4 +1,5 @@
 "use client";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 
 import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -313,7 +314,7 @@ export function AuthGate({ children, publicLanding }: { children: ReactNode; pub
     || (session && access.status === "checking")
     || (session && access.status === "allowed" && legalAcceptance.status === "checking")
   ) {
-    return <main className="app-shell">Cargando...</main>;
+    return <main className="app-shell"><ViewSkeleton kind="list" rows={3} label="Coffeecito" /></main>;
   }
 
   if (!session) {

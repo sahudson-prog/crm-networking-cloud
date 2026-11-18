@@ -10,7 +10,7 @@ export async function triggerCoachRuleReviewForContacts(
   try {
     return await reviewNetworkingStatusSuggestions({ contactIds: scopedContactIds, source });
   } catch (error) {
-    console.warn("No pude revisar reglas del Coach despues del cambio.", error);
+    console.warn("No pude revisar reglas del Coach despues del cambio.", { code: "coach_review_failed" });
     return null;
   }
 }

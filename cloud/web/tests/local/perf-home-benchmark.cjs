@@ -6,7 +6,7 @@ const vm=require('node:vm');
 const {performance}=require('node:perf_hooks');
 const ts=require('typescript');
 const current=path.resolve(__dirname,'../..'),baseline=process.argv[2];
-if(!baseline)throw Error('Supply the baseline cloud/web directory');
+if(require.main===module&&!baseline)throw Error('Supply the baseline cloud/web directory');
 
 function environment(root,size) {
   const modules=new Map(),requests=[];
@@ -54,7 +54,8 @@ function environment(root,size) {
   return {load,requests};
 }
 
-(async()=>{
+module.exports={environment};
+if(require.main===module)(async()=>{
   for(const size of [100,500])for(const [name,root] of [['before',baseline],['after',current]]) {
     const env=environment(root,size),optimized=name==='after';
     // Load/transpile outside timing, as it is not part of application network latency.

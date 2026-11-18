@@ -10,9 +10,11 @@ import { formatLastInteractionAge } from "./ContactInteractionAge";
 import { Panel } from "./ui/Panel";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
+import type { OperationState } from "../lib/operationState";
 
 /** A view over the already filtered contacts, not a company master or a new read. */
-export function CompaniesTable({ contacts, selected, onSelectionChange }: {
+export function CompaniesTable({ contacts, selected, onSelectionChange, status }: {
+  status?: OperationState;
   contacts: ContactListRow[];
   selected: Set<string>;
   onSelectionChange: (next: Set<string>) => void;
@@ -51,7 +53,7 @@ export function CompaniesTable({ contacts, selected, onSelectionChange }: {
       }))}><span>{label}</span>{active ? <Icon name={sort.direction === "desc" ? "sortDesc" : "sortAsc"} /> : null}</button>
     </th>;
   }
-  return <Panel title="Empresas" icon={<Building2 aria-hidden="true" />} className="functional-block companies-block"
+  return <Panel title="Empresas" status={status} icon={<Building2 aria-hidden="true" />} className="functional-block companies-block"
     caption="Contactos agrupados por el nombre de empresa registrado, según los filtros de Contactos.">
     <div className="companies-toolbar">
       <span className="meta" aria-live="polite">{selected.size ? `${selected.size} grupos seleccionados para filtrar la tabla superior.` : "Selecciona empresas para filtrar la tabla superior."} La selección masiva de contactos se conserva.</span>

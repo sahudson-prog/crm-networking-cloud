@@ -10,6 +10,7 @@ import {
 import type { ObjectiveRow } from "../lib/readModel";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon } from "./ui/Icon";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 
 type ObjectiveSelectorProps = {
   disabled?: boolean;
@@ -65,7 +66,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
     <div className="objective-selector">
       <div className="objective-selector-head">
         <span>Prioridades</span>
-        {visibleLoading ? <small>Leyendo...</small> : null}
+        {visibleLoading && !visibleObjectives.length ? <ViewSkeleton kind="inline" label="Prioridades" /> : null}
       </div>
       {visibleError ? <small className="danger-text">{visibleError}</small> : null}
       {!visibleLoading && !visibleObjectives.length && !visibleError ? <EmptyValue>Sin prioridades definidas</EmptyValue> : null}

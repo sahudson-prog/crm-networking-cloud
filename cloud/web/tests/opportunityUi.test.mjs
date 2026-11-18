@@ -103,8 +103,9 @@ test('board ignores stale reads and does not offer creation during loading or fa
 
 // Run the real action module with an entirely in-memory transport. Unexpected
 // imports fail closed: these tests cannot instantiate Supabase or contact a service.
-function actionFixture({ changeVersion = false, rpcError = null, failTable = '', noCycle = false } = {}) {
+function actionFixture({ changeVersion = false, changeVersionOnce = false, rpcError = null, failTable = '', noCycle = false } = {}) {
   const calls = [];
+  const reads = []; let versionReads = 0;
   const rows = Array.from({ length: 401 }, (_, i) => ({ id: `opp-${String(i).padStart(4, '0')}`,
     user_id: 'synthetic-owner', cycle_id: 'cycle', title: 'Synthetic', stage: 'identified', result: null,
     result_note: null, company: null, application_url: null, voided_at: null, updated_at: '2026-01-01T00:00:00Z' }));
@@ -141,10 +142,12 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
         order(key) { orders.push(key); return query; },
         range(start, end) { from = start; to = end; return query; },
         then(resolve, reject) {
+          reads.push({table,columns});
+          const mismatch = columns === 'id,updated_at' && (changeVersion || (changeVersionOnce && versionReads++ === 0));
           const data = (tables[table] ?? []).filter((row) => predicates.every((predicate) => predicate(row)))
             .sort((a, b) => { for (const key of orders) { const result = String(a[key]).localeCompare(String(b[key])); if (result) return result; } return 0; })
             .slice(from, to + 1).map((row) => Object.fromEntries(columns.split(',').map((key) => [key,
-              changeVersion && columns === 'id,updated_at' && key === 'updated_at' ? 'changed' : row[key]])));
+              mismatch && key === 'updated_at' ? 'changed' : row[key]])));
           return Promise.resolve({ data: failTable === table ? null : data,
             count: (tables[table] ?? []).filter((row) => predicates.every((predicate) => predicate(row))).length,
             error: failTable === table ? new Error(`synthetic ${table} failure`) : null }).then(resolve, reject);
@@ -157,13 +160,14 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
     const module = { exports: {} };
     const source = readFileSync(new URL(`lib/${file}.ts`, root), 'utf8');
     const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-    vm.runInNewContext(code, { module, exports: module.exports, require });
+    vm.runInNewContext(code, { module, exports: module.exports, require, performance, console, process: {env:{NODE_ENV:'production'}} });
     return module.exports;
   };
   const model = load('opportunityModel', () => { throw new Error('Unexpected model import'); });
   const diagnostics = load('opportunityDiagnostics', () => { throw new Error('Unexpected diagnostics import'); });
   let invalidations=0;
   const actions = load('opportunityActions', (name) => {
+    if (name === './operationDiagnostics') return load('operationDiagnostics', () => {throw Error('Unexpected timing import');});
     if (name === './networkingDataRevision') return {notifyNetworkingDataChanged:()=>{invalidations++;}};
     if (name === './interactionState') return load('interactionState', () => { throw new Error('Unexpected visibility import'); });
     if (name === './supabaseClient') return { supabase: client };
@@ -176,8 +180,24 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
     };
     throw new Error(`Unexpected action import: ${name}`);
   });
-  return { actions, calls,invalidations:()=>invalidations };
+  return { actions, calls, reads, invalidations:()=>invalidations };
 }
+
+test('concurrent opportunity edit gets one coherent retry without changing storage', async () => {
+  const f = actionFixture({changeVersionOnce:true});
+  const rows = await f.actions.readOpportunities();
+  assert.equal(rows.length,401);
+  assert.equal(f.calls.length,0);
+  assert.equal(f.reads.filter(r=>r.table==='opportunities' && r.columns.includes('title')).length,6);
+});
+
+test('targeted movement snapshot preserves relations without display-only interaction reads', async () => {
+  const f=actionFixture();
+  const rows=await f.actions.readOpportunities('opp-0000');
+  assert.equal(rows.length,1);assert.equal(rows[0].contact_ids.length,1201);
+  assert.equal(rows[0].visible_interaction_count,undefined);
+  assert.equal(f.reads.some(r=>r.table==='interactions'),false);
+});
 
 test('real read action pages opportunities and relations beyond API limits', async () => {
   const { actions } = actionFixture();
@@ -189,7 +209,7 @@ test('real read action pages opportunities and relations beyond API limits', asy
 
 test('real read action rejects fields/relations from different versions', async () => {
   const { actions } = actionFixture({ changeVersion: true });
-  await assert.rejects(actions.readOpportunities(), /cambiaron/);
+  await assert.rejects(actions.readOpportunities(), /opportunity_version_changed/);
 });
 
 test('relation reads isolate a failed source and never treat it as a successful empty list', async () => {
@@ -245,7 +265,8 @@ test('real save action forwards one stable creation request without client owner
   }
   const denied=actionFixture({ rpcError: { code: '42501', message: 'app_access_denied' } });
   await assert.rejects(denied.actions.saveOpportunity(input), /opportunity_rejected/);
-  assert.equal(denied.invalidations(),0);
+  // Invalidating is not a success signal; a failed RPC must not retain a stale board.
+  assert.equal(denied.invalidations(),1);
   const saved=actionFixture();await saved.actions.saveOpportunity(input);assert.equal(saved.invalidations(),1);
 });
 

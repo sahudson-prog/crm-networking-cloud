@@ -1,0 +1,10 @@
+.operation-status { display: inline-flex; width: 28px; height: 28px; flex: 0 0 28px; vertical-align: middle; }
+.operation-status-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--crm-muted); cursor: pointer; }
+.operation-status-trigger:focus-visible { outline: 2px solid var(--crm-accent); outline-offset: 2px; }
+.operation-status[data-phase="ready"] .operation-status-trigger { color: var(--crm-positive); }
+.operation-status[data-phase="error"] .operation-status-trigger { color: var(--crm-danger); }
+.operation-status[data-phase="busy"] svg { animation: operation-spin 1s linear infinite; }
+.operation-status-detail { z-index: 120; max-width: min(320px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--crm-border); border-radius: 8px; background: var(--crm-surface); color: var(--crm-text); box-shadow: var(--crm-shadow-panel); font-size: 14px; }
+.operation-status-detail p { margin: 0 0 8px; overflow-wrap: anywhere; }
+@keyframes operation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .operation-status[data-phase="busy"] svg { animation: none; } }

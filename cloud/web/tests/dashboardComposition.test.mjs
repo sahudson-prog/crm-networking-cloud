@@ -15,6 +15,7 @@ function load(file, dependencies = {}) {
   }).outputText;
   vm.runInNewContext(code, { module, exports: module.exports, require(name) {
     if (name in dependencies) return dependencies[name];
+    if (name === './indicatorReads') return {readSharedView:(_key,read)=>read()};
     if (name === './readDiagnostics' || name === './readDiagnostics.ts') return load('lib/readDiagnostics.ts');
     throw Error(`Unexpected dependency: ${name}`);
   } });

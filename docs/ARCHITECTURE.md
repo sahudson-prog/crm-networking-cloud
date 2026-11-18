@@ -129,6 +129,58 @@ formateadores acotados y resultados temporales dentro de cada cálculo, sin modi
 
 ## Persistencia y acceso a datos
 
+### Lecturas compartidas de listas
+
+`readSharedView` reutiliza la identidad, generaciones, expiración e invalidación de
+`indicatorReads`; no crea una caché independiente por pantalla. Comparte contactos
+activos completos, participantes, prioridades y fragmentos de detalle. Los detalles
+de Planificar no solicitan referidos ni fuentes externas; cada consumidor conserva
+sus filtros y cálculos existentes. La lista de Contactos usa evidencia mínima de
+interacciones para calcular su última fecha, sin descargar asuntos ni notas.
+
+Las lecturas completas conservan conteos exactos y orden estable, incluso cuando la
+API devuelve menos filas que el tamaño solicitado. `ViewSkeleton` ofrece geometría
+de tabla, lista y tablero con estado accesible, sin valores ficticios. Los datos
+compatibles anteriores permanecen visibles durante revalidación; las fichas de otro
+contacto no se reutilizan mientras cambia su identidad.
+
+La invalidación de listas también se emite al terminar escrituras de contactos,
+referidos, interacciones, prioridades y oportunidades con resultado parcial o
+incierto. No transforma esos errores en éxito: obliga a reconciliar mediante una
+lectura nueva, sin reejecutar el escritor. La importación y la fusión invalidan
+los mismos fragmentos. `WorkspaceProvider` escucha esa revisión para actualizar
+búsqueda, filtros y Coach. La invalidación es local a la pestaña; otros dispositivos
+se observan mediante una relectura, no hay coherencia realtime entre clientes.
+
+`boardMoveQueue` coordina exclusivamente movimientos explícitos de tarjetas, por
+usuario y entidad, en memoria de la pestaña. `boardMoves` reutiliza los escritores
+existentes, captura el contexto de ciclo y reconcilia sin caché. Las oportunidades
+releen su versión y relaciones antes de cada movimiento serializado. Desmontar una
+vista no cancela la cola; cambiar de usuario descarta intenciones aún no enviadas y
+evita aplicar respuestas de la sesión anterior. Una respuesta incierta detiene los
+movimientos siguientes de esa entidad y nunca provoca reintento automático.
+No hay cola durable ni coordinación entre pestañas/dispositivos: cierre forzado,
+fallo de red y concurrencia externa siguen sujetos a los contratos del servidor.
+
+Una respuesta confirmada del escritor acredita el movimiento sin otra lectura
+completa: Contactos devuelve el estado actualizado y mantiene auditoria e invocacion
+obligatorias; Oportunidades conserva su RPC transaccional y control de version.
+Solo el resultado incierto requiere reconciliacion sin cache. Un reintento explicito
+confirma el estado actual mediante lectura, no repite la escritura ni acredita por
+si solo el ejercicio del tutorial. La cola invalida al terminar; los escritores
+delegados no emiten una segunda invalidacion. La revision secundaria del Coach se
+agrupa al vaciar la cola y no bloquea la confirmacion del contacto.
+
+Las lecturas de Oportunidades conservan el control de version entre campos y
+relaciones. Una edicion concurrente admite una unica nueva lectura coherente;
+`readOpportunityBoard` permite tambien una relectura al desplazar una generacion
+de cache, exclusivamente dentro del mismo usuario. Los fallos persistentes se
+propagan, no se convierten en listas vacias. Los movimientos leen solo la entidad
+y relaciones necesarias, sin calcular contadores visuales de interacciones.
+`operationDiagnostics` conserva hasta 100 mediciones locales por etapa, duracion,
+resultado y codigo tecnico permitido; nunca payloads, identificadores ni errores
+crudos. No agrega servicios ni persistencia.
+
 Supabase/Postgres es la persistencia activa.
 
 La estructura de base de datos evoluciona mediante archivos en `cloud/supabase`.

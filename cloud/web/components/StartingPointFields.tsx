@@ -19,6 +19,7 @@ import {
   saveCurrentUserStartingPoint
 } from "../lib/startingPointActions";
 import { Button } from "./ui/Button";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 
 export type StartingPointFieldsHandle = {
   save: () => Promise<boolean>;
@@ -51,6 +52,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
     const [loadError, setLoadError] = useState("");
     const [saveError, setSaveError] = useState("");
     const [loading, setLoading] = useState(true);
+    const [resolved, setResolved] = useState(false);
     const [message, setMessage] = useState("");
     const [reloadKey, setReloadKey] = useState(0);
     const [saving, setSaving] = useState(false);
@@ -68,6 +70,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
           const normalized = normalizeStartingPoint(values);
           setDraft(normalized);
           setSaved(normalized);
+          setResolved(true);
           setErrors({});
         })
         .catch((error) => {
@@ -135,7 +138,7 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
 
     return (
       <div className={`starting-point-fields mode-${mode}`} aria-busy={loading || saving}>
-        <div className="starting-point-field-grid">
+        {!resolved && loading ? <ViewSkeleton kind="form" rows={2} label="Tu punto de partida" /> : <div className="starting-point-field-grid">
           <label className="field starting-point-field">
             <span>¿Cómo te llamas?</span>
             <input
@@ -169,9 +172,8 @@ export const StartingPointFields = forwardRef<StartingPointFieldsHandle, Startin
             ) : null}
           </label>
 
-        </div>
+        </div>}
 
-        {loading ? <p className="meta" role="status">{mode === "onboarding" ? "Cargando tus datos..." : "Cargando tu punto de partida..."}</p> : null}
         {loadError ? (
           <div className="starting-point-feedback" role="alert">
             <p className="form-error">{loadError}</p>

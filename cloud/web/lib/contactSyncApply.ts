@@ -1,5 +1,6 @@
 import { upsertSyncCursor } from "./syncCursorStore.ts";
 import { supabase } from "./supabaseClient.ts";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision.ts";
 import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers.ts";
 import {
   contactMergeDecisionFromPreviewChange,
@@ -165,6 +166,8 @@ export async function applyContactSyncPreview(
   } catch (error) {
     await deps.failInvocation(invocationId, error);
     throw error;
+  } finally {
+    if (selectedActionableChanges.length) notifyNetworkingDataChanged();
   }
 }
 

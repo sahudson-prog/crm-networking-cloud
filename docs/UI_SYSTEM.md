@@ -99,6 +99,57 @@ Cuenta y onboarding comparten StartingPointFields, presentación, “¿Cómo te 
 
 Estas primitives son compartidas, pero no cubren toda la UI. Muchos módulos todavía usan clases CSS locales y composición propia.
 
+## Carga de vistas operacionales
+
+Contactos, Producir, Planificar y Objetivos mantienen sus paneles y encabezados durante la lectura inicial. `ViewSkeleton` y `styles/view-loading.css` son la primitive compartida: variantes tabla, lista, tablero (columnas explicitas) e inline. No contienen datos ficticios, conteos cero ni textos tecnicos visibles de espera. El nombre accesible y `aria-busy` comunican la lectura sin animaciones obligatorias.
+
+- Initial/loading: reservar la geometria en el propio bloque; no agregar una franja de carga encima de toda la vista. Los estados vacios requieren una lectura confirmada.
+- Ready/empty: reemplazar solamente el interior del bloque. Conservar los encabezados, controles y estados vacios reales de cada superficie.
+- Refreshing: conservar contenido compatible montado, filtros y seleccion; revalidar sin textos de "Actualizando" ni skeletons recurrentes. La cache es en memoria, por usuario, con invalidacion por mutaciones y Calendar; no persiste datos entre sesiones.
+- Error: mostrar el error y una accion de reintento; no convertirlo en cero o lista vacia. Si existe una lectura anterior compatible, conservarla. Bloquear acciones dependientes de una lectura fallida cuando corresponda.
+- Coordinacion: las lecturas independientes comienzan en paralelo. Planificar puede presentar los indicadores principales antes del detalle suplementario; las actualizaciones posteriores del par snapshot/detalle se publican juntas y descartan respuestas de generaciones anteriores. Avisos de planes futuros y oportunidades no bloquean toda la vista Objetivos.
+- Los guards de contexto/ciclo de las escrituras siguen vigentes. Un cambio incompatible de contacto o ciclo no autoriza mostrar otro registro como si fuera el actual.
+
+`OperationStatus` reserva 28 x 28 px inmediatamente despues del titulo del bloque,
+directamente o mediante `Panel.status`. Antes de la primera lectura confirmada y
+durante lecturas, mutaciones o reconciliaciones muestra spinner; una lectura vigente
+sin pendientes muestra check verde durante tres segundos tras una nueva confirmacion
+(primera lectura o guardado/reconciliacion explicitamente acreditados, o recuperacion
+de un error); despues deja el espacio sin icono. Los adaptadores distinguen una
+operacion explicita mediante `confirming`; una revalidacion ordinaria muestra spinner
+durante la lectura pero no vuelve a emitir el check al terminar.
+Montar datos ya confirmados de cache o un render ordinario no reinicia ese plazo.
+El temporizador vive exclusivamente en la primitiva y se cancela ante otra operacion
+explicita, error o desmontaje. Una relectura durante el check conserva el vencimiento
+original, no inicia otros tres segundos. Si vence con foco o detalle abierto, oculta el icono sin retirar
+el control activo; al salir queda solo el espacio reservado.
+Un error real o resultado incierto
+prevalece sobre ambos y conserva detalle y reintento de lectura en un popover.
+No usa temporizadores para declarar exito. El control es un boton con nombre
+accesible, estado polite y aria-busy; respeta movimiento reducido.
+
+Lo reutilizan Contactos/Empresas/Referidos, Estados/Oportunidades/Interacciones,
+Prioridades/Headhunters, el ciclo de Objetivos y las tablas/tableros del tutorial.
+Los mensajes normales de espera o de movimientos guardados no ocupan una franja.
+Los formularios, importaciones, sincronizaciones y confirmaciones explicitas mantienen
+su feedback especifico; Inicio/GAM no cambia. Los gates previos al acceso mantienen
+geometria neutra, nunca un check ni contenido privado antes de autorizar.
+La validacion sintetica de estados no acredita por si sola scroll, foco, contraste
+o geometria en un navegador real.
+
+Los movimientos explícitos de tarjetas de Contactos y Oportunidades inician el
+guardado al confirmar el drop, sin debounce. La posición es optimista y conserva
+el indicador ocupado hasta confirmar. Una cola en memoria por usuario y entidad
+continúa durante navegación SPA/desmontaje, serializa movimientos consecutivos y
+relee el estado real antes de retirar el overlay. Invalida las lecturas al terminar.
+Ante fallo o respuesta incierta no repite la escritura ni los movimientos siguientes
+ya encolados: muestra error y ofrece reconciliación de solo lectura. El tutorial
+acredita Pendiente → Contactado únicamente con confirmación del escritor, no con
+el gesto ni con una lectura que coincida después de una respuesta perdida.
+La advertencia de recarga/cierre existe solo mientras hay operaciones activas;
+no escribe durante unload ni garantiza supervivencia a cierre forzado, caída del
+navegador o pérdida de red. Otros formularios conservan su patrón de guardado.
+
 ## Formularios
 
 El patrón de formulario más visible usa `.field`, `.field-row`, inputs, selects y textareas con borde claro, fondo blanco, altura compacta y foco azul.
@@ -161,7 +212,7 @@ ONBOARDING-01 presenta `Tu objetivo`, `Carga tu red` y `Tu tablero`. El primer p
 
 Onboarding y Objetivos comparten tarjetas de objetivo compactas, acciones centradas y estado activo verde pálido con sombra suave. Los encabezados usan `panel-title`, iconos oficiales de 20 px y separación de 8 px; Prioridades usa `Icon name="tag"`. Objetivos conserva Finalizar proceso y Avísame. Situación profesional muestra `Dependiente` y `En búsqueda activa` desde el catálogo compartido de onboarding/Cuenta, sin cambiar los códigos persistidos `employed` y `unemployed`.
 
-El segundo paso reutiliza la tabla, importador y editor reales de Contactos, sin filtros ni contactos precargados; avanzar requiere un contacto. La tabla vacía del tutorial oculta sus encabezados y destaca el estado vacío. El tercero reutiliza el kanban y sus tarjetas de cinco estados sin Agrupar headhunters, sin selector por tarjeta ni navegación a la ficha, con altura compacta y scroll interno. La confirmación real de un guardado `Pendiente -> Contactado` muestra `Guardado ✓`, habilita la felicitación y `Empezar!`; el gesto optimista no basta. La variante no cambia Contactos normal. El header guiado no monta navegación principal, Sync, Cuenta ni Coach global. Al completar se vuelve al Inicio.
+El segundo paso reutiliza la tabla, importador y editor reales de Contactos, sin filtros ni contactos precargados; avanzar requiere un contacto. La tabla vacía del tutorial oculta sus encabezados y destaca el estado vacío. El tercero reutiliza el kanban y sus tarjetas de cinco estados sin Agrupar headhunters, sin selector por tarjeta ni navegación a la ficha, con altura compacta y scroll interno. La confirmación real de un guardado `Pendiente -> Contactado` habilita la felicitación y `Empezar!`; el gesto optimista no basta. `OperationStatus` representa lectura/guardado sin la franja textual transitoria. La variante no cambia Contactos normal. El header guiado no monta navegación principal, Sync, Cuenta ni Coach global. Al completar se vuelve al Inicio.
 
 El avance sigue en `product_onboarding_v1`; el campo opcional `boardExerciseCompleted` conserva el ejercicio al volver/recargar. Los pasos legacy `starting_point`, `contact` y `final` se interpretan como objetivo o tablero, sin borrar datos ni reabrir usuarios completados. En replay, editar perfil, prioridades o contactos sigue siendo una acción real explícita; no se introducen datos demo. Cuenta conserva su reinicio de prueba en development.
 
@@ -172,6 +223,16 @@ Oportunidades V1 se presenta en Producir mediante el tablero existente, con sus 
 Cuenta separa `Importar datos` de `Sincronización automática`. La importación manual o histórica se organiza en tres bloques compactos para Contactos, Citas y Correos; en desktop comparten una cuadrícula de tres columnas y en mobile se apilan. Las acciones usan botones de icono con nombre accesible y los proveedores mantienen logos, contenedores y alineación homogéneos. Google se autoriza desde la acción concreta de importar Contacts, seleccionar correos históricos o activar los toggles Gmail/Calendar; no existe un CTA principal separado para vincular el proveedor. El histórico Gmail se abre desde `Seleccionar correos` en un diálogo y permanece independiente del toggle. La sincronización automática agrupa bajo Google las opciones Calendar y Gmail; Gmail permanece deshabilitado en el runtime público. `.ics`, Apple Contacts y Microsoft Contacts se mantienen como opciones futuras.
 
 Objetivos coordina ciclo y Prioridades en la vista vigente; Oportunidades se presenta en Producir. El tutorial conserva su Coach y sus gates. Las relecturas mantienen contenido montado cuando corresponde, sin tratar errores como listas vacías ni repetir escrituras al navegar.
+
+El tutorial comparte `ViewSkeleton`: formulario de perfil, chips de Prioridades y
+tabla/tablero de contactos reservan geometría antes de la primera lectura. Las
+revalidaciones compatibles conservan contenido; un error inicial no presenta una
+lista vacía ni selecciones falsas. Prioridades reutiliza `readObjectives` y contactos
+reutiliza `readContactListRows`, con las mismas generaciones de lectura de las vistas
+operacionales. Perfil conserva su RPC y validaciones existentes, sin caché paralela.
+Los gates de Auth, acceso, aceptación legal, routing y onboarding muestran solo
+geometría neutra mientras se resuelven: no montan contenido privado ni acciones para
+saltar el recorrido. Errores/reintentos y feedback explícito de guardado permanecen.
 
 ## Responsive y accesibilidad observable
 
