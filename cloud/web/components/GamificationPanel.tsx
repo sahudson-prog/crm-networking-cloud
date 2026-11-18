@@ -72,8 +72,8 @@ function StreakIcon({temporal:t}:{temporal:GamificationModel["temporal"]}) {
 }
 const routeIcons=[BriefcaseBusiness,UserCheck,Users,MessageCircle,BriefcaseBusiness];
 const statIcons=[null,Users,null,BriefcaseBusiness];
-type Props={model:GamificationModel|null;loading?:boolean;error?:boolean;onRetry?:()=>void;children?:ReactNode};
-export function GamificationPanel({model,loading=false,error=false,onRetry,children}:Props) {
+type Props={model:GamificationModel|null;loading?:boolean;routeLoading?:boolean;goalsLoading?:boolean;error?:boolean;onRetry?:()=>void;children?:ReactNode};
+export function GamificationPanel({model,loading=false,routeLoading=false,goalsLoading=false,error=false,onRetry,children}:Props) {
   const id=useId();
   const carousel=useHomeCarousel(Boolean(model)&&!loading);
   const [selected,setSelected]=useState<Goal["id"]>("realized");
@@ -103,16 +103,16 @@ export function GamificationPanel({model,loading=false,error=false,onRetry,child
   const t=model.temporal,complete=model.route?.every(m=>m.done);
   const doneCount=model.route?.filter(m=>m.done).length??0;
   return <>
-    <div className="gam-route-block"><Panel title={!model.route?"Tu networking":complete?"Tu networking en cifras":"Ruta de inicio"} icon={complete?<ChartColumnIncreasing aria-hidden="true"/>:<Icon name="target"/>} className={`gam-route${model.route&&!complete?" has-route-count":""}`}>
+    {routeLoading?<div className="gam-route-block" aria-busy="true"><section className="panel gam-route gam-loading-route" aria-label="Cargando avances"><div className="gam-loading-heading gam-placeholder" aria-hidden="true"/><div className="gam-loading-summary gam-placeholder" aria-hidden="true"/></section></div>:<div className="gam-route-block"><Panel title={!model.route?"Tu networking":complete?"Tu networking en cifras":"Ruta de inicio"} icon={complete?<ChartColumnIncreasing aria-hidden="true"/>:<Icon name="target"/>} className={`gam-route${model.route&&!complete?" has-route-count":""}`}>
       {!model.route?<p className="empty-value">No pudimos verificar todos los hitos. <Button onClick={onRetry}>Reintentar</Button></p>:complete?<div className="gam-statistics">{model.metrics.filter(stat=>stat.id!=="interviews").map((stat,i)=>{const StatIcon=statIcons[i];return <div className="gam-stat" key={stat.id}><span className="gam-stat-icon">{StatIcon?<StatIcon aria-hidden="true"/>:<Icon name={i===0?"tag":"coffee"}/>}</span><div><strong>{stat.metric.value??"—"}</strong><span>{stat.title}</span>{stat.metric.value===null?<small>No disponible</small>:null}</div></div>;})}</div>:<>
         <span className="gam-route-count">{doneCount} de 5 completados</span>
         <ol className="gam-tiles" aria-label="Ruta de inicio">{model.route.map((m,i)=>{const ItemIcon=routeIcons[i];const content=<>
           {m.done?<CircleCheck className="gam-tile-check" aria-hidden="true"/>:null}<ItemIcon className="gam-tile-icon" aria-hidden="true"/><strong>{m.title}</strong><span className="gam-tile-action">{m.done?<><Check aria-hidden="true"/>Listo</>:"Ir →"}</span>
         </>;return <li key={m.id}>{m.done?<div className="gam-tile is-done">{content}</div>:<Link href={m.href} className="gam-tile" aria-label={`${m.title}: Ir`}>{content}</Link>}</li>;})}</ol>
       </>}
-    </Panel></div>
+    </Panel></div>}
     <div className="gamification" aria-label="Networking personal" aria-busy={loading}>
-      <WeeklyGoals goals={model.goals} carousel={carousel} selected={selected} setSelected={setSelected}/>
+      {goalsLoading?<section className="panel gam-goals" aria-busy="true" aria-label="Metas de la semana"><div className="panel-header"><h2 className="panel-title"><Icon name="target"/>Metas de la semana</h2></div><div className="gam-loading-goal gam-placeholder" aria-hidden="true"/></section>:<WeeklyGoals goals={model.goals} carousel={carousel} selected={selected} setSelected={setSelected}/>}
       <section className="gam-streak" aria-labelledby={id}>
         <StreakIcon temporal={t}/><div><h2 id={id}>Racha de networking</h2><p>{t.streak.value===null?"No pudimos actualizar tus cafés":t.initial?"Concreta tu primer café para empezar tu racha":`${t.streak.value} ${t.streak.value===1?"semana seguida":"semanas seguidas"} con al menos 1 café`}</p></div>
         <strong className="gam-streak-value" aria-label="Semanas de racha">{t.streak.value??"—"}</strong>

@@ -80,11 +80,18 @@ function parseWallTime(value: string): WallTime {
   return { year, month, day, hour, minute, second };
 }
 
+const wallFormatters = new Map<string, Intl.DateTimeFormat>();
 function wallAt(instant: number, zone: string): WallTime {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  let formatter = wallFormatters.get(zone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-GB", {
     timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
-  }).formatToParts(new Date(instant));
+    });
+    if (wallFormatters.size >= 16) wallFormatters.delete(wallFormatters.keys().next().value!);
+    wallFormatters.set(zone, formatter);
+  }
+  const parts = formatter.formatToParts(new Date(instant));
   const value = Object.fromEntries(parts.map((part) => [part.type, Number(part.value)]));
   return { year: value.year, month: value.month, day: value.day,
     hour: value.hour, minute: value.minute, second: value.second };

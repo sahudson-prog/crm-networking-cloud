@@ -5,15 +5,15 @@ import type { FirstCoffeeHistory, TrackingSnapshot } from "./trackingModel";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Minimal technical fields, complete owner-scoped reads under existing RLS. */
-export async function readFirstCoffeeHistory(client: SupabaseClient): Promise<FirstCoffeeHistory> {
-  const {data:auth,error:authError}=await client.auth.getUser();
-  if(authError || !auth.user)throw Error("coffee_history_access_denied");
-  const owner=auth.user.id;
+export async function readFirstCoffeeHistory(client: SupabaseClient, allInteractions=false, verifiedOwner?:string): Promise<FirstCoffeeHistory> {
+  const auth=verifiedOwner?null:await client.auth.getUser();
+  const owner=verifiedOwner??auth?.data.user?.id;
+  if(auth?.error || !owner)throw Error("coffee_history_access_denied");
   async function complete<T extends {id:string}>(table:string,columns:string,calendar=false):Promise<T[]> {
     return readCompletePages<T>(async(from,to)=>{
       const page=async()=>{
         let query=client.from(table).select(columns,{count:"exact"}).eq("user_id",owner);
-        if(calendar)query=query.eq("interaction_type","calendar");
+        if(calendar&&!allInteractions)query=query.eq("interaction_type","calendar");
         return await query.order("id").range(from,to).returns<T[]>();
       };
       const result=await page();

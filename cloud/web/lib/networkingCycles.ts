@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./supabaseClient.ts";
+import {notifyNetworkingDataChanged} from "./networkingDataRevision.ts";
 import type { NetworkingCycleResult } from "./networkingCycleModel.ts";
 import { localDateTimeToIso, type RepeatedTimeChoice } from "./networkingCycleTime.ts";
 export { localDateTimeValue } from "./networkingCycleTime.ts";
@@ -79,6 +80,7 @@ export async function expectedNetworkingCycleId(): Promise<string | null> {
 
 function setExpectedNetworkingContext(value: NetworkingContext) {
   expectedContext = value;
+  notifyNetworkingDataChanged();
 }
 
 export async function networkingWriteContext() {
@@ -110,6 +112,7 @@ export async function startNetworkingCycle(input: {
       p_timezone: timezone
     });
     if (error) throw error;
+    notifyNetworkingDataChanged();
     await adoptActiveCycle(String(data));
     return String(data);
   }
@@ -124,6 +127,7 @@ export async function startNetworkingCycle(input: {
     p_clear_focus: input.clearFocus
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
   await adoptActiveCycle(String(data));
   return String(data);
 }

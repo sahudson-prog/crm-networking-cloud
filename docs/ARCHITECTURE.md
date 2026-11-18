@@ -103,6 +103,30 @@ Las funciones compartidas deben tener responsabilidad clara, nombres descriptivo
 
 La lógica derivada compartida no debe duplicarse entre vistas. Si una métrica, agrupación, filtro o clasificación aparece en más de un lugar, debe vivir en una función común.
 
+### Lecturas de indicadores de Inicio
+
+`indicatorReads.ts` comparte en memoria, por identidad Auth, el snapshot de seguimiento,
+la evidencia técnica completa y los datos auxiliares de GAM. Las consultas independientes
+comienzan en paralelo; Inicio no necesita el detalle de timelines, contenidos de
+interacciones ni referidos. La evidencia global conserva paginación con conteos exactos,
+IDs estables, lifecycle y RLS. `networkingScope` y `selectFirstCoffee` siguen siendo las
+reglas canónicas; ciclo, período, filtros y agrupación se aplican en cada consumidor.
+
+La caché deduplica promesas y expira sus fragmentos como una generación a los 60 segundos.
+No persiste datos ni reemplaza las comprobaciones de acceso. Se limpia ante cambio de
+usuario o cierre de sesión; las respuestas desplazadas no pueden republicarse. Las
+mutaciones locales de contactos/Foco, interacciones, prioridades, procesos y ciclos, y
+el éxito de Calendar, invalidan la lectura compartida. Los límites temporales fuerzan
+revalidación; foco/visibilidad solo la solicitan después del intervalo de frescura.
+Cambios desde otros dispositivos se detectan al revalidar, no mediante realtime.
+
+La primera carga usa skeletons únicamente donde faltan datos. La evidencia temporal
+puede mostrarse antes que Ruta/Cifras; las revalidaciones conservan el modelo anterior
+hasta disponer de una revisión coherente, sin mensajes de actualización ni desplazamientos.
+Los errores técnicos siguen visibles y permiten reintentar. No se guardan resultados
+parciales fallidos como lecturas exitosas en caché. Las conversiones IANA reutilizan
+formateadores acotados y resultados temporales dentro de cada cálculo, sin modificar DST.
+
 ## Persistencia y acceso a datos
 
 Supabase/Postgres es la persistencia activa.

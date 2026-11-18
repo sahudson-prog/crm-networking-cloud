@@ -108,6 +108,6 @@ test("product states avoid internal coverage language and accessible false zeros
   assert.match(panel,/Concreta tu primer café para empezar tu racha/);
   assert.match(panel,/goal.metric.value===null\?undefined:Math.min/);
   const home=readFileSync(new URL("../components/HomeGamification.tsx",import.meta.url),"utf8");
-  assert.match(home,/error=\{!error&&!snapshot\?\.coffeeHistoryError/);
-  assert.match(home,/historyReadFailed:!snapshot\|\|Boolean\(snapshot.coffeeHistoryError\)/);
+  assert.match(home,/error=\{error\|\|Boolean/);
+  assert.match(home,/historyReadFailed:Boolean\(snapshot.coffeeHistoryError\)/);
 });

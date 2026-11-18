@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { Binoculars, Building2, ChartColumn, ChartSpline, Handshake, MessagesSquare } from "lucide-react";
-import { readTrackingSnapshot } from "../lib/trackingRead";
+import { readSharedTrackingSnapshot, invalidateIndicatorReads, peekTrackingSnapshot } from "../lib/indicatorReads";
 import {getNetworkingDataRevision,getServerNetworkingDataRevision,subscribeNetworkingDataRevision} from "../lib/networkingDataRevision";
 import { buildTracking, defaultTrackingFilters, type TrackingSnapshot } from "../lib/trackingModel";
 import { selectNetworkingContacts } from "../lib/networkingScope";
@@ -34,7 +34,8 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
   const [homeGrouped,setHomeGrouped]=useState(false);
   const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
     getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
-  const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(peekTrackingSnapshot);
+  const [snapshotKey,setSnapshotKey]=useState(`0:${dataRevision}:${calendarSyncedAt??""}`);
   const [details, setDetails] = useState<DashboardDetails | null>(null);
   const savedFilters = useTrackingViewFilters();
   const { setFilters, setQuickQuery, setSelectedDomains } = savedFilters;
@@ -48,28 +49,28 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
   const [loading, setLoading] = useState(true), [error, setError] = useState(false);
   const [detailLoading, setDetailLoading] = useState(true), [detailError, setDetailError] = useState(false);
   const [revision, setRevision] = useState(0);
-  const refreshHome = useCallback(() => setRevision(value => value + 1), []);
+  const readKey=`${revision}:${dataRevision}:${calendarSyncedAt??""}`;
+  const refreshHome = useCallback(() => {invalidateIndicatorReads();setRevision(value => value + 1);}, []);
   useHomeRefresh(view === "home", snapshot?.cycle?.timezone_name, refreshHome);
-  const homeContacts = view === "home" ? workspace?.contacts : null;
-  const homeObjectives = view === "home" ? workspace?.objectives : null;
   const generation = useRef(0);
   useEffect(() => {
     const current = ++generation.current;
-    setLoading(true); setError(false); setDetailLoading(true); setDetailError(false);
-    readTrackingSnapshot().then(value => {
-      buildTracking(value);
+    setLoading(true); setError(false); setDetailLoading(view !== "home"); setDetailError(false);
+    readSharedTrackingSnapshot().then(value => {
       if (generation.current !== current) return;
       setSnapshot(value);
+      setSnapshotKey(readKey);
       setFilters(f => ({ ...f, priorityIds: f.priorityIds.filter(id => value.priorities.some(p => p.id === id)) }));
     }).catch(() => { if (generation.current === current) setError(true); })
       .finally(() => { if (generation.current === current) setLoading(false); });
-    readDashboardDetails().then(value => { if (generation.current === current) setDetails(value); })
+    if(view !== "home")readDashboardDetails().then(value => { if (generation.current === current) setDetails(value); })
       .catch(() => { if (generation.current === current) setDetailError(true); })
       .finally(() => { if (generation.current === current) setDetailLoading(false); });
     return () => { generation.current++; };
-  }, [revision, dataRevision, calendarSyncedAt, homeContacts, homeObjectives]);
-  const model = useMemo(() => snapshot ? buildTracking(snapshot, filters) : null, [snapshot, filters]);
-  const homeChartModel=useMemo(()=>snapshot?buildTracking(snapshot,{...defaultTrackingFilters,headhunters:homeHH,groupHeadhunters:homeGrouped}):null,[snapshot,homeHH,homeGrouped]);
+  }, [revision, dataRevision, calendarSyncedAt, view]);
+  const modeled = useMemo(() => {try{return {value:snapshot?buildTracking(snapshot,filters):null,failed:false};}catch{return {value:null,failed:true};}}, [snapshot, filters]);
+  const model=modeled.value;
+  const homeChartModel=useMemo(()=>{if(view!=="home"||modeled.failed)return null;if(homeHH==="all"&&!homeGrouped)return model;try{return snapshot?buildTracking(snapshot,{...defaultTrackingFilters,headhunters:homeHH,groupHeadhunters:homeGrouped}):null;}catch{return null;}},[view,model,modeled.failed,snapshot,homeHH,homeGrouped]);
   const objectives = useMemo<ObjectiveRow[]>(() => (snapshot?.priorities ?? []).map(p => ({
     ...p, objective_name_normalized: p.objective_name, objective_description: "", is_active: true, created_at: "", updated_at: ""
   })), [snapshot]);
@@ -132,11 +133,11 @@ export function ReadOnlyDashboard({ view = "all" }: { view?: "all" | "home" | "p
           headhunters: next.isHeadhunter === "true" ? "only" : next.isHeadhunter === "false" ? "exclude" : "all" }))} />
     </div> : null}
     <div className="tracking-feedback" aria-live="polite">
-      {error || (view === "home" && detailError) || snapshot?.coffeeHistoryError ? <span role="alert" className="danger-text">{snapshot?.coffeeHistoryError&&!error?"No pudimos actualizar las fechas de tus cafés.":"No pudimos actualizar tus avances."} {error&&snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={() => setRevision(v => v + 1)}>Reintentar</Button></span>
-        : loading ? (snapshot ? "Actualizando..." : "Leyendo seguimiento...") : null}
+      {error || modeled.failed || (view === "home" && detailError) || snapshot?.coffeeHistoryError ? <span role="alert" className="danger-text">{snapshot?.coffeeHistoryError&&!error?"No pudimos actualizar las fechas de tus cafés.":"No pudimos actualizar tus avances."} {error&&snapshot ? "Se conserva la última lectura, sin actualizar." : ""} <Button onClick={refreshHome}>Reintentar</Button></span>
+        : loading && !snapshot && view !== "home" ? "Leyendo seguimiento..." : null}
     </div>
     {view === "home" ? <div className="structural-home-blocks editorial-home-grid">
-      <HomeGamification snapshot={error ? null : snapshot} details={detailError ? null : details} loading={loading || detailLoading} error={error || detailError} onRetry={refreshHome}><EditorialFeed/></HomeGamification>
+      <HomeGamification snapshot={snapshot} snapshotKey={snapshotKey} readKey={readKey} loading={loading} error={error} onRetry={refreshHome}><EditorialFeed/></HomeGamification>
       <Panel title="Indicadores de avance" icon={<ChartColumn aria-hidden="true" />} className={`${blockClass} home-pyramid-block`}>
         {model?.state === "ready" ? <TrackingPyramid model={model} /> : cycleFeedback}
       </Panel>

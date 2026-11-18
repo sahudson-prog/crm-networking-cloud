@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./supabaseClient";
+import {notifyNetworkingDataChanged} from "./networkingDataRevision";
 import {
   expectedNetworkingContext, networkingContextFromCycles, readNetworkingCycles
 } from "./networkingCycles";
@@ -122,6 +123,7 @@ export async function saveObjective(input: ObjectiveEditorInput) {
     p_is_active: input.isActive
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
   return { objectiveId: String(data) };
 }
 
@@ -132,6 +134,7 @@ export async function deleteObjective(objectiveId: string) {
     p_expected_cycle_id: cycleId, p_expected_context: context.token, p_objective_id: objectiveId
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
 }
 
 export async function setContactObjectiveAssignments(input: ContactObjectiveAssignmentInput) {
@@ -148,6 +151,7 @@ export async function setContactObjectiveAssignments(input: ContactObjectiveAssi
     p_objective_ids: objectiveIds, p_actor: input.source ?? "user"
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
   return { assignedObjectiveIds: objectiveIds };
 }
 
@@ -160,6 +164,7 @@ export async function setObjectiveContactAssignments(input: { objectiveId: strin
     p_objective_id: input.objectiveId, p_contact_ids: contactIds
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
   return { assignedContactIds: contactIds };
 }
 
@@ -177,6 +182,7 @@ export async function addObjectiveAssignmentsToContacts(input: BulkContactObject
     p_objective_ids: objectiveIds, p_actor: input.source ?? "user"
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
   return { assignedContactCount: contactIds.length, assignedObjectiveCount: objectiveIds.length, insertedAssignments: Number(data) || 0 };
 }
 
