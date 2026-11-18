@@ -15,6 +15,7 @@ function load(file, dependencies) {
   vm.runInNewContext(code, { module, exports: module.exports, require(name) {
     if (name === 'react/jsx-runtime') return jsx;
     if (name === 'react') return React;
+    if (name === './ui/ViewSkeleton') return load('ui/ViewSkeleton.tsx', {});
     if (name in dependencies) return dependencies[name];
     throw Error(`Unexpected dependency ${name}`);
   } });

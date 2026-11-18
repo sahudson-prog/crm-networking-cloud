@@ -1,6 +1,7 @@
 import type { ContactMergeResult } from "./contactMerge.ts";
 import { supabase } from "./supabaseClient.ts";
 import { expectedNetworkingContext } from "./networkingCycles.ts";
+import { notifyNetworkingDataChanged } from "./networkingDataRevision.ts";
 
 export type ContactDeepMergeInput = {
   targetContactId: string;
@@ -35,14 +36,14 @@ export async function mergeContactsDeep(input: ContactDeepMergeInput) {
   const normalized = normalizeContactDeepMergeInput(input);
   const context = await expectedNetworkingContext();
 
-  const { data, error } = await supabase.rpc("merge_contacts_deep_r2b", {
+  const { data, error } = await Promise.resolve(supabase.rpc("merge_contacts_deep_r2b", {
     p_expected_cycle_id: context.cycleId,
     p_expected_context: context.token,
     p_result: normalized.result,
     p_source: normalized.source || "contact_merge",
     p_source_contact_ids: normalized.sourceContactIds,
     p_target_contact_id: normalized.targetContactId
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) {
     if (process.env.NODE_ENV !== "production") {
       console.error("Coffeecito contact merge RPC failed", contactMergeErrorDiagnostic(error));

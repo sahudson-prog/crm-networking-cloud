@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { peekSharedView } from "../lib/indicatorReads";
+import { subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision } from "../lib/networkingDataRevision";
 import { readContactListRows } from "../lib/cloudData";
 import { currentOnboardingStep, type OnboardingRouteId, type OnboardingStep } from "../lib/onboarding";
 import type { ContactListRow } from "../lib/readModel";
@@ -16,6 +18,8 @@ import { Shell } from "./Shell";
 import { ShellHeader } from "./ShellHeader";
 import { StartingPointFields, type StartingPointFieldsHandle } from "./StartingPointFields";
 import { Button } from "./ui/Button";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
+import { Panel } from "./ui/Panel";
 
 export const GUIDED_COPY = {
   objectives: "Cuéntame quién eres y qué buscas: tu nombre, en qué punto está tu carrera hoy, y crea tu primer objetivo con los cafés: el cargo, la industria o el tipo de empresa que priorizarás. Con uno basta para partir, después sumas más.",
@@ -35,7 +39,7 @@ function OnboardingRouteContent({ routeId }: { routeId: OnboardingRouteId }) {
   const onboarding = useOnboarding();
   if (onboarding.loadFailed) return <section className="onboarding-route onboarding-route-gate" role="alert">
     <p>{onboarding.error}</p><Button onClick={onboarding.retry}>Reintentar</Button></section>;
-  if (onboarding.loading || !onboarding.routeReady) return <p className="onboarding-route-loading" role="status">Preparando tu tutorial...</p>;
+  if (onboarding.loading || !onboarding.routeReady) return <main className="app-shell onboarding-guided"><ViewSkeleton kind="list" rows={3} label="Tutorial" /></main>;
   if (routeId === "intro") return <OnboardingIntro />;
   const step = currentOnboardingStep(routeId);
   return step === "objectives" ? <OnboardingObjectiveStep /> : <OnboardingNetworkStep key={step} step={step === "google" ? "google" : "contacts"} />;
@@ -89,46 +93,66 @@ function OnboardingObjectiveStep() {
     <section className="panel onboarding-objective-content">
       <StartingPointFields mode="onboarding" ref={fields} onReadyChange={setProfileReady} requireComplete showSaveAction={false} />
       <NetworkingCyclePanel title="Tu objetivo" mode="onboarding" onReadyChange={setCycleReady} onCycleChange={() => setRevision(v => v + 1)} />
-      {cycleReady ? <OnboardingPriorities key={revision} onReadyChange={setPriorityReady} onBusyChange={setPriorityBusy} /> : null}
+      {cycleReady ? <OnboardingPriorities key={revision} onReadyChange={setPriorityReady} onBusyChange={setPriorityBusy} /> : <ViewSkeleton kind="chips" rows={3} label="Prioridades" />}
     </section>
   </OnboardingFrame>;
 }
 
 function OnboardingNetworkStep({ step }: { step: "google" | "contacts" }) {
   const onboarding = useOnboarding();
-  const [contacts, setContacts] = useState<ContactListRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = peekSharedView<ContactListRow[]>("contact-list");
+  const [contacts, setContacts] = useState<ContactListRow[]>(cached ?? []);
+  const [loading, setLoading] = useState(!cached);
+  const [resolved, setResolved] = useState(Boolean(cached));
+  const loadVersion = useRef(0);
+  const revision = useSyncExternalStore(subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [tableBusy, setTableBusy] = useState(false);
+  const [progressBusy, setProgressBusy] = useState(false);
+  const progressWrite = useRef<Promise<boolean> | null>(null);
+  const busy = tableBusy || progressBusy;
   const [confirmed, setConfirmed] = useState(false);
   const [progressError, setProgressError] = useState("");
   const exercise = Boolean(onboarding.state.boardExerciseCompleted);
   const reload = useCallback(async () => {
+    const version = ++loadVersion.current;
     setError("");
-    try { setContacts(await readContactListRows()); }
-    catch { setError("No pudimos leer tus contactos. Reintenta antes de continuar."); }
-    finally { setLoading(false); }
+    try {
+      const rows = await readContactListRows();
+      if (version !== loadVersion.current) return;
+      setContacts(rows); setResolved(true);
+    }
+    catch { if (version === loadVersion.current) setError("No pudimos leer tus contactos. Reintenta antes de continuar."); }
+    finally { if (version === loadVersion.current) setLoading(false); }
   }, []);
-  useEffect(() => { void reload(); }, [reload]);
-  async function saveExercise() {
+  useEffect(() => { void reload(); return () => { loadVersion.current++; }; }, [reload, revision]);
+  function saveExercise() {
+    if (progressWrite.current) return progressWrite.current;
     setProgressError("");
-    setBusy(true);
-    try { await onboarding.confirmBoardExercise(); }
-    catch { setProgressError("El contacto quedó guardado, pero no tu avance. Reintenta sin moverlo otra vez."); }
-    finally { setBusy(false); }
+    setProgressBusy(true);
+    const pending = Promise.resolve().then(() => onboarding.confirmBoardExercise())
+      .then(() => true)
+      .catch(() => { setProgressError("El contacto quedó guardado, pero no tu avance. Reintenta sin moverlo otra vez."); return false; })
+      .finally(() => { progressWrite.current = null; setProgressBusy(false); });
+    progressWrite.current = pending;
+    return pending;
   }
   async function onStatusSaved(change: { previous: string; next: string }) {
-    if (change.previous !== "Pendiente" || change.next !== "Contactado") return;
+    if (exercise || change.previous !== "Pendiente" || change.next !== "Contactado") return;
     setConfirmed(true);
-    await saveExercise();
+    if (!await saveExercise()) throw Error("onboarding_progress_not_confirmed");
   }
   return <OnboardingFrame step={step} message={step === "contacts" && exercise ? GUIDED_COPY.success : GUIDED_COPY[step]}
-    ready={!loading && !error && (step === "google" ? contacts.length > 0 : exercise)} busy={busy}
+    ready={resolved && !loading && !error && (step === "google" ? contacts.length > 0 : exercise)} busy={busy}
     onNext={() => void (step === "google" ? onboarding.moveTo("contacts") : onboarding.complete())}>
-    {loading ? <p role="status">Leyendo contactos...</p> : null}
+    {!resolved ? <Panel title={step === "google" ? "Contactos" : "Tu tablero"}
+      status={{ resolved: false, busy: loading, error, onRetry: () => void reload() }}>
+      {loading ? <ViewSkeleton kind={step === "google" ? "table" : "board"} rows={4} label={step === "google" ? "Contactos" : "Tu tablero"} /> : null}
+    </Panel> : null}
     {error ? <p role="alert">{error} <Button onClick={() => void reload()}>Reintentar</Button></p> : null}
-    {!loading ? <ContactTable contacts={contacts} view={step === "google" ? "contacts" : "states"} tutorial={step === "google" ? "list" : "board"}
-      onReload={reload} onStatusSaved={onStatusSaved} onBusyChange={setBusy} /> : null}
+    {resolved ? <ContactTable contacts={contacts} view={step === "google" ? "contacts" : "states"} tutorial={step === "google" ? "list" : "board"}
+      readState={{ resolved, busy: loading || progressBusy, confirming: progressBusy, error: error || progressError, onRetry: () => void reload() }}
+      onReload={reload} onStatusSaved={onStatusSaved} onBusyChange={setTableBusy} /> : null}
     {progressError && confirmed ? <p role="alert">{progressError} <Button disabled={busy} onClick={() => void saveExercise()}>Reintentar</Button></p> : null}
   </OnboardingFrame>;
 }

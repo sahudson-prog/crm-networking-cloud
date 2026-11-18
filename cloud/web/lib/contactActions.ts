@@ -5,6 +5,7 @@ import { triggerCoachRuleReviewForContacts } from "./coachRuleTriggers";
 import { setContactObjectiveAssignments } from "./cycleObjectiveActions";
 import { networkingWriteContext } from "./networkingCycles";
 import type { ContactRow } from "./readModel";
+import { measureOperation } from "./operationDiagnostics";
 
 export const NETWORKING_STATUSES = [
   "Pendiente",
@@ -48,28 +49,31 @@ export async function updateContactNetworkingStatus(
   contactId: string,
   nextStatus: string,
   source = "contact_profile",
-  options: { reviewCoach?: boolean } = {}
+  options: { reviewCoach?: boolean; expectedOwner?: string; expectedContext?: string; invalidate?: boolean } = {}
 ) {
   if (!supabase) throw new Error("Supabase no esta configurado.");
   if (!OFFICIAL_NETWORKING_STATUSES.has(nextStatus)) throw new Error("Estado networking no valido.");
 
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await measureOperation("contact-auth", () => supabase!.auth.getUser());
   if (authError) throw authError;
   const userId = authData.user?.id;
   if (!userId) throw new Error("No hay usuario autenticado.");
+  if (options.expectedOwner && options.expectedOwner !== userId) throw new Error("board_access_changed");
 
-  const { data: contact, error: contactError } = await supabase
+  const { data: contact, error: contactError } = await measureOperation("contact-previous", () => supabase!
     .from("contacts")
     .select("id,networking_status")
     .eq("id", contactId)
     .eq("user_id", userId)
-    .maybeSingle();
+    .maybeSingle());
   if (contactError) throw contactError;
   if (!contact) throw new Error("No encontre el contacto.");
   if (contact.networking_status === nextStatus) return { status: nextStatus, previousStatus: contact.networking_status };
 
+  const writeContext = await measureOperation("contact-context", networkingWriteContext);
+  if (options.expectedContext && options.expectedContext !== writeContext) throw new Error("board_context_changed");
   const now = new Date().toISOString();
-  const { data: invocation, error: invocationError } = await supabase
+  const { data: invocation, error: invocationError } = await measureOperation("contact-invocation", () => supabase!
     .from("action_invocations")
     .insert({
       user_id: userId,
@@ -87,19 +91,19 @@ export async function updateContactNetworkingStatus(
       confirmed_at: now
     })
     .select("id")
-    .single();
+    .single());
   if (invocationError) throw invocationError;
 
   try {
-    const { error: updateError } = await supabase
+    const { data: persisted, error: updateError } = await measureOperation("contact-write", () => supabase!
       .from("contacts")
-      .update({ networking_status: nextStatus, networking_write_context: await networkingWriteContext() })
+      .update({ networking_status: nextStatus, networking_write_context: writeContext })
       .eq("id", contactId)
-      .eq("user_id", userId);
+      .eq("user_id", userId).select("networking_status").single());
     if (updateError) throw updateError;
-    notifyNetworkingDataChanged();
+    if (persisted?.networking_status !== nextStatus) throw new Error("contact_write_unconfirmed");
 
-    await supabase.from("audit_log").insert({
+    const { error: auditError } = await measureOperation("contact-audit", () => supabase!.from("audit_log").insert({
       user_id: userId,
       actor: "user",
       action: "contact.update_networking_status",
@@ -107,9 +111,10 @@ export async function updateContactNetworkingStatus(
       object_id: contactId,
       before_json: { networking_status: contact.networking_status },
       after_json: { networking_status: nextStatus }
-    });
+    }));
+    if (auditError) throw auditError;
 
-    const { error: invocationDoneError } = await supabase
+    const { error: invocationDoneError } = await measureOperation("contact-completion", () => supabase!
       .from("action_invocations")
       .update({
         status: "executed",
@@ -117,7 +122,7 @@ export async function updateContactNetworkingStatus(
         executed_at: now
       })
       .eq("id", invocation.id)
-      .eq("user_id", userId);
+      .eq("user_id", userId));
     if (invocationDoneError) throw invocationDoneError;
     if (options.reviewCoach !== false) {
       await triggerCoachRuleReviewForContacts([contactId], "contact.update_networking_status");
@@ -132,6 +137,9 @@ export async function updateContactNetworkingStatus(
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    // A partial or uncertain write also makes cached reads unsafe.
+    if (options.invalidate !== false) notifyNetworkingDataChanged();
   }
 
   return { status: nextStatus, previousStatus: contact.networking_status };
@@ -236,6 +244,8 @@ export async function updateContactFlags(contactId: string, flags: ContactFlagsI
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 
   return { updated: true };
@@ -359,6 +369,8 @@ export async function deactivateContacts(
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 
@@ -478,6 +490,8 @@ export async function saveContactFromEditor(input: ContactEditorInput) {
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 

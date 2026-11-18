@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Coffee, Plus, Users } from "lucide-react";
 import type { DragEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { deactivateContacts, NETWORKING_STATUSES, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
 import { DEFAULT_CONTACT_FILTERS, filterContacts, headhunterDomainsForContact, objectiveOptionsForContacts, type ContactFilters } from "../lib/contactFilters";
 import { triggerCoachRuleReviewForContacts } from "../lib/coachRuleTriggers";
@@ -30,9 +30,13 @@ import { TableSortHeader as SortHeader } from "./ui/TableSortHeader";
 import { EmptyValue } from "./ui/EmptyValue";
 import { Icon, type IconName } from "./ui/Icon";
 import { StatusBoard, StatusBoardCard, type BoardDropTarget } from "./ui/StatusBoard";
-import { useDeferredBoardSave, omitKeys, applyStatusToIds, removeUnchangedPending, removeSettledOptimistic } from "../lib/useDeferredBoardSave";
+import { boardMoves, moveContactCard } from "../lib/boardMoves";
+import { useBoardMoves } from "../lib/useBoardMoves";
+import { OperationStatus } from "./ui/OperationStatus";
+import type { OperationState } from "../lib/operationState";
 
 type ContactTableProps = {
+  readState?: OperationState;
   contacts: ContactListRow[];
   onReload?: () => Promise<void> | void;
   view?: "all" | "states" | "contacts";
@@ -61,7 +65,7 @@ type ContactBoardCard = {
   extraCount: number;
 };
 
-export function ContactTable({ contacts, onReload, view = "all", tutorial, onStatusSaved, onBusyChange }: ContactTableProps) {
+export function ContactTable({ contacts, onReload, view = "all", tutorial, onStatusSaved, onBusyChange, readState = { resolved: true } }: ContactTableProps) {
   const currentWorkspace=useWorkspace();
   const workspace=tutorial ? null : currentWorkspace;
   const scope=view === "states" ? "states" : "contacts";
@@ -78,10 +82,21 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   const [bulkObjectiveIds, setBulkObjectiveIds] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>({ key: "name", direction: "asc" });
   const [feedback, setFeedback] = useState("");
-  const [applying, setApplying] = useState(false);
-  const [savingBoardIds, setSavingBoardIds] = useState<Set<string>>(new Set());
-  const [optimisticBoardStatuses, setOptimisticBoardStatuses] = useState<Record<string, string>>({});
-  const [pendingBoardStatuses, setPendingBoardStatuses] = useState<Record<string, string>>({});
+  const [feedbackError, setFeedbackError] = useState(false);
+  const [bulkApplying, setApplying] = useState(false);
+  const cardMoves = useBoardMoves("contact:");
+  const applying = bulkApplying || cardMoves.pending.size > 0;
+  const savingBoardIds = cardMoves.pending;
+  const operationState: OperationState = {
+    resolved: readState.resolved,
+    busy: readState.busy || applying,
+    confirming: Boolean(readState.confirming || applying),
+    error: readState.error || (cardMoves.failed ? "No pudimos confirmar todos los movimientos. Reintenta la lectura antes de volver a mover." : feedbackError ? feedback : ""),
+    onRetry: () => { void Promise.all(cardMoves.moves.filter(move => move.phase === "error").map(move => boardMoves.reconcile(move.key)))
+      .then(() => { setFeedbackError(false); readState.onRetry?.(); if (!readState.onRetry) void onReload?.(); }); }
+  };
+  const optimisticBoardStatuses = cardMoves.optimistic;
+  const attemptedConfirmations = useRef(new Set<object>());
   const [draggingContactId, setDraggingContactId] = useState("");
   const [boardDropTarget, setBoardDropTarget] = useState<BoardDropTarget | null>(null);
   const [headhuntersGrouped, setHeadhuntersGrouped] = useState(false);
@@ -112,7 +127,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   const boardCards = useMemo(() => buildContactBoardCards(sortedContacts, headhuntersGrouped), [headhuntersGrouped, sortedContacts]);
   const boardCardsByStatus = useMemo(() => groupBoardCardsByStatus(boardCards), [boardCards]);
   const boardCardsById = useMemo(() => new Map(boardCards.map((card) => [card.id, card])), [boardCards]);
-  const pendingBoardIds = useMemo(() => new Set(Object.keys(pendingBoardStatuses)), [pendingBoardStatuses]);
+  const pendingBoardIds = cardMoves.pending;
   const headhunterResolutionByContact = useMemo(
     () => buildHeadhunterResolutionMap(sortedContacts, headhunterMaster),
     [headhunterMaster, sortedContacts]
@@ -147,7 +162,18 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
     };
   }, []);
 
-  useDeferredBoardSave(pendingBoardStatuses, savingBoardIds.size, flushBoardStatuses);
+  useEffect(() => { boardMoves.acknowledgeRead("contact:", new Map(contacts.map(row => [row.id, row.networking_status]))); }, [contacts]);
+  useEffect(() => {
+    if (!tutorial || !onStatusSaved) return;
+    for (const move of cardMoves.moves) {
+      const confirmation = move.confirmation;
+      if (!confirmation || attemptedConfirmations.current.has(confirmation)) continue;
+      attemptedConfirmations.current.add(confirmation);
+      void onStatusSaved({ previous: confirmation.previous, next: confirmation.actual })
+        .then(() => boardMoves.acknowledgeConfirmation(move.key, confirmation))
+        .catch(() => { /* The tutorial owns progress-save feedback and retry, not another contact write. */ });
+    }
+  }, [cardMoves.moves, onStatusSaved, tutorial]);
   useEffect(() => { onBusyChange?.(pendingBoardIds.size > 0 || savingBoardIds.size > 0 || contactEditorOpen); }, [pendingBoardIds.size, savingBoardIds.size, contactEditorOpen, onBusyChange]);
 
   function toggleSelected(contactId: string, checked: boolean) {
@@ -168,7 +194,8 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   }
 
   async function applyBulkFlags(flags: { networkingFocus?: boolean; isHeadhunter?: boolean }) {
-    if (!selectedCount) return;
+    if (!selectedCount || applying) return;
+    setFeedbackError(false);
     setApplying(true);
     setFeedback("");
     try {
@@ -181,6 +208,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       clearSelection();
       await onReload?.();
     } catch (error) {
+      setFeedbackError(true);
       setFeedback(error instanceof Error ? error.message : "No pude guardar los cambios.");
     } finally {
       setApplying(false);
@@ -188,7 +216,8 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   }
 
   async function applyBulkStatus() {
-    if (!selectedCount || !bulkStatus) return;
+    if (!selectedCount || !bulkStatus || applying) return;
+    setFeedbackError(false);
     setApplying(true);
     setFeedback("");
     try {
@@ -201,6 +230,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       clearSelection();
       await onReload?.();
     } catch (error) {
+      setFeedbackError(true);
       setFeedback(error instanceof Error ? error.message : "No pude guardar el estado.");
     } finally {
       setApplying(false);
@@ -208,7 +238,8 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   }
 
   async function applyBulkObjectives() {
-    if (!selectedCount || !bulkObjectiveIds.length) return;
+    if (!selectedCount || !bulkObjectiveIds.length || applying) return;
+    setFeedbackError(false);
     setApplying(true);
     setFeedback("");
     try {
@@ -223,6 +254,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       clearSelection();
       await onReload?.();
     } catch (error) {
+      setFeedbackError(true);
       setFeedback(error instanceof Error ? error.message : "No pude guardar los objetivos.");
     } finally {
       setApplying(false);
@@ -230,7 +262,8 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
   }
 
   async function applyBulkDelete() {
-    if (!selectedCount) return;
+    if (!selectedCount || applying) return;
+    setFeedbackError(false);
     setApplying(true);
     setFeedback("");
     try {
@@ -240,6 +273,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       setShowDeleteConfirm(false);
       await onReload?.();
     } catch (error) {
+      setFeedbackError(true);
       setFeedback(error instanceof Error ? error.message : "No pude eliminar los contactos.");
     } finally {
       setApplying(false);
@@ -250,7 +284,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
     const card = boardCardsById.get(cardId);
     setDraggingContactId("");
     setBoardDropTarget(null);
-    if (!card) return;
+    if (!card || bulkApplying) return;
 
     const currentStatus = card.status;
     if (currentStatus === nextStatus) return;
@@ -259,51 +293,11 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       .map((contactId) => contacts.find((item) => item.id === contactId))
       .filter((contact): contact is ContactListRow => Boolean(contact));
 
-    if (originalContacts.every((contact) => contact.networking_status === nextStatus)) {
-      setOptimisticBoardStatuses((current) => omitKeys(current, card.contactIds));
-      setPendingBoardStatuses((current) => omitKeys(current, card.contactIds));
-      return;
-    }
-
-    setOptimisticBoardStatuses((current) => applyStatusToIds(current, card.contactIds, nextStatus));
-    setPendingBoardStatuses((current) => {
-      const next = { ...current };
-      for (const contact of originalContacts) {
-        if (contact.networking_status === nextStatus) delete next[contact.id];
-        else next[contact.id] = nextStatus;
-      }
-      return next;
-    });
-    setFeedback("Cambio pendiente de guardado.");
-  }
-
-  async function flushBoardStatuses(entries: Array<[string, string]>) {
-    const ids = entries.map(([contactId]) => contactId);
-    setSavingBoardIds(new Set(ids));
     setFeedback("");
-
-    const savedIds: string[] = [];
-    const failedIds: string[] = [];
-    try {
-      for (const [contactId, nextStatus] of entries) {
-        try {
-          const saved = await updateContactNetworkingStatus(contactId, nextStatus, "contacts_status_board", { reviewCoach: false });
-          savedIds.push(contactId);
-          await onStatusSaved?.({ previous: saved.previousStatus, next: saved.status });
-        } catch {
-          failedIds.push(contactId);
-        }
-      }
-
-      await triggerCoachRuleReviewForContacts(savedIds, "contacts_status_board");
-      await onReload?.();
-      setFeedback(failedIds.length ? "Algunos estados no se pudieron guardar." : tutorial ? "Guardado ✓" : "Estados guardados.");
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "No pude guardar los estados.");
-    } finally {
-      setPendingBoardStatuses((current) => removeUnchangedPending(current, entries));
-      setOptimisticBoardStatuses((current) => removeSettledOptimistic(current, [...savedIds, ...failedIds], entries));
-      setSavingBoardIds(new Set());
+    for (const contact of originalContacts) {
+      try {
+        void moveContactCard(contact.id, nextStatus, Boolean(tutorial)).catch(() => { setFeedbackError(true); setFeedback("No pude iniciar el movimiento. Reintenta la lectura."); });
+      } catch { setFeedbackError(true); setFeedback("No pude iniciar el movimiento. Reintenta la lectura."); }
     }
   }
 
@@ -329,7 +323,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
       <section className={`panel contacts-workspace ${view === "all" ? "" : "functional-block"} ${tutorial ? `onboarding-contacts-${tutorial}` : ""}`}>
         <div className="panel-header contacts-header">
           <div>
-            <h2 className="panel-title">{view === "states" ? <Coffee aria-hidden="true" /> : view === "contacts" ? <Users aria-hidden="true" /> : null}{view === "states" ? "Estados de networking" : "Contactos"}</h2>
+            <h2 className="panel-title">{view === "states" ? <Coffee aria-hidden="true" /> : view === "contacts" ? <Users aria-hidden="true" /> : null}{view === "states" ? "Estados de networking" : "Contactos"}<OperationStatus label="Contactos" {...operationState} /></h2>
           </div>
         </div>
 
@@ -346,10 +340,6 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
         >
           {headhuntersGrouped ? "Desagrupar Headhunters" : "Agrupar Headhunters"}
         </Button> : null}
-        <p role={tutorial ? feedback.includes("no se pudieron") || feedback.includes("No pude") ? "alert" : "status" : undefined}
-          className={`contacts-status-feedback ${feedback.includes("No pude") || (tutorial && feedback.includes("no se pudieron")) ? "form-error" : "form-success"}`}>
-          {feedback}
-        </p>
         {view !== "states" ? <div className="contacts-import-actions">
           {tutorial ? <ContactImportButton label="Importar" onClosed={() => void onReload?.()} /> : null}
           <Button onClick={() => { setEditingContact(null); setContactEditorOpen(true); }}><Plus aria-hidden="true" size={16} />Crear contacto</Button>
@@ -552,7 +542,7 @@ export function ContactTable({ contacts, onReload, view = "all", tutorial, onSta
         />
       ) : null}
       </section>
-      {view === "contacts" && !tutorial ? <CompaniesTable contacts={filtered} selected={selectedCompanies} onSelectionChange={setSelectedCompanies} /> : null}
+      {view === "contacts" && !tutorial ? <CompaniesTable status={operationState} contacts={filtered} selected={selectedCompanies} onSelectionChange={setSelectedCompanies} /> : null}
       <ContactEditorDialog
         contact={editingContact}
         open={contactEditorOpen}

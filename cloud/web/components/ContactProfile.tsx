@@ -22,6 +22,7 @@ import { ObjectiveChips } from "./ObjectiveSelector";
 import { ReferralEditorDialog } from "./ReferralEditorDialog";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 import { Icon } from "./ui/Icon";
 
 type ContactProfileProps = {
@@ -472,7 +473,7 @@ function ContactReferrals({
           <div className="empty">Aun no hay contactos referidos vinculados a este perfil.</div>
         )}
       </div>
-      {loadingContacts ? <span className="meta">Cargando contactos...</span> : null}
+      {loadingContacts ? <ViewSkeleton kind="inline" label="Contactos vinculables" /> : null}
       {loadMessage ? <span className="danger-text">{loadMessage}</span> : null}
       <ReferralEditorDialog
         contacts={contacts}

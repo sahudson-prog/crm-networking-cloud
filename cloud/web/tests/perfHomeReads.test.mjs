@@ -85,6 +85,18 @@ test('technical failures remain errors and are retried, never retained as succes
   assert.equal(f.calls.filter(x=>x==='interactions').length,2);
 });
 
+test('view readers share owner generation, deduplicate, retry and invalidate after mutations',async()=>{
+  const f=fixture();let calls=0;
+  const read=()=>f.read.readSharedView('list',async()=>{calls++;return [calls];});
+  const [a,b]=await Promise.all([read(),read()]);assert.equal(a,b);assert.equal(calls,1);
+  await read();assert.equal(calls,1);
+  f.mutation();await read();assert.equal(calls,2);
+  f.auth(null);await assert.rejects(read(),/read_access_denied/);
+  f.auth('another');await read();assert.equal(calls,3);
+  await assert.rejects(f.read.readSharedView('error',async()=>{throw Error('technical');}),/technical/);
+  assert.equal(await f.read.readSharedView('error',async()=>42),42);
+});
+
 test('focus is fresh for a minute; civil week boundary forces refresh; hidden tab does not poll',()=>{
   let effect,clock=Date.parse('2026-11-18T15:00:00Z'),refreshes=0,timer;
   const events={},document={hidden:false,addEventListener:(name,fn)=>{events[name]=fn;},removeEventListener(){}};

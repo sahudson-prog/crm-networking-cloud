@@ -2,6 +2,7 @@
 
 import { supabase } from "./supabaseClient";
 import {notifyNetworkingDataChanged} from "./networkingDataRevision";
+import {readSharedView} from "./indicatorReads";
 import {
   expectedNetworkingContext, networkingContextFromCycles, readNetworkingCycles
 } from "./networkingCycles";
@@ -60,6 +61,9 @@ async function requireCycleContext() {
 }
 
 export async function readObjectives(options: { activeOnly?: boolean } = {}): Promise<ObjectiveRow[]> {
+  return readSharedView(`objectives:${Boolean(options.activeOnly)}`,()=>readObjectivesUncached(options));
+}
+async function readObjectivesUncached(options: { activeOnly?: boolean }):Promise<ObjectiveRow[]> {
   const cycleId = await activeCycleForRead();
   if (!cycleId) return [];
   const userId = await requireUserId();
@@ -111,7 +115,7 @@ export async function saveObjective(input: ObjectiveEditorInput) {
   const cycleId = context.cycleId;
   const name = input.objectiveName.trim();
   if (!name) throw new Error("La Prioridad necesita nombre.");
-  const { data, error } = await requireClient().rpc("save_objective_r2b", {
+  const { data, error } = await Promise.resolve(requireClient().rpc("save_objective_r2b", {
     p_expected_cycle_id: cycleId,
     p_expected_context: context.token,
     p_objective_id: input.objectiveId ?? null,
@@ -121,20 +125,18 @@ export async function saveObjective(input: ObjectiveEditorInput) {
     p_priority: input.priorityLevel,
     p_description: input.objectiveDescription.trim(),
     p_is_active: input.isActive
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) throw error;
-  notifyNetworkingDataChanged();
   return { objectiveId: String(data) };
 }
 
 export async function deleteObjective(objectiveId: string) {
   const context = await requireCycleContext();
   const cycleId = context.cycleId;
-  const { error } = await requireClient().rpc("archive_objective_r2b", {
+  const { error } = await Promise.resolve(requireClient().rpc("archive_objective_r2b", {
     p_expected_cycle_id: cycleId, p_expected_context: context.token, p_objective_id: objectiveId
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) throw error;
-  notifyNetworkingDataChanged();
 }
 
 export async function setContactObjectiveAssignments(input: ContactObjectiveAssignmentInput) {
@@ -145,13 +147,12 @@ export async function setContactObjectiveAssignments(input: ContactObjectiveAssi
     if (objectiveIds.length) throw new Error("Comienza un ciclo antes de asociar Prioridades.");
     return { assignedObjectiveIds: [] };
   }
-  const { error } = await requireClient().rpc("replace_contact_objectives_r2b", {
+  const { error } = await Promise.resolve(requireClient().rpc("replace_contact_objectives_r2b", {
     p_expected_cycle_id: cycleId, p_contact_id: input.contactId,
     p_expected_context: context.token,
     p_objective_ids: objectiveIds, p_actor: input.source ?? "user"
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) throw error;
-  notifyNetworkingDataChanged();
   return { assignedObjectiveIds: objectiveIds };
 }
 
@@ -159,12 +160,11 @@ export async function setObjectiveContactAssignments(input: { objectiveId: strin
   const context = await requireCycleContext();
   const cycleId = context.cycleId;
   const contactIds = [...new Set(input.contactIds.filter(Boolean))];
-  const { error } = await requireClient().rpc("replace_objective_contacts_r2b", {
+  const { error } = await Promise.resolve(requireClient().rpc("replace_objective_contacts_r2b", {
     p_expected_cycle_id: cycleId, p_expected_context: context.token,
     p_objective_id: input.objectiveId, p_contact_ids: contactIds
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) throw error;
-  notifyNetworkingDataChanged();
   return { assignedContactIds: contactIds };
 }
 
@@ -176,13 +176,12 @@ export async function addObjectiveAssignmentsToContacts(input: BulkContactObject
   if (!contactIds.length || !objectiveIds.length) {
     return { assignedContactCount: contactIds.length, assignedObjectiveCount: objectiveIds.length, insertedAssignments: 0 };
   }
-  const { data, error } = await requireClient().rpc("add_objectives_to_contacts_r2b", {
+  const { data, error } = await Promise.resolve(requireClient().rpc("add_objectives_to_contacts_r2b", {
     p_expected_cycle_id: cycleId, p_contact_ids: contactIds,
     p_expected_context: context.token,
     p_objective_ids: objectiveIds, p_actor: input.source ?? "user"
-  });
+  })).finally(notifyNetworkingDataChanged);
   if (error) throw error;
-  notifyNetworkingDataChanged();
   return { assignedContactCount: contactIds.length, assignedObjectiveCount: objectiveIds.length, insertedAssignments: Number(data) || 0 };
 }
 

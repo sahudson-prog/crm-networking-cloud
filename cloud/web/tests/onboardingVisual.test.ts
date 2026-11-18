@@ -71,7 +71,9 @@ test("tutorial card reuses real board and title styles without dropdown or navig
 
 test("copy, Coach typography and success feedback are scoped and follow confirmed save", () => {
   const contacts = source("../components/ContactTable.tsx");
-  assert.match(contacts, /await updateContactNetworkingStatus[\s\S]*await onStatusSaved\?[\s\S]*failedIds.length \? "Algunos estados no se pudieron guardar\." : tutorial \? "Guardado ✓" : "Estados guardados\."/);
+  assert.match(contacts, /move\.confirmation[\s\S]*onStatusSaved\([\s\S]*acknowledgeConfirmation/);
+  assert.match(contacts, /<OperationStatus label="Contactos"/);
+  assert.doesNotMatch(contacts, /Cambio pendiente de guardado|Estados guardados|Guardado ✓/);
   assert.match(source("../components/StartingPointFields.tsx"), /<span>¿Cómo te llamas\?<\/span>/);
   assert.match(source("../styles/onboarding.css"), /\.onboarding-guided \.coach-onboarding-content \{ font-size: 16px; line-height: 1\.6;/);
   const page = source("../components/OnboardingRoutePage.tsx");

@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { readSharedView } from "./indicatorReads";
 import { readCompletePages } from "./completeRead";
 import { activeInteractions, CALENDAR_VISIBILITY_JOIN, withoutCancelledCalendar } from "./interactionState";
 import { buildDashboardKpis, parseLocalDate } from "./kpiCalculations";
@@ -153,7 +154,7 @@ export async function readInteractionParticipants(complete = false): Promise<Int
   const client = requireSupabase();
   if (complete) return readCompletePages<InteractionParticipantRow & { id: string }>(async (from, to) => await client
     .from("interaction_participants").select("id,interaction_id,contact_id,email_identity,role", { count: "exact" })
-    .order("id", { ascending: true }).range(from, to));
+    .order("id", { ascending: true }).range(from, to),500);
   const { data, error } = await client
     .from("interaction_participants")
     .select("interaction_id,contact_id,email_identity,role")
@@ -256,10 +257,12 @@ export async function readActiveTodos(input: { limit?: number; contactId?: strin
 export async function readAllActiveContacts(complete = false): Promise<ContactRow[]> {
   const client = requireSupabase();
   if (complete) {
+    return readSharedView("active-contacts",async()=>{
     const rows = await readCompletePages<ContactRow>(async (from, to) => await client.from("contacts")
       .select("id,display_name,company,role,networking_status,networking_focus,is_headhunter,headhunter_domains,is_active,updated_at,contact_emails(email,domain),contact_phones(phone)", { count: "exact" })
-      .eq("is_active", true).order("display_name", { ascending: true }).order("id", { ascending: true }).range(from, to));
+      .eq("is_active", true).order("display_name", { ascending: true }).order("id", { ascending: true }).range(from, to),500);
     return withContactObjectiveAssignments(rows, true);
+    });
   }
   const rows: ContactRow[] = [];
 
@@ -284,10 +287,16 @@ export async function readAllActiveContacts(complete = false): Promise<ContactRo
 }
 
 export async function readContactListRows(): Promise<ContactListRow[]> {
+  return readSharedView("contact-list",readContactListRowsUncached);
+}
+
+async function readContactListRowsUncached(): Promise<ContactListRow[]> {
   const [contacts, interactions, participants] = await Promise.all([
-    readAllActiveContacts(),
-    readAllInteractions(),
-    readInteractionParticipants()
+    readAllActiveContacts(true),
+    readCompletePages<Pick<InteractionRow,"id"|"interaction_type"|"occurred_at"|"metadata">>(async(from,to)=>await withoutCancelledCalendar(requireSupabase().from("interactions")
+      .select(`id,interaction_type,occurred_at,metadata,${CALENDAR_VISIBILITY_JOIN}`,{count:"exact"}))
+      .order("id").range(from,to),500).then(activeInteractions),
+    readSharedView("participants",()=>readInteractionParticipants(true))
   ]);
 
   const interactionsById = new Map(interactions.map((interaction) => [interaction.id, interaction]));

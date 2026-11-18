@@ -10,6 +10,7 @@ import type {GamificationExtra} from "./gamificationModel";
 
 const cache=new ScopedReadCache();
 let authPending:Promise<string>|null=null, authGeneration=0, currentOwner:string|null=null;
+export const getSharedReadOwner=()=>currentOwner;
 export function invalidateIndicatorReads(){cache.invalidate();}
 export const peekTrackingSnapshot=()=>cache.peek<TrackingSnapshot>("tracking");
 export const peekGamificationExtra=()=>cache.peek<GamificationExtra>("gamification");
@@ -32,6 +33,13 @@ async function owner(){
   authPending=pending;return pending;
 }
 function history(user:string){return cache.read("interaction-evidence",()=>readFirstCoffeeHistory(supabase!,true,user));}
+/** Lists and details share the same identity, expiry and invalidation generation. */
+export async function readSharedView<T>(key:string,load:()=>Promise<T>):Promise<T>{
+  const user=await owner();
+  if(user!==currentOwner)throw Error("read_superseded");
+  return cache.read(`view:${key}`,load);
+}
+export function peekSharedView<T>(key:string){return cache.peek<T>(`view:${key}`);}
 export async function readSharedTrackingSnapshot(){
   const user=await owner();
   if(user!==currentOwner)throw Error("read_superseded");

@@ -4,13 +4,19 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot, getGlobalActivitySyncServerSnapshot } from "../lib/activitySyncExecution";
 import { BriefcaseBusiness, MessageSquare, Users } from "lucide-react";
 import { readOpportunities, saveOpportunity } from "../lib/opportunityActions";
+import { peekSharedView } from "../lib/indicatorReads";
+import { readOpportunityBoard } from "../lib/readOpportunityBoard";
+import { OperationStatus } from "./ui/OperationStatus";
+import { subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision } from "../lib/networkingDataRevision";
 import { OPPORTUNITY_STAGES, opportunityClosureValid, opportunityMoveIntent, opportunityResultLabel, type Opportunity, type OpportunityResult, type OpportunityStage } from "../lib/opportunityModel";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 import { OpportunityEditor, type OpportunityEditorRequest } from "./OpportunityEditor";
 import { OpportunityCardPopover, type OpportunityCardAction } from "./OpportunityCardPopover";
 import { StatusBoard, StatusBoardCard, type BoardDropTarget } from "./ui/StatusBoard";
-import { useDeferredBoardSave, omitKeys, applyStatusToIds, removeUnchangedPending, removeSettledOptimistic } from "../lib/useDeferredBoardSave";
+import { boardMoves, moveOpportunityCard } from "../lib/boardMoves";
+import { useBoardMoves } from "../lib/useBoardMoves";
 
 export function WingedBriefcase() {
   return <svg className="opportunity-winged-icon" aria-hidden="true" width="34" height="28" viewBox="0 0 34 28"
@@ -27,14 +33,18 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
   const calendarSyncedAt = useSyncExternalStore(subscribeGlobalActivitySync, getGlobalActivitySyncSnapshot,
     getGlobalActivitySyncServerSnapshot).lastSuccess?.calendar;
   const previousCalendarSuccess = useRef(calendarSyncedAt);
-  const [rows, setRows] = useState<Opportunity[]>([]);
+  const dataRevision = useSyncExternalStore(subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision);
+  const previousDataRevision = useRef(dataRevision);
+  const [cached] = useState(() => peekSharedView<Opportunity[]>("opportunity-board"));
+  const [rows, setRows] = useState<Opportunity[]>(cached ?? []);
   const [filter, setFilter] = useState<"active" | "finalized" | "all">("active");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
   const [refreshing, setRefreshing] = useState(false);
-  const [hasData, setHasData] = useState(false);
+  const [hasData, setHasData] = useState(Boolean(cached));
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
-  const [pending, setPending] = useState<Record<string, string>>({});
-  const [optimistic, setOptimistic] = useState<Record<string, string>>({});
+  const cardMoves = useBoardMoves("opportunity:");
+  const pending = Object.fromEntries([...cardMoves.pending].map(id => [id, cardMoves.optimistic[id]]));
+  const optimistic = cardMoves.optimistic;
   const [draggingId, setDraggingId] = useState("");
   const [dropTarget, setDropTarget] = useState<BoardDropTarget | null>(null);
   const [success, setSuccess] = useState(0);
@@ -46,46 +56,39 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
   const loadVersion = useRef(0);
   const moving = useRef(false);
   const generation = useRef(0);
-  const unconfirmed = useRef<Array<[string, string]>>([]);
-  const pendingRef = useRef(pending);
-  useEffect(() => { pendingRef.current = pending; }, [pending]);
   const pendingCount = Object.keys(pending).length;
   const busy = loading || Boolean(error) || !enabled;
   const editorBlocked = busy || refreshing || savingIds.size > 0 || pendingCount > 0;
-  const feedback = error || saveError || (pendingCount ? "Cambio pendiente de guardado." : success ? "Estados guardados." : "");
+  const feedback = error || saveError || (cardMoves.failed ? "No pudimos confirmar todos los movimientos. Reintenta la lectura antes de volver a mover." : "");
   const visibleRows = rows.filter((row) => row.situation !== "voided" && (filter === "all" || row.situation === filter)).map((row) => optimistic[row.id]
     ? { ...row, stage: optimistic[row.id] as OpportunityStage, result: null, result_note: null } : row);
   const cardsByStatus = new Map(OPPORTUNITY_STAGES.map(([stage]) => [stage, visibleRows.filter((row) => row.stage === stage)]));
 
   useEffect(() => {
     generation.current += 1;
-    setPending({}); setOptimistic({}); setEditor(null); setCardAction(null); setSuccess(0); setSaveError(""); unconfirmed.current = [];
+    setEditor(null); setCardAction(null); setSuccess(0); setSaveError("");
     void load();
     return () => { generation.current += 1; loadVersion.current += 1; };
   }, [revision]);
   useEffect(() => {
-    if (previousCalendarSuccess.current === calendarSyncedAt || loading || pendingCount || savingIds.size || editor || cardAction) return;
+    if ((previousCalendarSuccess.current === calendarSyncedAt && previousDataRevision.current === dataRevision) || loading || refreshing || pendingCount || savingIds.size || editor || cardAction) return;
     previousCalendarSuccess.current = calendarSyncedAt;
+    previousDataRevision.current = dataRevision;
     void load();
-  }, [calendarSyncedAt, loading, pendingCount, savingIds.size, editor, cardAction]);
+  }, [calendarSyncedAt, dataRevision, loading, refreshing, pendingCount, savingIds.size, editor, cardAction]);
   useEffect(() => {
     if (!enabled) {
       generation.current += 1;
-      setPending({}); setOptimistic({}); setEditor(null); setCardAction(null); setSuccess(0);
+      setEditor(null); setCardAction(null); setSuccess(0);
     }
   }, [enabled]);
   useEffect(() => { if (!loading) onInitialLoadComplete?.(); }, [loading, onInitialLoadComplete]);
-  useEffect(() => {
-    if (!success || pendingCount || savingIds.size || error || saveError) return;
-    const timer = window.setTimeout(() => setSuccess(0), 1800);
-    return () => window.clearTimeout(timer);
-  }, [success, pendingCount, savingIds.size, error, saveError]);
-  useDeferredBoardSave(pending, savingIds.size + Number(!enabled || refreshing || Boolean(error) || Boolean(editor) || Boolean(cardAction)), flushStatuses);
+  useEffect(() => { boardMoves.acknowledgeRead("opportunity:", new Map(rows.map(row => [row.id, row.stage]))); }, [rows]);
   async function load() {
     const version = ++loadVersion.current;
     setRefreshing(true);
     try {
-      const next = await readOpportunities();
+      const next = await readOpportunityBoard();
       if (version !== loadVersion.current) return false;
       setRows(next); setHasData(true); setError("");
       return true;
@@ -95,11 +98,8 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
     } finally { if (version === loadVersion.current) { setLoading(false); setRefreshing(false); } }
   }
   async function retryRead() {
-    if (await load()) {
-      const settled = unconfirmed.current;
-      setOptimistic((current) => removeSettledOptimistic(current, settled.map(([id]) => id), settled));
-      unconfirmed.current = []; setSaveError("");
-    }
+    await Promise.all(cardMoves.moves.filter(move => move.phase === "error").map(move => boardMoves.reconcile(move.key)));
+    if (await load()) setSaveError("");
   }
   function endDrag() { setDraggingId(""); setDropTarget(null); }
   function move(row: Opportunity, stage: OpportunityStage) {
@@ -107,53 +107,9 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
     if (busy || editor || row.situation !== "active") return;
     const intent = opportunityMoveIntent(row.stage, stage);
     if (intent === "unchanged") return;
-    const original = rows.find((item) => item.id === row.id);
-    if (!original) return;
-    if (original.stage === stage && !savingIds.has(row.id)) {
-      setOptimistic((current) => omitKeys(current, [row.id]));
-      setPending((current) => omitKeys(current, [row.id]));
-      setSuccess(0);
-      return;
-    }
-    setOptimistic((current) => applyStatusToIds(current, [row.id], stage));
-    setPending((current) => applyStatusToIds(current, [row.id], stage));
-    setSuccess(0);
-  }
-  async function flushStatuses(entries: Array<[string, string]>) {
-    if (moving.current) return;
-    const epoch = generation.current;
-    moving.current = true;
-    const ids = entries.map(([id]) => id);
-    setSavingIds(new Set(ids)); setSuccess(0);
-    let failed = false;
-    let reconciled = false;
-    try {
-      for (const [id, stage] of entries) {
-        if (epoch !== generation.current) return;
-        const row = rows.find((item) => item.id === id);
-        if (!row) { failed = true; continue; }
-        try {
-          await saveOpportunity({ id, expectedUpdatedAt: row.updated_at, title: row.title, company: row.company ?? "",
-            applicationUrl: row.application_url ?? "", stage: stage as OpportunityStage, situation: "active", result: null, resultNote: "",
-            contactIds: row.contact_ids, objectiveIds: row.objective_ids, interactionIds: row.interaction_ids });
-        } catch { failed = true; }
-      }
-      if (epoch !== generation.current) return;
-      // Read the authoritative versions after every batch, including uncertain writes.
-      reconciled = await load();
-      if (epoch === generation.current) {
-        const hasNewerChanges = Object.keys(removeUnchangedPending(pendingRef.current, entries)).length > 0;
-        if (failed) setSaveError("Algunos estados no se pudieron guardar.");
-        else if (reconciled) { setSaveError(""); if (!hasNewerChanges) setSuccess((value) => value + 1); }
-        if (!reconciled) unconfirmed.current = entries;
-      }
-    } finally {
-      if (epoch === generation.current) {
-        setPending((current) => removeUnchangedPending(current, entries));
-        if (reconciled) setOptimistic((current) => removeSettledOptimistic(current, ids, entries));
-      }
-      moving.current = false; setSavingIds(new Set());
-    }
+    setSuccess(0); setSaveError("");
+    try { void moveOpportunityCard(row.id, stage).catch(() => setSaveError("No pudimos iniciar el movimiento. Actualiza antes de reintentar.")); }
+    catch { setSaveError("No pudimos iniciar el movimiento. Actualiza antes de reintentar."); }
   }
 
   async function reopen(row: Opportunity) {
@@ -189,19 +145,18 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
   }
 
   return <section className="panel opportunities-section" aria-labelledby="opportunities-title">
-    <div className="panel-header"><h2 className="panel-title" id="opportunities-title"><WingedBriefcase /> Oportunidades</h2></div>
+    <div className="panel-header"><h2 className="panel-title" id="opportunities-title"><WingedBriefcase /> Oportunidades
+      <OperationStatus label="Oportunidades" resolved={hasData} busy={loading || refreshing || previousDataRevision.current !== dataRevision || pendingCount > 0 || savingIds.size > 0}
+        confirming={pendingCount > 0 || savingIds.size > 0}
+        error={feedback || (!enabled ? "Verifica la búsqueda activa antes de continuar." : "")} onRetry={() => void retryRead()} />
+    </h2></div>
     <div className="opportunity-situation-filter" role="group" aria-label="Situación de oportunidades">
       {([["active", "Activas"], ["finalized", "Finalizadas"], ["all", "Todas"]] as const).map(([value, label]) =>
         <Button key={value} aria-pressed={filter === value} tone={filter === value ? "primary" : "ghost"}
           onClick={() => setFilter(value)}>{label}</Button>)}
     </div>
-    <div className="contacts-status-toolbar opportunity-status-toolbar">
-      <p className={`contacts-status-feedback ${error || saveError ? "form-error" : "form-success"}`} role="status" aria-live="polite">
-        {feedback || (loading ? "Leyendo oportunidades..." : "")}
-      </p>
-      {error || saveError ? <Button icon="sync" square disabled={refreshing || savingIds.size > 0} aria-label="Reintentar lectura de oportunidades" onClick={() => void retryRead()} /> : null}
-    </div>
-    {hasData || loading ? <StatusBoard label="Oportunidades por etapa" className="opportunity-board" statuses={OPPORTUNITY_STAGES.map(([stage]) => stage)}
+    {!hasData&&(loading||refreshing)?<ViewSkeleton kind="board" columns={4} label="Oportunidades"/>:null}
+    {hasData ? <StatusBoard label="Oportunidades por etapa" className="opportunity-board" statuses={OPPORTUNITY_STAGES.map(([stage]) => stage)}
       cardsByStatus={cardsByStatus} draggingId={draggingId} dropTarget={dropTarget}
       onDragEnd={endDrag} onDragStart={(id) => { setDraggingId(id); setDropTarget(null); }} onDropTargetChange={setDropTarget}
       onDropCard={(id, stage) => { const row = visibleRows.find((item) => item.id === id); if (row) move(row, stage as OpportunityStage); }}
@@ -214,7 +169,7 @@ export function OpportunityBoard({ revision = 0, enabled = true, onInitialLoadCo
         </>;
       }}
       renderCard={(row, events) => <StatusBoardCard id={row.id} className="opportunity-card" {...events}
-        dragging={draggingId === row.id} pending={Boolean(pending[row.id])} saving={savingIds.has(row.id)} disabled={busy || Boolean(editor) || row.situation !== "active"}>
+        dragging={draggingId === row.id} pending={Boolean(pending[row.id])} saving={savingIds.has(row.id) || cardMoves.pending.has(row.id)} disabled={busy || Boolean(editor) || row.situation !== "active"}>
               <button className="opportunity-card-main" disabled={busy} aria-disabled={editorBlocked}
                 onClick={() => { if (!editorBlocked) setEditor({ opportunity: row }); }} type="button"
                 aria-label={`Editar ${row.title}`}><strong>{row.title}</strong>{row.company ? <span>{row.company}</span> : null}</button>

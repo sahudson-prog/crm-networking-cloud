@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { getNetworkingDataRevision } from "../lib/networkingDataRevision.ts";
 
 import {
   applyContactSyncPreview,
@@ -21,6 +22,25 @@ const baseChange: SyncPreviewChange = {
   title: "Josefina Camus",
   type: "modified"
 };
+
+test("contact import invalidates after an uncertain partial batch without retrying writes", async () => {
+  const before = getNetworkingDataRevision();
+  let attempts = 0;
+  const result = await applyContactSyncPreview({ changes: [baseChange], provider: "google" }, {
+    applyChange: async () => { attempts++; throw new Error("response lost after write"); },
+    assertStorageReady: async () => undefined,
+    completeInvocation: async () => undefined,
+    createInvocation: async () => "synthetic-invocation",
+    failInvocation: async () => undefined,
+    getUserId: async () => "synthetic-user",
+    getNetworkingContext: async () => ({ cycleId: null, token: "none:initial" }),
+    saveCursor: async () => { throw new Error("must not advance cursor"); }
+  });
+  assert.equal(attempts, 1);
+  assert.equal(result.ok, false);
+  assert.equal(result.failedCount, 1);
+  assert.equal(getNetworkingDataRevision(), before + 1);
+});
 
 test("Google contact apply construye una mutacion RPC sin confiar en provider del preview", () => {
   const mutation = googleContactSyncMutationFromPreviewChange(baseChange, {

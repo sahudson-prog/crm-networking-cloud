@@ -136,6 +136,8 @@ export async function saveInteractionFromEditor(input: InteractionEditorInput) {
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 
@@ -227,6 +229,8 @@ export async function dismissInteraction(interactionId: string, input: {
       .eq("id", invocation.id)
       .eq("user_id", userId);
     throw error;
+  } finally {
+    notifyNetworkingDataChanged();
   }
 }
 

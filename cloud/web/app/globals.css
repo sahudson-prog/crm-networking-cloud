@@ -6,6 +6,8 @@
 @import "../styles/onboarding.css";
 @import "../styles/landing.css";
 @import "../styles/gamification.css";
+@import "../styles/view-loading.css";
+@import "../styles/operation-status.css";
 
 * {
   box-sizing: border-box;

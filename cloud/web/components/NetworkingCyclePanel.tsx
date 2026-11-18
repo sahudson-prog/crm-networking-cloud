@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision } from "../lib/networkingDataRevision";
 import { BriefcaseBusiness, Handshake, Megaphone } from "lucide-react";
 import {
-  adoptConfirmedOwnClose, closeNetworkingCycle, expectedNetworkingContext, localDateTimeValue,
-  networkingContextFromCycles, readNetworkingCycles, startNetworkingCycle, type NetworkingCycle
+  adoptConfirmedOwnClose, closeNetworkingCycle, localDateTimeValue,
+  readNetworkingCycles, startNetworkingCycle, type NetworkingCycle
 } from "../lib/networkingCycles";
 import { NETWORKING_CYCLE_RESULTS, type NetworkingCycleResult } from "../lib/networkingCycleModel";
 import { createCycleCloseFlow } from "../lib/networkingCycleCloseFlow";
@@ -15,6 +16,9 @@ import { cycleDateError, cycleInputMax, cycleCloseInputMin, cycleStartFromDate, 
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 import { readHistoryPolicy, type HistoryPolicy } from "../lib/historyPolicy";
+import { readViewCycle, peekViewCycle } from "../lib/viewCycleRead";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
+import { OperationStatus } from "./ui/OperationStatus";
 
 function suggestedName() {
   return `Búsqueda laboral · ${new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" }).format(new Date())}`;
@@ -33,7 +37,11 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   className?: string;
   mode?: "standard" | "onboarding";
 }) {
-  const [cycles, setCycles] = useState<NetworkingCycle[]>([]);
+  const dataRevision = useSyncExternalStore(subscribeNetworkingDataRevision, getNetworkingDataRevision, getServerNetworkingDataRevision);
+  const loadVersion = useRef(0);
+  const [cached] = useState(peekViewCycle);
+  const [cycles, setCycles] = useState<NetworkingCycle[]>(cached?.cycles ?? []);
+  const [resolved, setResolved] = useState(Boolean(cached));
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [policy, setPolicy] = useState<HistoryPolicy | null>(null);
@@ -48,7 +56,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   const noticeDialog = useRef<HTMLDialogElement>(null);
   const [startFieldError, setStartFieldError] = useState("");
   const [endFieldError, setEndFieldError] = useState("");
-  const [stale, setStale] = useState(false);
+  const [stale, setStale] = useState(cached?.stale ?? false);
   const [name, setName] = useState(suggestedName);
   const [start, setStart] = useState(() => localDateTimeValue().slice(0, 10));
   const [resetStatus, setResetStatus] = useState(false);
@@ -88,7 +96,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
 
   useEffect(() => { onReadyChange?.(ready); }, [onReadyChange, ready]);
   useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); return () => { loadVersion.current++; }; }, [dataRevision]);
   useEffect(() => { void loadNotices(); }, []);
   useEffect(() => { if (noticeInformation && !noticeDialog.current?.open) noticeDialog.current?.showModal(); }, [noticeInformation]);
   useEffect(() => { if (creating && !createDialog.current?.open) createDialog.current?.showModal(); }, [creating]);
@@ -155,19 +163,22 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   }
 
   async function load() {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError("");
     try {
-      const [rows, expected] = await Promise.all([readNetworkingCycles(), expectedNetworkingContext()]);
+      const { cycles: rows, stale: changed } = await readViewCycle();
+      if (version !== loadVersion.current) return;
       setCycles(rows);
-      const changed = expected.token !== networkingContextFromCycles(rows).token;
+      setResolved(true);
       setStale(changed);
       if (changed) setError("El ciclo cambió en otra pestaña. Actualiza esta página antes de guardar.");
     } catch (cause) {
+      if (version !== loadVersion.current) return;
       setStale(true);
       setError(messageFor(cause));
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }
 
@@ -255,22 +266,21 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
   return (
     <section className={`networking-cycle-panel ${className}`} aria-labelledby="my-cycle-title">
       <div className="panel-header">
-        <h2 className="panel-title" id="my-cycle-title"><Icon name="target" /> {title}</h2>
+        <h2 className="panel-title" id="my-cycle-title"><Icon name="target" /> {title}<OperationStatus label={title} resolved={resolved} busy={loading || working} confirming={working} error={error || (stale ? "El ciclo cambió. Revisa el estado antes de continuar." : "")} onRetry={() => void load()} /></h2>
       </div>
-      {loading ? <p role="status">Leyendo tu ciclo...</p> : null}
       <div className="networking-plan-grid">
         <article className={`networking-plan ${active ? "is-active" : ""}`}>
           <div className="networking-plan-heading">
             <BriefcaseBusiness className="networking-plan-icon" size={22} strokeWidth={1.8} aria-hidden="true" />
             <h3>Encontrar tu próximo trabajo</h3>
           </div>
-          {active ? (
+          {!resolved ? loading ? <ViewSkeleton kind="list" rows={1} label="Objetivo actual" /> : <div className="view-loading-region" /> : active ? (
             <div className="networking-process-summary">
               <strong>{active.cycle_name || "Búsqueda laboral"}</strong>
               <span>Inicio: {formatDate(active.started_at, active.timezone_name)}</span>
             </div>
           ) : <p>{hasHistory ? "Tu búsqueda anterior terminó. Puedes comenzar otra cuando quieras." : "Organiza tu búsqueda laboral en un proceso."}</p>}
-          {(!active?.started_at || mode !== "onboarding") ? <div className="networking-plan-actions">
+          {resolved && (!active?.started_at || mode !== "onboarding") ? <div className="networking-plan-actions">
             {active?.started_at ? (
               <Button className="networking-process-action" disabled={working || stale} onClick={openClose}>Finalizar proceso</Button>
             ) : (
@@ -285,7 +295,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
             aria-pressed={notices.has("BUSINESS_DEVELOPMENT")}
             onClick={() => void changeNotice("BUSINESS_DEVELOPMENT")}
             tone={notices.has("BUSINESS_DEVELOPMENT") ? "positive" : "secondary"}>
-            {noticesLoading ? "Cargando..." : notices.has("BUSINESS_DEVELOPMENT") ? "✓ Te avisaremos" : "Avísame"}
+            {noticesLoading ? <ViewSkeleton kind="inline" label="Aviso de negocios" /> : notices.has("BUSINESS_DEVELOPMENT") ? "✓ Te avisaremos" : "Avísame"}
           </Button> : null}
         </article>
         <article className="networking-plan is-unavailable">
@@ -295,7 +305,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
             aria-pressed={notices.has("PERSONAL_BRAND")}
             onClick={() => void changeNotice("PERSONAL_BRAND")}
             tone={notices.has("PERSONAL_BRAND") ? "positive" : "secondary"}>
-            {noticesLoading ? "Cargando..." : notices.has("PERSONAL_BRAND") ? "✓ Te avisaremos" : "Avísame"}
+            {noticesLoading ? <ViewSkeleton kind="inline" label="Aviso de marca personal" /> : notices.has("PERSONAL_BRAND") ? "✓ Te avisaremos" : "Avísame"}
           </Button> : null}
         </article>
       </div>
@@ -310,7 +320,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
           <footer className="modal-actions"><Button onClick={() => noticeDialog.current?.close()} tone="primary">Cerrar</Button></footer>
         </dialog>
       ) : null}
-      {!creating && !closing && error ? <p className="form-error" role="alert">{error}</p> : null}
+      {!creating && !closing && error ? <p className="form-error" role="alert">{error} <Button disabled={loading} onClick={() => void load()}>Reintentar</Button></p> : null}
       {creating ? (
         <dialog ref={createDialog} className="modal-card networking-process-dialog" aria-labelledby="create-process-title"
           onCancel={(event) => { if (working) event.preventDefault(); }} onClose={() => setCreating(false)}>
@@ -332,7 +342,7 @@ export function NetworkingCyclePanel({ onReadyChange, onCycleChange, onLoadingCh
                 aria-describedby={[previousClosedAt ? "start-boundary-help" : "", startDateError ? "start-boundary-error" : ""].filter(Boolean).join(" ") || undefined}
                 onChange={(event) => { setStart(event.target.value); setStartFieldError(""); }} />
             </label>
-            {policy ? <small>{needsConfiguration ? `La importación histórica tiene un máximo de ${policy.max_months} meses.` : `Puedes elegir una fecha de hasta ${policy.max_months} meses atrás.`}</small> : <small>Consultando el límite vigente...</small>}
+            {policy ? <small>{needsConfiguration ? `La importación histórica tiene un máximo de ${policy.max_months} meses.` : `Puedes elegir una fecha de hasta ${policy.max_months} meses atrás.`}</small> : <ViewSkeleton kind="inline" label="Límite de fecha" />}
             {needsConfiguration ? <small>Este proceso existente admite su inicio real, aunque sea anterior al límite de importación.</small> : null}
             {previousClosedAt ? <small id="start-boundary-help">Cierre anterior: {formatDate(previousClosedAt, timezone)}.
               Puedes iniciar otro proceso el mismo día; su inicio respetará el cierre anterior.</small> : null}

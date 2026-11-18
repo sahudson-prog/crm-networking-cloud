@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   OBJECTIVE_PRIORITIES,
   deleteObjective,
@@ -17,10 +17,14 @@ import { formatContactCompanyRole, joinCompact } from "../lib/format";
 import type { ContactRow, ObjectivePriority, ObjectiveRow, ObjectiveType } from "../lib/readModel";
 import { Button } from "./ui/Button";
 import { EmptyValue } from "./ui/EmptyValue";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
+import { OperationStatus } from "./ui/OperationStatus";
 import { Icon } from "./ui/Icon";
 import { NetworkingCyclePanel } from "./NetworkingCyclePanel";
 import { OpportunityBoard } from "./OpportunityBoard";
 import { OpportunityEditor, type OpportunityEditorRequest } from "./OpportunityEditor";
+import { peekSharedView } from "../lib/indicatorReads";
+import { peekViewCycle } from "../lib/viewCycleRead";
 
 const OBJECTIVE_PAGE_TYPES: ObjectiveType[] = ["INDUSTRY", "COMPANY", "ROLE", "FUNCTION"];
 
@@ -37,37 +41,37 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange, showOpport
   onCycleReadyChange?: (ready: boolean) => void;
   showOpportunities?: boolean;
 } = {}) {
-  const [objectives, setObjectives] = useState<ObjectiveRow[]>([]);
+  const [cached] = useState(() => peekSharedView<ObjectiveRow[]>("objectives:false"));
+  const [cachedCycle] = useState(peekViewCycle);
+  const [objectives, setObjectives] = useState<ObjectiveRow[]>(cached ?? []);
   const [draft, setDraft] = useState<ObjectiveEditorInput>(emptyDraft);
   const [editingId, setEditingId] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const editorDialog = useRef<HTMLDialogElement>(null);
   const [loading, setLoading] = useState(true);
-  const [cycleLoading, setCycleLoading] = useState(true);
-  const [opportunitiesLoaded, setOpportunitiesLoaded] = useState(false);
+  const [cycleLoading, setCycleLoading] = useState(!cachedCycle);
   const [initialComplete, setInitialComplete] = useState(false);
   const [priorityReadError, setPriorityReadError] = useState("");
-  const [prioritiesLoaded, setPrioritiesLoaded] = useState(false);
+  const [prioritiesLoaded, setPrioritiesLoaded] = useState(Boolean(cached));
   const priorityLoadVersion = useRef(0);
   const [saving, setSaving] = useState(false);
   const [prioritySavingId, setPrioritySavingId] = useState("");
   const [message, setMessage] = useState("");
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("");
   const [linkingObjective, setLinkingObjective] = useState<ObjectiveRow | null>(null);
-  const [cycleReady, setCycleReady] = useState(false);
+  const [cycleReady, setCycleReady] = useState(Boolean(!cachedCycle?.stale && cachedCycle?.cycles.some(cycle => cycle.status === "active" && cycle.started_at)));
   const [opportunityRevision, setOpportunityRevision] = useState(0);
   const [opportunityEditor, setOpportunityEditor] = useState<OpportunityEditorRequest | null>(null);
 
   const grouped = useMemo(() => groupObjectives(objectives), [objectives]);
-  const handleOpportunitiesLoaded = useCallback(() => setOpportunitiesLoaded(true), []);
 
   useEffect(() => {
     void loadObjectives();
     return () => { priorityLoadVersion.current += 1; };
   }, []);
   useEffect(() => {
-    if (!cycleLoading && !loading && (!showOpportunities || onboardingCoach || !cycleReady || opportunitiesLoaded)) setInitialComplete(true);
-  }, [cycleLoading, cycleReady, loading, onboardingCoach, opportunitiesLoaded, showOpportunities]);
+    if (!cycleLoading && !loading) setInitialComplete(true);
+  }, [cycleLoading, loading]);
   useEffect(() => { onCycleReadyChange?.(initialComplete && cycleReady && !priorityReadError); },
     [initialComplete, cycleReady, priorityReadError, onCycleReadyChange]);
   useEffect(() => { if (editorOpen && !editorDialog.current?.open) editorDialog.current?.showModal(); }, [editorOpen]);
@@ -179,24 +183,27 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange, showOpport
 
   return (
     <>
-    {!initialComplete ? <section className="panel" role="status">Leyendo objetivos...</section> : null}
-    <div hidden={!initialComplete} className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""} ${showOpportunities ? "" : "structural-view"}`}>
+    <div className={`objectives-page ${onboardingCoach ? "onboarding-objectives-page" : ""} ${showOpportunities ? "" : "structural-view"}`}>
       {onboardingCoach ? <div className="objectives-onboarding-coach">{onboardingCoach}</div> : null}
       <NetworkingCyclePanel onReadyChange={setCycleReady} onLoadingChange={setCycleLoading}
         title={showOpportunities ? "Mi objetivo" : "Mis objetivos"} className={showOpportunities ? "" : "panel functional-block"}
         onCycleChange={() => { void loadObjectives(); setOpportunityRevision((value) => value + 1); }} />
-      {!cycleReady && !showOpportunities ? <section className="panel functional-block" aria-labelledby="priorities-unavailable-title">
-        <h2 className="panel-title" id="priorities-unavailable-title"><Icon name="tag" />Prioridades</h2>
+      {cycleLoading && !cycleReady ? <section className="panel functional-block">
+        <h2 className="panel-title"><Icon name="tag" /> Prioridades<OperationStatus label="Prioridades" resolved={false} busy={loading || cycleLoading} error={priorityReadError} onRetry={() => void loadObjectives()} /></h2>
+        <ViewSkeleton kind="board" columns={4} label="Prioridades" />
+      </section> : null}
+      {!cycleLoading && !cycleReady && !showOpportunities ? <section className="panel functional-block" aria-labelledby="priorities-unavailable-title">
+        <h2 className="panel-title" id="priorities-unavailable-title"><Icon name="tag" />Prioridades<OperationStatus label="Prioridades" resolved={prioritiesLoaded} busy={loading} error={priorityReadError} onRetry={() => void loadObjectives()} /></h2>
         <p className="empty-value">Las prioridades requieren un proceso activo con inicio confirmado.</p>
       </section> : null}
       {cycleReady ? <>
       <section className={`objectives-priorities ${showOpportunities ? "" : "panel structural-priorities functional-block"}`} aria-labelledby="priorities-title">
         <div className="panel-header">
-          <h2 className="panel-title" id="priorities-title"><Icon name="tag" /> Prioridades</h2>
+          <h2 className="panel-title" id="priorities-title"><Icon name="tag" /> Prioridades<OperationStatus label="Prioridades" resolved={prioritiesLoaded} busy={loading || saving || Boolean(prioritySavingId)} confirming={saving || Boolean(prioritySavingId)} error={priorityReadError || (!editorOpen && message !== "Prioridad guardada." && message !== "Prioridad archivada." ? message : "")} onRetry={() => void loadObjectives()} /></h2>
         </div>
         <div className="contacts-status-toolbar objectives-status-toolbar">
           <p className={`contacts-status-feedback ${priorityReadError || (message && message !== "Prioridad guardada." && message !== "Prioridad archivada.") ? "form-error" : "form-success"}`} role="status" aria-live="polite">
-            {priorityReadError || (!editorOpen ? message : "")}
+            {priorityReadError || (!editorOpen && message !== "Prioridad guardada." && message !== "Prioridad archivada." ? message : "")}
           </p>
           {priorityReadError ? <Button icon="sync" square disabled={loading} aria-label="Reintentar lectura de Prioridades" onClick={() => void loadObjectives()} /> : null}
         </div>
@@ -276,7 +283,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange, showOpport
             );
           })}
         </section>
-      ) : null}
+      ) : loading ? <ViewSkeleton kind="board" columns={4} label="Prioridades" /> : null}
       </section>
       <OpportunityEditor request={opportunityEditor} onClose={() => setOpportunityEditor(null)}
         onSaved={() => { setOpportunityEditor(null); setOpportunityRevision((value) => value + 1); }} />
@@ -330,7 +337,7 @@ export function ObjectivesPage({ onboardingCoach, onCycleReadyChange, showOpport
       />
       </> : null}
       {showOpportunities && !onboardingCoach ? <div hidden={!cycleReady}>
-        <OpportunityBoard revision={opportunityRevision} enabled={cycleReady} onInitialLoadComplete={handleOpportunitiesLoaded} />
+        <OpportunityBoard revision={opportunityRevision} enabled={cycleReady} />
       </div> : null}
     </div>
     </>
@@ -395,6 +402,9 @@ function ObjectiveContactLinkDialog({
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [readError, setReadError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -402,18 +412,19 @@ function ObjectiveContactLinkDialog({
     if (!objective) return;
     let active = true;
     setLoading(true);
+    setReadError(false);
     setMessage("");
     setQuery("");
-    Promise.all([readAllActiveContacts(), readContactIdsForObjective(objective.id)])
+    Promise.all([readAllActiveContacts(true), readContactIdsForObjective(objective.id)])
       .then(([contactRows, linkedIds]) => {
         if (!active) return;
         setContacts(contactRows);
         setSelectedContactIds(new Set(linkedIds));
+        setResolvedId(objective.id);
       })
       .catch((error) => {
         if (!active) return;
-        setContacts([]);
-        setSelectedContactIds(new Set());
+        setReadError(true);
         setMessage(error instanceof Error ? error.message : "No pude leer contactos vinculados.");
       })
       .finally(() => {
@@ -422,7 +433,7 @@ function ObjectiveContactLinkDialog({
     return () => {
       active = false;
     };
-  }, [objective]);
+  }, [objective, retry]);
 
   const filteredContacts = useMemo(() => {
     const cleanQuery = normalizeSearch(query);
@@ -433,6 +444,8 @@ function ObjectiveContactLinkDialog({
   }, [contacts, query, selectedContactIds]);
 
   if (!objective) return null;
+  const pendingRead = loading || (!readError && resolvedId !== objective.id);
+  const readable = resolvedId === objective.id;
 
   function toggleContact(contactId: string) {
     setSelectedContactIds((current) => {
@@ -475,7 +488,7 @@ function ObjectiveContactLinkDialog({
           <Icon name="search" />
           <input
             aria-label="Buscar contactos"
-            disabled={loading || saving}
+            disabled={pendingRead || readError || saving}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscador universal"
             value={query}
@@ -483,17 +496,18 @@ function ObjectiveContactLinkDialog({
         </div>
 
         <div className="objective-link-summary">
-          {loading ? "Leyendo contactos..." : `${selectedContactIds.size} vinculados`}
+          {readable ? `${selectedContactIds.size} vinculados` : pendingRead ? <ViewSkeleton kind="inline" label="Contactos vinculados" /> : null}
         </div>
 
         <div className="objective-link-list">
-          {!loading && filteredContacts.length ? (
+          {!readable && pendingRead ? <ViewSkeleton kind="list" label="Contactos vinculables" /> : null}
+          {readable && filteredContacts.length ? (
             filteredContacts.map((contact) => {
               const checked = selectedContactIds.has(contact.id);
               return (
                 <button
                   className={`objective-link-row ${checked ? "selected" : ""}`}
-                  disabled={saving}
+                  disabled={saving || pendingRead || readError}
                   key={contact.id}
                   onClick={() => toggleContact(contact.id)}
                   type="button"
@@ -509,14 +523,15 @@ function ObjectiveContactLinkDialog({
               );
             })
           ) : null}
-          {!loading && !filteredContacts.length ? <EmptyValue>sin coincidencias</EmptyValue> : null}
+          {readable && !pendingRead && !readError && !filteredContacts.length ? <EmptyValue>sin coincidencias</EmptyValue> : null}
         </div>
 
-        {message ? <div className="modal-message danger-text">{message}</div> : null}
+        {message ? <div className="modal-message danger-text" role="alert">{message}</div> : null}
+        {readError ? <Button disabled={loading} onClick={() => setRetry(value => value + 1)}>Reintentar</Button> : null}
 
         <footer className="modal-actions">
           <Button onClick={onClose}>Cancelar</Button>
-          <Button disabled={loading || saving} onClick={saveLinks} tone="primary">
+          <Button disabled={pendingRead || readError || !readable || saving} onClick={saveLinks} tone="primary">
             {saving ? "Guardando..." : "Cerrar"}
           </Button>
         </footer>

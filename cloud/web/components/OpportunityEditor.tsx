@@ -6,6 +6,7 @@ import { readEligibleOpportunityInteractions, readOpportunityChoices, saveOpport
 import { opportunityClosureValid, opportunityResultsForStage, opportunityStageLabel, type Opportunity, type OpportunityStage } from "../lib/opportunityModel";
 import { ObjectiveSelector } from "./ObjectiveSelector";
 import { Button } from "./ui/Button";
+import { ViewSkeleton } from "./ui/ViewSkeleton";
 import { OpportunityFailure } from "../lib/opportunityDiagnostics";
 
 export type OpportunityEditorRequest = {
@@ -161,7 +162,7 @@ export function OpportunityEditor({ request, onClose, onSaved }: {
           <span>Causa de cierre <small>(opcional)</small></span><textarea maxLength={500} value={draft.resultNote}
             onChange={(event) => setDraft({ ...draft, resultNote: event.target.value })} />
         </label> : null}
-        {loading ? <p role="status" className="opportunity-editor-note">Leyendo relaciones...</p> : null}
+        {loading ? <ViewSkeleton kind="inline" label="Relaciones de la oportunidad" /> : null}
         {failedChoices.length ? <p role="alert" className="opportunity-editor-feedback danger-text">No pudimos cargar {failedChoices.join(" y ")}. Reintenta abrir el editor.</p> : null}
         <div className="opportunity-contact-picker">
           <label className="opportunity-picker-label" htmlFor={contactOptionsId}>Contactos</label>
@@ -185,7 +186,7 @@ export function OpportunityEditor({ request, onClose, onSaved }: {
           </div>
         </div>
         {!draft.contactIds.length ? <p className="opportunity-editor-note">Vincula un contacto para asociar interacciones</p> : null}
-        {interactionLoading ? <p role="status" className="opportunity-editor-note">Leyendo interacciones...</p> : null}
+        {interactionLoading ? <ViewSkeleton kind="inline" label="Interacciones vinculables" /> : null}
         {interactionFailed ? <p role="alert" className="opportunity-editor-feedback danger-text">No pudimos cargar Interacciones. Reintenta abrir el editor.</p> : null}
         <RelationChoices title="Interacciones" rows={interactions.map((interaction) => ({ id: interaction.id,
             label: `${interaction.subject || interaction.interaction_type} · ${interaction.occurred_at ? new Date(interaction.occurred_at).toLocaleDateString("es-CL") : "Sin fecha"}` }))}
