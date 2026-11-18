@@ -65,11 +65,11 @@ test("current Foco controls first coffee, dated goals, streak, rolling average, 
   assert.equal(g.route![1].done,false);
 });
 
-test("non-Foco missing dates do not poison focal coverage; unknown focal history stays unknown",()=>{
+test("non-Foco missing dates do not poison focal coverage; undated focal coffee preserves accumulated total",()=>{
   const s=trackingFixture();s.contacts[0].networking_focus=false;s.transitions=[];
   let g=model(input(s),s);assert.equal(g.temporal.streak.value,0);
   s.contacts[0].networking_focus=true;g=model(input(s),s);
-  assert.equal(g.metrics[2].metric.value,1);assert.equal(g.temporal.streak.value,null);
+  assert.equal(g.metrics[2].metric.value,1);assert.equal(g.temporal.streak.value,0);assert.equal(g.temporal.current.value,0);assert.equal(g.temporal.average,0);
 });
 
 test("processes require actual Foco associations, deduplicate links, and fail closed when links cannot be read",()=>{

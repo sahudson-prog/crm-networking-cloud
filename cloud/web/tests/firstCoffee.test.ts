@@ -26,7 +26,7 @@ test("global appointment precedes cycle and wins in all three consumers",()=>{
   assert.equal(track.counts[1],1);assert.equal(g.metrics[2].metric.value,1);
   assert.equal(g.temporal.current.value,1);assert.equal(g.temporal.streak.value,1);assert.equal(g.temporal.average,.25);
 });
-test("partial first-coffee attribution retains dated minima and the unchanged funnel total",()=>{
+test("partial first-coffee attribution calculates from dated coffees and keeps the funnel total",()=>{
   const {s}=fixture();s.contacts[1].networking_status="Cita concretada";
   s.contacts[1].networking_focus=true;
   coffee(s,"dated","2026-11-17T15:00:00Z");
@@ -34,9 +34,9 @@ test("partial first-coffee attribution retains dated minima and the unchanged fu
   assert.equal(history.complete,false);assert.equal(history.unattributedCount,1);
   assert.equal(history.events.length,1);
   const g=gam(s),track=buildTracking(s);
-  assert.equal(g.temporal.current.value,1);assert.equal(g.temporal.current.lowerBound,true);
-  assert.equal(g.temporal.streak.value,1);assert.equal(g.temporal.average,null);
-  assert.equal(g.temporal.level,"unknown");assert.equal(g.goals[0].text,"Al menos 1 de 2");
+  assert.equal(g.temporal.current.value,1);
+  assert.equal(g.temporal.streak.value,1);assert.equal(g.temporal.average,.25);
+  assert.equal(g.temporal.level,"fire");assert.equal(g.goals[0].text,"Llevas 1 de 2");
   assert.equal(g.metrics[2].metric.value,2);
   if(track.state!=="ready")throw Error();assert.equal(track.counts[1],2);
 });
@@ -62,7 +62,7 @@ test("initialized eligible state and direct thanks are not a transition to Cita"
   assert.equal(selectFirstCoffee(s.contacts,history,s.as_of).missing.size,1);
   history.transitions=[{...s.transitions[0],next_status:"Agradecimiento enviado"}];
   assert.equal(attributedCoffeeHistory(s.contacts,history,s.as_of)!.complete,false);
-  assert.equal(gam(s).metrics[2].metric.value,1);assert.equal(gam(s).temporal.current.value,null);
+  assert.equal(gam(s).metrics[2].metric.value,1);assert.equal(gam(s).temporal.current.value,0);
 });
 test("focus-only change in Cita does not overwrite the actual first transition",()=>{
   const {s,history}=fixture();history.transitions=[{...s.transitions[0],changed_fields:["networking_focus"]}];
@@ -80,7 +80,7 @@ test("missing timestamp preserves eligible total; no current-cycle fallback pret
   const {s,history}=fixture();history.transitions=[];coffee(s,"undated","2026-11-17T00:00:00Z");s.interactions[0].occurred_at=null;
   const track=buildTracking(s);if(track.state!=="ready")throw Error();
   assert.equal(track.counts[1],1);assert.equal(track.blue.size,0);assert.equal(track.unattributedCoffeeCount,1);
-  assert.equal(gam(s).temporal.average,null);assert.equal(gam(s).goals[0].metric.value,null);
+  assert.equal(gam(s).temporal.average,0);assert.equal(gam(s).goals[0].metric.value,0);
 });
 test("GAM and funnel apply current Foco to the shared first-coffee attribution",()=>{
   const {s}=fixture();coffee(s,"first","2026-11-17T12:00:00Z");s.contacts[0].networking_focus=false;
