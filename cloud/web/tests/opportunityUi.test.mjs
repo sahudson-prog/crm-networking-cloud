@@ -162,7 +162,9 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
   };
   const model = load('opportunityModel', () => { throw new Error('Unexpected model import'); });
   const diagnostics = load('opportunityDiagnostics', () => { throw new Error('Unexpected diagnostics import'); });
+  let invalidations=0;
   const actions = load('opportunityActions', (name) => {
+    if (name === './networkingDataRevision') return {notifyNetworkingDataChanged:()=>{invalidations++;}};
     if (name === './interactionState') return load('interactionState', () => { throw new Error('Unexpected visibility import'); });
     if (name === './supabaseClient') return { supabase: client };
     if (name === './opportunityModel') return model;
@@ -174,7 +176,7 @@ function actionFixture({ changeVersion = false, rpcError = null, failTable = '',
     };
     throw new Error(`Unexpected action import: ${name}`);
   });
-  return { actions, calls };
+  return { actions, calls,invalidations:()=>invalidations };
 }
 
 test('real read action pages opportunities and relations beyond API limits', async () => {
@@ -241,7 +243,10 @@ test('real save action forwards one stable creation request without client owner
     assert.equal(call.input.p_contact_ids.length, 1);
     assert.ok(!Object.keys(call.input).some((key) => /user|email/.test(key)));
   }
-  await assert.rejects(actionFixture({ rpcError: { code: '42501', message: 'app_access_denied' } }).actions.saveOpportunity(input), /opportunity_rejected/);
+  const denied=actionFixture({ rpcError: { code: '42501', message: 'app_access_denied' } });
+  await assert.rejects(denied.actions.saveOpportunity(input), /opportunity_rejected/);
+  assert.equal(denied.invalidations(),0);
+  const saved=actionFixture();await saved.actions.saveOpportunity(input);assert.equal(saved.invalidations(),1);
 });
 
 test('title-only creation sends empty relation arrays despite unrelated choice read errors', async () => {

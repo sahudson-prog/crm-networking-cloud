@@ -204,7 +204,7 @@ test("cancellations/dismissals excluded, missing dependencies do not masquerade 
  i.extra.priorities=null;assert.equal(buildGamification(i,now,zone).metrics[0].metric.value,null);
 });
 test("production adapter uses shared first-coffee attribution, never chart buckets or updated_at",()=>{
- const source=readFileSync(new URL("../components/HomeGamification.tsx",import.meta.url),"utf8");assert.match(source,/attributedCoffeeHistory\(snapshot.contacts,snapshot.coffeeHistory,snapshot.as_of\)/);assert.doesNotMatch(source,/blueEstimated|updated_at|tracked\.counts/);
+ const source=readFileSync(new URL("../components/HomeGamification.tsx",import.meta.url),"utf8");assert.match(source,/attributedCoffeeHistory\(snapshot.contacts,evidence,snapshot.as_of\)/);assert.doesNotMatch(source,/blueEstimated|updated_at|tracked\.counts/);
  const reader=readFileSync(new URL("../lib/gamificationRead.ts",import.meta.url),"utf8");assert.match(reader,/readCompletePages/);assert.match(reader,/\.eq\("user_id",owner\)/);assert.doesNotMatch(reader,/\.insert\(|\.update\(|\.rpc\(/);
 });
 

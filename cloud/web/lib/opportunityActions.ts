@@ -3,6 +3,7 @@
 import { expectedNetworkingContext, networkingContextFromCycles, readNetworkingCycles } from "./networkingCycles";
 import { collectOpportunityPages, opportunityClosureValid, type Opportunity, type OpportunityResult, type OpportunityStage } from "./opportunityModel";
 import { supabase } from "./supabaseClient";
+import {notifyNetworkingDataChanged} from "./networkingDataRevision";
 import { OpportunityFailure, opportunityFailure, opportunityPhase } from "./opportunityDiagnostics";
 import { CALENDAR_VISIBILITY_JOIN, withoutCancelledCalendar } from "./interactionState";
 
@@ -111,6 +112,7 @@ export async function saveOpportunity(input: OpportunityInput) {
   if (typeof data !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(data)) {
     throw opportunityFailure("rpc", null);
   }
+  notifyNetworkingDataChanged();
   return data;
   });
 }
@@ -122,6 +124,7 @@ export async function voidOpportunity(id: string) {
     p_expected_cycle_id: context.cycleId, p_expected_context: context.token, p_opportunity_id: id
   });
   if (error) throw error;
+  notifyNetworkingDataChanged();
 }
 
 export async function readOpportunityChoices() {

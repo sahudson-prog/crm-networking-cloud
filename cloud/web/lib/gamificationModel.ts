@@ -51,6 +51,7 @@ export function rollingCoffeeAverage(history: CoffeeHistory | null, now: number,
   const averageDays=Math.min(28,Math.max(1,(civilTime(now)-civilTime(start))/86400000));
   const bins = bounds.slice(1).map(() => new Set<string>()), seen = new Map<string, number>();
   let nextChange = Infinity;
+  const crossings = new Map<number, number>();
   for (const event of history.events) {
     if (!event.confirmed) continue;
     const at = evidenceInstant(event.occurredAt, zone);
@@ -70,9 +71,17 @@ export function rollingCoffeeAverage(history: CoffeeHistory | null, now: number,
       const bin = bins.findIndex((_, i) => at >= Math.max(start,bounds[i]) && at < bounds[i + 1]);
       if (bin >= 0) bins[bin].add(event.contactId);
     }
-    for (const boundary of [at, end]) for (const days of [0, 7, 14, 21, 28]) {
-      const crossing = (days === 0 ? boundary : shiftLocalDays(boundary, days, zone)) + 1;
-      if (crossing > now) nextChange = Math.min(nextChange, crossing);
+    for (const boundary of new Set([at, end])) {
+      let next = crossings.get(boundary);
+      if (next === undefined) {
+        next = Infinity;
+        for (const days of [0, 7, 14, 21, 28]) {
+          const crossing = (days === 0 ? boundary : shiftLocalDays(boundary, days, zone)) + 1;
+          if (crossing > now) next = Math.min(next, crossing);
+        }
+        crossings.set(boundary, next);
+      }
+      nextChange = Math.min(nextChange, next);
     }
   }
   // Revisit at the next local day as well: timezone transitions can make
