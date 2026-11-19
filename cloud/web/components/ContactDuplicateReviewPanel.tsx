@@ -12,7 +12,7 @@ import { Button } from "./ui/Button";
 import { Panel } from "./ui/Panel";
 import { useBodyScrollLock } from "./useBodyScrollLock";
 
-export function ContactDuplicateReviewPanel() {
+export function ContactDuplicateReviewPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [groups, setGroups] = useState<ContactDuplicateGroup[]>([]);
   const [loading, setLoading] = useState(false);
@@ -150,8 +150,8 @@ export function ContactDuplicateReviewPanel() {
     </>
   );
 
-  return (
-    <Panel title="Revision de duplicados">
+  const content = (
+    <>
       <div className="duplicate-review-head compact">
         <div>
           <strong>{loading ? "Revisando..." : `${groups.length} grupos detectados`}</strong>
@@ -204,6 +204,7 @@ export function ContactDuplicateReviewPanel() {
         sources={selectedGroup?.mergeSources ?? []}
         title={selectedGroup ? "Fusionar duplicados guardados" : "Fusionar contactos"}
       />
-    </Panel>
+    </>
   );
+  return embedded ? content : <Panel title="Revision de duplicados">{content}</Panel>;
 }

@@ -772,7 +772,7 @@ test("Cuenta separa importacion manual de sincronizacion automatica", () => {
   const styles = readFileSync(new URL("../styles/components.css", import.meta.url), "utf8");
 
   assert.match(accountSource, />Importar datos</);
-  assert.match(accountSource, />Incluir al actualizar</);
+  assert.doesNotMatch(accountSource, />Incluir al actualizar</);
   assert.match(accountSource, /AccountDataBlock title="Contactos"/);
   assert.match(accountSource, /AccountDataBlock title="Citas"/);
   assert.match(accountSource, /AccountDataBlock title="Correos"/);
@@ -783,7 +783,7 @@ test("Cuenta separa importacion manual de sincronizacion automatica", () => {
   assert.match(accountSource, /icon="calendar"[\s\S]*label="Citas de Google Calendar"/);
   assert.match(accountSource, /icon="mail"[\s\S]*label="Correos de Gmail"/);
   assert.doesNotMatch(accountSource, /label="Contactos de Google"/);
-  assert.match(accountSource, /Cerrar sesión/);
+  assert.doesNotMatch(accountSource, /Cerrar sesión/);
   assert.match(styles, /\.account-data-grid \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 780px\)[\s\S]*\.account-data-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 });

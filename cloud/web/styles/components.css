@@ -1304,6 +1304,20 @@ textarea::placeholder {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.account-import-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.account-import-grid > .account-data-block {
+  grid-template-rows: auto 1fr;
+  align-content: start;
+}
+
+.account-import-grid > .account-data-block:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
 .account-data-block {
   display: grid;
   min-width: 0;
