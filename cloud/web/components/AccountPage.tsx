@@ -1,5 +1,7 @@
 "use client";
 import { ContactImportButton } from "./ContactImportDialog";
+import Link from "next/link";
+import { readAccountAdminVisibility } from "../lib/accountAdminVisibility";
 
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { resetCurrentUserAppData } from "../lib/accountDataActions";
@@ -42,7 +44,6 @@ import { GoogleInteractionsSyncPanel } from "./GoogleInteractionsSyncPanel";
 import { IcsImportPanel } from "./IcsImportPanel";
 import { useInteractionSyncPreferences } from "./InteractionSyncPreferencesProvider";
 import { StartingPointFields } from "./StartingPointFields";
-import { useShellActions } from "./Shell";
 import { useOnboarding } from "./OnboardingProvider";
 import { Button } from "./ui/Button";
 import { Icon, type IconName } from "./ui/Icon";
@@ -68,7 +69,34 @@ type AccountState = {
 
 export function AccountPage({ view = "full" }: { view?: "full" | "google-onboarding" } = {}) {
   const onboarding = useOnboarding();
-  const { onSignOut } = useShellActions();
+  const [adminVisible, setAdminVisible] = useState(false);
+  useEffect(() => {
+    if (view !== "full" || !supabase) return;
+    let generation = 0;
+    let mounted = true;
+    async function refresh() {
+      const request = ++generation;
+      setAdminVisible(false);
+      try {
+        const { data, error } = await supabase!.auth.getSession();
+        if (error) throw error;
+        const allowed = data.session?.user.id
+          ? await readAccountAdminVisibility(data.session.user.id) : false;
+        if (mounted && request === generation) setAdminVisible(allowed);
+      } catch {
+        if (mounted && request === generation) setAdminVisible(false);
+      }
+    }
+    void refresh();
+    const { data } = supabase.auth.onAuthStateChange(() => { void refresh(); });
+    window.addEventListener("focus", refresh);
+    return () => {
+      mounted = false;
+      generation += 1;
+      data.subscription.unsubscribe();
+      window.removeEventListener("focus", refresh);
+    };
+  }, [view]);
   const [account, setAccount] = useState<AccountState>(createInitialAccountState(true));
   const history = useHistoryImportAvailability();
   const accountWithHistory = { ...account, networkingStartReady: history.status === "ready", historyAvailability: history.status };
@@ -179,9 +207,6 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
             <span>Plan</span>
             <strong>Beta personal</strong>
           </div>
-          <Button icon="settings" onClick={() => window.alert("Pendiente: cambio de plan.")}>
-            Cambiar plan
-          </Button>
         </div>
         <StartingPointFields
           mode="account"
@@ -203,13 +228,13 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
       ) : null}
 
       <HistoryImportAvailabilityFeedback status={history.status} retry={history.retry} />
-      <GoogleImportSection account={accountWithHistory} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
+      <GoogleImportSection account={accountWithHistory} adminVisible={adminVisible} includeOtherSources redirectPath="/cuenta" setAccount={setAccount} />
 
       <section className="account-section" aria-labelledby="account-quality-title">
         <div className="account-section-title">
-          <h2 id="account-quality-title">Calidad de datos</h2>
+          <h2 id="account-quality-title">Fusionar contactos duplicados</h2>
         </div>
-        <ContactDuplicateReviewPanel />
+        <ContactDuplicateReviewPanel embedded />
       </section>
 
       <section className="account-section" aria-labelledby="account-privacy-title">
@@ -234,48 +259,32 @@ export function AccountPage({ view = "full" }: { view?: "full" | "google-onboard
           <div className="account-danger-row">
             <div>
               <strong>Eliminar cuenta</strong>
-              <span>Pendiente de política final de conservación y anonimizado.</span>
+              <span>Para eliminar tu cuenta, escríbenos a través del <Link href="/contacto">formulario de contacto</Link> y te ayudaremos. El envío inicia una solicitud; no elimina tu cuenta automáticamente.</span>
             </div>
-            <Button
-              icon="trash"
-              onClick={() => window.alert("Pendiente: definir borrado, conservacion y anonimizado antes de activar esta accion.")}
-              tone="danger"
-            >
-              Borrar cuenta
-            </Button>
           </div>
         </div>
       </section>
 
-      {onSignOut ? (
-        <section className="account-section" aria-labelledby="account-session-title">
-          <div className="account-section-title">
-            <h2 id="account-session-title">Sesión</h2>
-            <span>Finaliza la sesión actual de Coffeecito en este dispositivo.</span>
-          </div>
-          <div className="toolbar">
-            <Button icon="close" onClick={onSignOut} tone="ghost">
-              Cerrar sesión
-            </Button>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }
 
 function GoogleImportSection({
   account,
+  adminVisible = false,
   includeOtherSources,
   redirectPath,
   setAccount
 }: {
   account: AccountState;
+  adminVisible?: boolean;
   includeOtherSources: boolean;
   redirectPath: "/cuenta" | "/onboarding/google";
   setAccount: Dispatch<SetStateAction<AccountState>>;
 }) {
   const googleServices = googleServiceAvailability(account);
+  const accountSettings = redirectPath === "/cuenta";
+  const showAdvanced = !accountSettings || adminVisible;
   const contactsEligibility = googleIntegrationAvailability(account, "contacts");
   const emailEligibility = googleIntegrationAvailability(account, "email");
   const calendarEligibility = googleIntegrationAvailability(account, "calendar");
@@ -402,13 +411,13 @@ function GoogleImportSection({
   return (
     <section className="account-section account-section-primary" aria-labelledby="account-import-title">
       <div className="account-section-title">
-        <h2 id="account-import-title">Importación y sincronización</h2>
-        <span>Fuentes desde las que Coffeecito puede leer datos para tu networking.</span>
+        <h2 id="account-import-title">{accountSettings ? "Importar datos" : "Importación y sincronización"}</h2>
+        {!accountSettings ? <span>Fuentes desde las que Coffeecito puede leer datos para tu networking.</span> : null}
       </div>
 
-      <section className="account-data-group" aria-labelledby="account-import-data-title">
-        <h3 id="account-import-data-title">Importar datos</h3>
-        <div className="account-data-grid">
+      <div className="account-data-group">
+        {!accountSettings ? <h3>Importar datos</h3> : null}
+        <div className={`account-data-grid${accountSettings ? " account-import-grid" : ""}`}>
           <AccountDataBlock title="Contactos">
             <ContactImportButton
               google={{
@@ -430,7 +439,7 @@ function GoogleImportSection({
               : <SourcePlaceholder icon="file" title="iCalendar (.ics)" />}
           </AccountDataBlock>
 
-          <AccountDataBlock title="Correos">
+          {showAdvanced ? <AccountDataBlock title="Correos">
             {emailEligibility === "enabled" ? (
               <GoogleInteractionsSyncPanel
                 authorizationRedirectPath={redirectPath}
@@ -455,13 +464,12 @@ function GoogleImportSection({
                 title="Gmail"
               />
             )}
-          </AccountDataBlock>
+          </AccountDataBlock> : null}
         </div>
-      </section>
+      </div>
 
-      {includeOtherSources ? (
-        <section className="account-data-group" aria-labelledby="account-auto-sync-title">
-          <h3 id="account-auto-sync-title">Incluir al actualizar</h3>
+      {includeOtherSources && showAdvanced ? (
+        <section className="account-data-group" aria-label="Sincronización de Google">
           <div className="account-provider-sync-grid">
             <section className="account-data-block account-provider-sync-block" aria-label="Google">
               <div className="account-provider-sync-heading">
