@@ -152,6 +152,12 @@ El login Google sirve para autenticar identidad con scopes mínimos. La conexió
 
 ## Administración restringida
 
+### Registro libre configurable (REG-OPEN-01, candidato local)
+
+Sistema → Mantención ofrece `Registro libre`, independiente de los dos controles y cupos de invitaciones. Se instala desactivado. Activarlo permite iniciar altas Google/email sin invitación ni allowlist; el alta exige identidad verificada y conserva el recorrido de aceptación legal y onboarding. Una admisión completada recibe plan `free` y rol `user`, y sobrevive al cierre posterior del registro. No reactiva cuentas ni autorizaciones bloqueadas/revocadas.
+
+El landing consulta únicamente la disponibilidad pública: con ON muestra `Crear mi cuenta` y la flecha existente, sin el mensaje lateral de invitaciones; con OFF, error o estado desconocido conserva `Entrar con mi invitación` y el contenido cerrado. Reconsulta al recuperar foco o visibilidad, sin publicar respuestas superadas. Ambos CTA conducen a `/ingresar`, y `Entrar` sigue disponible para usuarios existentes. El texto no autoriza altas. El único switch opera en `open` y `test_only` sin intervención manual de R2-B; `paused` conserva su función de parada global de emergencia. La instalación y activación remotas requieren autorizaciones separadas; este contrato no afirma que el registro esté abierto en DEV o PROD.
+
 La aplicación incluye capacidades administrativas restringidas para operar y mantener la beta.
 
 Estas capacidades permiten:

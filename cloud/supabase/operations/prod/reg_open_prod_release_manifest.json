@@ -1,0 +1,18 @@
+{
+  "initiative": "REG-OPEN-01",
+  "baseline": "dddb6b10410d1f07ac72ed5e27fdb10787ddb2b0",
+  "project": "ppowxoglqspwvsgyxlft",
+  "registration": "OFF until a separately authorized temporary smoke window",
+  "steps": [
+    { "step": 1, "kind": "read-only context", "path": "operations/prod/202611200003_check_reg_open_prod_context.sql", "sha256": "4292A65D9057517DD02A6771DD2FD5685E85BD00B4F42ED1ECBA6ECE2F149697" },
+    { "step": 2, "kind": "read-only initial preflight", "path": "preflight/202611190001_preflight_public_registration_v1.sql", "sha256": "B6CE0500AD250D188C50F203536DBDBC00ED972BFD9EC871A54865B7E99C3C44" },
+    { "step": 3, "kind": "migration - independent authorization and recovery gate required", "path": "migrations/202611190001_public_registration_v1.sql", "sha256": "1D6C1A7EAFC37CC3642CBCCB65C8DF0DE5CD604FA93968B5487BF3FA1CEB2900" },
+    { "step": 4, "kind": "read-only initial verifier", "path": "verifiers/202611190001_verify_public_registration_v1.sql", "sha256": "ABC594EEDFBB65C2636085284A37DC520DB1DDD6ABED537124535DF0CDCC96DC" },
+    { "step": 5, "kind": "read-only incremental preflight", "path": "preflight/202611200002_preflight_public_registration_single_switch.sql", "sha256": "86073FA81EA62BD6EB78031ACBA214FE9E9C2A38BD119A12201C0E2FFEB4FC51" },
+    { "step": 6, "kind": "migration - independent authorization required", "path": "migrations/202611200002_public_registration_single_switch.sql", "sha256": "55FBD73642981DFF4A15BBC1D1BFF865C5F1198D774A2A9E0B136283F543BA0D" },
+    { "step": 7, "kind": "read-only final REG-OPEN verifier", "path": "verifiers/202611200002_verify_public_registration_single_switch.sql", "sha256": "30408F7D28E599564EE24A111F6863319EC1D744C693D167319522C8371B6D57" },
+    { "step": 8, "kind": "read-only standard R2-B verifier", "path": "verifiers/202610270002_verify_networking_cycle_operations_v1.sql", "sha256": "E34ECE7F1A26941539634EB4F44B6541C2FE1E0E108357CA3D283859EF8692F7" },
+    { "step": 9, "kind": "read-only Calendar 005 verifier", "path": "verifiers/202611060005_verify_calendar_write_boundary.sql", "sha256": "0F75EA5D63CE31ABA328CC1E4DCAE8008C7B8800CCA2BF4C8F2D993C4745B23B" },
+    { "step": 10, "kind": "read-only final OFF/context check", "path": "operations/prod/202611200003_check_reg_open_prod_context.sql", "sha256": "4292A65D9057517DD02A6771DD2FD5685E85BD00B4F42ED1ECBA6ECE2F149697" }
+  ]
+}

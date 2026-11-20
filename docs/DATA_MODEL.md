@@ -281,6 +281,14 @@ Campos estructurales principales:
 
 ## Acceso y configuración comercial
 
+### REG-OPEN-01 (contrato de admisión persistente)
+
+`app_public_registration_settings` añade un singleton OFF por defecto con revisión para control de concurrencia. `app_public_registration_admissions` registra evidencia privada por identidad Auth: fingerprint de email, revisión de captura y fechas de captura/admisión/revocación. No hay backfill de cuentas pendientes anteriores. El trigger de alta captura candidaturas mientras ON sin sustituir la inicialización vigente de perfiles; el bootstrap autenticado completa la admisión de forma transaccional e idempotente, con `free/user` y sin reparar roles restringidos.
+
+Estas tablas no admiten DML cliente. `public_registration_status_v1()` expone únicamente `{enabled}`. `admin_public_registration_state_v1()` y `admin_set_public_registration_v1(boolean,bigint)` exigen administración de acceso; la escritura compara revisión y registra auditoría. Los registros de admisión sobreviven al reset de datos de aplicación y al cierre del interruptor, sin duplicar ni reemplazar la allowlist o el lifecycle de invitaciones.
+
+Un alta pública elegible no depende de los controles ni cupos de invitaciones. Una invitación pendiente que no se convierte mantiene su lifecycle y vencimiento originales. Si el registro libre se cierra antes de completar la admisión, una invitación válida conserva su vía de alta bajo sus controles originales. Un fingerprint que ya no coincide con el email verificado no se religa automáticamente: requiere revisión administrativa. Estas reglas no afirman instalación remota ni habilitación del programa.
+
 El modelo de acceso existe como estructura persistente, pero su resolución detallada pertenece a `SECURITY_ACCESS.md`.
 
 Familias principales:
