@@ -24,6 +24,7 @@ import { saveUserSetting } from "../lib/userSettingsActions";
 import { Button } from "./ui/Button";
 import { AccessAdminPanel } from "./AccessAdminPanel";
 import { InvitationAdminPanel } from "./InvitationAdminPanel";
+import { PublicRegistrationAdminPanel } from "./PublicRegistrationAdminPanel";
 import { HistoryPolicyAdminPanel } from "./HistoryPolicyAdminPanel";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -181,6 +182,7 @@ export function AdminMaintenancePage() {
 
       <div className="maintenance-service-list">
         <AccessAdminPanel />
+        <PublicRegistrationAdminPanel />
         <InvitationAdminPanel />
         <HistoryPolicyAdminPanel />
         <DataDiagnosticsPanel />

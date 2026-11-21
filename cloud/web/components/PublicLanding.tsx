@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { ProductSlideshow, type ProductSlide } from "./ProductSlideshow";
 import { BRAND_ACCESSIBLE_NAME, BrandBetaWordmark } from "./ui/BrandBetaWordmark";
 import { PublicSiteLinks } from "./PublicSiteLinks";
+import { usePublicRegistrationStatus } from "./PublicRegistrationStatus";
 
 const slides: ProductSlide[] = [
   { id: "kanban", src: "/landing/kanban.svg", alt: "Tres columnas del tablero real de contactos: Pendiente, Contactado y Agendado, con contactos ficticios." },
@@ -19,6 +20,7 @@ const features = [
 ];
 
 export function PublicLanding() {
+  const registration = usePublicRegistrationStatus();
   return <main className="public-landing">
     <div className="auth-landing-background" aria-hidden="true" />
     <header className="public-landing-header landing-inner">
@@ -33,8 +35,8 @@ export function PublicLanding() {
         <h1 id="landing-title">Conseguir pega se hace <span>tomando cafés.</span> Nosotros los ordenamos.</h1>
         <p className="landing-description">Organizar tu red no debería quitarte tiempo para conectar. Coffeecito ordena tus contactos, recuerda cada conversación y orienta tus próximos pasos.</p>
         <div className="landing-invitation">
-          <Link href="/ingresar" className="button landing-cta">Entrar con mi invitación <ArrowRight aria-hidden="true" size={22} /></Link>
-          <p>¿Sin invitación? La mejor recomendación es la de alguien que ya la usa: pídésela.</p>
+          <Link href="/ingresar" className="button landing-cta">{registration.enabled ? "Crear mi cuenta" : "Entrar con mi invitación"} <ArrowRight aria-hidden="true" size={22} /></Link>
+          {!registration.enabled ? <p>¿Sin invitación? La mejor recomendación es la de alguien que ya la usa: pídésela.</p> : null}
         </div>
       </div>
       <ProductSlideshow slides={slides} />

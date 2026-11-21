@@ -4,6 +4,7 @@ import { ViewSkeleton } from "./ui/ViewSkeleton";
 import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { PublicSiteLinks } from "./PublicSiteLinks";
+import { PublicRegistrationMessage } from "./PublicRegistrationStatus";
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import { Button } from "./ui/Button";
@@ -335,6 +336,7 @@ export function AuthGate({ children, publicLanding }: { children: ReactNode; pub
             </p>
           </div>
           <div className="auth-entry-panel">
+            <PublicRegistrationMessage />
             {supabaseConfigError ? (
               <div className="banner auth-config-banner">
                 <strong>Falta conectar Supabase.</strong>
