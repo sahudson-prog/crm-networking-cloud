@@ -2,11 +2,14 @@
 
 Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad técnica: cada item debe apoyarse en el documento especializado correspondiente cuando se diseñe o implemente.
 
-## Beta / onboarding / branding
+El cierre operacional OFF de REG-OPEN-01 está en `NOW.md`, no es una nueva
+iniciativa del backlog. Backup/restore y los diez pasos SQL PROD ya pasaron
+según el owner. El smoke de alta pública Google/email sigue NOT TESTED y
+requiere autorización separada; no se confunde con el smoke OFF.
 
-- Diseñar e implementar onboarding de primera sesión: propósito, configuración inicial, fecha de inicio de networking, conexión de datos y primer resultado útil.
+## Beta / refinamientos pendientes
+
 - Ejecutar beta cerrada por cohortes, incluyendo smoke multiusuario y captura de feedback sobre activación, comprensión, confianza y uso recurrente.
-- Mejorar landing pública, branding, logo, naming visible y primera impresión del producto.
 - Separar claramente importación inicial, actualización incremental global y actualización por contacto en UI y documentación operativa.
 - Confirmación verde: eliminar el mensaje transitorio al cerrar el popup de invitaciones.
 - Magic Link: revisar su funcionamiento y mensajes para todas las modalidades de acceso.
@@ -23,11 +26,10 @@ Este backlog conserva solo trabajo pendiente vigente. No es una fuente de verdad
 
 - Auditar la realidad técnica y operacional del tratamiento de datos personales y los controles existentes.
 - Determinar el cumplimiento aplicable en Chile mediante revisión competente, sin declarar cumplimiento anticipadamente.
-- Preparar Privacy Policy y Terms & Conditions coherentes con el comportamiento efectivo del producto.
+- Revisar periódicamente que Privacy Policy y Terms & Conditions vigentes sean coherentes con el comportamiento efectivo del producto, sin reabrir la aceptación legal ya integrada.
 - Planificar los gaps documentados de exportación, eliminación completa de cuenta, retención, consentimiento versionado y revocación real de permisos Google.
 - Retención: automatizar la limpieza de datos personales conforme a la política de 90 días.
-- Completar el smoke DEV de usuario base para `sync_run_logs` cuando se libere el rate limit temporal de Supabase Auth.
-- Promover el hardening de `sync_run_logs` a PROD en un release posterior, con migration y verifier, probablemente junto con onboarding.
+- Revalidar con evidencia actual el smoke DEV de usuario base y el estado de promoción PROD del hardening de `sync_run_logs` antes de contratar trabajo restante; las notas previas preceden releases recientes.
 - Auditar por separado el drift preexistente de grants amplios en DEV y decidir su corrección como cambio de contrato; no forma parte del hardening de `sync_run_logs`.
 - Revisar la semántica y matriz de `admin.view_diagnostics`: `sponsor_admin` la hereda actualmente y, bajo el contrato vigente, obtiene acceso transversal a `sync_run_logs`. Resolver esta deuda sin hardcodear roles ni debilitar el enforcement por capability.
 - Revisar por separado el riesgo y contrato persistente de `admin_usage_limit_overrides_v0_1` almacenado en `user_settings` antes de cambiar su autorización o almacenamiento.
