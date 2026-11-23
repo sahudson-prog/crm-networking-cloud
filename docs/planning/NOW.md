@@ -1,35 +1,38 @@
 # Now
 
-## Iniciativa activa
+## Estado vigente
 
-Lanzar la beta cerrada de Coffeecito y aprender de su uso real, manteniendo una frontera clara entre experiencia de usuario y herramientas operacionales.
+No hay una nueva iniciativa de producto contratada. PR #56-#62 están integrados
+en `origin/main` (`d670adeefbb54031baec73764eab96007b417600`).
+LANDING-01, ONBOARDING-01 y GAM-01 llegaron mediante INT-01 y sus ajustes
+posteriores; PERF-HOME-01, PERF-VIEWS-01 y UX-ACCOUNT-01 también están en Git.
+La integración y el smoke PROD PASS de #62 no acreditan por sí solos el estado
+Production Current del SHA integrado.
 
-## Estado de partida
+## Cierre operacional de REG-OPEN-01
 
-PROD está operativo con acceso por allowlist, Google login PKCE, magic link protegido por Turnstile, administración inicial y Google Connected Account.
+REG-OPEN-01: el owner confirmó preflights PROD 1 y 2 PASS, BACKUP CAPTURE
+PASS del 21-11-2026 (`obj02-pr47-20261121-144223Z`), RESTORE GATE PASS local
+y los diez pasos SQL PROD PASS, incluidas ambas migrations y los verifiers
+R2-B/Calendar. La verificación SQL final dejó Registro libre OFF.
 
-Contacts, Gmail y Calendar funcionan con preview y aplicación de cambios. Google OAuth PROD permanece en Testing.
+El owner confirmó smoke PROD PASS de login existente, landing, navegación y
+Registro libre OFF. Solo falta confirmar Production Ready/Current del SHA
+integrado. El estado Vercel `success` de GitHub no certifica que el deployment
+siga Current.
 
-La navegación y las rutas de Sistema usan capabilities administrativas efectivas y fallan cerradas antes de montar superficies privadas.
+El registro nuevo Google/email permanece NOT TESTED; requiere identidad
+autorizada y prueba real separada, con ventana ON global aprobada. Seguir el
+orden y los STOP de
+`docs/planning/REG-OPEN-01-PROD-CUTOVER.md` y `docs/RELEASE_RUNBOOK.md`.
 
-## Estado de seguridad reciente
+Canonical `main` permanece limpio en `dddb6b10410d1f07ac72ed5e27fdb10787ddb2b0`.
+El fast-forward a `origin/main` espera la confirmación de deployment del runbook.
 
-El hardening de `sync_run_logs` está implementado y mergeado a `main`. La migration ya se aplicó en DEV y la lectura administrativa con `admin.view_diagnostics` fue validada allí. Queda pendiente el smoke de usuario base por un rate limit temporal de Supabase Auth. El verifier específico no puede completar en DEV mientras persista el drift preexistente de grants amplios, tratado como hallazgo separado.
+## Decisión siguiente
 
-PROD no ha recibido esta migration. Su promoción queda pendiente para un release posterior, probablemente junto con onboarding. El drift preexistente de grants amplios en DEV se mantiene como hallazgo separado.
-
-## Siguiente desarrollo de producto
-
-Diseñar e implementar un onboarding inicial que explique Coffeecito, guíe la configuración básica y ayude a completar un primer flujo útil.
-
-Landing, branding y una primera cohorte de beta testers son parte del foco inmediato.
-
-## Trabajo paralelo
-
-Auditar privacidad, seguridad y cumplimiento aplicable antes de publicar políticas definitivas.
-
-Diseñar la separación futura del consentimiento Google: Contacts + Calendar como autorización inicial de datos y Gmail como autorización adicional opcional.
-
-## Fuera de alcance inmediato
-
-Verificación final de Google, eventual security assessment, Microsoft, WhatsApp, automatizaciones avanzadas, monetización y planes comerciales definitivos.
+Tras acreditar el cierre operacional, el owner puede priorizar de forma
+independiente OPS-SYNC-01, GGL-01, PRIV-01, QA-01, PRODUCT-EVAL-01 u otro
+candidato vigente de `BACKLOG.md`. Antes de ampliar el acceso real, revisar
+seguridad de dependencias, privacidad/retención y los controles de abuso del
+registro abierto. Ningún candidato queda autorizado por esta lista.
