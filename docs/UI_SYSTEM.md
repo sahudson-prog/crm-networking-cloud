@@ -160,6 +160,36 @@ Los errores usan principalmente `.danger-text` o `.form-error`. Los mensajes pos
 
 Los formularios observados usan botones Cancelar/Guardar en el footer del modal o al cierre del bloque. Los estados loading suelen cambiar el texto del botón y deshabilitar acciones.
 
+El alta de contacto presenta nombre obligatorio, empresa/cargo y un correo/teléfono
+opcionales; los controles compactos junto a correo/teléfono permiten añadir medios
+adicionales. `Más detalles` conserva estado, Foco, Headhunter y Prioridades.
+El diálogo nativo mantiene el foco, lo devuelve al disparador y pide confirmación
+antes de descartar cambios. Nombre valida solo después del primer intento de crear;
+los correos validan al salir del campo o intentar guardar y los teléfonos, al
+intentar guardar. Se admite teléfono vacío y números nacionales o internacionales
+de 7 a 15 dígitos, con prefijo + o 00 y separadores habituales; el error se muestra
+por campo y no descarta el valor ingresado. Cabecera, cuerpo
+desplazable y pie son regiones separadas; en móvil se presenta como hoja inferior.
+La acción de alta es `Crear contacto`, sin proveedores placeholder.
+
+La ficha prioriza identidad, estado/Foco, chips de Prioridades y `Registrar
+interacción`. `Citar café` reutiliza el enlace Google Calendar existente, sin nueva
+integración; cada dirección conserva sus acciones individuales compactas. La
+sincronización individual se oculta hasta confirmar su habilitación con el gate
+existente de Google Contacts. Prioridades usa un disparador punteado Editar/Agregar y
+un popover modal con búsqueda y selección múltiple, el lector compartido y el escritor
+de asignaciones existente; los errores conservan la selección y permiten reintentar.
+Tab y Shift+Tab permanecen en el popover; Escape lo cierra y devuelve el foco al
+disparador. El cierre ocupa una fila propia, separada de la búsqueda.
+Historia precede a Referidos en móvil, conserva colores por tipo y edición separada,
+y muestra títulos completos y hasta dos líneas de nota contraída. Registrar
+interacción es el único acceso de alta en la ficha. Los atajos Hoy/Ayer y el campo
+de fecha (entrada explícita `dd/mm/aaaa`, con validación de fecha civil) se separan
+de los selectores de hora y minutos, que permiten todos los
+valores sin redondear. Una edición sin cambios temporales conserva el timestamp
+original. La persistencia manual exige un timestamp: no se ofrece una falsa opción
+de hora desconocida ni se modifica el contrato de datos.
+
 ## Tablas, listas y selección
 
 Las tablas usan `.table` dentro de `.table-wrap`, con encabezados compactos, filas separadas por borde y scroll horizontal cuando el contenido lo requiere.

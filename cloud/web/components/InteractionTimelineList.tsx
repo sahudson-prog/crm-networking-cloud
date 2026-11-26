@@ -96,7 +96,7 @@ function InteractionTimelineItem({
   const icon = interactionIcon(interaction.interaction_type);
   const title = interaction.subject || interactionLabelShort(interaction);
   const detail = interaction.user_notes_raw?.trim() || "";
-  const preview = detail.replace(/\s+/g, " ").slice(0, 110);
+  const preview = detail.replace(/\s+/g, " ");
   const sharedTooltip = sharedInteractionTooltip(participants);
   const contacts = contactsForParticipants(participants, contactsById);
 
@@ -122,6 +122,7 @@ function InteractionTimelineItem({
         <span className="contact-timeline-main">
           <strong>{title}</strong>
           <span className="contact-timeline-preview">{preview}</span>
+          {detail ? <span className="contact-timeline-expand-label">{isOpen ? "Ver menos" : "Ver más"}</span> : null}
         </span>
         <ExternalSourceIndicator sources={sources} />
         {onEdit ? (

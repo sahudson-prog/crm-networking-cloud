@@ -18,6 +18,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
 import { ContactSearchSelect } from "./ui/ContactSearchSelect";
 import { Icon } from "./ui/Icon";
+import { INVALID_PHONE_MESSAGE } from "../lib/phoneValidation";
 
 type ReferralEditorDialogProps = {
   contacts: ContactRow[];
@@ -45,6 +46,7 @@ export function ReferralEditorDialog({
   const [referredRole, setReferredRole] = useState("");
   const [referredEmail, setReferredEmail] = useState("");
   const [referredPhone, setReferredPhone] = useState("");
+  const [phoneAttempted, setPhoneAttempted] = useState(false);
   const [notes, setNotes] = useState("");
   const [linkedContactId, setLinkedContactId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,7 @@ export function ReferralEditorDialog({
     setReferredRole(cleanContactRole(referral?.referredRole));
     setReferredEmail(referral?.referredEmail || "");
     setReferredPhone(referral?.referredPhone || "");
+    setPhoneAttempted(false);
     setNotes(referral?.notes || "");
     setLinkedContactId(referral?.linkedContactId || "");
     setMessage("");
@@ -104,12 +107,14 @@ export function ReferralEditorDialog({
       referredPhone.trim() ||
       notes.trim()
   );
-  const canSave = hasReferralContent && emailIsValid && phoneIsValid && !saving && !contactEditorOpen;
+  const canSave = hasReferralContent && emailIsValid && !saving && !contactEditorOpen;
   const fieldsDisabled = saving || contactEditorOpen;
 
   if (!open) return null;
 
   async function save() {
+    setPhoneAttempted(true);
+    if (!phoneIsValid) return;
     if (!canSave) return;
     setSaving(true);
     setMessage("");
@@ -210,12 +215,15 @@ export function ReferralEditorDialog({
             <label className="field">
               <span>Telefono</span>
               <input
-                className={phoneIsValid ? "" : "invalid"}
+                className={!phoneAttempted || phoneIsValid ? "" : "invalid"}
                 disabled={fieldsDisabled}
-                title={phoneIsValid ? "" : "Debe tener al menos 7 digitos. Puedes incluir +, espacios o guiones."}
+                aria-invalid={phoneAttempted && !phoneIsValid}
+                aria-describedby={phoneAttempted && !phoneIsValid ? "referral-phone-error" : undefined}
+                title={phoneAttempted && !phoneIsValid ? INVALID_PHONE_MESSAGE : ""}
                 value={referredPhone}
                 onChange={(event) => setReferredPhone(event.target.value)}
               />
+              {phoneAttempted && !phoneIsValid ? <small id="referral-phone-error" className="danger-text">{INVALID_PHONE_MESSAGE}</small> : null}
             </label>
             <label className="field">
               <span>Notas adicionales</span>
