@@ -70,8 +70,8 @@
 .contact-profile-page .contact-timeline-main { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
 .contact-profile-page .contact-timeline-main strong { max-width: none; white-space: normal; overflow-wrap: anywhere; }
 .contact-profile-page .contact-timeline-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; min-width: 0; font-style: normal; color: var(--crm-muted); }
-.contact-profile-page .contact-timeline-item[open] .contact-timeline-preview { display: none; }
-.contact-profile-page .contact-timeline-item summary { padding: 12px; grid-template-columns: 52px 30px minmax(0, 1fr) 28px; }
+.contact-profile-page .contact-timeline-item[open] .contact-timeline-preview { display: -webkit-box; }
+.contact-profile-page .contact-timeline-item summary { padding: 12px; grid-template-columns: 52px 30px minmax(0, 1fr) 28px; align-items: start; }
 .contact-profile-page .contact-timeline-main { grid-column: 3; grid-row: 1 / span 2; }
 .contact-profile-page .contact-timeline-item summary > .button { grid-column: 4; grid-row: 1; width: 28px; height: 28px; border: 0; background: transparent; }
 .contact-profile-page .shared-interaction-slot { grid-column: 2; grid-row: 2; }

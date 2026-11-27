@@ -46,6 +46,8 @@ if(visual){
   profile.interactions=[{id:'v1',interaction_type:'calendar',occurred_at:'2026-11-20T15:37:28.123Z',subject:'Café para conocer su experiencia',user_notes_raw:'Conversamos sobre su experiencia y los próximos pasos del equipo. Acordamos compartir algunas ideas y retomar la conversación la próxima semana.'},{id:'v2',interaction_type:'message',occurred_at:'2026-11-14T12:00:00Z',subject:'Mensaje inicial para coordinar un café',user_notes_raw:'Le escribí para presentarme y proponer una conversación.'}];
 }
 function App(){const[open,setOpen]=useState(false);return <main style={{maxWidth:1180,margin:'24px auto',padding:16}}><button id="create" onClick={()=>setOpen(true)}>Nuevo contacto</button><ContactProfile profile={profile} onReload={()=>{}}/><ContactEditorDialog initialValues={visual?{displayName:contact.display_name,company:contact.company,role:contact.role,emails:['ana@contacto.example']}:undefined} open={open} onClose={()=>setOpen(false)} onSaved={()=>{}}/></main>};
+const historyCase=new URLSearchParams(location.search).get('history');
+if(historyCase){profile.interactions=[{id:'history-test',interaction_type:'calendar',occurred_at:'2026-11-20T15:37:28.123Z',subject:'Café para conocer su experiencia',user_notes_raw:historyCase==='empty'?'':historyCase==='short'?'Sin descripción en el evento de calendario':'Conversamos sobre su experiencia y los próximos pasos del equipo. '.repeat(8)}];}
 createRoot(document.getElementById('root')).render(<App/>);`);
   await new Promise((resolve,reject)=>{
     const gatePlugin = new webpack.NormalModuleReplacementPlugin(/googleSyncAuthorization$/,path.join(out,'stubs.tsx'));
@@ -68,6 +70,37 @@ createRoot(document.getElementById('root')).render(<App/>);`);
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     return page.screenshot({path:path.join(out,name+'.png'),animations:'disabled'});
   };
+  if(process.env.CONTACT_HISTORY_ONLY==='1'){
+    for(const width of [1280,390,320])for(const kind of ['long','short','empty']){
+      await page.setViewportSize({width,height:1000});await page.goto(url+'?visual=1&history='+kind);
+      const methods=page.locator('.contact-method-grid');
+      assert.equal(await methods.locator('.contact-method-actions, .contact-method-icon, a[href*="calendar.google.com"], a[href*="wa.me"]').count(),0);
+      assert.equal(await methods.locator('a[href^="mailto:"]').count(),1);
+      const actions=page.locator('.contact-secondary-actions');
+      assert.equal(await actions.getByRole('link',{name:'Café',exact:true}).getAttribute('href'),'https://calendar.google.com/calendar/render?action=TEMPLATE&add=ana%40contacto.example');
+      assert.equal(await actions.getByRole('link',{name:'Correo',exact:true}).count(),1);
+      assert.equal(await actions.getByRole('link',{name:'WhatsApp',exact:true}).count(),1);
+      const panel=page.locator('.contact-interactions-panel'), item=panel.locator('details').first(), summary=item.locator('summary');
+      const geometry=()=>summary.evaluate(el=>{const base=el.getBoundingClientRect();return ['.contact-timeline-main strong','.contact-timeline-preview','.contact-timeline-expand-label'].map(selector=>{const n=el.querySelector(selector);if(!n)return null;const r=n.getBoundingClientRect();return [r.top-base.top,r.height,getComputedStyle(n).display];});});
+      const before=await geometry();const color=await item.evaluate(el=>getComputedStyle(el).backgroundColor);
+      if(kind==='long')await panel.screenshot({path:path.join(out,'history-'+width+'-closed.png')});
+      await summary.focus();await page.keyboard.press('Enter');
+      await item.locator('.contact-timeline-detail').waitFor({state:'visible'});
+      assert.deepEqual(await geometry(),before,'stable title, preview and toggle '+width+' '+kind);
+      assert.equal(await item.evaluate(el=>getComputedStyle(el).backgroundColor),color);
+      assert.equal(await item.getByRole('button',{name:'Editar minuta'}).count(),1);
+      if(kind!=='empty')assert.equal(await item.locator('.contact-timeline-expand-label').textContent(),'Ver menos');
+      if(kind==='short')assert.equal(await item.locator('.contact-timeline-preview').textContent(),'Sin descripción en el evento de calendario');
+      if(kind==='empty')assert.equal(await item.locator('.contact-timeline-detail').innerText(),'Sin minuta editable.');
+      if(kind==='long')await panel.screenshot({path:path.join(out,'history-'+width+'-open.png')});
+      await summary.focus();await page.keyboard.press('Enter');
+      await item.locator('.contact-timeline-detail').waitFor({state:'hidden'});
+      assert.deepEqual(await geometry(),before);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      if(width===1280&&kind==='short')await shot('contact-actions-no-duplicate');
+    }
+    assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'PASS',mode:'history',cases:9,screenshots:out}));return;
+  }
   if(process.env.CONTACT_TYPO_ONLY==='1'){
     for(const width of [1280,390,320]){
       await page.setViewportSize({width,height:1000});await page.goto(url+'?visual=1');

@@ -339,17 +339,6 @@ function ContactEmailMethods({ values }: { values: string[] }) {
         cleanValues.map((value) => (
           <div className="contact-method-row" key={value}>
             <a className="contact-method-value" href={`mailto:${encodeURIComponent(value)}`}><Icon name="mail" /><span>{value}</span></a>
-            <div className="contact-method-actions">
-              <a
-                className="contact-method-icon"
-                href={`https://calendar.google.com/calendar/render?action=TEMPLATE&add=${encodeURIComponent(value)}`}
-                rel="noreferrer"
-                target="_blank"
-                title="Citar café con este correo"
-              >
-                <Icon name="coffee" />
-              </a>
-            </div>
           </div>
         ))
       ) : (
