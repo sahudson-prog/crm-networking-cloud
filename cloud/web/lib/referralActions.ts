@@ -2,6 +2,7 @@ import { isValidEmail, isValidPhone, normalizeEmail } from "./contactActions";
 import { cleanContactCompany, cleanContactRole } from "./format";
 import { supabase } from "./supabaseClient";
 import { notifyNetworkingDataChanged } from "./networkingDataRevision";
+import { INVALID_PHONE_MESSAGE } from "./phoneValidation";
 
 export type ReferralEditorInput = {
   referralId?: string;
@@ -29,7 +30,7 @@ export async function saveReferralFromEditor(input: ReferralEditorInput) {
     throw new Error("El correo del referido no tiene un formato valido.");
   }
   if (normalized.referredPhone && !isValidPhone(normalized.referredPhone)) {
-    throw new Error("El telefono del referido debe tener al menos 7 digitos.");
+    throw new Error(INVALID_PHONE_MESSAGE);
   }
 
   const { data: authData, error: authError } = await supabase.auth.getUser();

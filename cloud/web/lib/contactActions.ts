@@ -6,6 +6,8 @@ import { setContactObjectiveAssignments } from "./cycleObjectiveActions";
 import { networkingWriteContext } from "./networkingCycles";
 import type { ContactRow } from "./readModel";
 import { measureOperation } from "./operationDiagnostics";
+import { INVALID_PHONE_MESSAGE, isValidPhone } from "./phoneValidation";
+export { isValidPhone } from "./phoneValidation";
 
 export const NETWORKING_STATUSES = [
   "Pendiente",
@@ -380,6 +382,9 @@ export async function saveContactFromEditor(input: ContactEditorInput) {
   const normalized = normalizeContactEditorInput(input);
   if (!normalized.displayName) throw new Error("El nombre del contacto es obligatorio.");
   if (!OFFICIAL_NETWORKING_STATUSES.has(normalized.networkingStatus)) throw new Error("Estado networking no valido.");
+  if (normalized.phones.some((phone) => !isValidPhone(phone))) {
+    throw new Error(INVALID_PHONE_MESSAGE);
+  }
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -610,13 +615,6 @@ export function isValidEmail(email: string) {
 
 export function normalizePhone(phone: string) {
   return phone.replace(/[^\d+]/g, "");
-}
-
-export function isValidPhone(phone: string) {
-  const normalized = normalizePhone(phone);
-  if (!normalized) return true;
-  const digits = normalized.replace(/\D/g, "");
-  return digits.length >= 7;
 }
 
 function domainFromEmail(email: string) {

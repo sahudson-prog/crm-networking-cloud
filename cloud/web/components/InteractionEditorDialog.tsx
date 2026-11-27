@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dismissInteraction, saveInteractionFromEditor } from "../lib/interactionActions";
 import { interactionLabel } from "../lib/format";
 import type { ContactRow, InteractionRow } from "../lib/readModel";
@@ -33,6 +33,9 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
   const [interactionType, setInteractionType] = useState<InteractionRow["interaction_type"]>("message");
   const [direction, setDirection] = useState<NonNullable<InteractionRow["direction"]>>("unknown");
   const [occurredAt, setOccurredAt] = useState("");
+  const [dateText, setDateText] = useState("");
+  const [dateTouched, setDateTouched] = useState(false);
+  const dateInput = useRef<HTMLInputElement>(null);
   const [subject, setSubject] = useState("");
   const [notes, setNotes] = useState("");
   const [preventReimport, setPreventReimport] = useState(false);
@@ -45,7 +48,10 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
     if (!open) return;
     setInteractionType(interaction?.interaction_type || "message");
     setDirection((interaction?.direction as NonNullable<InteractionRow["direction"]>) || "unknown");
-    setOccurredAt(formatDateTimeLocal(interaction?.occurred_at) || formatDateTimeLocal(new Date().toISOString()));
+    const localTimestamp = formatDateTimeLocal(interaction?.occurred_at) || formatDateTimeLocal(new Date().toISOString());
+    setOccurredAt(localTimestamp);
+    setDateText(displayCivilDate(localTimestamp.slice(0, 10)));
+    setDateTouched(false);
     setSubject(interaction?.subject || "");
     setNotes(interaction?.user_notes_raw || "");
     setPreventReimport(Boolean(interaction?.metadata?.prevent_reimport));
@@ -54,8 +60,9 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
     setMessage("");
   }, [interaction, open]);
 
-  const title = interaction ? "Editar minuta" : "Agregar interacción";
-  const canSave = Boolean(occurredAt) && !saving && !deleting;
+  const title = interaction ? "Editar interacción" : "Registrar interacción";
+  const validDate = parseCivilDate(dateText);
+  const canSave = Boolean(occurredAt && validDate) && !saving && !deleting;
 
   if (!open) return null;
 
@@ -69,7 +76,7 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
         contactId: contact.id,
         interactionType,
         direction,
-        occurredAt,
+        occurredAt: interaction?.occurred_at && occurredAt === formatDateTimeLocal(interaction.occurred_at) ? interaction.occurred_at : occurredAt,
         subject,
         userNotesRaw: notes,
         source: interaction ? "contact_profile_edit" : "contact_profile_create"
@@ -148,24 +155,50 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
             </label>
           </div>
 
-          <div className="field-row">
-            <label className="field">
-              <span>Fecha</span>
-              <input type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} />
-            </label>
+          <div className="interaction-when">
+            <div className="field">
+              <span id="interaction-date-label">Fecha</span>
+              <div className="interaction-date-shortcuts">
+                {[{ label: "Hoy", days: 0 }, { label: "Ayer", days: 1 }].map(({ label, days }) => <Button key={label} onClick={() => {
+                  const day = new Date(); day.setDate(day.getDate() - days);
+                  const date = formatDateTimeLocal(day.toISOString()).slice(0, 10);
+                  setDateText(displayCivilDate(date));
+                  setDateTouched(false);
+                  setOccurredAt(`${date}T${occurredAt.slice(11) || formatDateTimeLocal(new Date().toISOString()).slice(11)}`);
+                }}>{label}</Button>)}
+                <Button onClick={() => dateInput.current?.focus()}>Otra fecha</Button>
+              </div>
+              <input ref={dateInput} aria-labelledby="interaction-date-label" type="text" inputMode="numeric" placeholder="dd/mm/aaaa" maxLength={10} value={dateText}
+                aria-invalid={dateTouched && !validDate} aria-describedby={dateTouched && !validDate ? "interaction-date-error" : undefined}
+                onBlur={() => setDateTouched(true)} onChange={(event) => {
+                setDateText(event.target.value);
+                const date = parseCivilDate(event.target.value);
+                if (date) setOccurredAt(`${date}T${occurredAt.slice(11)}`);
+              }} />
+              {dateTouched && !validDate ? <small id="interaction-date-error" className="danger-text">Ingresa una fecha válida en formato dd/mm/aaaa.</small> : null}
+            </div>
+            <div className="interaction-time-fields">
+              <label className="field"><span>Hora</span><select aria-label="Hora" value={occurredAt.slice(11, 13)} onChange={event => setOccurredAt(`${occurredAt.slice(0, 11)}${event.target.value}${occurredAt.slice(13)}`)}>
+                {Array.from({ length: 24 }, (_, n) => String(n).padStart(2, "0")).map(hour => <option key={hour} value={hour}>{hour}</option>)}
+              </select></label>
+              <span aria-hidden="true">:</span>
+              <label className="field"><span>Minutos</span><select aria-label="Minutos" value={occurredAt.slice(14, 16)} onChange={event => setOccurredAt(`${occurredAt.slice(0, 14)}${event.target.value}${occurredAt.slice(16)}`)}>
+                {Array.from({ length: 60 }, (_, n) => String(n).padStart(2, "0")).map(minute => <option key={minute} value={minute}>{minute}</option>)}
+              </select></label>
+            </div>
+          </div>
             <label className="field">
               <span>Título</span>
               <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Resumen breve" />
             </label>
-          </div>
 
           <label className="field">
-            <span>Minuta editable</span>
+            <span>Notas de la interacción</span>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="Escribe o pega aquí la minuta, conversación o detalle editable."
-              rows={9}
+              placeholder="¿Qué conversaron? Agrega los detalles que quieras recordar."
+              rows={5}
             />
           </label>
 
@@ -200,7 +233,7 @@ export function InteractionEditorDialog({ contact, interaction, open, onClose, o
             <>
               <Button disabled={saving || deleting} onClick={onClose}>Cancelar</Button>
               <Button disabled={!canSave} onClick={save} tone="primary">
-                {saving ? "Guardando..." : "Guardar cambios"}
+                {saving ? "Guardando..." : interaction ? "Guardar cambios" : "Registrar interacción"}
               </Button>
             </>
           )}
@@ -215,5 +248,16 @@ function formatDateTimeLocal(value: string | null | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return local.toISOString().slice(0, -1);
+}
+
+function displayCivilDate(value: string) {
+  return value.split("-").reverse().join("/");
+}
+
+function parseCivilDate(value: string) {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return "";
+  const iso = value.split("/").reverse().join("-");
+  const date = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : "";
 }

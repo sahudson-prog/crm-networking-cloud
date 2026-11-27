@@ -19,10 +19,13 @@ type ObjectiveSelectorProps = {
   choices?: Pick<ObjectiveRow, "id" | "objective_name" | "objective_type" | "priority_level">[];
   choicesLoading?: boolean;
   choicesError?: string;
+  searchable?: boolean;
+  hideHeading?: boolean;
 };
 
 export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onChange,
-  choices, choicesLoading = false, choicesError = "" }: ObjectiveSelectorProps) {
+  choices, choicesLoading = false, choicesError = "", searchable = false, hideHeading = false }: ObjectiveSelectorProps) {
+  const [query, setQuery] = useState("");
   const [objectives, setObjectives] = useState<ObjectiveRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,7 +56,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
   const visibleLoading = choices ? choicesLoading : loading;
   const visibleError = choices ? choicesError : error;
   const selected = useMemo(() => new Set(selectedObjectiveIds), [selectedObjectiveIds]);
-  const grouped = useMemo(() => groupObjectives(visibleObjectives), [visibleObjectives]);
+  const grouped = useMemo(() => groupObjectives(visibleObjectives.filter(row => row.objective_name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))), [visibleObjectives, query]);
 
   function toggleObjective(objectiveId: string) {
     const next = new Set(selectedObjectiveIds);
@@ -64,12 +67,14 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
 
   return (
     <div className="objective-selector">
+      {searchable ? <label className="field"><span className="sr-only">Buscar prioridad</span><input type="search" placeholder="Buscar prioridad…" value={query} onChange={event => setQuery(event.target.value)} /></label> : null}
       <div className="objective-selector-head">
-        <span>Prioridades</span>
+        {!hideHeading ? <span>Prioridades</span> : null}
         {visibleLoading && !visibleObjectives.length ? <ViewSkeleton kind="inline" label="Prioridades" /> : null}
       </div>
       {visibleError ? <small className="danger-text">{visibleError}</small> : null}
       {!visibleLoading && !visibleObjectives.length && !visibleError ? <EmptyValue>Sin prioridades definidas</EmptyValue> : null}
+      {searchable && query.trim() && !visibleLoading && !visibleError && visibleObjectives.length > 0 && grouped.size === 0 ? <p>No hay prioridades con ese nombre.</p> : null}
       {OBJECTIVE_TYPES.map((type) => {
         const rows = grouped.get(type.value) ?? [];
         if (!rows.length) return null;
@@ -87,6 +92,7 @@ export function ObjectiveSelector({ disabled = false, selectedObjectiveIds, onCh
                     onClick={() => toggleObjective(objective.id)}
                     title={`${objective.objective_name} · Prioridad ${objectivePriorityLabel(objective.priority_level)}`}
                     type="button"
+                    aria-pressed={active}
                   >
                     {active ? <Icon name="check" /> : null}
                     <span>{objective.objective_name}</span>

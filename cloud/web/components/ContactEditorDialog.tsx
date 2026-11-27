@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   contactToEditorInput,
   deactivateContacts,
@@ -18,10 +18,10 @@ import {
   type HeadhunterCompanyMasterRow
 } from "../lib/headhunterCompanyMaster";
 import { Button } from "./ui/Button";
+import { INVALID_PHONE_MESSAGE } from "../lib/phoneValidation";
 import { ContactDeactivationButton } from "./ContactDeactivationButton";
 import { ContactDeactivationConfirmDialog } from "./ContactDeactivationConfirmDialog";
 import { ObjectiveSelector } from "./ObjectiveSelector";
-import { ProviderButton, type ProviderIconName } from "./ui/ProviderIcon";
 
 type ContactEditorDialogProps = {
   contact?: ContactRow | null;
@@ -59,11 +59,42 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [message, setMessage] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const initialSnapshot = useRef("");
+  const editorSession = useRef<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    const dialog = dialogRef.current;
+    const opener = document.activeElement as HTMLElement | null;
+    dialog?.showModal();
+    return () => { dialog?.close(); opener?.focus(); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    dialogRef.current?.querySelector<HTMLElement>(deleteConfirmOpen ? '.contact-deactivation-dialog button' : discardOpen ? '[role="alertdialog"] button' : 'input')?.focus();
+  }, [open, discardOpen, deleteConfirmOpen]);
+
+  useEffect(() => {
+    if (!open) { editorSession.current = null; return; }
+    const session = contact?.id || initialValues?.contactId || "new";
+    if (editorSession.current === session) return;
+    editorSession.current = session;
     const base = contact ? contactToEditorInput(contact) : undefined;
     const source = initialValues ? { ...base, ...initialValues } : base;
+    initialSnapshot.current = JSON.stringify([
+      source?.displayName ?? "", source?.company ?? "", source?.role ?? "",
+      source?.networkingStatus ?? "Pendiente", source?.networkingFocus ?? true,
+      source?.isHeadhunter ?? false, withEmptyRow(source?.emails ?? []),
+      withEmptyRow(source?.phones ?? []), source?.objectiveIds ?? []
+    ]);
+    setAttempted(false);
+    setDiscardOpen(false);
+    setDetailsOpen(Boolean(contact));
     setDisplayName(source?.displayName ?? "");
     setCompany(source?.company ?? "");
     setRole(source?.role ?? "");
@@ -111,11 +142,24 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   }, [company, headhunterMaster, isHeadhunter]);
   const showCompanyMatches = companyInputFocused && companyMatches.length > 0;
   const canSave = Boolean(displayName.trim()) && !invalidEmails.length && !invalidPhones.length && !saving && !deleting;
+  const dirty = initialSnapshot.current !== JSON.stringify([
+    displayName, company, role, networkingStatus, networkingFocus, isHeadhunter,
+    emailValues, phoneValues, objectiveIds
+  ]);
+
+  function requestClose() {
+    if (saving || deleting) return;
+    if (dirty) setDiscardOpen(true);
+    else onClose();
+  }
 
   if (!open) return null;
 
   async function save() {
-    if (!canSave) return;
+    setAttempted(true);
+    if (!canSave) {
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -159,29 +203,45 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="modal-card contact-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="contact-editor-title">
+      <dialog ref={dialogRef} className="modal-card contact-editor-dialog contact-editor-native" aria-labelledby="contact-editor-title"
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const elements = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary, [tabindex="0"]')).filter(node => node.getClientRects().length && !node.closest('[inert]'));
+          const first = elements[0], last = elements[elements.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }}
+        onCancel={(event) => { event.preventDefault(); if (saving || deleting) return; if (deleteConfirmOpen) setDeleteConfirmOpen(false); else if (discardOpen) setDiscardOpen(false); else requestClose(); }}>
+        <div className="contact-editor-content" inert={deleteConfirmOpen || undefined}>
         <header className="modal-head">
           <div>
             <h2 id="contact-editor-title">{contact ? "Editar contacto" : "Crear contacto"}</h2>
-            <p>Actualiza los datos base que usa la app para vistas, reglas y acciones.</p>
+            <p>{contact ? "Actualiza los datos de este contacto." : "Agrega a alguien a tu red. Puedes completar sus datos después."}</p>
           </div>
           <div className="contact-editor-head-actions">
-            <ProviderSyncPlaceholders />
-            <Button icon="close" square aria-label="Cerrar editor de contacto" onClick={onClose} />
+            <Button disabled={saving || deleting} icon="close" square aria-label="Cerrar editor de contacto" onClick={requestClose} />
           </div>
         </header>
 
-        <div className="contact-editor-body">
+        {discardOpen ? <div className="contact-discard-confirm" role="alertdialog" aria-modal="true" aria-labelledby="contact-discard-title">
+          <h3 id="contact-discard-title">¿Descartar los cambios?</h3>
+          <p>La información que ingresaste no se guardará.</p>
+          <div className="modal-actions">
+            <Button autoFocus onClick={() => setDiscardOpen(false)}>Seguir editando</Button>
+            <Button tone="danger" onClick={onClose}>{contact ? "Descartar cambios" : "Descartar contacto"}</Button>
+          </div>
+        </div> : <>
+        <div className="contact-editor-scroll">
+        <fieldset className="contact-editor-body" disabled={saving || deleting} aria-label="Datos del contacto">
           <label className="field">
-            <span>Nombre *</span>
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Nombre del contacto" />
-            {!displayName.trim() ? <small className="danger-text">El nombre es obligatorio.</small> : null}
+            <span className="contact-form-field-label">Nombre <b className="danger-text">*</b></span>
+            <input autoFocus required aria-invalid={attempted && !displayName.trim()} aria-describedby={attempted && !displayName.trim() ? "contact-name-error" : undefined} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Nombre del contacto" />
+            {attempted && !displayName.trim() ? <small id="contact-name-error" className="danger-text">El nombre es obligatorio.</small> : null}
           </label>
 
           <div className="field-row">
             <label className="field">
-              <span>Empresa</span>
+              <span className="contact-form-field-label">Empresa</span>
               <div className="headhunter-company-field">
                 <input
                   autoComplete="off"
@@ -211,13 +271,14 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               </div>
             </label>
             <label className="field">
-              <span>Cargo</span>
+              <span className="contact-form-field-label">Cargo</span>
               <input value={role} onChange={(event) => setRole(event.target.value)} placeholder="Sin cargo" />
             </label>
           </div>
           <div className="field-row">
             <ContactValueList
-              label="Correos"
+              attempted={attempted}
+              label="Correo"
               placeholder="correo@empresa.cl"
               values={emailValues}
               invalidMessage="Debe tener formato de correo, por ejemplo nombre@empresa.cl."
@@ -225,18 +286,22 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               onChange={setEmailValues}
             />
             <ContactValueList
-              label="Telefonos"
+              attempted={attempted}
+              label="Teléfono"
               placeholder="+56 9 1234 5678"
               values={phoneValues}
-              invalidMessage="Debe tener al menos 7 digitos. Puedes incluir +, espacios o guiones."
+              invalidMessage={INVALID_PHONE_MESSAGE}
               isValid={isValidPhone}
+              validateOnBlur={false}
               onChange={setPhoneValues}
             />
           </div>
 
+          <details open={detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)} className="contact-editor-details">
+          <summary className="contact-form-section-title">Más detalles</summary>
           <div className="field-row contact-editor-state-row">
             <label className="field">
-              <span>Estado networking</span>
+              <span className="contact-form-field-label">Estado networking</span>
               <select value={networkingStatus} onChange={(event) => setNetworkingStatus(event.target.value)}>
                 {NETWORKING_STATUSES.map((status) => (
                   <option key={status} value={status}>
@@ -246,12 +311,16 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               </select>
             </label>
             <div className="contact-editor-switches">
-              <ToggleField active={networkingFocus} label="Foco networking" onChange={setNetworkingFocus} />
-              <ToggleField active={isHeadhunter} label="Headhunter" onChange={setIsHeadhunter} />
+              <ToggleField active={networkingFocus} label="Foco networking" description="Define si quieres incluir este contacto en tu networking y seguimiento, o mantenerlo oculto y fuera de tu gestión." onChange={setNetworkingFocus} />
+              <ToggleField active={isHeadhunter} label="Headhunter" description="Trabaja en una consultora de reclutamiento." onChange={setIsHeadhunter} />
             </div>
           </div>
 
+          <div className="contact-editor-priorities">
+          <h3 className="contact-form-subsection-title">Prioridades</h3>
+          <p>Selecciona los objetivos y prioridades en los que este contacto puede ayudarte a avanzar.</p>
           <ObjectiveSelector
+            hideHeading
             disabled={saving}
             selectedObjectiveIds={objectiveIds}
             onChange={(nextIds) => {
@@ -259,9 +328,12 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               setObjectivesTouched(true);
             }}
           />
-        </div>
+          </div>
+          </details>
+        </fieldset>
 
         {message ? <div className="modal-message danger-text">{message}</div> : null}
+        </div>
 
         <footer className="modal-actions">
           {contact ? (
@@ -271,12 +343,13 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
               onClick={() => setDeleteConfirmOpen(true)}
             />
           ) : null}
-          <Button disabled={saving || deleting} onClick={onClose}>Cancelar</Button>
-          <Button disabled={!canSave} onClick={save} tone="primary">
-            {saving ? "Guardando..." : "Guardar cambios"}
+          <Button disabled={saving || deleting} onClick={requestClose}>Cancelar</Button>
+          <Button disabled={saving || deleting} onClick={save} tone="primary">
+            {saving ? "Guardando..." : contact ? "Guardar cambios" : "Crear contacto"}
           </Button>
         </footer>
-      </section>
+      </>}
+      </div>
       {deleteConfirmOpen && contact ? (
         <ContactDeactivationConfirmDialog
           busy={deleting}
@@ -287,46 +360,30 @@ export function ContactEditorDialog({ contact, initialValues, open, onClose, onS
           onConfirm={deactivate}
         />
       ) : null}
-    </div>
-  );
-}
-
-function ProviderSyncPlaceholders() {
-  const providers: Array<{ name: ProviderIconName; label: string }> = [
-    { name: "google", label: "Google" },
-    { name: "apple", label: "Apple" },
-    { name: "microsoft", label: "Microsoft" }
-  ];
-
-  return (
-    <div className="provider-sync-group" aria-label="Completar desde servicios externos">
-      {providers.map((provider) => (
-        <ProviderButton
-          disabled
-          key={provider.label}
-          label={`Proximamente: completar esta ficha desde ${provider.label}`}
-          name={provider.name}
-        />
-      ))}
-    </div>
+    </dialog>
   );
 }
 
 function ContactValueList({
+  attempted,
   invalidMessage,
   isValid,
+  validateOnBlur = true,
   label,
   onChange,
   placeholder,
   values
 }: {
+  attempted: boolean;
   invalidMessage: string;
   isValid: (value: string) => boolean;
+  validateOnBlur?: boolean;
   label: string;
   onChange: (values: string[]) => void;
   placeholder: string;
   values: string[];
 }) {
+  const [touched, setTouched] = useState<Set<number>>(new Set());
   function updateValue(index: number, value: string) {
     onChange(values.map((current, currentIndex) => (currentIndex === index ? value : current)));
   }
@@ -338,33 +395,34 @@ function ContactValueList({
 
   return (
     <div className="field contact-editor-value-list">
-      <span>{label}</span>
+      <span className="contact-form-field-label">{label}</span>
       <div className="contact-editor-value-rows">
         {values.map((value, index) => {
-          const invalid = Boolean(value.trim()) && !isValid(value);
+          const invalid = (attempted || (validateOnBlur && touched.has(index))) && Boolean(value.trim()) && !isValid(value);
           return (
             <div className="contact-editor-value-row" key={`${label}-${index}`}>
               <input
+                aria-label={`${label} ${index + 1}`}
+                aria-invalid={invalid}
+                onBlur={() => setTouched((previous) => new Set(previous).add(index))}
                 className={invalid ? "invalid" : ""}
                 onChange={(event) => updateValue(index, event.target.value)}
                 placeholder={placeholder}
                 title={invalid ? invalidMessage : ""}
                 value={value}
               />
-              <Button
+              {index === 0 ? <Button icon="plus" square aria-label={`Agregar ${label.toLowerCase()} adicional`} onClick={() => onChange([...values, ""])} /> : <Button
                 aria-label={`Eliminar ${label.toLowerCase()}`}
                 disabled={values.length === 1 && !value.trim()}
                 icon="trash"
                 onClick={() => removeValue(index)}
                 square
-              />
+              />}
+              {invalid ? <small className="danger-text">{invalidMessage}</small> : null}
             </div>
           );
         })}
       </div>
-      <Button icon="plus" onClick={() => onChange([...values, ""])}>
-        Agregar
-      </Button>
     </div>
   );
 }
@@ -372,15 +430,17 @@ function ContactValueList({
 function ToggleField({
   active,
   label,
+  description,
   onChange
 }: {
   active: boolean;
   label: string;
+  description: string;
   onChange: (value: boolean) => void;
 }) {
   return (
     <label className="contact-editor-toggle">
-      <span>{label}</span>
+      <span><strong className="contact-form-subsection-title">{label}</strong><small>{description}</small></span>
       <input checked={active} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
       <i aria-hidden="true" />
     </label>

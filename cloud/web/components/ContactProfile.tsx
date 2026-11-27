@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import * as Popover from "@radix-ui/react-popover";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
+import { isValidEmail, updateContactFlags, updateContactNetworkingStatus } from "../lib/contactActions";
 import { readAllActiveContacts } from "../lib/cloudData";
 import { cleanContactCompany, cleanContactRole, joinCompact, statusClass } from "../lib/format";
 import { dismissReferrals } from "../lib/referralActions";
+import { readGoogleOAuthOperationEligibility } from "../lib/googleSyncAuthorization";
+import { whatsappPhoneForLink } from "../lib/phoneValidation";
 import type {
   ContactProfileData,
   ContactReferralRow,
@@ -18,12 +21,12 @@ import { ContactDataSyncButton, type ContactDataSyncNotice } from "./ContactData
 import { ContactEditorDialog } from "./ContactEditorDialog";
 import { groupParticipantsByInteraction, groupSourcesByInteraction, InteractionTimelineList } from "./InteractionTimelineList";
 import { InteractionEditorDialog } from "./InteractionEditorDialog";
-import { ObjectiveChips } from "./ObjectiveSelector";
+import { ContactPrioritiesEditor } from "./ContactPrioritiesEditor";
 import { ReferralEditorDialog } from "./ReferralEditorDialog";
 import { StatusBadge } from "./StatusBadge";
 import { Button } from "./ui/Button";
 import { ViewSkeleton } from "./ui/ViewSkeleton";
-import { Icon } from "./ui/Icon";
+import { Icon, type IconName } from "./ui/Icon";
 
 type ContactProfileProps = {
   onboardingCoach?: ReactNode;
@@ -45,6 +48,8 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
   const { contact, interactions, interactionParticipants, externalInteractionSources, referrals, todos } = profile;
   const emails = contact.contact_emails ?? [];
   const phones = contact.contact_phones ?? [];
+  const usableEmails = uniqueMedia(emails.map((item) => item.email), (value) => value.trim().toLowerCase(), isValidEmail);
+  const usablePhones = uniqueMedia(phones.map((item) => item.phone), whatsappPhoneForLink, (value) => Boolean(whatsappPhoneForLink(value)));
   const objectives = (contact.contact_objective_assignments ?? [])
     .map((assignment) => assignment.objective)
     .filter((objective): objective is NonNullable<typeof objective> => Boolean(objective));
@@ -68,6 +73,13 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
   const [editorOpen, setEditorOpen] = useState(false);
   const [interactionEditorOpen, setInteractionEditorOpen] = useState(false);
   const [editingInteraction, setEditingInteraction] = useState<InteractionRow | null>(null);
+  const [contactSyncEnabled, setContactSyncEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setContactSyncEnabled(false);
+    readGoogleOAuthOperationEligibility("contacts").then(enabled => { if (active) setContactSyncEnabled(enabled); }).catch(() => {});
+    return () => { active = false; };
+  }, [contact.id]);
 
   useEffect(() => {
     setStatusValue(contact.networking_status || "Pendiente");
@@ -156,16 +168,25 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
           <div className="contact-identity-head">
             <div>
               <h1>{contact.display_name || "Contacto sin nombre"}</h1>
-              <ContactCompanyRoleLine company={contact.company} role={contact.role} />
             </div>
             <div className="contact-identity-actions">
-              <ContactDataSyncButton
+              {contactSyncEnabled ? <ContactDataSyncButton
                 contact={contact}
                 onNoticeChange={setContactDataSyncNotice}
                 onSynced={onReload}
-              />
+              /> : null}
               <Button aria-label="Editar contacto" icon="edit" onClick={() => setEditorOpen(true)} square />
             </div>
+          </div>
+          <div className="contact-identity-subtitle">
+            <ContactCompanyRoleLine company={contact.company} role={contact.role} />
+            <button aria-label={isHeadhunter ? "Cambiar a Persona" : "Cambiar a Headhunter"}
+              aria-pressed={isHeadhunter} className={`contact-type-toggle ${isHeadhunter ? "headhunter" : "person"}`}
+              disabled={savingFlag !== null} onClick={() => saveContactFlag("is_headhunter", !isHeadhunter)} type="button"
+              title={isHeadhunter ? "Headhunter" : "Persona"}>
+              <span className="contact-type-icon"><Icon name={isHeadhunter ? "circleDot" : "user"} /></span>
+              {isHeadhunter ? <span>Headhunter</span> : null}
+            </button>
           </div>
 
           {contactDataSyncNotice ? (
@@ -177,32 +198,18 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
             </div>
           ) : null}
 
-          <div className="contact-method-grid">
-            <ContactEmailMethods values={emails.map((item) => item.email)} />
-            <ContactPhoneMethods values={phones.map((item) => item.phone)} />
-          </div>
-
-          <div className="contact-objectives-block">
-            <span className="contact-mini-label">Prioridades</span>
-            <ObjectiveChips objectives={objectives} />
-          </div>
-
           <div className="contact-state-strip">
             <ContactFlagToggle
               active={networkingFocus}
               disabled={savingFlag !== null}
-              label="Foco networking"
+              label={networkingFocus ? "En foco" : "Fuera de foco"}
               onChange={(nextValue) => saveContactFlag("networking_focus", nextValue)}
             />
-            <ContactFlagToggle
-              active={isHeadhunter}
-              disabled={savingFlag !== null}
-              label="Headhunter"
-              onChange={(nextValue) => saveContactFlag("is_headhunter", nextValue)}
-            />
             <div className="contact-status-control">
-              <span className="contact-mini-label">Estado networking</span>
+              <span className="sr-only">Estado networking</span>
               <select
+                aria-label="Estado networking"
+                style={{ width: `calc(${statusValue.length + 2}ch + 44px)` }}
                 className={`contact-status-select ${statusClass(statusValue)}`}
                 disabled={isSavingStatus}
                 onChange={(event) => saveNetworkingStatus(event.target.value)}
@@ -218,6 +225,26 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
             </div>
             {flagFeedback ? <span className="contact-status-feedback contact-flag-feedback">{flagFeedback}</span> : null}
           </div>
+          <div className="contact-objectives-block">
+            <span className="contact-mini-label">Prioridades</span>
+            <ContactPrioritiesEditor contactId={contact.id} objectives={objectives} onSaved={onReload} />
+          </div>
+          <div className="contact-primary-actions">
+            <Button tone="primary" icon="plus" onClick={() => openInteractionEditor(null)}>Registrar interacción</Button>
+            <div className="contact-secondary-actions">
+              <ContactMediumAction label="Café" icon="coffee" media={usableEmails}
+                href={(email) => `https://calendar.google.com/calendar/render?action=TEMPLATE&add=${encodeURIComponent(email)}`} external />
+              <ContactMediumAction label="Correo" icon="mail" media={usableEmails}
+                href={(email) => `mailto:${encodeURIComponent(email)}`} />
+              <ContactMediumAction label="WhatsApp" icon="whatsapp" media={usablePhones}
+                href={(phone) => `https://wa.me/${whatsappPhoneForLink(phone)}`} external />
+            </div>
+          </div>
+          <h2 className="panel-title contact-data-title">Datos de contacto</h2>
+          <div className="contact-method-grid">
+            <ContactEmailMethods values={emails.map((item) => item.email)} />
+            <ContactPhoneMethods values={phones.map((item) => item.phone)} />
+          </div>
         </section>
 
         <aside className="contact-side-stack">
@@ -226,7 +253,7 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
 
         <section className="panel contact-interactions-panel">
           <div className="panel-header">
-            <h2 className="panel-title">Ultimas interacciones</h2>
+            <h2 className="panel-title">Historia</h2>
             <div className="toolbar">
               <Button
                 aria-label="Expandir todas"
@@ -235,7 +262,6 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
                 square
               />
               <Button aria-label="Contraer todas" icon="collapse" onClick={() => setExpandedInteractions(new Set())} square />
-              <Button aria-label="Agregar interaccion" icon="plus" onClick={() => openInteractionEditor(null)} square />
             </div>
           </div>
           <InteractionTimelineList
@@ -265,6 +291,34 @@ export function ContactProfile({ onboardingCoach, profile, onReload }: ContactPr
   );
 }
 
+function ContactMediumAction({ label, icon, media, href, external = false }: {
+  label: string; icon: IconName; media: string[]; href: (value: string) => string; external?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const symbol = <Icon name={icon} className={icon === "whatsapp" ? "whatsapp" : ""} />;
+  const linkProps = external ? { target: "_blank", rel: "noreferrer" } : {};
+  if (!media.length) return <button className="button secondary" type="button" disabled>{symbol}{label}</button>;
+  if (media.length === 1) return <a className="button secondary" href={href(media[0])} {...linkProps}>{symbol}{label}</a>;
+  return <Popover.Root open={open} onOpenChange={setOpen} modal>
+    <Popover.Trigger asChild><button className="button secondary" type="button" aria-label={`Elegir medio para ${label}`}>
+      {symbol}{label}
+    </button></Popover.Trigger>
+    <Popover.Portal><Popover.Content className="contact-medium-popover" align="start" sideOffset={6} collisionPadding={12} aria-label={`Elegir medio para ${label}`}>
+      {media.map((value) => <a key={value.toLowerCase()} href={href(value)} {...linkProps} onClick={() => setOpen(false)}>{value}</a>)}
+    </Popover.Content></Popover.Portal>
+  </Popover.Root>;
+}
+
+function uniqueMedia(values: string[], normalize: (value: string) => string, valid: (value: string) => boolean) {
+  const seen = new Set<string>();
+  return values.map((value) => value.trim()).filter((value) => {
+    const key = normalize(value);
+    if (!key || !valid(value) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function ContactCompanyRoleLine({ company, role }: { company: string; role: string }) {
   const cleanCompany = cleanContactCompany(company);
   const cleanRole = cleanContactRole(role);
@@ -281,29 +335,14 @@ function ContactEmailMethods({ values }: { values: string[] }) {
   const cleanValues = values.map((value) => value.trim()).filter(Boolean);
   return (
     <div className="contact-method-card">
-      <span className="contact-mini-label">Correos</span>
       {cleanValues.length ? (
         cleanValues.map((value) => (
           <div className="contact-method-row" key={value}>
-            <strong>{value}</strong>
-            <div className="contact-method-actions">
-              <a className="contact-method-icon" href={`mailto:${encodeURIComponent(value)}`} title="Redactar correo">
-                <Icon name="mail" />
-              </a>
-              <a
-                className="contact-method-icon"
-                href={`https://calendar.google.com/calendar/render?action=TEMPLATE&add=${encodeURIComponent(value)}`}
-                rel="noreferrer"
-                target="_blank"
-                title="Crear cita"
-              >
-                <Icon name="calendar" />
-              </a>
-            </div>
+            <a className="contact-method-value" href={`mailto:${encodeURIComponent(value)}`}><Icon name="mail" /><span>{value}</span></a>
           </div>
         ))
       ) : (
-        <em>sin datos</em>
+        <span className="contact-method-empty"><Icon name="mail" />Sin correo registrado</span>
       )}
     </div>
   );
@@ -313,32 +352,17 @@ function ContactPhoneMethods({ values }: { values: string[] }) {
   const cleanValues = values.map((value) => value.trim()).filter(Boolean);
   return (
     <div className="contact-method-card">
-      <span className="contact-mini-label">Telefonos</span>
       {cleanValues.length ? (
         cleanValues.map((value) => {
           const phoneForLink = normalizePhoneForLink(value);
           return (
             <div className="contact-method-row" key={value}>
-              <strong>{value}</strong>
-              <div className="contact-method-actions">
-                <a className="contact-method-icon" href={phoneForLink ? `tel:${phoneForLink}` : "#"} title="Llamar">
-                  <Icon name="phone" />
-                </a>
-                <a
-                  className="contact-method-icon"
-                  href={phoneForLink ? `https://wa.me/${phoneForLink.replace(/^\+/, "")}` : "#"}
-                  rel="noreferrer"
-                  target="_blank"
-                  title="Escribir mensaje"
-                >
-                  <Icon name="chat" />
-                </a>
-              </div>
+              <a className="contact-method-value" href={phoneForLink ? `tel:${phoneForLink}` : undefined}><Icon name="phone" /><span>{value}</span></a>
             </div>
           );
         })
       ) : (
-        <em>sin datos</em>
+        <span className="contact-method-empty"><Icon name="phone" />Sin teléfono registrado</span>
       )}
     </div>
   );
